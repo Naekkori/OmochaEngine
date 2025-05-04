@@ -21,6 +21,7 @@ int main()
     setConsoleTitle(OMOCHA_ENGINE_NAME);
     string insideprojectPath = string(BASE_ASSETS) + "temp/project.json";
     string outSideprojectPath = string(BASE_ASSETS) + "project.json";
+    string systemMenuPath = "sysmenu/project.json";
 
 
     string projectPath = "";
@@ -31,16 +32,13 @@ int main()
     if (filesystem::exists(insideprojectPath)) {
         engine.EngineStdOut("Found inside Folder", 0);
         projectPath = insideprojectPath;
-        projectDirectory = string(BASE_ASSETS) + "temp";
     }
     else if (filesystem::exists(outSideprojectPath)) {
         engine.EngineStdOut("Found outside Folder", 0);
         projectPath = outSideprojectPath;
-        projectDirectory = BASE_ASSETS;
     }
     else {
         projectPath = "";
-        projectDirectory = "";
         engine.EngineStdOut("project.json not found in standard locations.", 2);
         engine.showErrorMessageBox("project.json not found!");
         if (!filesystem::exists("assets")) {
@@ -51,7 +49,7 @@ int main()
     }
 
     bool projectDataLoaded = false;
-    if (engine.loadProject(projectPath, projectDirectory)) {
+    if (engine.loadProject(projectPath)) {
         setConsoleTitle(PROJECT_NAME);
         projectDataLoaded = true;
     }
