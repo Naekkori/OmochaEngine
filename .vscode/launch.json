@@ -1,0 +1,22 @@
+{
+    // IntelliSense를 사용하여 가능한 특성에 대해 알아보세요.
+    // 기존 특성에 대한 설명을 보려면 가리킵니다.
+    // 자세한 내용을 보려면 https://go.microsoft.com/fwlink/?linkid=830387을(를) 방문하세요.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) 시작",      // 디버그 드롭다운에 표시될 이름
+            "type": "cppvsdbg",          // MSVC용 디버거 유형
+            "request": "launch",
+            // CMake Tools 확장 프로그램에서 프로그램 경로를 가져오도록 VS Code에 지시
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],                  // 프로그램에 전달할 명령줄 인수
+            "stopAtEntry": false,        // 프로그램 진입점에서 중단하려면 true로 설정
+            // 작업 디렉토리를 실행 파일이 있는 위치로 설정
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            "environment": [],           // 환경 변수 (예: {"NAME": "value"})
+            "console": "integratedTerminal", // 또는 별도 콘솔 창을 위해 "newExternalWindow"
+            "preLaunchTask": "CMake: build" // 선택 사항: 디버깅 전에 대상이 빌드되었는지 확인
+        }
+    ]
+}
