@@ -63,7 +63,7 @@ private:
     const std::string ANSI_COLOR_CYAN = "\x1b[36m";
     const std::string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
-    void Fontloader(string &fontName);
+    void Fontloader(std::string fontName);
     void destroyTemporaryScreen();
     void findRunbtnScript();
     long long lastfpstime;

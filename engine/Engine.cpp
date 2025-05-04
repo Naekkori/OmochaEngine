@@ -448,8 +448,8 @@ bool Engine::createTemporaryScreen() {
     }
     return true;
 }
-void Engine::Fontloader(string& fontName){
-    //폰트설정
+void Engine::Fontloader(string fontName){
+    //폰트로더
 }
 void Engine::destroyTemporaryScreen() {
     if (tempScreenHandle != -1) {
