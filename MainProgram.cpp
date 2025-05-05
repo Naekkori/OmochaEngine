@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <cstdlib>
 #include "engine/Engine.h"
+#include "resource.h"
 using namespace std;
 
 void setConsoleTitle(const string& s);
@@ -66,6 +67,7 @@ int main()
             return 1;
         }
         else {
+            SetWindowIconID(IDI_OMOC);
             engine.renderLoadingScreen();
             if (engine.loadImages()) {
                 engine.renderLoadingScreen();

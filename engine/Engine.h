@@ -12,8 +12,8 @@ using namespace std;
 const int PROJECT_STAGE_WIDTH = 640;
 const int PROJECT_STAGE_HEIGHT = 360;
 
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
+const int WINDOW_WIDTH = 640*2;
+const int WINDOW_HEIGHT = 360*2;
 const double ASSET_ROTATION_CORRECTION_RADIAN = -DX_PI / 2.0;
 extern const char* BASE_ASSETS;
 extern string PROJECT_NAME;
