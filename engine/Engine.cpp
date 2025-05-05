@@ -9,6 +9,7 @@
 #include <string>
 #include <cmath>
 #include <cstdio>
+#include <algorithm> // For std::min
 #include <memory>
 
 #include <json/reader.h>
@@ -21,7 +22,12 @@ const char *BASE_ASSETS = "assets/";
 string PROJECT_NAME = "";
 string WINDOW_TITLE = "";
 int TARGET_FPS = 60;
-Engine::Engine() : tempScreenHandle(-1)
+
+// --- Engine Class Static Constants Definition ---
+const float Engine::MIN_ZOOM = 1.0f;
+const float Engine::MAX_ZOOM = 3.0f;
+
+Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f) // zoomFactor 초기화 추가
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -68,7 +74,24 @@ bool Engine::loadProject(const string &projectFilePath)
         WINDOW_TITLE = PROJECT_NAME + " - " + OMOCHA_ENGINE_NAME + " v" + OMOCHA_ENGINE_VERSION;
         EngineStdOut("Project Name: " + PROJECT_NAME, 0);
     }
-
+    /**
+     * @brief 특수 설정
+     * 브랜드 이름 (로딩중)
+     * 프로젝트 이름 표시 (로딩중)
+     */
+    if(root.isMember("specialConfig") && root["specialConfig"].isObject())
+    {
+        if(root["specialConfig"].isMember("brandName") && root["specialConfig"]["brandName"].isString())
+        {
+            this->specialConfig.BRAND_NAME = root["specialConfig"]["brandName"].asString();
+            EngineStdOut("Brand Name: " + this->specialConfig.BRAND_NAME, 0);
+        }
+        // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직 (선택 사항)
+        // if(root["specialConfig"].isMember("showZoomSliderUI") && root["specialConfig"]["showZoomSliderUI"].isBool())
+        // {
+        //     this->specialConfig.showZoomSlider = root["specialConfig"]["showZoomSliderUI"].asBool();
+        // }
+    }
     if (root.isMember("objects") && root["objects"].isArray())
     {
         const Json::Value &objectsJson = root["objects"];
@@ -614,17 +637,28 @@ void Engine::terminateGE()
 bool Engine::loadImages()
 {
     EngineStdOut("Starting image loading...", 0);
-
+    
+    // 1. 로드할 총 아이템 수 계산 (루프 시작 전)
+    totalItemsToLoad = 0;
+    loadedItemCount = 0; // 카운터 초기화
+    for (const auto &objInfo : objects_in_order) {
+        if (objInfo.objectType == "sprite") {
+            totalItemsToLoad += objInfo.costumes.size();
+        }
+        // 필요하다면 다른 타입의 로딩 아이템 (사운드 등) 개수도 여기서 합산
+    }
+    EngineStdOut("Total items to load: " + to_string(totalItemsToLoad), 0);
+    
     int loadedCount = 0;
     int failedCount = 0;
-    for (auto &pair : objects_in_order)
+    
+    // 2. 이미지 로딩 및 로딩 화면 업데이트
+    for (auto &objInfo : objects_in_order) // ObjectInfo 참조를 사용하도록 수정
     {
-        ObjectInfo &objInfo = pair;
-        setTotalItemsToLoad(objInfo.costumes.size());
         if (objInfo.objectType == "sprite")
         {
             for (auto &costume : objInfo.costumes)
-            {
+            {                
                 string imagePath = "";
                 // filename 이 아닌 fileurl 사용
                 imagePath = string(BASE_ASSETS) + costume.fileurl;
@@ -657,6 +691,11 @@ bool Engine::loadImages()
                     failedCount++;
                     EngineStdOut("ERROR: Image load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                 }
+                
+                // 3. 로딩 화면 그리기 및 메시지 처리 (각 이미지 로드 후)
+                renderLoadingScreen();
+                if (ProcessMessage() == -1) return false; // 창이 닫히면 로딩 중단
+
             }
         }
     }
@@ -666,7 +705,7 @@ bool Engine::loadImages()
     if (failedCount > 0)
     {
         EngineStdOut("WARN: Some image failed to load, processing with available resources.", 1);
-        return false;
+        // 실패해도 계속 진행할지 여부에 따라 return false; 또는 true; 결정
     }
     return true;
 }
@@ -722,6 +761,7 @@ void Engine::drawAllEntities()
                 double scaleY = entityPtr->getScaleY();
                 double rotation = entityPtr->getRotation();
 
+
                 float dxlibX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
                 float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
 
@@ -734,7 +774,8 @@ void Engine::drawAllEntities()
                 DrawRotaGraph3F(
                     dxlibX, dxlibY,
                     static_cast<float>(regX), static_cast<float>(regY),
-                    static_cast<double>(scaleX), static_cast<double>(scaleY),
+                    scaleX, // Use original scale
+                    scaleY, // Use original scale
                     dxlibAngleRadians,
                     selectedCostume->imageHandle,
                     TRUE);
@@ -770,9 +811,58 @@ void Engine::drawAllEntities()
     SetDrawMode(DX_DRAWMODE_BILINEAR);
     SetDrawScreen(DX_SCREEN_BACK);
     ClearDrawScreen();
-    DrawExtendGraph(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, tempScreenHandle, TRUE);
+    
+
+    // 확대 비율에 따라 원본(tempScreenHandle)에서 가져올 영역의 크기 계산
+    int srcWidth = static_cast<int>(PROJECT_STAGE_WIDTH / zoomFactor);
+    int srcHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / zoomFactor);
+
+    // 가져올 영역이 중앙에 위치하도록 좌상단 좌표 계산
+    int srcX = (PROJECT_STAGE_WIDTH - srcWidth) / 2;
+    int srcY = (PROJECT_STAGE_HEIGHT - srcHeight) / 2;
+
+    // 계산된 소스 영역(srcX, srcY, srcWidth, srcHeight)을 사용하여
+    // tempScreenHandle의 중앙 부분을 전체 창(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)에 확대하여 그립니다.
+    DrawRectExtendGraph(
+        0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, // 대상 영역 (창 전체)
+        srcX, srcY, srcWidth, srcHeight,   // 소스 영역 (tempScreenHandle의 중앙 부분)
+        tempScreenHandle,                  // 소스 이미지 핸들
+        TRUE                               // 투명도 처리 활성화
+    );
+
+    // --- Draw Zoom Slider UI (if enabled in config) ---
+    if (this->specialConfig.showZoomSlider)
+    {
+        // Slider Background
+        DrawBox(SLIDER_X, SLIDER_Y, SLIDER_X + SLIDER_WIDTH, SLIDER_Y + SLIDER_HEIGHT, GetColor(50, 50, 50), TRUE);
+        // Slider Handle
+        int handleX = SLIDER_X + static_cast<int>(((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH);
+        int handleWidth = 8;
+        DrawBox(handleX - handleWidth / 2, SLIDER_Y - 2, handleX + handleWidth / 2, SLIDER_Y + SLIDER_HEIGHT + 2, GetColor(200, 200, 200), TRUE);
+        // Zoom Factor Text
+        string zoomText = "Zoom: " + to_string(zoomFactor);
+        int textWidth = GetDrawStringWidth(zoomText.c_str(), zoomText.length());
+        DrawString(SLIDER_X + SLIDER_WIDTH + 10, SLIDER_Y + (SLIDER_HEIGHT / 2) - (GetFontSize() / 2), zoomText.c_str(), GetColor(255, 255, 255));
+    }
+    // --- End UI Drawing ---
 }
-void Engine::processInput() {}
+
+void Engine::processInput() {
+    int mouseX, mouseY;
+    GetMousePoint(&mouseX, &mouseY);
+
+    // --- Process Slider Input (if enabled and mouse interacts) ---
+    if (this->specialConfig.showZoomSlider && // Check if slider is enabled
+        (GetMouseInput() & MOUSE_INPUT_LEFT) != 0 && // Check if left button is pressed
+        mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH && // Check horizontal bounds
+        mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) // Check vertical bounds (with tolerance)
+    {
+        // Calculate and update zoomFactor based on mouse position
+        float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+        zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+        zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, zoomFactor)); // Clamp value
+    }
+}
 void Engine::triggerRunbtnScript()
 {
 }
@@ -823,7 +913,7 @@ void Engine::renderLoadingScreen()
     // --- 로딩 바 배경 그리기 ---
     unsigned int borderColor = GetColor(100, 100, 100); // 테두리 색상 (회색)
     unsigned int bgColor = GetColor(0, 0, 0);           // 배경 안쪽 색상 (검정)
-
+    
     DrawBox(barX, barY, barX + barWidth, barY + barHeight, borderColor, FALSE);
     DrawBox(barX + 1, barY + 1, barX + barWidth - 1, barY + barHeight - 1, bgColor, TRUE);
 
@@ -832,19 +922,20 @@ void Engine::renderLoadingScreen()
     {
         progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
     }
-
+    
     unsigned int progressColor = GetColor(255, 165, 0); // 진행 바 색상 (주황색)
-
+    
     int progressWidth = static_cast<int>((barWidth - 2) * progressPercent);
-
+    
     DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
-
-    // SetFontSize(20); // 적절한 폰트 크기 설정
-    // unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
-    // std::string percentText = std::to_string(static_cast<int>(progressPercent * 100)) + "%";
-    // DrawString(barX + barWidth / 2 - GetDrawStringWidth(percentText.c_str(), percentText.length()) / 2,
-    //            barY + barHeight / 2 - 10, // Y 위치 조정 (폰트 크기에 따라)
-    //            percentText.c_str(), textColor);
+    
+    // --- 퍼센트 텍스트 그리기 ---
+    SetFontSize(16); // 폰트 크기 조정
+    unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
+    std::string percentText = std::to_string(static_cast<int>(progressPercent * 100)) + "%";
+    int textWidth = GetDrawStringWidth(percentText.c_str(), percentText.length());
+    int textHeight = GetFontSize(); // 현재 폰트 크기 얻기
+    DrawString(barX + (barWidth - textWidth) / 2, barY + (barHeight - textHeight) / 2, percentText.c_str(), textColor);
 
     ScreenFlip();
 }

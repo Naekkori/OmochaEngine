@@ -65,6 +65,16 @@ struct ObjectInfo {
 
 class Engine {
 private:
+    // --- Engine Special Configuration ---
+    struct SPECIAL_ENGINE_CONFIG{
+        string BRAND_NAME = "";
+        bool SHOW_PROJECT_NAME = false; // 로딩 화면 등에 프로젝트 이름 표시 여부 (구현 필요)
+        bool showZoomSlider = false;     // 줌 슬라이더 UI 표시 여부
+        //-- Experimal
+        bool useSqlite = true;
+    };
+
+    SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
 
     map<string, vector<Script>> objectScripts;
     map<string, vector<const Script*>> scriptsToRunOnClick;
@@ -90,6 +100,15 @@ private:
     float currentFps;
     int totalItemsToLoad;
     int loadedItemCount;  
+    float zoomFactor; // 현재 줌 배율 저장
+
+    // --- UI Constants ---
+    static const int SLIDER_X = 10;
+    static const int SLIDER_Y = WINDOW_HEIGHT - 40;
+    static const int SLIDER_WIDTH = 200;
+    static const int SLIDER_HEIGHT = 20;
+    static const float MIN_ZOOM;
+    static const float MAX_ZOOM;
 public:
     Engine();
     ~Engine();
@@ -113,7 +132,7 @@ public:
     void setfps(int fps);
     float getFps() { return currentFps; };
     Entity* getEntityById(const string& id);
-    void setTotalItemsToLoad(int count) { totalItemsToLoad =+ count; }
+    void setTotalItemsToLoad(int count) { totalItemsToLoad = count; } // += 가 아니라 = 로 수정 (또는 아래처럼 초기화 로직 추가)
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();
 };
