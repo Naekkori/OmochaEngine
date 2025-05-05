@@ -91,8 +91,8 @@ private:
     const string ANSI_COLOR_CYAN = "\x1b[36m";
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
-    void Fontloader(string fontpath);
-    void Soundloader(string soundUri);
+    int Fontloader(string fontpath);
+    int Soundloader(string soundUri);
     void destroyTemporaryScreen();
     void findRunbtnScript();
     long long lastfpstime;
@@ -116,7 +116,7 @@ public:
     bool loadProject(const string& projectFilePath);
     bool initGE();
     void terminateGE();
-
+    void loadfonts();
     bool loadImages();
 
     void drawAllEntities();

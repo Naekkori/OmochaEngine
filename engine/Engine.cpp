@@ -98,7 +98,7 @@ bool Engine::loadProject(const string &projectFilePath)
             {
                 this->specialConfig.showZoomSlider = false;
             }
-            this->specialConfig.SHOW_PROJECT_NAME =specialConfigJson["showProjectNameUI"].asBool();
+            this->specialConfig.SHOW_PROJECT_NAME = specialConfigJson["showProjectNameUI"].asBool();
             if (this->specialConfig.SHOW_PROJECT_NAME)
             {
                 this->specialConfig.SHOW_PROJECT_NAME = true;
@@ -108,8 +108,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.SHOW_PROJECT_NAME = false;
             }
         }
-        
-        
+
         // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직 (선택 사항)
         // if(root["specialConfig"].isMember("showZoomSliderUI") && root["specialConfig"]["showZoomSliderUI"].isBool())
         // {
@@ -599,7 +598,6 @@ bool Engine::initGE()
         return false;
     }
     EngineStdOut("Created temporary screen handle: " + to_string(tempScreenHandle), 0);
-
     SetDrawScreen(DX_SCREEN_BACK);
 
     SetFontSize(20);
@@ -607,6 +605,8 @@ bool Engine::initGE()
     EngineStdOut("DxLib initialized", 0);
     return true;
 }
+
+
 bool Engine::createTemporaryScreen()
 {
     tempScreenHandle = MakeScreen(PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT, TRUE);
@@ -616,28 +616,34 @@ bool Engine::createTemporaryScreen()
     }
     return true;
 }
-void Engine::Fontloader(string fontpath)
+int Engine::Fontloader(string fontpath)
 {
     // 폰트로더
     int fontHandle = LoadFontDataToHandle(fontpath.c_str());
     if (fontHandle == -1)
     {
         EngineStdOut("Failed to load font: " + fontpath, 2);
+    }else{
+        EngineStdOut("Loaded font: " + fontpath, 0);
     }
+    return fontHandle;
 }
 /**
  * @brief 소리를 로드합니다.
  *
  * @param soundName
  */
-void Engine::Soundloader(string soundUri)
+int Engine::Soundloader(string soundUri)
 {
     // 소리로더
     int soundHandle = LoadSoundMem(soundUri.c_str());
     if (soundHandle == -1)
     {
         EngineStdOut("Failed to load sound: " + soundUri, 2);
+    }else{
+        EngineStdOut("Loaded sound: " + soundUri, 0);
     }
+    return soundHandle;
 }
 void Engine::destroyTemporaryScreen()
 {
@@ -823,7 +829,6 @@ void Engine::drawAllEntities()
                 float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
 
                 SetFontSize(fontSize);
-
                 DrawStringF(
                     dxlibX, dxlibY,
                     textToDraw.c_str(),
@@ -885,8 +890,7 @@ void Engine::drawHUD()
     DrawStringF(
         10, 10, // FPS 표시 위치
         FPS_STRING.c_str(),
-        fpsColor
-    );
+        fpsColor);
 
     // --- 줌 슬라이더 UI 그리기 (설정에서 활성화된 경우) ---
     if (this->specialConfig.showZoomSlider)
@@ -987,8 +991,8 @@ void Engine::renderLoadingScreen()
     DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
 
     // --- 퍼센트 텍스트 그리기 ---
-    SetFontSize(16);                                  // 폰트 크기 조정
-    ChangeFont("굴림",DX_CHARSET_HANGEUL);
+    SetFontSize(16); // 폰트 크기 조정
+    ChangeFont("굴림", DX_CHARSET_HANGEUL);
     unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
     string percentText = to_string(static_cast<int>(progressPercent * 100)) + "%";
     int textWidth = GetDrawStringWidth(percentText.c_str(), percentText.length());
@@ -996,7 +1000,7 @@ void Engine::renderLoadingScreen()
     DrawString(barX + (barWidth - textWidth) / 2, barY + (barHeight - textHeight) / 2, percentText.c_str(), textColor);
     // --- 브랜드 (원하는 문구 입력) ---
     SetFontSize(20);
-    ChangeFont("굴림",DX_CHARSET_HANGEUL);
+    ChangeFont("굴림", DX_CHARSET_HANGEUL);
     unsigned int brandColor = GetColor(0, 0, 0);
     string brandText = this->specialConfig.BRAND_NAME;
     int brandWidth = GetDrawStringWidth(brandText.c_str(), brandText.length());
@@ -1004,7 +1008,7 @@ void Engine::renderLoadingScreen()
     DrawString(barX + (barWidth - brandWidth) / 2, barY + barHeight + -60, brandText.c_str(), brandColor);
     // --- 프로젝트 이름 ---
     SetFontSize(50);
-    ChangeFont("굴림",DX_CHARSET_HANGEUL);
+    ChangeFont("굴림", DX_CHARSET_HANGEUL);
     if (this->specialConfig.SHOW_PROJECT_NAME)
     {
         unsigned int projectNameColor = GetColor(0, 0, 0);
