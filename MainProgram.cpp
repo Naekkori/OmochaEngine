@@ -75,15 +75,9 @@ int main()
             engine.renderLoadingScreen();
             engine.EngineStdOut("Entering game loop.", 0);
             while (ProcessMessage() == 0) {
-                unsigned int color = GetColor(255, 255, 255);
                 engine.processInput();
                 engine.drawAllEntities();
-                string FPS_STRING = "FPS:" + to_string(static_cast<int>(engine.getFps()));
-                DrawStringF(
-                    10, 10,
-                    FPS_STRING.c_str(),
-                    color
-                );
+                engine.drawHUD();
                 ScreenFlip();
                 engine.updateFps();
             }

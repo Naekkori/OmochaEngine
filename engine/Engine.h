@@ -135,4 +135,5 @@ public:
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; } // += 가 아니라 = 로 수정 (또는 아래처럼 초기화 로직 추가)
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();
+    void drawHUD(); // HUD 그리기 메서드 추가
 };

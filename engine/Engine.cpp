@@ -9,7 +9,7 @@
 #include <string>
 #include <cmath>
 #include <cstdio>
-#include <algorithm> // For std::min
+#include <algorithm> // For min
 #include <memory>
 
 #include <json/reader.h>
@@ -79,13 +79,37 @@ bool Engine::loadProject(const string &projectFilePath)
      * 브랜드 이름 (로딩중)
      * 프로젝트 이름 표시 (로딩중)
      */
-    if(root.isMember("specialConfig") && root["specialConfig"].isObject())
+    if (root.isMember("specialConfig"))
     {
-        if(root["specialConfig"].isMember("brandName") && root["specialConfig"]["brandName"].isString())
+        Json::Value specialConfigJson = root["specialConfig"];
+        if (specialConfigJson.isObject())
         {
-            this->specialConfig.BRAND_NAME = root["specialConfig"]["brandName"].asString();
-            EngineStdOut("Brand Name: " + this->specialConfig.BRAND_NAME, 0);
+            if (specialConfigJson.isMember("brandName") && specialConfigJson["brandName"].isString())
+            {
+                this->specialConfig.BRAND_NAME = specialConfigJson["brandName"].asString();
+                EngineStdOut("Brand Name: " + this->specialConfig.BRAND_NAME, 0);
+            }
+            this->specialConfig.showZoomSlider = specialConfigJson["showZoomSliderUI"].asBool();
+            if (this->specialConfig.showZoomSlider)
+            {
+                this->specialConfig.showZoomSlider = true;
+            }
+            else
+            {
+                this->specialConfig.showZoomSlider = false;
+            }
+            this->specialConfig.SHOW_PROJECT_NAME =specialConfigJson["showProjectNameUI"].asBool();
+            if (this->specialConfig.SHOW_PROJECT_NAME)
+            {
+                this->specialConfig.SHOW_PROJECT_NAME = true;
+            }
+            else
+            {
+                this->specialConfig.SHOW_PROJECT_NAME = false;
+            }
         }
+        
+        
         // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직 (선택 사항)
         // if(root["specialConfig"].isMember("showZoomSliderUI") && root["specialConfig"]["showZoomSliderUI"].isBool())
         // {
@@ -95,7 +119,7 @@ bool Engine::loadProject(const string &projectFilePath)
     if (root.isMember("objects") && root["objects"].isArray())
     {
         const Json::Value &objectsJson = root["objects"];
-        EngineStdOut("Found " + std::to_string(objectsJson.size()) + " objects. Processing...", 0);
+        EngineStdOut("Found " + to_string(objectsJson.size()) + " objects. Processing...", 0);
 
         for (Json::Value::ArrayIndex i = 0; i < objectsJson.size(); ++i)
         {
@@ -143,7 +167,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     objectJson["sprite"].isMember("sounds") && objectJson["sprite"]["sounds"].isArray())
                 {
                     const Json::Value &soundsJson = objectJson["sprite"]["sounds"];
-                    EngineStdOut("Found " + std::to_string(soundsJson.size()) + " sounds. Parsing...", 0);
+                    EngineStdOut("Found " + to_string(soundsJson.size()) + " sounds. Parsing...", 0);
 
                     for (Json::Value::ArrayIndex i = 0; i < soundsJson.size(); ++i)
                     {
@@ -156,11 +180,13 @@ bool Engine::loadProject(const string &projectFilePath)
                             string soundFilename = soundJson["filename"].asString();
                             string soundFileurl = soundJson["fileurl"].asString();
                             string soundfileExt = "";
-                            if (soundJson.isMember("ext") && soundJson["ext"].isString()) {
+                            if (soundJson.isMember("ext") && soundJson["ext"].isString())
+                            {
                                 soundfileExt = soundJson["ext"].asString();
                             }
                             double soundDuration = 0.0;
-                            if (soundJson.isMember("duration") && soundJson["duration"].isNumeric()) {
+                            if (soundJson.isMember("duration") && soundJson["duration"].isNumeric())
+                            {
                                 soundDuration = soundJson["duration"].asDouble();
                             }
                             sound.id = soundId;
@@ -354,7 +380,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 if (objectJson.isMember("script") && objectJson["script"].isString())
                 {
-                    std::string scriptString = objectJson["script"].asString();
+                    string scriptString = objectJson["script"].asString();
 
                     // 스크립트 문자열을 다시 JSON으로 파싱
                     Json::Reader scriptReader;
@@ -430,7 +456,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                     // (예: Engine 클래스의 멤버 변수에 맵 형태로 저장 - objectId를 키로 사용)
                                     // 예: objectScriptsMap[objectId].push_back(currentScript);
                                     // 현재는 파싱만 하고 저장 로직은 생략합니다.
-                                    EngineStdOut("Parsed a script list with " + std::to_string(currentScript.blocks.size()) + " blocks for object: " + objInfo.name, 0);
+                                    EngineStdOut("Parsed a script list with " + to_string(currentScript.blocks.size()) + " blocks for object: " + objInfo.name, 0);
                                 }
                             } // 스크립트 목록 순회 끝
                         } // scriptRoot.isArray() 확인 끝
@@ -455,7 +481,7 @@ bool Engine::loadProject(const string &projectFilePath)
     if (root.isMember("scenes") && root["scenes"].isArray())
     {
         const Json::Value &scenesJson = root["scenes"];
-        EngineStdOut("Found " + std::to_string(scenesJson.size()) + " scenes. Parsing...", 0);
+        EngineStdOut("Found " + to_string(scenesJson.size()) + " scenes. Parsing...", 0);
 
         // --- JSON 배열 순서대로 순회 ---
         for (Json::Value::ArrayIndex i = 0; i < scenesJson.size(); ++i)
@@ -464,8 +490,8 @@ bool Engine::loadProject(const string &projectFilePath)
 
             if (sceneJson.isObject() && sceneJson.isMember("id") && sceneJson["id"].isString() && sceneJson.isMember("name") && sceneJson["name"].isString())
             {
-                std::string sceneId = sceneJson["id"].asString();
-                std::string sceneName = sceneJson["name"].asString();
+                string sceneId = sceneJson["id"].asString();
+                string sceneName = sceneJson["name"].asString();
 
                 // --- 첫 번째 씬 ID 저장 ---
                 if (i == 0)
@@ -503,7 +529,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }*/
 
     // --- 시작 씬 설정 로직 수정 ---
-    std::string startSceneId = "";
+    string startSceneId = "";
     if (root.isMember("start") && root["start"].isObject() && root["start"].isMember("sceneId") && root["start"]["sceneId"].isString())
     {
         startSceneId = root["start"]["sceneId"].asString();
@@ -637,28 +663,30 @@ void Engine::terminateGE()
 bool Engine::loadImages()
 {
     EngineStdOut("Starting image loading...", 0);
-    
+
     // 1. 로드할 총 아이템 수 계산 (루프 시작 전)
     totalItemsToLoad = 0;
     loadedItemCount = 0; // 카운터 초기화
-    for (const auto &objInfo : objects_in_order) {
-        if (objInfo.objectType == "sprite") {
+    for (const auto &objInfo : objects_in_order)
+    {
+        if (objInfo.objectType == "sprite")
+        {
             totalItemsToLoad += objInfo.costumes.size();
         }
         // 필요하다면 다른 타입의 로딩 아이템 (사운드 등) 개수도 여기서 합산
     }
     EngineStdOut("Total items to load: " + to_string(totalItemsToLoad), 0);
-    
+
     int loadedCount = 0;
     int failedCount = 0;
-    
+
     // 2. 이미지 로딩 및 로딩 화면 업데이트
     for (auto &objInfo : objects_in_order) // ObjectInfo 참조를 사용하도록 수정
     {
         if (objInfo.objectType == "sprite")
         {
             for (auto &costume : objInfo.costumes)
-            {                
+            {
                 string imagePath = "";
                 // filename 이 아닌 fileurl 사용
                 imagePath = string(BASE_ASSETS) + costume.fileurl;
@@ -691,11 +719,11 @@ bool Engine::loadImages()
                     failedCount++;
                     EngineStdOut("ERROR: Image load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                 }
-                
+
                 // 3. 로딩 화면 그리기 및 메시지 처리 (각 이미지 로드 후)
                 renderLoadingScreen();
-                if (ProcessMessage() == -1) return false; // 창이 닫히면 로딩 중단
-
+                if (ProcessMessage() == -1)
+                    return false; // 창이 닫히면 로딩 중단
             }
         }
     }
@@ -761,7 +789,6 @@ void Engine::drawAllEntities()
                 double scaleY = entityPtr->getScaleY();
                 double rotation = entityPtr->getRotation();
 
-
                 float dxlibX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
                 float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
 
@@ -783,7 +810,7 @@ void Engine::drawAllEntities()
         }
         else if (objInfo.objectType == "textBox")
         {
-            std::string textToDraw = objInfo.textContent;
+            string textToDraw = objInfo.textContent;
             unsigned int textColor = objInfo.textColor;
             int fontSize = objInfo.fontSize;
 
@@ -807,11 +834,10 @@ void Engine::drawAllEntities()
         }
     }
 
-    // EngineStdOut("DrawExtendGraph - Target: (0, 0) to (" + std::to_string(WINDOW_WIDTH) + ", " + std::to_string(WINDOW_HEIGHT) + "), Source Handle: " + std::to_string(tempScreenHandle), 0);
+    // EngineStdOut("DrawExtendGraph - Target: (0, 0) to (" + to_string(WINDOW_WIDTH) + ", " + to_string(WINDOW_HEIGHT) + "), Source Handle: " + to_string(tempScreenHandle), 0);
     SetDrawMode(DX_DRAWMODE_BILINEAR);
     SetDrawScreen(DX_SCREEN_BACK);
     ClearDrawScreen();
-    
 
     // 확대 비율에 따라 원본(tempScreenHandle)에서 가져올 영역의 크기 계산
     int srcWidth = static_cast<int>(PROJECT_STAGE_WIDTH / zoomFactor);
@@ -847,14 +873,45 @@ void Engine::drawAllEntities()
     // --- End UI Drawing ---
 }
 
-void Engine::processInput() {
+void Engine::drawHUD()
+{
+    // 그리기 대상을 백 버퍼로 설정 (drawAllEntities 이후에 호출되므로 이미 설정되어 있을 수 있지만 명시)
+    SetDrawScreen(DX_SCREEN_BACK);
+
+    // --- FPS 카운터 그리기 ---
+    unsigned int fpsColor = GetColor(255, 150, 0); // FPS 텍스트 색상
+    string FPS_STRING = "FPS: " + to_string(static_cast<int>(currentFps));
+    SetFontSize(16);
+    DrawStringF(
+        10, 10, // FPS 표시 위치
+        FPS_STRING.c_str(),
+        fpsColor
+    );
+
+    // --- 줌 슬라이더 UI 그리기 (설정에서 활성화된 경우) ---
+    if (this->specialConfig.showZoomSlider)
+    {
+        // Slider Background
+        DrawBox(SLIDER_X, SLIDER_Y, SLIDER_X + SLIDER_WIDTH, SLIDER_Y + SLIDER_HEIGHT, GetColor(50, 50, 50), TRUE);
+        // Slider Handle
+        int handleX = SLIDER_X + static_cast<int>(((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH);
+        int handleWidth = 8;
+        DrawBox(handleX - handleWidth / 2, SLIDER_Y - 2, handleX + handleWidth / 2, SLIDER_Y + SLIDER_HEIGHT + 2, GetColor(200, 200, 200), TRUE);
+        // Zoom Factor Text
+        string zoomText = "Zoom: " + to_string(zoomFactor);
+        DrawString(SLIDER_X + SLIDER_WIDTH + 10, SLIDER_Y + (SLIDER_HEIGHT / 2) - (GetFontSize() / 2), zoomText.c_str(), GetColor(255, 255, 255));
+    }
+}
+
+void Engine::processInput()
+{
     int mouseX, mouseY;
     GetMousePoint(&mouseX, &mouseY);
 
     // --- Process Slider Input (if enabled and mouse interacts) ---
-    if (this->specialConfig.showZoomSlider && // Check if slider is enabled
-        (GetMouseInput() & MOUSE_INPUT_LEFT) != 0 && // Check if left button is pressed
-        mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH && // Check horizontal bounds
+    if (this->specialConfig.showZoomSlider &&                             // Check if slider is enabled
+        (GetMouseInput() & MOUSE_INPUT_LEFT) != 0 &&                      // Check if left button is pressed
+        mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&        // Check horizontal bounds
         mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) // Check vertical bounds (with tolerance)
     {
         // Calculate and update zoomFactor based on mouse position
@@ -913,7 +970,7 @@ void Engine::renderLoadingScreen()
     // --- 로딩 바 배경 그리기 ---
     unsigned int borderColor = GetColor(100, 100, 100); // 테두리 색상 (회색)
     unsigned int bgColor = GetColor(0, 0, 0);           // 배경 안쪽 색상 (검정)
-    
+
     DrawBox(barX, barY, barX + barWidth, barY + barHeight, borderColor, FALSE);
     DrawBox(barX + 1, barY + 1, barX + barWidth - 1, barY + barHeight - 1, bgColor, TRUE);
 
@@ -922,20 +979,40 @@ void Engine::renderLoadingScreen()
     {
         progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
     }
-    
+
     unsigned int progressColor = GetColor(255, 165, 0); // 진행 바 색상 (주황색)
-    
+
     int progressWidth = static_cast<int>((barWidth - 2) * progressPercent);
-    
+
     DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
-    
+
     // --- 퍼센트 텍스트 그리기 ---
-    SetFontSize(16); // 폰트 크기 조정
+    SetFontSize(16);                                  // 폰트 크기 조정
+    ChangeFont("굴림",DX_CHARSET_HANGEUL);
     unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
-    std::string percentText = std::to_string(static_cast<int>(progressPercent * 100)) + "%";
+    string percentText = to_string(static_cast<int>(progressPercent * 100)) + "%";
     int textWidth = GetDrawStringWidth(percentText.c_str(), percentText.length());
     int textHeight = GetFontSize(); // 현재 폰트 크기 얻기
     DrawString(barX + (barWidth - textWidth) / 2, barY + (barHeight - textHeight) / 2, percentText.c_str(), textColor);
+    // --- 브랜드 (원하는 문구 입력) ---
+    SetFontSize(20);
+    ChangeFont("굴림",DX_CHARSET_HANGEUL);
+    unsigned int brandColor = GetColor(0, 0, 0);
+    string brandText = this->specialConfig.BRAND_NAME;
+    int brandWidth = GetDrawStringWidth(brandText.c_str(), brandText.length());
+    int brandHeight = GetFontSize();
+    DrawString(barX + (barWidth - brandWidth) / 2, barY + barHeight + -60, brandText.c_str(), brandColor);
+    // --- 프로젝트 이름 ---
+    SetFontSize(50);
+    ChangeFont("굴림",DX_CHARSET_HANGEUL);
+    if (this->specialConfig.SHOW_PROJECT_NAME)
+    {
+        unsigned int projectNameColor = GetColor(0, 0, 0);
+        string projectName = PROJECT_NAME;
+        int projectNameWidth = GetDrawStringWidth(projectName.c_str(), projectName.length());
+        int projectNameHeight = GetFontSize();
+        DrawString(barX + (barWidth - projectNameWidth) / 2, barY + barHeight + -250 + projectNameHeight, projectName.c_str(), projectNameColor);
+    }
 
     ScreenFlip();
 }
