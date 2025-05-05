@@ -72,7 +72,6 @@ int main()
             if (engine.loadImages()) {
                 engine.renderLoadingScreen();
             }
-            engine.loadfonts();
             engine.renderLoadingScreen();
             engine.EngineStdOut("Entering game loop.", 0);
             while (ProcessMessage() == 0) {

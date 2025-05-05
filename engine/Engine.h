@@ -116,7 +116,6 @@ public:
     bool loadProject(const string& projectFilePath);
     bool initGE();
     void terminateGE();
-    void loadfonts();
     bool loadImages();
 
     void drawAllEntities();

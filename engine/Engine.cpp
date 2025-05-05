@@ -989,7 +989,7 @@ void Engine::renderLoadingScreen()
     int progressWidth = static_cast<int>((barWidth - 2) * progressPercent);
 
     DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
-
+    SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
     // --- 퍼센트 텍스트 그리기 ---
     SetFontSize(16); // 폰트 크기 조정
     ChangeFont("굴림", DX_CHARSET_HANGEUL);
