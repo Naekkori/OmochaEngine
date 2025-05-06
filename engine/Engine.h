@@ -6,20 +6,23 @@
 #include <json/value.h>
 #include "DxLib.h"
 #include "Entity.h"
-#include "Block.h"
+#include "blocks/Block.h"
+#include "util/fontName.h"
+#include "../util/Logger.h"
 using namespace std;
 
 const int PROJECT_STAGE_WIDTH = 640;
 const int PROJECT_STAGE_HEIGHT = 360;
 
-const int WINDOW_WIDTH = 640*2;
-const int WINDOW_HEIGHT = 360*2;
+const int WINDOW_WIDTH = 640 * 2;
+const int WINDOW_HEIGHT = 360 * 2;
 const double ASSET_ROTATION_CORRECTION_RADIAN = -DX_PI / 2.0;
-extern const char* BASE_ASSETS;
+extern const char *BASE_ASSETS;
 extern string PROJECT_NAME;
 extern string WINDOW_TITLE;
 
-struct Costume {
+struct Costume
+{
     string id;
     string name;
     string assetId;
@@ -39,7 +42,8 @@ struct Costume {
 }
 ]
 */
-struct Sound{
+struct Sound
+{
     double duration;
     string ext;
     string id;
@@ -48,7 +52,8 @@ struct Sound{
     string fileurl;
 };
 
-struct ObjectInfo {
+struct ObjectInfo
+{
     string id;
     string name;
     string objectType;
@@ -63,26 +68,28 @@ struct ObjectInfo {
     int textAlign;
 };
 
-class Engine {
+class Engine
+{
 private:
     // --- Engine Special Configuration ---
-    struct SPECIAL_ENGINE_CONFIG{
+    struct SPECIAL_ENGINE_CONFIG
+    {
         string BRAND_NAME = "";
         bool SHOW_PROJECT_NAME = false; // 로딩 화면 등에 프로젝트 이름 표시 여부 (구현 필요)
-        bool showZoomSlider = false;     // 줌 슬라이더 UI 표시 여부
+        bool showZoomSlider = false;    // 줌 슬라이더 UI 표시 여부
+        bool showFPS = false;
+        int TARGET_FPS = 60;
         //-- Experimal
         bool useSqlite = true;
     };
-
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
-
     map<string, vector<Script>> objectScripts;
-    map<string, vector<const Script*>> scriptsToRunOnClick;
+    vector<pair<string, const Script *>> startButtonScripts; // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
-    map<string, Entity*> entities;
+    map<string, Entity *> entities;
     string currentSceneId;
     map<string, string> scenes;
-
+    SimpleLogger logger;
     int tempScreenHandle;
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
@@ -99,9 +106,9 @@ private:
     int framecount;
     float currentFps;
     int totalItemsToLoad;
-    int loadedItemCount;  
+    int loadedItemCount;
     float zoomFactor; // 현재 줌 배율 저장
-
+    int loadingFontHandle=-1;
     // --- UI Constants ---
     static const int SLIDER_X = 10;
     static const int SLIDER_Y = WINDOW_HEIGHT - 40;
@@ -109,28 +116,38 @@ private:
     static const int SLIDER_HEIGHT = 20;
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
+
 public:
+    struct MsgBoxIconType
+    {
+        const int ICON_ERROR = MB_ICONERROR;
+        const int ICON_WARNING = MB_ICONWARNING;
+        const int ICON_INFORMATION = MB_ICONINFORMATION;
+        const int ICON_QUESTION = MB_ICONQUESTION;
+    };
     Engine();
     ~Engine();
-
-    bool loadProject(const string& projectFilePath);
+    MsgBoxIconType msgBoxIconType;
+    bool loadProject(const string &projectFilePath);
     bool initGE();
     void terminateGE();
     bool loadImages();
 
     void drawAllEntities();
-    const string& getCurrentSceneId() const;
+    const string &getCurrentSceneId() const;
+
+    void showMessageBox(const string &message, int IconType);
 
     void EngineStdOut(string s, int LEVEL = 0);
-    void showErrorMessageBox(const string& message);
 
     void processInput();
-    void triggerRunbtnScript();
+    void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
     void setfps(int fps);
     float getFps() { return currentFps; };
-    Entity* getEntityById(const string& id);
+    int getTargetFps() const { return specialConfig.TARGET_FPS; } // 목표 FPS getter 추가
+    Entity *getEntityById(const string &id);
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; } // += 가 아니라 = 로 수정 (또는 아래처럼 초기화 로직 추가)
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();

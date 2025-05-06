@@ -11,13 +11,14 @@ project("OmochaEngine" VERSION 1.0.0)
 
 find_package(jsoncpp CONFIG REQUIRED)
 set(DXLIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/dxlib/)
-
 set(DXLIB_LIB_DIR ${CMAKE_SOURCE_DIR}/dxlib/)
 set(RESOURCE_RC_FILE ${CMAKE_SOURCE_DIR}/resource.rc)
 set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
     "*.cpp" "*.h"
     "engine/*.cpp" "engine/*.h"
+    "engine/blocks/*.cpp" "engine/blocks/*.h"
+    "util/*.cpp" "util/*.h"
 )
 add_executable (OmochaEngine ${OMOCHA_ENGINE_SOURCES} ${RESOURCE_RC_FILE})
 if (CMAKE_VERSION VERSION_GREATER 3.12)

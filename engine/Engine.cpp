@@ -11,23 +11,22 @@
 #include <cstdio>
 #include <algorithm> // For min
 #include <memory>
-
+#include <format>
+#include "blocks/BlockExecutor.h"
 #include <json/reader.h>
 #include <json/value.h>
 #include <json/writer.h>
-
 using namespace std;
 
 const char *BASE_ASSETS = "assets/";
 string PROJECT_NAME = "";
 string WINDOW_TITLE = "";
-int TARGET_FPS = 60;
 
 // --- Engine Class Static Constants Definition ---
 const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
 
-Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f) // zoomFactor 초기화 추가
+Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log") // zoomFactor 초기화 추가
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -40,6 +39,12 @@ Engine::~Engine()
         delete pair.second;
     }
     entities.clear();
+    // 로딩 폰트 핸들 해제
+    if (loadingFontHandle != -1)
+    {
+        DeleteFontToHandle(loadingFontHandle);
+        loadingFontHandle = -1;
+    }
 
     destroyTemporaryScreen();
 }
@@ -51,7 +56,7 @@ bool Engine::loadProject(const string &projectFilePath)
     ifstream projectFile(projectFilePath);
     if (!projectFile.is_open())
     {
-        showErrorMessageBox("Failed to open project file: " + projectFilePath);
+        showMessageBox("Failed to open project file: " + projectFilePath, this->msgBoxIconType.ICON_ERROR);
         EngineStdOut(" Failed to open project file: " + projectFilePath, 2);
         return false;
     }
@@ -60,7 +65,7 @@ bool Engine::loadProject(const string &projectFilePath)
     Json::Value root;
     if (!reader.parse(projectFile, root))
     {
-        showErrorMessageBox("Failed to parse project file: " + reader.getFormattedErrorMessages());
+        showMessageBox("Failed to parse project file: " + reader.getFormattedErrorMessages(), msgBoxIconType.ICON_ERROR);
         EngineStdOut(" Failed to parse project file: " + reader.getFormattedErrorMessages(), 2);
         return false;
     }
@@ -449,13 +454,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                         {
                                             EngineStdOut("WARN: Invalid block structure in script for object: " + objInfo.name, 1);
                                         }
-                                    } // 블록 순회 끝
-
-                                    // 파싱된 스크립트 목록을 해당 오브젝트와 연결하여 저장
-                                    // (예: Engine 클래스의 멤버 변수에 맵 형태로 저장 - objectId를 키로 사용)
-                                    // 예: objectScriptsMap[objectId].push_back(currentScript);
-                                    // 현재는 파싱만 하고 저장 로직은 생략합니다.
-                                    EngineStdOut("Parsed a script list with " + to_string(currentScript.blocks.size()) + " blocks for object: " + objInfo.name, 0);
+                                    }
                                 }
                             } // 스크립트 목록 순회 끝
                         } // scriptRoot.isArray() 확인 끝
@@ -559,53 +558,81 @@ bool Engine::loadProject(const string &projectFilePath)
         }
     }
 
+    // --- 모든 스크립트 파싱 후 시작 버튼 스크립트 식별 ---
+    EngineStdOut("Identifying 'Start Button Clicked' scripts...", 0);
+    startButtonScripts.clear(); // 기존 목록 초기화
+    for (auto const &[objectId, scripts] : objectScripts)
+    {
+        for (const auto &script : scripts)
+        {
+            // 스크립트가 비어있지 않고, 시작 블록 외에 다른 블록이 연결되어 있는지 확인
+            if (!script.blocks.empty() && script.blocks.size() > 1)
+            {
+                if (script.blocks[0].type == "when_run_button_click")
+                {
+                    startButtonScripts.push_back({objectId, &script});
+                    EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 0);
+                }
+            }
+        }
+    }
+    // -------------------------------------------------
+
     EngineStdOut("Project JSON file parsed successfully.", 0);
     return true;
 }
 
 bool Engine::initGE()
 {
-    EngineStdOut("DxLib initialize", 0);
-    if (DxLib_Init() == -1)
-    {
-        showErrorMessageBox("Failed to initialize DxLib.");
-        EngineStdOut("DxLib initialization failed: DxLib_Init() returned -1.", 2);
-        return false;
-    }
-    initFps();
-    SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
-    SetBackgroundColor(255, 255, 255);
     if (ChangeWindowMode(TRUE) == -1)
     {
-        showErrorMessageBox("Failed to set window mode.");
+        showMessageBox("Failed to set window mode.", msgBoxIconType.ICON_ERROR);
         EngineStdOut("DxLib initialization failed: Failed to set window mode.", 2);
         return false;
     }
+    EngineStdOut("DxLib initialize", 0);
+    if (DxLib_Init() == -1)
+    {
+        showMessageBox("Failed to initialize DxLib.", msgBoxIconType.ICON_ERROR);
+        EngineStdOut("DxLib initialization failed: DxLib_Init() returned -1.", 2);
+        return false;
+    }
+    InitFontToHandle(); // 폰트를 초기화 안해서 오류떴을수 있음.
+
+    // 로딩 화면용 폰트 미리 로드
+    loadingFontHandle = Fontloader("font/NanumBarunpenR.ttf");
+    if (loadingFontHandle == -1)
+    {
+        EngineStdOut("Failed to load essential loading screen font. Loading screen text might not display.", 1);
+        // 필요하다면 여기서 오류 처리 또는 메시지 박스 표시
+    }
+
+    initFps();
+    SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
+    SetBackgroundColor(255, 255, 255);
     string projectName = PROJECT_NAME;
     SetWindowTextDX(projectName.c_str());
 
-    if (SetGraphMode(WINDOW_WIDTH, WINDOW_HEIGHT, 32, TARGET_FPS) == -1)
+    if (SetGraphMode(WINDOW_WIDTH, WINDOW_HEIGHT, 32, this->specialConfig.TARGET_FPS) == -1)
     {
-        showErrorMessageBox("Failed to set graphics mode to window size.");
+        showMessageBox("Failed to set graphics mode to window size.", msgBoxIconType.ICON_ERROR);
         EngineStdOut("DxLib initialization failed: Failed to set graphics mode.", 2);
         return false;
     }
 
     if (!createTemporaryScreen())
     {
-        showErrorMessageBox("Failed to create temporary screen buffer.");
+        showMessageBox("Failed to create temporary screen buffer.", msgBoxIconType.ICON_ERROR);
         EngineStdOut("DxLib initialization failed: Failed to create temporary screen buffer.", 2);
         return false;
     }
     EngineStdOut("Created temporary screen handle: " + to_string(tempScreenHandle), 0);
     SetDrawScreen(DX_SCREEN_BACK);
-
     SetFontSize(20);
     SetMouseDispFlag(true);
     EngineStdOut("DxLib initialized", 0);
     return true;
 }
-
 
 bool Engine::createTemporaryScreen()
 {
@@ -618,12 +645,19 @@ bool Engine::createTemporaryScreen()
 }
 int Engine::Fontloader(string fontpath)
 {
+    if (filesystem::exists(fontpath.c_str()) == false)
+    {
+        EngineStdOut("font is not found.", 2);
+        return -1;
+    }
     // 폰트로더
     int fontHandle = LoadFontDataToHandle(fontpath.c_str());
     if (fontHandle == -1)
     {
         EngineStdOut("Failed to load font: " + fontpath, 2);
-    }else{
+    }
+    else
+    {
         EngineStdOut("Loaded font: " + fontpath, 0);
     }
     return fontHandle;
@@ -640,7 +674,9 @@ int Engine::Soundloader(string soundUri)
     if (soundHandle == -1)
     {
         EngineStdOut("Failed to load sound: " + soundUri, 2);
-    }else{
+    }
+    else
+    {
         EngineStdOut("Loaded sound: " + soundUri, 0);
     }
     return soundHandle;
@@ -747,7 +783,6 @@ void Engine::drawAllEntities()
 {
     SetDrawScreen(tempScreenHandle);
     ClearDrawScreen();
-
     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
     { // vector 순회 (순서 유지)
         const ObjectInfo &objInfo = objects_in_order[i];
@@ -771,7 +806,7 @@ void Engine::drawAllEntities()
         {
             continue; // 보이지 않으면 건너뜁니다.
         }
-
+        // 스프라이트
         if (objInfo.objectType == "sprite")
         {
 
@@ -814,7 +849,8 @@ void Engine::drawAllEntities()
                     TRUE);
             }
         }
-        else if (objInfo.objectType == "textBox")
+        // 글상자
+        if (objInfo.objectType == "textBox")
         {
             string textToDraw = objInfo.textContent;
             unsigned int textColor = objInfo.textColor;
@@ -827,8 +863,27 @@ void Engine::drawAllEntities()
 
                 float dxlibX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
                 float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
-
+                ChangeFontType(DX_FONTTYPE_ANTIALIASING);
                 SetFontSize(fontSize);
+                // 폰트 변경
+                switch (getFontNameFromString(objInfo.fontName))
+                {
+                case FontName::D2Coding:
+
+                    break;
+                case FontName::MaruBuri:
+                    break;
+                case FontName::NanumBarunPen:
+                    break;
+                case FontName::NanumGothic:
+                    break;
+                case FontName::NanumMyeongjo:
+                    break;
+                case FontName::NanumSquareRound:
+                    break;
+                default:
+                    break;
+                }
                 DrawStringF(
                     dxlibX, dxlibY,
                     textToDraw.c_str(),
@@ -923,9 +978,24 @@ void Engine::processInput()
         zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
         zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, zoomFactor)); // Clamp value
     }
+
+    // 여기에 엔트리 키입력 을 구현해야겠지?
 }
-void Engine::triggerRunbtnScript()
+// 시작버튼
+void Engine::runStartButtonScripts()
 {
+    if (startButtonScripts.empty())
+    {
+        EngineStdOut("No 'Start Button Clicked' scripts found.", 1);
+        return;
+    }
+    for (const auto &scriptPair : startButtonScripts)
+    {
+        const string &objectId = scriptPair.first;
+        const Script *scriptPtr = scriptPair.second;
+        EngineStdOut(" -> Running script for object: " + objectId, 0);
+        executeScript(*this, objectId, scriptPtr);
+    }
 }
 void Engine::initFps()
 {
@@ -948,7 +1018,7 @@ void Engine::updateFps()
 }
 void Engine::setfps(int fps)
 {
-    TARGET_FPS = fps;
+    this->specialConfig.TARGET_FPS = fps;
 }
 Entity *Engine::getEntityById(const string &id)
 {
@@ -964,7 +1034,7 @@ void Engine::renderLoadingScreen()
 {
     SetDrawScreen(DX_SCREEN_BACK);
     ClearDrawScreen();
-
+    // int fontHandle = Fontloader("font/NanumBarunpenR.ttf"); // <-- 매번 로드하는 코드 제거
     // --- 로딩 바의 위치 및 크기 설정 ---
     int barWidth = 400; // 로딩 바의 전체 폭
     int barHeight = 30; // 로딩 바의 전체 높이
@@ -989,28 +1059,39 @@ void Engine::renderLoadingScreen()
     int progressWidth = static_cast<int>((barWidth - 2) * progressPercent);
 
     DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
-    SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
     // --- 퍼센트 텍스트 그리기 ---
+    ChangeFontType(DX_FONTTYPE_ANTIALIASING);
     SetFontSize(16); // 폰트 크기 조정
-    ChangeFont("굴림", DX_CHARSET_HANGEUL);
+    if (loadingFontHandle != -1)
+    { // 로드된 핸들이 유효한 경우에만 폰트 변경
+        ChangeFontFromHandle(loadingFontHandle);
+    }
     unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
     string percentText = to_string(static_cast<int>(progressPercent * 100)) + "%";
     int textWidth = GetDrawStringWidth(percentText.c_str(), percentText.length());
     int textHeight = GetFontSize(); // 현재 폰트 크기 얻기
     DrawString(barX + (barWidth - textWidth) / 2, barY + (barHeight - textHeight) / 2, percentText.c_str(), textColor);
+
     // --- 브랜드 (원하는 문구 입력) ---
     SetFontSize(20);
-    ChangeFont("굴림", DX_CHARSET_HANGEUL);
+    if (loadingFontHandle != -1)
+    { // 로드된 핸들이 유효한 경우에만 폰트 변경
+        ChangeFontFromHandle(loadingFontHandle);
+    }
     unsigned int brandColor = GetColor(0, 0, 0);
     string brandText = this->specialConfig.BRAND_NAME;
     int brandWidth = GetDrawStringWidth(brandText.c_str(), brandText.length());
     int brandHeight = GetFontSize();
     DrawString(barX + (barWidth - brandWidth) / 2, barY + barHeight + -60, brandText.c_str(), brandColor);
+
     // --- 프로젝트 이름 ---
     SetFontSize(50);
-    ChangeFont("굴림", DX_CHARSET_HANGEUL);
     if (this->specialConfig.SHOW_PROJECT_NAME)
     {
+        if (loadingFontHandle != -1)
+        { // 로드된 핸들이 유효한 경우에만 폰트 변경
+            ChangeFontFromHandle(loadingFontHandle);
+        }
         unsigned int projectNameColor = GetColor(0, 0, 0);
         string projectName = PROJECT_NAME;
         int projectNameWidth = GetDrawStringWidth(projectName.c_str(), projectName.length());
@@ -1026,9 +1107,9 @@ const string &Engine::getCurrentSceneId() const
     return currentSceneId;
 }
 
-void Engine::showErrorMessageBox(const string &message)
+void Engine::showMessageBox(const string &message, int IconType)
 {
-    MessageBox(NULL, message.c_str(), string(OMOCHA_ENGINE_NAME).c_str(), MB_OK | MB_ICONERROR);
+    MessageBox(NULL, message.c_str(), string(OMOCHA_ENGINE_NAME).c_str(), MB_OK | IconType);
 }
 /*
  @brief 엔진에 로그를 출력합니다.
@@ -1069,4 +1150,6 @@ void Engine::EngineStdOut(string s, int LEVEL)
     }
 
     printf("%s%s %s\x1b[0m\n", color_code.c_str(), prefix.c_str(), s.c_str());
+    std::string logMessage = std::format("{} {}", prefix, s);
+    logger.log(logMessage);
 }
