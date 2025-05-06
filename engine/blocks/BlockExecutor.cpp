@@ -1,7 +1,7 @@
 #include "BlockExecutor.h"
 #include "../Engine.h"
 #include "../Entity.h"
-void Behavior(std::string BlockType);
+void Behavior(std::string BlockType,Engine& engine);
 void Mathematical (std::string BlockType);
 void Shape(std::string BlockType);
 void Sound(std::string BlockType);
@@ -23,7 +23,7 @@ void executeScript(Engine& engine, const std::string& objectId, const Script* sc
         engine.EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + objectId, 0);
         // TODO: 여기에 block.type에 따른 실제 블록 실행 로직 구현
         // 예: engine.moveEntityX(objectId, block.getParam<double>("DX"));
-        Behavior(block.type);
+        Behavior(block.type,engine);
         Mathematical (block.type);
         Shape(block.type);
         Sound(block.type);
@@ -35,7 +35,7 @@ void executeScript(Engine& engine, const std::string& objectId, const Script* sc
  * @brief 행동블럭
  * 
  */
-void Behavior(std::string BlockType){
+void Behavior(std::string BlockType,Engine& engine){
     /*
     예시
     if (block.type == "move_x_by") {

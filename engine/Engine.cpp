@@ -26,7 +26,7 @@ string WINDOW_TITLE = "";
 const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
 
-Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log") // zoomFactor 초기화 추가
+Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log")
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -111,6 +111,13 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.SHOW_PROJECT_NAME = false;
+            }
+
+            // project.json에서 targetFps 값을 읽어옵니다. (예시)
+            if (specialConfigJson.isMember("targetFps") && specialConfigJson["targetFps"].isNumeric())
+            {
+                this->specialConfig.TARGET_FPS = specialConfigJson["targetFps"].asInt();
+                EngineStdOut("Target FPS set from project.json: " + std::to_string(this->specialConfig.TARGET_FPS), 0);
             }
         }
 
@@ -568,11 +575,19 @@ bool Engine::loadProject(const string &projectFilePath)
             // 스크립트가 비어있지 않고, 시작 블록 외에 다른 블록이 연결되어 있는지 확인
             if (!script.blocks.empty() && script.blocks.size() > 1)
             {
-                if (script.blocks[0].type == "when_run_button_click")
+                // --- 이벤트 블럭 ---
+                const Block& firstBlock = script.blocks[0];
+                if (firstBlock.type == "when_run_button_click")
                 {
                     startButtonScripts.push_back({objectId, &script});
                     EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 0);
                 }
+                if (firstBlock.type == "when_some_key_pressed")
+                {
+
+                }
+                // -----------------
+                
             }
         }
     }
@@ -981,6 +996,40 @@ void Engine::processInput()
 
     // 여기에 엔트리 키입력 을 구현해야겠지?
 }
+// Entry 키 이름 문자열을 DxLib 키 코드로 변환하는 헬퍼 함수
+int Engine::mapEntryKeyToDxLibKey(const string& entryKey) {
+    // DxLib 키 코드 정의는 DxLib.h 또는 관련 문서 참조
+    static const map<string, int> keyMap = {
+        {"space", KEY_INPUT_SPACE},
+        {"enter", KEY_INPUT_RETURN}, // 또는 KEY_INPUT_NUMPADENTER
+        {"up", KEY_INPUT_UP},
+        {"down", KEY_INPUT_DOWN},
+        {"left", KEY_INPUT_LEFT},
+        {"right", KEY_INPUT_RIGHT},
+        {"a", KEY_INPUT_A}, {"b", KEY_INPUT_B}, {"c", KEY_INPUT_C},
+        {"d", KEY_INPUT_D}, {"e", KEY_INPUT_E}, {"f", KEY_INPUT_F},
+        {"g", KEY_INPUT_G}, {"h", KEY_INPUT_H}, {"i", KEY_INPUT_I},
+        {"j", KEY_INPUT_J}, {"k", KEY_INPUT_K}, {"l", KEY_INPUT_L},
+        {"m", KEY_INPUT_M}, {"n", KEY_INPUT_N}, {"o", KEY_INPUT_O},
+        {"p", KEY_INPUT_P}, {"q", KEY_INPUT_Q}, {"r", KEY_INPUT_R},
+        {"s", KEY_INPUT_S}, {"t", KEY_INPUT_T}, {"u", KEY_INPUT_U},
+        {"v", KEY_INPUT_V}, {"w", KEY_INPUT_W}, {"x", KEY_INPUT_X},
+        {"y", KEY_INPUT_Y}, {"z", KEY_INPUT_Z},
+        {"0", KEY_INPUT_0}, {"1", KEY_INPUT_1}, {"2", KEY_INPUT_2},
+        {"3", KEY_INPUT_3}, {"4", KEY_INPUT_4}, {"5", KEY_INPUT_5},
+        {"6", KEY_INPUT_6}, {"7", KEY_INPUT_7}, {"8", KEY_INPUT_8},
+        {"9", KEY_INPUT_9}
+        // 필요한 다른 키들 추가 (Shift, Ctrl, Alt, F1-F12 등)
+    };
+
+    auto it = keyMap.find(entryKey);
+    if (it != keyMap.end()) {
+        return it->second;
+    } else {
+        EngineStdOut("WARN: Unknown entry key name: " + entryKey, 1);
+        return -1; // 매핑 실패 시 -1 반환
+    }
+}
 // 시작버튼
 void Engine::runStartButtonScripts()
 {
@@ -1005,16 +1054,31 @@ void Engine::initFps()
 }
 void Engine::updateFps()
 {
-    framecount++;
     long long currentTime = GetNowCount();
-    long elapseTime = currentTime - lastfpstime;
+    long elapseTime = currentTime - lastfpstime; // 밀리초 단위 경과 시간
 
-    if (elapseTime >= 500 || framecount >= 60)
+    deltaTime = elapseTime / 1000.0f; // 초 단위 델타 타임 계산 및 저장
+
+    framecount++;
+    // FPS 계산 로직은 델타 타임 계산과 별개로 유지 가능 (예: 0.5초마다 업데이트)
+    if (elapseTime >= 500) // 500ms 마다 FPS 갱신 (기존 로직 유지 또는 조정 가능)
     {
-        currentFps = (float)framecount / (elapseTime / 1000.0f);
+        currentFps = static_cast<float>(framecount) / (elapseTime / 1000.0f);
         lastfpstime = currentTime;
         framecount = 0;
     }
+    // 또는 매 프레임 FPS 계산 (덜 안정적일 수 있음)
+    // if (elapseTime > 0) {
+    //     currentFps = 1000.0f / elapseTime;
+    // } else {
+    //     currentFps = 0.0f; // 또는 매우 큰 값
+    // }
+    // lastfpstime = currentTime; // 매 프레임 업데이트 시 필요
+}
+
+float Engine::getDeltaTime() const
+{
+    return deltaTime;
 }
 void Engine::setfps(int fps)
 {
@@ -1150,6 +1214,6 @@ void Engine::EngineStdOut(string s, int LEVEL)
     }
 
     printf("%s%s %s\x1b[0m\n", color_code.c_str(), prefix.c_str(), s.c_str());
-    std::string logMessage = std::format("{} {}", prefix, s);
+    string logMessage = format("{} {}", prefix, s);
     logger.log(logMessage);
 }

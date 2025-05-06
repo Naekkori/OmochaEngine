@@ -116,7 +116,7 @@ private:
     static const int SLIDER_HEIGHT = 20;
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
-
+    int mapEntryKeyToDxLibKey(const string& entryKey);
 public:
     struct MsgBoxIconType
     {
@@ -132,14 +132,11 @@ public:
     bool initGE();
     void terminateGE();
     bool loadImages();
-
     void drawAllEntities();
     const string &getCurrentSceneId() const;
-
     void showMessageBox(const string &message, int IconType);
-
     void EngineStdOut(string s, int LEVEL = 0);
-
+    map<int,vector<pair<string,const Script*>>> sceneScripts;
     void processInput();
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
