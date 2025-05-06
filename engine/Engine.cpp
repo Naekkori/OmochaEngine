@@ -12,6 +12,7 @@
 #include <algorithm> // For min
 #include <memory>
 #include <format>
+#include <iomanip> // For std::setprecision in drawHUD and renderLoadingScreen
 #include "blocks/BlockExecutor.h"
 #include <json/reader.h>
 #include <json/value.h>
@@ -26,7 +27,7 @@ string WINDOW_TITLE = "";
 const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
 
-Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log")
+Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log")
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -34,19 +35,13 @@ Engine::Engine() : tempScreenHandle(-1), totalItemsToLoad(0), loadedItemCount(0)
 
 Engine::~Engine()
 {
+    terminateGE(); // SDL 리소스 해제 보장
     for (auto const &pair : entities)
     {
         delete pair.second;
     }
     entities.clear();
-    // 로딩 폰트 핸들 해제
-    if (loadingFontHandle != -1)
-    {
-        DeleteFontToHandle(loadingFontHandle);
-        loadingFontHandle = -1;
-    }
-
-    destroyTemporaryScreen();
+    // destroyTemporaryScreen(); // terminateGE에서 호출됨
 }
 
 bool Engine::loadProject(const string &projectFilePath)
@@ -100,31 +95,23 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.BRAND_NAME = specialConfigJson["brandName"].asString();
                 EngineStdOut("Brand Name: " + this->specialConfig.BRAND_NAME, 0);
             }
-            this->specialConfig.showZoomSlider = specialConfigJson["showZoomSliderUI"].asBool();
-            if (this->specialConfig.showZoomSlider)
-            {
-                this->specialConfig.showZoomSlider = true;
+            if (specialConfigJson.isMember("showZoomSliderUI") && specialConfigJson["showZoomSliderUI"].isBool()){
+                 this->specialConfig.showZoomSlider = specialConfigJson["showZoomSliderUI"].asBool();
+            } else {
+                this->specialConfig.showZoomSlider = false; // 기본값
             }
-            else
-            {
-                this->specialConfig.showZoomSlider = false;
+
+            if (specialConfigJson.isMember("showProjectNameUI") && specialConfigJson["showProjectNameUI"].isBool()){
+                this->specialConfig.SHOW_PROJECT_NAME = specialConfigJson["showProjectNameUI"].asBool();
+            } else {
+                this->specialConfig.SHOW_PROJECT_NAME = false; // 기본값
             }
-            this->specialConfig.SHOW_PROJECT_NAME = specialConfigJson["showProjectNameUI"].asBool();
-            if (this->specialConfig.SHOW_PROJECT_NAME)
-            {
-                this->specialConfig.SHOW_PROJECT_NAME = true;
-            }
-            else
-            {
-                this->specialConfig.SHOW_PROJECT_NAME = false;
+            if (specialConfigJson.isMember("showFPS") && specialConfigJson["showFPS"].isBool()){
+                this->specialConfig.showFPS = specialConfigJson["showFPS"].asBool();
+            } else {
+                this->specialConfig.showFPS = false; // 기본값
             }
         }
-
-        // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직
-        // if(root["specialConfig"].isMember("showZoomSliderUI") && root["specialConfig"]["showZoomSliderUI"].isBool())
-        // {
-        //     this->specialConfig.showZoomSlider = root["specialConfig"]["showZoomSliderUI"].asBool();
-        // }
     }
     if (root.isMember("objects") && root["objects"].isArray())
     {
@@ -161,7 +148,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             ctu.name = pictureJson.isMember("name") && pictureJson["name"].isString() ? pictureJson["name"].asString() : "Unamed Shape";
                             ctu.filename = pictureJson["filename"].asString();
                             ctu.fileurl = pictureJson.isMember("fileurl") && pictureJson["fileurl"].isString() ? pictureJson["fileurl"].asString() : "";
-                            ctu.imageHandle = -1;
+                            // ctu.imageHandle is already nullptr by default. It will be loaded in loadImages.
 
                             objInfo.costumes.push_back(ctu);
                         }
@@ -216,7 +203,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 else
                 {
-                    EngineStdOut("WARN: Failed to parse script JSON string for Sound object ", 1);
+                    // EngineStdOut("WARN: Failed to parse script JSON string for Sound object ", 1); // 이 로그는 불필요해 보임
                 }
 
                 if (objectJson.isMember("selectedPictureId") && objectJson["selectedPictureId"].isString())
@@ -278,22 +265,22 @@ bool Engine::loadProject(const string &projectFilePath)
                                     unsigned int r = stoul(hexColor.substr(1, 2), nullptr, 16);
                                     unsigned int g = stoul(hexColor.substr(3, 2), nullptr, 16);
                                     unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
-                                    objInfo.textColor = GetColor(r, g, b);
+                                    objInfo.textColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
                                 }
                                 catch (const exception &e)
                                 {
                                     EngineStdOut("Failed to parse text color '" + hexColor + "' for object '" + objInfo.name + "': " + e.what(), 1);
-                                    objInfo.textColor = GetColor(0, 0, 0);
+                                    objInfo.textColor = {0, 0, 0, 255};
                                 }
                             }
                             else
                             {
-                                objInfo.textColor = GetColor(0, 0, 0);
+                                objInfo.textColor = {0, 0, 0, 255};
                             }
                         }
                         else
                         {
-                            objInfo.textColor = GetColor(0, 0, 0);
+                            objInfo.textColor = {0, 0, 0, 255};
                         }
                         if (entityJson.isMember("font") && entityJson["font"].isString())
                         {
@@ -316,7 +303,11 @@ bool Engine::loadProject(const string &projectFilePath)
                                 }
                                 else
                                 {
+                                    // "px" 뒤에 바로 글꼴 이름이 오는 경우 (공백 없음)
                                     objInfo.fontName = fontString.substr(pxPos + 2);
+                                    // 앞뒤 공백 제거
+                                    objInfo.fontName.erase(0, objInfo.fontName.find_first_not_of(" "));
+                                    objInfo.fontName.erase(objInfo.fontName.find_last_not_of(" ") + 1);
                                 }
                             }
                             else
@@ -328,7 +319,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         else
                         {
                             objInfo.fontSize = 20;
-                            objInfo.fontName = "";
+                            objInfo.fontName = ""; // 기본 폰트 이름 (예: 나눔바른펜)
                         }
                         if (entityJson.isMember("textAlign") && entityJson["textAlign"].isNumeric())
                         {
@@ -342,7 +333,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     else
                     {
                         objInfo.textContent = "[NO ENTITY BLOCK]";
-                        objInfo.textColor = GetColor(0, 0, 0);
+                        objInfo.textColor = {0, 0, 0, 255};
                         objInfo.fontName = "";
                         objInfo.fontSize = 20;
                         objInfo.textAlign = 0;
@@ -351,7 +342,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 else
                 {
                     objInfo.textContent = "";
-                    objInfo.textColor = GetColor(0, 0, 0);
+                    objInfo.textColor = {0, 0, 0, 255};
                     objInfo.fontName = "";
                     objInfo.fontSize = 20;
                     objInfo.textAlign = 0;
@@ -391,69 +382,34 @@ bool Engine::loadProject(const string &projectFilePath)
                 if (objectJson.isMember("script") && objectJson["script"].isString())
                 {
                     string scriptString = objectJson["script"].asString();
-
-                    // 스크립트 문자열을 다시 JSON으로 파싱
                     Json::Reader scriptReader;
-                    Json::Value scriptRoot; // 스크립트 JSON의 루트 (보통 배열)
-
-                    // 문자열에서 파싱하기 위해 Json::StringStream 사용
+                    Json::Value scriptRoot;
                     Json::IStringStream is(scriptString);
 
-                    // 파싱 실행
                     if (scriptReader.parse(is, scriptRoot))
                     {
-                        // 스크립트 JSON 파싱 성공
                         EngineStdOut("Script JSON parsed successfully for object: " + objInfo.name, 0);
-
-                        // project.json의 script 형식은 보통 [[...], [...], ...] 형태입니다.
-                        // 각 내부 배열이 하나의 스크립트 목록(예: "시작" 탭의 스크립트)입니다.
                         if (scriptRoot.isArray())
                         {
-                            // 모든 스크립트 목록을 순회합니다.
+                            vector<Script> scriptsForObject;
                             for (const auto &scriptListJson : scriptRoot)
                             {
                                 if (scriptListJson.isArray())
                                 {
-                                    Script currentScript; // Block.h에 정의된 Script 구조체
-
-                                    // 스크립트 목록 안의 블록들을 순회합니다.
+                                    Script currentScript;
                                     for (const auto &blockJson : scriptListJson)
                                     {
                                         if (blockJson.isObject() && blockJson.isMember("id") && blockJson["id"].isString() &&
                                             blockJson.isMember("type") && blockJson["type"].isString())
                                         {
-
-                                            Block block; // Block.h에 정의된 Block 구조체
+                                            Block block;
                                             block.id = blockJson["id"].asString();
                                             block.type = blockJson["type"].asString();
-
-                                            // 파라미터 파싱 (params 필드)
                                             if (blockJson.isMember("params") && blockJson["params"].isArray())
                                             {
-                                                // paramsJson에 Json::Value 통째로 저장
                                                 block.paramsJson = blockJson["params"];
                                             }
-
-                                            // 내부 스크립트 파싱 (statements 필드)
-                                            if (blockJson.isMember("statements") && blockJson["statements"].isArray())
-                                            {
-                                                // statements는 [[블록들], [블록들], ...] 형태일 수 있습니다.
-                                                // statementsScripts 벡터에 Script 구조체들을 저장합니다.
-                                                for (const auto &statementScriptListJson : blockJson["statements"])
-                                                {
-                                                    if (statementScriptListJson.isArray())
-                                                    {
-                                                        Script statementScript;
-                                                        // statementsScriptListJson 안의 블록들을 파싱하여 statementScript.blocks에 추가
-                                                        // (이 부분은 재귀 함수 등으로 처리할 수 있습니다)
-                                                        // 예시: parseBlocks(statementScriptListJson, statementScript.blocks);
-                                                        // 현재는 간단히 비워둡니다. 실제 구현 시 파싱 로직 추가 필요.
-                                                        block.statementScripts.push_back(statementScript);
-                                                    }
-                                                }
-                                            }
-
-                                            // 파싱된 블록을 현재 스크립트 목록에 추가
+                                            // TODO: statements 파싱 로직 추가 (재귀적으로)
                                             currentScript.blocks.push_back(block);
                                         }
                                         else
@@ -461,15 +417,17 @@ bool Engine::loadProject(const string &projectFilePath)
                                             EngineStdOut("WARN: Invalid block structure in script for object: " + objInfo.name, 1);
                                         }
                                     }
+                                    scriptsForObject.push_back(currentScript);
                                 }
-                            } // 스크립트 목록 순회 끝
-                        } // scriptRoot.isArray() 확인 끝
+                            }
+                             objectScripts[objectId] = scriptsForObject;
+                        }
                     }
                     else
                     {
                         EngineStdOut("WARN: Failed to parse script JSON string for object '" + objInfo.name + "': " + scriptReader.getFormattedErrorMessages(), 1);
                     }
-                } // --- 스크립트 파싱 끝 ---
+                }
             }
             else
             {
@@ -486,62 +444,45 @@ bool Engine::loadProject(const string &projectFilePath)
     {
         const Json::Value &scenesJson = root["scenes"];
         EngineStdOut("Found " + to_string(scenesJson.size()) + " scenes. Parsing...", 0);
-
-        // --- JSON 배열 순서대로 순회 ---
         for (Json::Value::ArrayIndex i = 0; i < scenesJson.size(); ++i)
         {
             const auto &sceneJson = scenesJson[i];
-
             if (sceneJson.isObject() && sceneJson.isMember("id") && sceneJson["id"].isString() && sceneJson.isMember("name") && sceneJson["name"].isString())
             {
                 string sceneId = sceneJson["id"].asString();
                 string sceneName = sceneJson["name"].asString();
-
-                // --- 첫 번째 씬 ID 저장 ---
                 if (i == 0)
-                { // 배열의 첫 번째 요소일 경우
+                {
                     firstSceneIdInOrder = sceneId;
                     EngineStdOut("Identified first scene in array order: " + sceneName + " (ID: " + firstSceneIdInOrder + ")", 0);
                 }
-                // -------------------------
-
-                // scenes 맵에 저장 (ID로 찾기 위함)
                 scenes[sceneId] = sceneName;
-
                 EngineStdOut("  Parsed scene: " + sceneName + " (ID: " + sceneId + ")", 0);
             }
             else
             {
                 EngineStdOut("WARN: Invalid scene structure encountered.", 1);
             }
-        } // --- JSON 배열 순회 루프 끝 ---
+        }
     }
     else
     {
         EngineStdOut("WARN: project.json is missing 'scenes' array or it's not an array.", 1);
     }
 
-    // 엔트리 의 게시물은 항상 첫번째 씬부터 보여준다.
-    // 이걸 이용해서 썸네일 을 보여준다.
-    /*if (!scenes.empty()) {
-        currentSceneId = scenes.begin()->first;
-        EngineStdOut("Initial scene set to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-    }
-    else {
-            EngineStdOut(" No scenes found in project.json.", 2);
-            return false;
-    }*/
-
-    // --- 시작 씬 설정 로직 수정 ---
     string startSceneId = "";
-    if (root.isMember("start") && root["start"].isObject() && root["start"].isMember("sceneId") && root["start"]["sceneId"].isString())
+    if (root.isMember("startScene") && root["startScene"].isString()) // 엔트리 구버전 호환
+    {
+        startSceneId = root["startScene"].asString();
+        EngineStdOut("'startScene' (legacy) found in project.json: " + startSceneId, 0);
+    }
+    else if (root.isMember("start") && root["start"].isObject() && root["start"].isMember("sceneId") && root["start"]["sceneId"].isString())
     {
         startSceneId = root["start"]["sceneId"].asString();
         EngineStdOut("'start/sceneId' found in project.json: " + startSceneId, 0);
     }
 
-    // project.json에 start/sceneId가 명시되어 있거나
-    // start/sceneId는 없지만 scenes 맵에 해당 ID가 있는 경우 (안전장치)
+
     if (!startSceneId.empty() && scenes.count(startSceneId))
     {
         currentSceneId = startSceneId;
@@ -549,227 +490,260 @@ bool Engine::loadProject(const string &projectFilePath)
     }
     else
     {
-        // start/sceneId가 없거나 유효하지 않은 경우,
-        // project.json 배열 순서의 첫 번째 씬을 사용합니다.
         if (!firstSceneIdInOrder.empty() && scenes.count(firstSceneIdInOrder))
-        { // 첫 번째 씬 ID가 유효한지 확인
+        {
             currentSceneId = firstSceneIdInOrder;
-            EngineStdOut("Initial scene set to first scene in array order: " + scenes[currentSceneId] + " (ID: " + currentSceneId); // INFO 대신 WARN 레벨 사용
+            EngineStdOut("Initial scene set to first scene in array order: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
         }
         else
         {
-            // 첫 번째 씬도 없는 경우 (씬이 아예 없거나 파싱 실패)
-            EngineStdOut("ERROR: No valid starting scene found in project.json (neither explicit nor first in array).", 2);
-            return false; // 시작 씬 없으면 로드 실패
+            EngineStdOut("ERROR: No valid starting scene found in project.json.", 2);
+            return false;
         }
     }
 
-    // --- 모든 스크립트 파싱 후 시작 버튼 스크립트 식별 ---
     EngineStdOut("Identifying 'Start Button Clicked' scripts...", 0);
-    startButtonScripts.clear(); // 기존 목록 초기화
-    for (auto const &[objectId, scripts] : objectScripts)
+    startButtonScripts.clear();
+    for (auto const &[objectId, scriptsVec] : objectScripts)
     {
-        for (const auto &script : scripts)
+        for (const auto &script : scriptsVec)
         {
-            // 스크립트가 비어있지 않고, 시작 블록 외에 다른 블록이 연결되어 있는지 확인
-            if (!script.blocks.empty() && script.blocks.size() > 1)
+            if (!script.blocks.empty())
             {
-                // --- 이벤트 블럭 ---
-                const Block& firstBlock = script.blocks[0];
+                const Block &firstBlock = script.blocks[0];
                 if (firstBlock.type == "when_run_button_click")
                 {
-                    startButtonScripts.push_back({objectId, &script});
-                    EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 0);
+                     // 시작 블록 외에 다른 블록이 연결되어 있는지 확인 (실제 실행할 내용이 있는지)
+                    if (script.blocks.size() > 1) {
+                        startButtonScripts.push_back({objectId, &script});
+                        EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 0);
+                    } else {
+                        EngineStdOut("  -> Found 'Start Button Clicked' script for object ID: " + objectId + " but it has no subsequent blocks. Skipping.", 1);
+                    }
                 }
-                if (firstBlock.type == "when_some_key_pressed")
-                {
-
-                }
-                // -----------------
-                
             }
         }
     }
-    // -------------------------------------------------
 
     EngineStdOut("Project JSON file parsed successfully.", 0);
     return true;
 }
 
-bool Engine::initGE()
+bool Engine::initGE(bool vsyncEnabled)
 {
-    if (ChangeWindowMode(TRUE) == -1)
+    EngineStdOut("Initializing SDL...", 0);
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
-        showMessageBox("Failed to set window mode.", msgBoxIconType.ICON_ERROR);
-        EngineStdOut("DxLib initialization failed: Failed to set window mode.", 2);
+        string errMsg = "SDL could not initialize! SDL_Error: " + string(SDL_GetError());
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
     }
-    EngineStdOut("DxLib initialize", 0);
-    if (DxLib_Init() == -1)
+    EngineStdOut("SDL initialized successfully (Video and Audio).", 0);
+
+    // SDL_image 초기화 코드 없음 자체적으로 초기화 하는듯.
+    /*int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
+    if (!(IMG_Init(imgFlags) & imgFlags))
     {
-        showMessageBox("Failed to initialize DxLib.", msgBoxIconType.ICON_ERROR);
-        EngineStdOut("DxLib initialization failed: DxLib_Init() returned -1.", 2);
+        string errMsg = "SDL_image could not initialize! IMG_Error: " + string(IMG_GetError());
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to initialize SDL_image: " + string(IMG_GetError()), msgBoxIconType.ICON_ERROR);
+        SDL_Quit(); // SDL 코어 정리
         return false;
+    }
+    EngineStdOut("SDL_image initialized successfully (PNG, JPG support).", 0);*/
+
+    // 윈도우 생성
+    // WINDOW_TITLE은 loadProject에서 설정됨
+    this->window = SDL_CreateWindow(WINDOW_TITLE.c_str(), WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
+    if (this->window == nullptr)
+    {
+        string errMsg = "Window could not be created! SDL_Error: " + string(SDL_GetError());
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to create window: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
+        SDL_Quit();
+        return false;
+    }
+    EngineStdOut("SDL Window created successfully.", 0);
+
+    // 렌더러 생성
+    Uint32 rendererFlags = SDL_RENDERER_VSYNC_ADAPTIVE; // 기본적으로 하드웨어 가속 사용
+    if (vsyncEnabled)
+    {
+        rendererFlags |= SDL_RENDERER_VSYNC_ADAPTIVE; // SDL3에서는 SDL_RENDERER_VSYNC_ADAPTIVE 가 맞음
+        EngineStdOut("VSync enabled for renderer.", 0);
+    }
+    else
+    {
+        EngineStdOut("VSync disabled for renderer.", 0);
+    }
+    this->renderer = SDL_CreateRenderer(this->window, nullptr); //Renderer flag 없음
+    if (this->renderer == nullptr)
+    {
+        string errMsg = "Renderer could not be created! SDL_Error: " + string(SDL_GetError());
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to create renderer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
+        SDL_DestroyWindow(this->window);
+        this->window = nullptr;
+        SDL_Quit();
+        return false;
+    }
+    SDL_SetRenderVSync(renderer,rendererFlags);
+    EngineStdOut("SDL Renderer created successfully.", 0);
+
+    // SDL_ttf 초기화
+    if (TTF_Init() == -1) {
+        string errMsg = "SDL_ttf could not initialize! TTF_Error: ";
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to initialize SDL_ttf: ", msgBoxIconType.ICON_ERROR);
+        SDL_DestroyRenderer(this->renderer);
+        this->renderer = nullptr;
+        SDL_DestroyWindow(this->window);
+        this->window = nullptr;
+        //IMG_Quit(); IMG_Quit(); 없음
+        SDL_Quit();
+        return false;
+    }
+    EngineStdOut("SDL_ttf initialized successfully.", 0);
+
+    // HUD 및 로딩 화면용 폰트 로드
+    string defaultFontPath = string(BASE_ASSETS) + "font/NanumBarunpenR.ttf";
+    hudFont = TTF_OpenFont(defaultFontPath.c_str(), 16);
+    loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
+
+    if (!hudFont) { // hudFont만 체크해도 loadingScreenFont도 같은 파일이므로 유사한 문제일 가능성 높음
+        string errMsg = "Failed to load default font! Font path: " + defaultFontPath;
+        EngineStdOut(errMsg, 2);
+        showMessageBox(errMsg, msgBoxIconType.ICON_WARNING); // 경고로 처리하고 일단 진행
+    }
+    if (!loadingScreenFont && hudFont) { // hudFont는 성공했는데 loadingScreenFont만 실패한 경우 (다른 크기 등)
+         string errMsg = "Failed to load loading screen font (size 20)! Font path: " + defaultFontPath;
+        EngineStdOut(errMsg, 1); // 경고
     }
 
-    initFps();
-    SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
-        // 로딩 화면용 폰트 미리 로드
-    loadingFontHandle = Fontloader("font/nanum_barunpen.ttf");
-    SetBackgroundColor(255, 255, 255);
-    string projectName = PROJECT_NAME;
-    SetWindowTextDX(projectName.c_str());
 
-    if (SetGraphMode(WINDOW_WIDTH, WINDOW_HEIGHT, 32, this->specialConfig.TARGET_FPS) == -1)
-    {
-        showMessageBox("Failed to set graphics mode to window size.", msgBoxIconType.ICON_ERROR);
-        EngineStdOut("DxLib initialization failed: Failed to set graphics mode.", 2);
-        return false;
-    }
+    SDL_SetRenderDrawColor(this->renderer, 255, 255, 255, 255); // 기본 배경색 (흰색)
+
+    initFps(); // FPS 카운터 초기화 (SDL_GetTicks 사용하도록 수정됨)
 
     if (!createTemporaryScreen())
     {
-        showMessageBox("Failed to create temporary screen buffer.", msgBoxIconType.ICON_ERROR);
-        EngineStdOut("DxLib initialization failed: Failed to create temporary screen buffer.", 2);
+        EngineStdOut("Failed to create temporary screen texture during initGE.", 2);
+        if (hudFont) TTF_CloseFont(hudFont);
+        if (loadingScreenFont) TTF_CloseFont(loadingScreenFont);
+        TTF_Quit();
+        SDL_DestroyRenderer(this->renderer);
+        this->renderer = nullptr;
+        SDL_DestroyWindow(this->window);
+        this->window = nullptr;
+        //IMG_Quit(); 이것도 SDL3 에는 없음
+        SDL_Quit();
         return false;
     }
-    EngineStdOut("Created temporary screen handle: " + to_string(tempScreenHandle), 0);
-    SetDrawScreen(DX_SCREEN_BACK);
-    SetFontSize(20);
-    SetMouseDispFlag(true);
-    EngineStdOut("DxLib initialized", 0);
+    EngineStdOut("Engine graphics initialization complete.", 0);
     return true;
 }
 
 bool Engine::createTemporaryScreen()
 {
-    tempScreenHandle = MakeScreen(PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT, TRUE);
-    if (tempScreenHandle == -1)
+    if (this->renderer == nullptr)
     {
+        EngineStdOut("Renderer not initialized. Cannot create temporary screen texture.", 2);
+        showMessageBox("Internal Error: Renderer not available for offscreen buffer.", msgBoxIconType.ICON_ERROR);
         return false;
     }
+    this->tempScreenTexture = SDL_CreateTexture(this->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT);
+    if (this->tempScreenTexture == nullptr)
+    {
+        string errMsg = "Failed to create temporary screen texture! SDL_Error: " + string(SDL_GetError());
+        EngineStdOut(errMsg, 2);
+        showMessageBox("Failed to create offscreen buffer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
+        return false;
+    }
+    EngineStdOut("Temporary screen texture created successfully (" + to_string(PROJECT_STAGE_WIDTH) + "x" + to_string(PROJECT_STAGE_HEIGHT) + ").", 0);
     return true;
 }
-int Engine::Fontloader(string fontpath)
-{
-    vector<char> Readedbuffer;
-    if (!filesystem::exists(fontpath.c_str()))
-    {
-        EngineStdOut("font is not found. path: "+fontpath, 2);
-        return -1;
-    }
 
-    ifstream file(fontpath, ios::binary | ios::ate);
-    if (!file.is_open()) {
-        EngineStdOut("Failed to open font file (check permissions?): " + fontpath, 2);
-        return -1;
-    }
-
-    streamsize size = file.tellg();
-    if (size <= 0) { 
-        EngineStdOut("Font file is empty or size could not be determined: " + fontpath, 2);
- 
-        return -1;
-    }
-
-    file.seekg(0, ios::beg);
-
-    vector<char> buffer(static_cast<size_t>(size)); 
-
-    if (file.read(buffer.data(), size) && file.gcount() == size)
-    {
-        Readedbuffer = std::move(buffer);
-    } else {
-        EngineStdOut("Failed to read font data completely from: " + fontpath, 2);
-        return -1;
-    }
-
-    // 폰트로더
-    if (Readedbuffer.empty()) {
-         EngineStdOut("Internal error: Readedbuffer is empty after successful read for: " + fontpath, 2);
-         return -1;
-    }
-
-    int fontHandle = LoadFontDataFromMemToHandle(Readedbuffer.data(), Readedbuffer.size());
-    if (fontHandle == -1)
-    {
-        EngineStdOut("Failed to load font: " + fontpath, 2);
-    }
-    return fontHandle;
-}
-
-/**
- * @brief 소리를 로드합니다.
- *
- * @param soundName
- */
 int Engine::Soundloader(string soundUri)
 {
-    // 소리로더
-    int soundHandle = LoadSoundMem(soundUri.c_str());
-    if (soundHandle == -1)
-    {
-        EngineStdOut("Failed to load sound: " + soundUri, 2);
-    }
-    else
-    {
-        EngineStdOut("Loaded sound: " + soundUri, 0);
-    }
-    return soundHandle;
+    EngineStdOut("Soundloader: Needs implementation with SDL_mixer. Sound URI: " + soundUri, 1);
+    return -1; // Placeholder
 }
 void Engine::destroyTemporaryScreen()
 {
-    if (tempScreenHandle != -1)
+    if (this->tempScreenTexture != nullptr)
     {
-        DeleteGraph(tempScreenHandle);
-        tempScreenHandle = -1;
+        SDL_DestroyTexture(this->tempScreenTexture);
+        this->tempScreenTexture = nullptr;
+        EngineStdOut("Temporary screen texture destroyed.", 0);
     }
 }
 
 void Engine::findRunbtnScript()
 {
-    Engine::EngineStdOut("find run Button Block...");
+    Engine::EngineStdOut("findRunbtnScript: This function seems to be a duplicate or placeholder. 'Start Button Clicked' scripts are identified in loadProject.", 1);
 }
 
 void Engine::terminateGE()
 {
+    EngineStdOut("Terminating SDL and engine resources...", 0);
     destroyTemporaryScreen();
-    DxLib_End();
-    EngineStdOut("DxLib terminated", 0);
+
+    if (hudFont) {
+        TTF_CloseFont(hudFont);
+        hudFont = nullptr;
+        EngineStdOut("HUD font closed.",0);
+    }
+    if (loadingScreenFont) {
+        TTF_CloseFont(loadingScreenFont);
+        loadingScreenFont = nullptr;
+        EngineStdOut("Loading screen font closed.",0);
+    }
+    TTF_Quit();
+    EngineStdOut("SDL_ttf terminated.", 0);
+
+    if (this->renderer != nullptr)
+    {
+        SDL_DestroyRenderer(this->renderer);
+        this->renderer = nullptr;
+        EngineStdOut("SDL Renderer destroyed.", 0);
+    }
+    if (this->window != nullptr)
+    {
+        SDL_DestroyWindow(this->window);
+        this->window = nullptr;
+        EngineStdOut("SDL Window destroyed.", 0);
+    }
+    //IMG_Quit();
+    EngineStdOut("SDL_image terminated.", 0);
+    SDL_Quit();
+    EngineStdOut("SDL terminated.", 0);
 }
 
 bool Engine::loadImages()
 {
     EngineStdOut("Starting image loading...", 0);
-
-    // 1. 로드할 총 아이템 수 계산 (루프 시작 전)
     totalItemsToLoad = 0;
-    loadedItemCount = 0; // 카운터 초기화
+    loadedItemCount = 0;
     for (const auto &objInfo : objects_in_order)
     {
         if (objInfo.objectType == "sprite")
         {
-            totalItemsToLoad += objInfo.costumes.size();
+            totalItemsToLoad += static_cast<int>(objInfo.costumes.size());
         }
-        // 필요하다면 다른 타입의 로딩 아이템 (사운드 등) 개수도 여기서 합산
     }
-    EngineStdOut("Total items to load: " + to_string(totalItemsToLoad), 0);
+    EngineStdOut("Total image items to load: " + to_string(totalItemsToLoad), 0);
 
     int loadedCount = 0;
     int failedCount = 0;
 
-    // 2. 이미지 로딩 및 로딩 화면 업데이트
-    for (auto &objInfo : objects_in_order) // ObjectInfo 참조를 사용하도록 수정
+    for (auto &objInfo : objects_in_order)
     {
         if (objInfo.objectType == "sprite")
         {
             for (auto &costume : objInfo.costumes)
             {
-                string imagePath = "";
-                // filename 이 아닌 fileurl 사용
-                imagePath = string(BASE_ASSETS) + costume.fileurl;
-                incrementLoadedItemCount();
-                int handle = -1;
+                string imagePath = string(BASE_ASSETS) + costume.fileurl;
                 string fileExtension;
                 size_t dotPos = imagePath.rfind('.');
                 if (dotPos != string::npos)
@@ -779,51 +753,67 @@ bool Engine::loadImages()
 
                 if (fileExtension == ".svg" || fileExtension == ".webp")
                 {
-                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + "): " + fileExtension + " file, DXLib LoadGraph failed (expected).", 2);
+                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + "): " + fileExtension + " file, skipping SDL_image loading (unsupported or requires extra libraries).", 1);
                     failedCount++;
-                    continue;
-                }
-
-                handle = LoadGraph(imagePath.c_str());
-
-                if (handle != -1)
-                {
-                    costume.imageHandle = handle;
-                    loadedCount++;
-                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully, handle: " + to_string(handle), 0);
                 }
                 else
                 {
-                    failedCount++;
-                    EngineStdOut("ERROR: Image load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
-                }
+                    SDL_Surface* surface = IMG_Load(imagePath.c_str());
+                    if (surface) {
+                        costume.imageHandle = SDL_CreateTextureFromSurface(this->renderer, surface);
+                        SDL_DestroySurface(surface);
 
-                    // 3. 로딩 화면 그리기 및 메시지 처리 (덜 자주 업데이트)
-                    if (loadedCount % 3 == 0 || handle == -1 || loadedItemCount == totalItemsToLoad) {
-                        renderLoadingScreen();
-                        if (ProcessMessage() == -1) return false; // 창이 닫히면 로딩 중단
+                        if (costume.imageHandle) {
+                            loadedCount++;
+                            EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.", 0);
+                        } else {
+                            failedCount++;
+                            EngineStdOut("ERROR: Failed to create texture from surface for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath + ". SDL_Error: " + SDL_GetError(), 2);
+                        }
+                    } else {
+                        failedCount++; // IMG_Load 실패도 실패 카운트에 포함
+                        EngineStdOut("ERROR: IMG_Load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                     }
+                }
+                incrementLoadedItemCount();
+                if (loadedItemCount % 3 == 0 || costume.imageHandle == nullptr || loadedItemCount == totalItemsToLoad)
+                {
+                    renderLoadingScreen();
+                    SDL_Event e; // 간단한 이벤트 처리 추가 (창 닫힘 등)
+                    while (SDL_PollEvent(&e) != 0) {
+                        if (e.type == SDL_EVENT_QUIT) {
+                             EngineStdOut("Image loading cancelled by user.", 1);
+                             return false; // 로딩 중단
+                        }
+                    }
+                }
             }
         }
     }
 
     EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount), 0);
 
-    if (failedCount > 0)
-    {
-        EngineStdOut("WARN: Some image failed to load, processing with available resources.", 1);
-        // 실패해도 계속 진행할지 여부에 따라 return false; 또는 true; 결정
+    if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0) {
+        EngineStdOut("ERROR: All images failed to load. Cannot continue.", 2);
+        showMessageBox("Fatal Error: No images could be loaded. Check asset paths and file integrity.", msgBoxIconType.ICON_ERROR);
+        return false; // 모든 이미지 로드 실패 시 중단
+    } else if (failedCount > 0) {
+        EngineStdOut("WARN: Some images failed to load, processing with available resources.", 1);
     }
     return true;
 }
 void Engine::drawAllEntities()
 {
-    SetDrawScreen(tempScreenHandle);
-    ClearDrawScreen();
+    if (!renderer || !tempScreenTexture)
+        return;
+
+    SDL_SetRenderTarget(renderer, tempScreenTexture);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderClear(renderer);
+
     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
-    { // vector 순회 (순서 유지)
+    {
         const ObjectInfo &objInfo = objects_in_order[i];
-        // 현재 씬에 속하는지 확인 (ObjectInfo에서 sceneId 확인)
         bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
 
         if (!isInCurrentScene && objInfo.sceneId != "global")
@@ -831,7 +821,6 @@ void Engine::drawAllEntities()
             continue;
         }
 
-        // entities 맵에서 해당 ObjectInfo의 Entity*를 찾습니다.
         auto it_entity = entities.find(objInfo.id);
         if (it_entity == entities.end())
         {
@@ -841,236 +830,219 @@ void Engine::drawAllEntities()
 
         if (!entityPtr->isVisible())
         {
-            continue; // 보이지 않으면 건너뜁니다.
+            continue;
         }
-        // 스프라이트
         if (objInfo.objectType == "sprite")
         {
-
             Costume *selectedCostume = nullptr;
-            for (const auto &costume : objInfo.costumes)
-            {
-                if (costume.id == objInfo.selectedCostumeId)
-                {
-                    selectedCostume = (Costume *)&costume;
+            // selectedCostumeId를 사용하여 현재 의상 찾기 (objInfo.costumes는 const가 아니어야 함)
+            for (auto &costume_ref : const_cast<ObjectInfo&>(objInfo).costumes) { // 임시 const_cast, ObjectInfo의 costumes가 const가 아니도록 수정 필요
+                if (costume_ref.id == objInfo.selectedCostumeId) {
+                    selectedCostume = &costume_ref;
                     break;
                 }
             }
 
-            if (selectedCostume && selectedCostume->imageHandle != -1)
+
+            if (selectedCostume && selectedCostume->imageHandle != nullptr)
             {
                 double entryX = entityPtr->getX();
                 double entryY = entityPtr->getY();
-                double regX = entityPtr->getRegX();
-                double regY = entityPtr->getRegY();
-                double scaleX = entityPtr->getScaleX();
-                double scaleY = entityPtr->getScaleY();
-                double rotation = entityPtr->getRotation();
+                // regX, regY는 SDL_RenderTexture의 center 파라미터에 사용됨
+                // scaleX, scaleY는 dstRect의 w, h에 적용됨
+                // rotation은 SDL_RenderTexture의 angle 파라미터에 사용됨
 
-                float dxlibX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
-                float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
+                // SDL 좌표계로 변환 (스테이지 중심 (0,0) -> 좌상단 (0,0))
+                // Entry Y축은 위가 +, SDL Y축은 아래가 +
+                float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
+                float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
 
-                double entryAngleDegrees = rotation;
-                double dxlibBaseAngleDegrees = 90.0 - entryAngleDegrees;
-                double assetCorrectionDegrees = ASSET_ROTATION_CORRECTION_RADIAN * 180.0 / DX_PI;
-                double finalDxlibAngleDegrees = dxlibBaseAngleDegrees + assetCorrectionDegrees;
-                double dxlibAngleRadians = finalDxlibAngleDegrees * DX_PI / 180.0;
+                float texW, texH;
+                // SDL_QueryTexture(selectedCostume->imageHandle, nullptr, nullptr, &texW, &texH); // SDL2 방식
+                if (SDL_GetTextureSize(selectedCostume->imageHandle,&texW, &texH) != 0) {
+                    EngineStdOut("ERROR: Failed to get texture info for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. SDL_Error: " + SDL_GetError(), 2);
+                    // 오류 발생 시 해당 엔티티 그리기를 건너뛸 수 있습니다. 
+                    // 또는 기본 크기를 사용하거나, 오류를 기록하고 계속 진행할 수 있습니다.
+                    texW = 0; // 예시: 오류 시 크기를 0으로 설정하여 그리지 않도록 함
+                    texH = 0;
+                }
 
-                DrawRotaGraph3F(
-                    dxlibX, dxlibY,
-                    static_cast<float>(regX), static_cast<float>(regY),
-                    scaleX, // Use original scale
-                    scaleY, // Use original scale
-                    dxlibAngleRadians,
-                    selectedCostume->imageHandle,
-                    TRUE);
+                SDL_FRect dstRect;
+                dstRect.w = static_cast<float>(texW * entityPtr->getScaleX());
+                dstRect.h = static_cast<float>(texH * entityPtr->getScaleY());
+                // 위치는 중심점을 기준으로 설정
+                dstRect.x = sdlX - dstRect.w / 2.0f; // 회전 중심점을 고려하여 x,y 조정 필요
+                dstRect.y = sdlY - dstRect.h / 2.0f; // 회전 중심점을 고려하여 x,y 조정 필요
+
+
+                // Entry 회전(시계방향이 +) -> SDL 회전(시계방향이 +)
+                // Entry 방향(0도 오른쪽, 90도 위쪽) -> SDL 각도 (0도 오른쪽, 90도 아래쪽)
+                // 에셋 자체가 90도 회전되어 있을 수 있음 (ASSET_ROTATION_CORRECTION_RADIAN)
+                double sdlAngle = entityPtr->getRotation(); // Entry의 rotation 값을 그대로 사용 (SDL도 시계방향이 +)
+                                                            // 에셋 보정 각도는 텍스처 자체에 적용되어야 하거나, 로딩 시점에 처리.
+                                                            // 여기서는 entityPtr->getRotation()을 직접 사용.
+
+                SDL_FPoint center; // 회전 및 스케일링 중심점 (텍스처 로컬 좌표)
+                // Entry의 regX, regY는 이미지의 좌상단 기준 offset. SDL의 center는 너비/높이의 비율 또는 실제 픽셀값.
+                // 여기서는 이미지의 중앙을 기준으로 가정. 필요시 objInfo에서 regX/Y 픽셀값을 읽어와서 사용.
+                center.x = dstRect.w / 2.0f; // 기본값: 이미지 중앙
+                center.y = dstRect.h / 2.0f; // 기본값: 이미지 중앙
+                // TODO: objInfo.regX, objInfo.regY (픽셀 단위)를 사용하여 center 값 설정 필요
+
+                SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
             }
         }
-        // 글상자
         if (objInfo.objectType == "textBox")
         {
-            string textToDraw = objInfo.textContent;
-            unsigned int textColor = objInfo.textColor;
-            int fontSize = objInfo.fontSize;
-
-            if (!textToDraw.empty())
-            {
-                double entryX = entityPtr->getX();
-                double entryY = entityPtr->getY();
-
-                float dxlibX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
-                float dxlibY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
-                ChangeFontType(DX_FONTTYPE_ANTIALIASING);
-                SetFontSize(fontSize);
-                // 폰트 변경
-                switch (getFontNameFromString(objInfo.fontName))
-                {
-                case FontName::D2Coding:
-
-                    break;
-                case FontName::MaruBuri:
-                    break;
-                case FontName::NanumBarunPen:
-                    break;
-                case FontName::NanumGothic:
-                    break;
-                case FontName::NanumMyeongjo:
-                    break;
-                case FontName::NanumSquareRound:
-                    break;
-                default:
-                    break;
-                }
-                DrawStringF(
-                    dxlibX, dxlibY,
-                    textToDraw.c_str(),
-                    textColor);
-
-                // TODO: 텍스트 정렬 (objInfo.textAlign) 로직 구현 필요
-            }
+            // TODO: SDL_ttf를 사용하여 글상자 텍스트 렌더링 (drawHUD와 유사하게)
+            // 폰트 이름(objInfo.fontName), 크기(objInfo.fontSize), 색상(objInfo.textColor), 내용(objInfo.textContent) 사용
+            // 위치는 entityPtr->getX(), getY() 사용 (좌표계 변환 필요)
+            // 텍스트 정렬(objInfo.textAlign) 구현 필요
         }
     }
 
-    // EngineStdOut("DrawExtendGraph - Target: (0, 0) to (" + to_string(WINDOW_WIDTH) + ", " + to_string(WINDOW_HEIGHT) + "), Source Handle: " + to_string(tempScreenHandle), 0);
-    SetDrawMode(DX_DRAWMODE_BILINEAR);
-    SetDrawScreen(DX_SCREEN_BACK);
-    ClearDrawScreen();
+    SDL_SetRenderTarget(renderer, nullptr);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
 
-    // 확대 비율에 따라 원본(tempScreenHandle)에서 가져올 영역의 크기 계산
     int srcWidth = static_cast<int>(PROJECT_STAGE_WIDTH / zoomFactor);
     int srcHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / zoomFactor);
+    SDL_Rect srcRect;
+    srcRect.x = (PROJECT_STAGE_WIDTH - srcWidth) / 2;
+    srcRect.y = (PROJECT_STAGE_HEIGHT - srcHeight) / 2;
+    srcRect.w = srcWidth;
+    srcRect.h = srcHeight;
 
-    // 가져올 영역이 중앙에 위치하도록 좌상단 좌표 계산
-    int srcX = (PROJECT_STAGE_WIDTH - srcWidth) / 2;
-    int srcY = (PROJECT_STAGE_HEIGHT - srcHeight) / 2;
+    SDL_FRect dstFRect = {0.0f, 0.0f, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT)};
+    SDL_FRect srcFRect = {static_cast<float>(srcRect.x), static_cast<float>(srcRect.y), static_cast<float>(srcRect.w), static_cast<float>(srcRect.h)};
 
-    // 계산된 소스 영역(srcX, srcY, srcWidth, srcHeight)을 사용하여
-    // tempScreenHandle의 중앙 부분을 전체 창(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)에 확대하여 그립니다.
-    DrawRectExtendGraph(
-        0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, // 대상 영역 (창 전체)
-        srcX, srcY, srcWidth, srcHeight,   // 소스 영역 (tempScreenHandle의 중앙 부분)
-        tempScreenHandle,                  // 소스 이미지 핸들
-        TRUE                               // 투명도 처리 활성화
-    );
-
-    // --- Draw Zoom Slider UI (if enabled in config) ---
-    if (this->specialConfig.showZoomSlider)
-    {
-        // Slider Background
-        DrawBox(SLIDER_X, SLIDER_Y, SLIDER_X + SLIDER_WIDTH, SLIDER_Y + SLIDER_HEIGHT, GetColor(50, 50, 50), TRUE);
-        // Slider Handle
-        int handleX = SLIDER_X + static_cast<int>(((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH);
-        int handleWidth = 8;
-        DrawBox(handleX - handleWidth / 2, SLIDER_Y - 2, handleX + handleWidth / 2, SLIDER_Y + SLIDER_HEIGHT + 2, GetColor(200, 200, 200), TRUE);
-        // Zoom Factor Text
-        string zoomText = "Zoom: " + to_string(zoomFactor);
-        int textWidth = GetDrawStringWidth(zoomText.c_str(), zoomText.length());
-        DrawString(SLIDER_X + SLIDER_WIDTH + 10, SLIDER_Y + (SLIDER_HEIGHT / 2) - (GetFontSize() / 2), zoomText.c_str(), GetColor(255, 255, 255));
-    }
-    // --- End UI Drawing ---
+    SDL_RenderTexture(renderer, tempScreenTexture, &srcFRect, &dstFRect);
 }
 
 void Engine::drawHUD()
 {
-    // 그리기 대상을 백 버퍼로 설정 (drawAllEntities 이후에 호출되므로 이미 설정되어 있을 수 있지만 명시)
-    SetDrawScreen(DX_SCREEN_BACK);
+    if (!this->renderer) return;
 
     // --- FPS 카운터 그리기 ---
-    unsigned int fpsColor = GetColor(255, 150, 0); // FPS 텍스트 색상
-    string FPS_STRING = "FPS: " + to_string(static_cast<int>(currentFps));
-    SetFontSize(16);
-    DrawStringF(
-        10, 10, // FPS 표시 위치
-        FPS_STRING.c_str(),
-        fpsColor);
+    if (this->hudFont && this->specialConfig.showFPS) {
+        string fpsText = "FPS: " + to_string(static_cast<int>(currentFps));
+        SDL_Color textColor = {255, 150, 0, 255}; // 주황색
+
+        SDL_Surface* textSurface = TTF_RenderText_Solid(hudFont, fpsText.c_str(),fpsText.size(), textColor);//텍스트 길이 (size_t) 필수
+        if (textSurface) {
+            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            if (textTexture) {
+                SDL_FRect dstRect = {10.0f, 10.0f, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)};
+                SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
+                SDL_DestroyTexture(textTexture);
+            } else {
+                EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2);
+            }
+            SDL_DestroySurface(textSurface);
+        } else {
+            EngineStdOut("Failed to render FPS text surface", 2);
+        }
+    }
+
+    // --- 프로젝트 이름 표시 (옵션) ---
+    if (this->hudFont && this->specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty()) {
+        SDL_Color textColor = {200, 200, 200, 255}; // 밝은 회색
+        SDL_Surface* nameSurface = TTF_RenderText_Solid(hudFont, PROJECT_NAME.c_str(),PROJECT_NAME.size(), textColor);
+        if (nameSurface) {
+            SDL_Texture* nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
+            if (nameTexture) {
+                // 화면 너비 가져오기 (WINDOW_WIDTH는 전역 변수 또는 멤버 변수여야 함)
+                int windowW = 0;
+                SDL_GetRenderOutputSize(renderer, &windowW, nullptr); // 현재 렌더러의 출력 크기 사용
+                SDL_FRect dstRect = { (windowW - static_cast<float>(nameSurface->w)) / 2.0f, 10.0f, static_cast<float>(nameSurface->w), static_cast<float>(nameSurface->h) };
+                SDL_RenderTexture(renderer, nameTexture, nullptr, &dstRect);
+                SDL_DestroyTexture(nameTexture);
+            }
+            SDL_DestroySurface(nameSurface);
+        }
+    }
+
 
     // --- 줌 슬라이더 UI 그리기 (설정에서 활성화된 경우) ---
     if (this->specialConfig.showZoomSlider)
     {
-        // Slider Background
-        DrawBox(SLIDER_X, SLIDER_Y, SLIDER_X + SLIDER_WIDTH, SLIDER_Y + SLIDER_HEIGHT, GetColor(50, 50, 50), TRUE);
-        // Slider Handle
-        int handleX = SLIDER_X + static_cast<int>(((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH);
-        int handleWidth = 8;
-        DrawBox(handleX - handleWidth / 2, SLIDER_Y - 2, handleX + handleWidth / 2, SLIDER_Y + SLIDER_HEIGHT + 2, GetColor(200, 200, 200), TRUE);
-        // Zoom Factor Text
-        string zoomText = "Zoom: " + to_string(zoomFactor);
-        DrawString(SLIDER_X + SLIDER_WIDTH + 10, SLIDER_Y + (SLIDER_HEIGHT / 2) - (GetFontSize() / 2), zoomText.c_str(), GetColor(255, 255, 255));
+        SDL_FRect sliderBgRect = {static_cast<float>(SLIDER_X), static_cast<float>(SLIDER_Y), static_cast<float>(SLIDER_WIDTH), static_cast<float>(SLIDER_HEIGHT)};
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+        SDL_RenderFillRect(renderer, &sliderBgRect);
+
+        float handleX_float = SLIDER_X + ((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH;
+        float handleWidth_float = 8.0f;
+        SDL_FRect sliderHandleRect = {handleX_float - handleWidth_float / 2.0f, static_cast<float>(SLIDER_Y - 2), handleWidth_float, static_cast<float>(SLIDER_HEIGHT + 4)};
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        SDL_RenderFillRect(renderer, &sliderHandleRect);
+
+        if (this->hudFont) {
+            std::ostringstream zoomStream;
+            zoomStream << std::fixed << std::setprecision(2) << zoomFactor;
+            string zoomText = "Zoom: " + zoomStream.str();
+            SDL_Color textColor = {220, 220, 220, 255};
+
+            SDL_Surface* textSurface = TTF_RenderText_Solid(hudFont, zoomText.c_str(),zoomText.size(), textColor);
+            if (textSurface) {
+                SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+                if (textTexture) {
+                    SDL_FRect dstRect = {SLIDER_X + SLIDER_WIDTH + 10.0f, SLIDER_Y + (SLIDER_HEIGHT - static_cast<float>(textSurface->h)) / 2.0f, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)};
+                    SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
+                    SDL_DestroyTexture(textTexture);
+                }
+                SDL_DestroySurface(textSurface);
+            }
+        }
     }
 }
 
 void Engine::processInput()
 {
-    int mouseX, mouseY;
-    GetMousePoint(&mouseX, &mouseY);
-
-    // --- Process Slider Input (if enabled and mouse interacts) ---
-    if (this->specialConfig.showZoomSlider &&                             // Check if slider is enabled
-        (GetMouseInput() & MOUSE_INPUT_LEFT) != 0 &&                      // Check if left button is pressed
-        mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&        // Check horizontal bounds
-        mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) // Check vertical bounds (with tolerance)
-    {
-        // Calculate and update zoomFactor based on mouse position
-        float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
-        zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-        zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, zoomFactor)); // Clamp value
-    }
-
-    // 여기에 엔트리 키입력 을 구현해야겠지?
+    // SDL 이벤트 루프에서 마우스 입력 처리 (메인 루프에서 호출)
+    // 예시:
+    // SDL_Event e;
+    // while (SDL_PollEvent(&e) != 0) {
+    //     if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+    //         if (e.button.button == SDL_BUTTON_LEFT) {
+    //             int mouseX = e.button.x;
+    //             int mouseY = e.button.y;
+    //             if (this->specialConfig.showZoomSlider &&
+    //                 mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
+    //                 mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) {
+    //                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+    //                 zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+    //                 zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, zoomFactor));
+    //             }
+    //         }
+    //     }
+    // }
 }
-// Entry 키 이름 문자열을 DxLib 키 코드로 변환하는 헬퍼 함수
-int Engine::mapEntryKeyToDxLibKey(const string& entryKey) {
-    // DxLib 키 코드 정의는 DxLib.h 또는 관련 문서 참조
-    static const map<string, int> keyMap = {
-        {"space", KEY_INPUT_SPACE},
-        {"enter", KEY_INPUT_RETURN}, // 또는 KEY_INPUT_NUMPADENTER
-        {"up", KEY_INPUT_UP},
-        {"down", KEY_INPUT_DOWN},
-        {"left", KEY_INPUT_LEFT},
-        {"right", KEY_INPUT_RIGHT},
-        {"a", KEY_INPUT_A}, {"b", KEY_INPUT_B}, {"c", KEY_INPUT_C},
-        {"d", KEY_INPUT_D}, {"e", KEY_INPUT_E}, {"f", KEY_INPUT_F},
-        {"g", KEY_INPUT_G}, {"h", KEY_INPUT_H}, {"i", KEY_INPUT_I},
-        {"j", KEY_INPUT_J}, {"k", KEY_INPUT_K}, {"l", KEY_INPUT_L},
-        {"m", KEY_INPUT_M}, {"n", KEY_INPUT_N}, {"o", KEY_INPUT_O},
-        {"p", KEY_INPUT_P}, {"q", KEY_INPUT_Q}, {"r", KEY_INPUT_R},
-        {"s", KEY_INPUT_S}, {"t", KEY_INPUT_T}, {"u", KEY_INPUT_U},
-        {"v", KEY_INPUT_V}, {"w", KEY_INPUT_W}, {"x", KEY_INPUT_X},
-        {"y", KEY_INPUT_Y}, {"z", KEY_INPUT_Z},
-        {"0", KEY_INPUT_0}, {"1", KEY_INPUT_1}, {"2", KEY_INPUT_2},
-        {"3", KEY_INPUT_3}, {"4", KEY_INPUT_4}, {"5", KEY_INPUT_5},
-        {"6", KEY_INPUT_6}, {"7", KEY_INPUT_7}, {"8", KEY_INPUT_8},
-        {"9", KEY_INPUT_9}
-        // 필요한 다른 키들 추가 (Shift, Ctrl, Alt, F1-F12 등)
-    };
-
-    auto it = keyMap.find(entryKey);
-    if (it != keyMap.end()) {
-        return it->second;
-    } else {
-        EngineStdOut("WARN: Unknown entry key name: " + entryKey, 1);
-        return -1; // 매핑 실패 시 -1 반환
-    }
+int Engine::mapEntryKeyToDxLibKey(const string &entryKey)
+{
+    // 이 함수는 DxLib 의존성을 제거하면서 SDL_Keycode 등으로 대체되어야 합니다.
+    // 현재는 사용되지 않으므로 경고만 출력하거나 내용을 비워둘 수 있습니다.
+    EngineStdOut("mapEntryKeyToDxLibKey is deprecated and needs replacement with SDL key handling.", 1);
+    return -1;
 }
-// 시작버튼
 void Engine::runStartButtonScripts()
 {
     if (startButtonScripts.empty())
     {
-        EngineStdOut("No 'Start Button Clicked' scripts found.", 1);
+        EngineStdOut("No 'Start Button Clicked' scripts found to run.", 1);
         return;
     }
+    EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
     for (const auto &scriptPair : startButtonScripts)
     {
         const string &objectId = scriptPair.first;
         const Script *scriptPtr = scriptPair.second;
         EngineStdOut(" -> Running script for object: " + objectId, 0);
-        executeScript(*this, objectId, scriptPtr);
+        executeScript(*this, objectId, scriptPtr); // BlockExecutor.h/cpp에 정의된 함수
     }
 }
 void Engine::initFps()
 {
-    lastfpstime = GetNowCount();
+    lastfpstime = SDL_GetTicks();
     framecount = 0;
     currentFps = 0.0f;
 }
@@ -1081,14 +1053,14 @@ void Engine::setfps(int fps)
 void Engine::updateFps()
 {
     framecount++;
-    int now = GetNowCount(); // 현재 시간 가져오기 (밀리초)
-    int delta = now - lastfpstime; // 마지막 FPS 계산 이후 경과 시간
+    Uint64 now = SDL_GetTicks(); // SDL_GetTicks()는 Uint32를 반환하지만, 경과 시간 계산을 위해 Uint64 사용 가능
+    Uint64 delta = now - lastfpstime;
 
-    if (delta >= 1000) // 1초(1000ms) 이상 경과했으면 FPS 업데이트
+    if (delta >= 1000)
     {
-        currentFps = static_cast<float>(framecount * 1000) / delta; // 초당 프레임 수 계산
-        lastfpstime = now; // 마지막 계산 시간 업데이트
-        framecount = 0; // 프레임 카운터 리셋
+        currentFps = static_cast<float>(framecount * 1000.0) / delta;
+        lastfpstime = now;
+        framecount = 0;
     }
 }
 Entity *Engine::getEntityById(const string &id)
@@ -1103,21 +1075,30 @@ Entity *Engine::getEntityById(const string &id)
 
 void Engine::renderLoadingScreen()
 {
-    SetDrawScreen(DX_SCREEN_BACK);
-    ClearDrawScreen();
-    // int fontHandle = Fontloader("font/NanumBarunpenR.ttf"); // <-- 매번 로드하는 코드 제거
-    // --- 로딩 바의 위치 및 크기 설정 ---
-    int barWidth = 400; // 로딩 바의 전체 폭
-    int barHeight = 30; // 로딩 바의 전체 높이
-    int barX = (WINDOW_WIDTH - barWidth) / 2;
-    int barY = (WINDOW_HEIGHT - barHeight) / 2;
+    if (!this->renderer) {
+        EngineStdOut("renderLoadingScreen: Renderer not available.", 1);
+        return;
+    }
 
-    // --- 로딩 바 배경 그리기 ---
-    unsigned int borderColor = GetColor(100, 100, 100); // 테두리 색상 (회색)
-    unsigned int bgColor = GetColor(0, 0, 0);           // 배경 안쪽 색상 (검정)
+    SDL_SetRenderDrawColor(this->renderer, 30, 30, 30, 255);
+    SDL_RenderClear(this->renderer);
 
-    DrawBox(barX, barY, barX + barWidth, barY + barHeight, borderColor, FALSE);
-    DrawBox(barX + 1, barY + 1, barX + barWidth - 1, barY + barHeight - 1, bgColor, TRUE);
+    int barWidth = 400;
+    int barHeight = 30;
+    // 화면 너비 가져오기
+    int windowW = 0, windowH = 0;
+    SDL_GetRenderOutputSize(renderer, &windowW, &windowH); // 현재 렌더러의 출력 크기 사용
+
+    int barX = (windowW - barWidth) / 2;
+    int barY = (windowH - barHeight) / 2;
+
+    SDL_FRect bgRect = {static_cast<float>(barX), static_cast<float>(barY), static_cast<float>(barWidth), static_cast<float>(barHeight)};
+    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_RenderFillRect(renderer, &bgRect);
+
+    SDL_FRect innerBgRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(barWidth - 4), static_cast<float>(barHeight - 4)};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+    SDL_RenderFillRect(renderer, &innerBgRect);
 
     float progressPercent = 0.0f;
     if (totalItemsToLoad > 0)
@@ -1125,52 +1106,58 @@ void Engine::renderLoadingScreen()
         progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
     }
 
-    unsigned int progressColor = GetColor(255, 165, 0); // 진행 바 색상 (주황색)
+    int progressWidth = static_cast<int>((barWidth - 4) * progressPercent);
+    SDL_FRect progressRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(progressWidth), static_cast<float>(barHeight - 4)};
+    SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
+    SDL_RenderFillRect(renderer, &progressRect);
 
-    int progressWidth = static_cast<int>((barWidth - 2) * progressPercent);
+    if (loadingScreenFont) {
+        SDL_Color textColor = {220, 220, 220, 255};
 
-    DrawBox(barX + 1, barY + 1, barX + 1 + progressWidth, barY + barHeight - 1, progressColor, TRUE);
-    // --- 퍼센트 텍스트 그리기 ---
-    ChangeFontType(DX_FONTTYPE_ANTIALIASING);
-    SetFontSize(16); // 폰트 크기 조정
-    if (loadingFontHandle != -1)
-    { // 로드된 핸들이 유효한 경우에만 폰트 변경
-        ChangeFontFromHandle(loadingFontHandle);
-    }
-    unsigned int textColor = GetColor(255, 255, 255); // 텍스트 색상 (흰색)
-    string percentText = to_string(static_cast<int>(progressPercent * 100)) + "%";
-    int textWidth = GetDrawStringWidth(percentText.c_str(), percentText.length());
-    int textHeight = GetFontSize(); // 현재 폰트 크기 얻기
-    DrawString(barX + (barWidth - textWidth) / 2, barY + (barHeight - textHeight) / 2, percentText.c_str(), textColor);
+        // 퍼센트 텍스트
+        std::ostringstream percentStream;
+        percentStream << std::fixed << std::setprecision(0) << (progressPercent * 100.0f) << "%";
+        string percentText = percentStream.str();
 
-    // --- 브랜드 (원하는 문구 입력) ---
-    SetFontSize(20);
-    if (loadingFontHandle != -1)
-    { // 로드된 핸들이 유효한 경우에만 폰트 변경
-        ChangeFontFromHandle(loadingFontHandle);
-    }
-    unsigned int brandColor = GetColor(0, 0, 0);
-    string brandText = this->specialConfig.BRAND_NAME;
-    int brandWidth = GetDrawStringWidth(brandText.c_str(), brandText.length());
-    int brandHeight = GetFontSize();
-    DrawString(barX + (barWidth - brandWidth) / 2, barY + barHeight + -60, brandText.c_str(), brandColor);
-
-    // --- 프로젝트 이름 ---
-    SetFontSize(50);
-    if (this->specialConfig.SHOW_PROJECT_NAME)
-    {
-        if (loadingFontHandle != -1)
-        { // 로드된 핸들이 유효한 경우에만 폰트 변경
-            ChangeFontFromHandle(loadingFontHandle);
+        SDL_Surface* surfPercent = TTF_RenderText_Solid(loadingScreenFont, percentText.c_str(),percentText.size(), textColor);
+        if (surfPercent) {
+            SDL_Texture* texPercent = SDL_CreateTextureFromSurface(renderer, surfPercent);
+            if (texPercent) {
+                SDL_FRect dstRect = {barX + barWidth + 10.0f, barY + (barHeight - static_cast<float>(surfPercent->h)) / 2.0f, static_cast<float>(surfPercent->w), static_cast<float>(surfPercent->h)};
+                SDL_RenderTexture(renderer, texPercent, nullptr, &dstRect);
+                SDL_DestroyTexture(texPercent);
+            }
+            SDL_DestroySurface(surfPercent);
         }
-        unsigned int projectNameColor = GetColor(0, 0, 0);
-        string projectName = PROJECT_NAME;
-        int projectNameWidth = GetDrawStringWidth(projectName.c_str(), projectName.length());
-        int projectNameHeight = GetFontSize();
-        DrawString(barX + (barWidth - projectNameWidth) / 2, barY + barHeight + -250 + projectNameHeight, projectName.c_str(), projectNameColor);
-    }
 
-    ScreenFlip();
+        // 브랜드 이름
+        if (!specialConfig.BRAND_NAME.empty()) {
+            SDL_Surface* surfBrand = TTF_RenderText_Solid(loadingScreenFont, specialConfig.BRAND_NAME.c_str(),percentText.size(), textColor);
+            if (surfBrand) {
+                SDL_Texture* texBrand = SDL_CreateTextureFromSurface(renderer, surfBrand);
+                if (texBrand) {
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfBrand->w)) / 2.0f, barY - static_cast<float>(surfBrand->h) - 10.0f, static_cast<float>(surfBrand->w), static_cast<float>(surfBrand->h)};
+                    SDL_RenderTexture(renderer, texBrand, nullptr, &dstRect);
+                    SDL_DestroyTexture(texBrand);
+                }
+                SDL_DestroySurface(surfBrand);
+            }
+        }
+         // 프로젝트 이름
+        if (specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty()) {
+            SDL_Surface* surfProject = TTF_RenderText_Solid(loadingScreenFont, PROJECT_NAME.c_str(),PROJECT_NAME.size(), textColor);
+            if (surfProject) {
+                SDL_Texture* texProject = SDL_CreateTextureFromSurface(renderer, surfProject);
+                if (texProject) {
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfProject->w)) / 2.0f, barY + barHeight + 10.0f, static_cast<float>(surfProject->w), static_cast<float>(surfProject->h)};
+                    SDL_RenderTexture(renderer, texProject, nullptr, &dstRect);
+                    SDL_DestroyTexture(texProject);
+                }
+                SDL_DestroySurface(surfProject);
+            }
+        }
+    }
+    SDL_RenderPresent(this->renderer);
 }
 
 const string &Engine::getCurrentSceneId() const
@@ -1180,47 +1167,71 @@ const string &Engine::getCurrentSceneId() const
 
 void Engine::showMessageBox(const string &message, int IconType)
 {
-    MessageBox(NULL, message.c_str(), string(OMOCHA_ENGINE_NAME).c_str(), MB_OK | IconType);
+    Uint32 flags = 0;
+    const char* title = OMOCHA_ENGINE_NAME; // 전역 변수 대신 매크로 사용
+    switch (IconType)
+    {
+    case SDL_MESSAGEBOX_ERROR:
+        flags = SDL_MESSAGEBOX_ERROR;
+        title = "Error";
+        break;
+    case SDL_MESSAGEBOX_WARNING:
+        flags = SDL_MESSAGEBOX_WARNING;
+        title = "Warning";
+        break;
+    case SDL_MESSAGEBOX_INFORMATION:
+        flags = SDL_MESSAGEBOX_INFORMATION;
+        title = "Information";
+        break;
+    default:
+        // 알 수 없는 IconType 처리, 정보 메시지 또는 오류 로그로 기본 설정
+        EngineStdOut("Unknown IconType passed to showMessageBox: " + std::to_string(IconType), 1);
+        flags = SDL_MESSAGEBOX_INFORMATION; // 정보 메시지로 기본 설정
+        title = "Message";
+        break;
+    }
+    SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window);
 }
-/**
- @brief 엔진에 로그를 출력합니다.
- @param s 내용
- @param LEVEL 레벨
- 예)
- 0 -> 정보
- 1 -> 경고
- 2 -> 오류
- 3 -> 쓰레드
-*/
+
 void Engine::EngineStdOut(string s, int LEVEL)
 {
-    string INFO = "[INFO]";
-    string WARN = "[WARN]";
-    string ERR = "[ERROR]";
-    string THR = "[TREAD]";
     string prefix;
-    string color_code;
+    string color_code = ANSI_COLOR_RESET; // 기본값
 
     switch (LEVEL)
     {
-    case 0:
-        prefix = INFO;
+    case 0: // INFO
+        prefix = "[INFO]";
         color_code = ANSI_COLOR_CYAN;
         break;
-    case 1:
-        prefix = WARN;
+    case 1: // WARN
+        prefix = "[WARN]";
         color_code = ANSI_COLOR_YELLOW;
         break;
-    case 2:
-        prefix = ERR;
+    case 2: // ERROR
+        prefix = "[ERROR]";
         color_code = ANSI_COLOR_RED;
         break;
-    case 3:
-        prefix = THR;
-        color_code = ANSI_STYLE_BOLD;
+    case 3: // THREAD (또는 DEBUG)
+        prefix = "[DEBUG]"; // THR 대신 DEBUG로 변경 또는 유지
+        color_code = ANSI_STYLE_BOLD; // 색상 없이 굵게만
+        break;
+    case 4: // OMOCHA_ENGINE_INFO (특별 레벨)
+        prefix = "[" + string(OMOCHA_ENGINE_NAME) + "]";
+        color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD; // 예시: 노란색 + 굵게
+        break;
+    default:
+        prefix = "[LOG]";
+        break;
     }
 
-    printf("%s%s %s\x1b[0m\n", color_code.c_str(), prefix.c_str(), s.c_str());
-    string logMessage = format("{} {}", prefix, s);
+    // 콘솔 출력
+    // MinGW나 일부 터미널에서는 ANSI 이스케이프 코드가 기본적으로 지원되지 않을 수 있음
+    // #ifdef _WIN32 // Windows 특정 코드 (예: SetConsoleTextAttribute)를 사용하거나, ANSI 지원 터미널 사용 가정
+    // #endif
+    printf("%s%s %s%s\n", color_code.c_str(), prefix.c_str(), s.c_str(), ANSI_COLOR_RESET.c_str());
+
+    // 파일 로그
+    string logMessage = format("{} {}", prefix, s); // C++20 format 사용
     logger.log(logMessage);
 }

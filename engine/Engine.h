@@ -4,11 +4,16 @@
 #include <map>
 #include <vector>
 #include <json/value.h>
-#include "DxLib.h"
 #include "Entity.h"
+#include "SDL3/SDL.h"             // SDL 코어
+#include "SDL3_image/SDL_image.h" //SDL 이미지
+#include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
+#include "SDL3/SDL_audio.h"       // SDL 오디오
+#include "SDL3/SDL_render.h"      // SDL 렌더링
 #include "blocks/Block.h"
 #include "util/fontName.h"
 #include "../util/Logger.h"
+#include <WinUser.h> // For MB_ICON* constants
 using namespace std;
 
 const int PROJECT_STAGE_WIDTH = 640;
@@ -16,7 +21,7 @@ const int PROJECT_STAGE_HEIGHT = 360;
 
 const int WINDOW_WIDTH = 640 * 2;
 const int WINDOW_HEIGHT = 360 * 2;
-const double ASSET_ROTATION_CORRECTION_RADIAN = -DX_PI / 2.0;
+const double ASSET_ROTATION_CORRECTION_RADIAN = -3.14159265358979323846 / 2.0;
 extern const char *BASE_ASSETS;
 extern string PROJECT_NAME;
 extern string WINDOW_TITLE;
@@ -26,7 +31,7 @@ struct Costume
     string id;
     string name;
     string assetId;
-    int imageHandle;
+    SDL_Texture *imageHandle = nullptr; // Initialize to nullptr
     string filename;
     string fileurl;
 };
@@ -62,7 +67,7 @@ struct ObjectInfo
     vector<Costume> costumes;
     vector<Sound> sounds;
     string textContent;
-    unsigned int textColor;
+    SDL_Color textColor;
     string fontName;
     int fontSize;
     int textAlign;
@@ -75,9 +80,9 @@ private:
     struct SPECIAL_ENGINE_CONFIG
     {
         string BRAND_NAME = "";
-        bool SHOW_PROJECT_NAME = false; // 로딩 화면 등에 프로젝트 이름 표시 여부 (구현 필요)
+        bool SHOW_PROJECT_NAME = false; // 로딩 화면 등에 프로젝트 이름 표시 여부
         bool showZoomSlider = false;    // 줌 슬라이더 UI 표시 여부
-        bool showFPS = false;
+        bool showFPS = false;           // FPS 표시 여부
         int TARGET_FPS = 60;
         //-- Experimal
         bool useSqlite = true;
@@ -87,10 +92,14 @@ private:
     vector<pair<string, const Script *>> startButtonScripts; // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
+    SDL_Window *window;     // SDL Window
+    SDL_Renderer *renderer; // SDL Renderer
     string currentSceneId;
+    TTF_Font *hudFont = nullptr;           // HUD용 폰트
+    TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
     SimpleLogger logger;
-    int tempScreenHandle;
+    SDL_Texture *tempScreenTexture;
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -98,7 +107,6 @@ private:
     const string ANSI_COLOR_CYAN = "\x1b[36m";
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
-    int Fontloader(string fontpath);
     int Soundloader(string soundUri);
     void destroyTemporaryScreen();
     void findRunbtnScript();
@@ -106,46 +114,50 @@ private:
     int framecount;
     float currentFps;
     int totalItemsToLoad;
-    int loadedItemCount;
-    float zoomFactor; // 현재 줌 배율 저장
-    int loadingFontHandle=-1;
-    // --- UI Constants ---
+    int loadedItemCount; // 로드된 아이템 수
+    float zoomFactor;    // 현재 줌 배율 저장
+    // int loadingFontHandle=-1; // DxLib specific, to be replaced by SDL_ttf
+    // --- UI Constants (DxLib specific, may need adjustment for SDL) ---
     static const int SLIDER_X = 10;
     static const int SLIDER_Y = WINDOW_HEIGHT - 40;
     static const int SLIDER_WIDTH = 200;
     static const int SLIDER_HEIGHT = 20;
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
-    int mapEntryKeyToDxLibKey(const string& entryKey);
-public:
+    int mapEntryKeyToDxLibKey(const string &entryKey);
+
+public: // TODO: Review public/private for SDL specific members if any
     struct MsgBoxIconType
     {
-        const int ICON_ERROR = MB_ICONERROR;
-        const int ICON_WARNING = MB_ICONWARNING;
-        const int ICON_INFORMATION = MB_ICONINFORMATION;
-        const int ICON_QUESTION = MB_ICONQUESTION;
+        const int ICON_ERROR = SDL_MESSAGEBOX_ERROR;
+        const int ICON_WARNING = SDL_MESSAGEBOX_WARNING;
+        const int ICON_INFORMATION = SDL_MESSAGEBOX_INFORMATION;
     };
+    MsgBoxIconType msgBoxIconType;
     Engine();
     ~Engine();
-    MsgBoxIconType msgBoxIconType;
     bool loadProject(const string &projectFilePath);
-    bool initGE();
+    bool initGE(bool vsyncEnabled); // VSync 설정을 인자로 받도록 수정
     void terminateGE();
-    bool loadImages();
+    bool loadImages(); // Will require SDL texture loading
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     void showMessageBox(const string &message, int IconType);
     void EngineStdOut(string s, int LEVEL = 0);
-    map<int,vector<pair<string,const Script*>>> sceneScripts;
+    map<int, vector<pair<string, const Script *>>> sceneScripts;
     void processInput();
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
     void setfps(int fps);
+    SDL_Renderer* getRenderer() // SDL3 에서는 SDL_Renderer* 를 반환해야 합니다.
+    {
+        return this->renderer;
+    }
     float getFps() { return currentFps; };
     int getTargetFps() const { return specialConfig.TARGET_FPS; } // 목표 FPS getter 추가
     Entity *getEntityById(const string &id);
-    void setTotalItemsToLoad(int count) { totalItemsToLoad = count; } // += 가 아니라 = 로 수정 (또는 아래처럼 초기화 로직 추가)
+    void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();
     void drawHUD(); // HUD 그리기 메서드 추가

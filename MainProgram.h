@@ -6,3 +6,13 @@
 #include <iostream>
 #include <filesystem>
 // TODO: 여기서 프로그램에 필요한 추가 헤더를 참조합니다.
+class MainProgram
+{
+public:
+    struct MainProgramValue
+    {
+        bool setVsync = true;
+        const bool getVsync() const { return setVsync; }
+    };
+    MainProgramValue mainProgramValue;
+};

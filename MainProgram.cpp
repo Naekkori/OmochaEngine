@@ -1,12 +1,12 @@
-﻿#include "DxLib.h"
-#include <iostream>
+﻿#include <iostream>
 #include <string>
 #include <filesystem>
 #include <cstdlib>   
 #include <stdexcept> 
 #include "engine/Engine.h"
+#include "MainProgram.h"
 #include "resource.h" 
-
+#include "SDL3/SDL.h"
 using namespace std;
 
 
@@ -16,12 +16,10 @@ void setConsoleUTF8();
 
 
 int main(int argc, char *argv[])
-{
-    SetOutApplicationLogValidFlag(TRUE); 
-
+{  
+    MainProgram mainProgram;
     
-    int targetFpsFromArg = -1; 
-    bool setVsync = true;      
+    int targetFpsFromArg = -1;     
     for (int i = 1; i < argc; ++i)
     {
         string arg = argv[i];
@@ -76,24 +74,24 @@ int main(int argc, char *argv[])
                 string argValue = argv[i + 1];
                 int vsyncValue = stoi(argValue);
                 if (vsyncValue == 0) {
-                    setVsync = false;
+                   mainProgram.mainProgramValue.setVsync = false;
                 } else if (vsyncValue == 1) {
-                    setVsync = true;
+                    mainProgram.mainProgramValue.setVsync = true;
                 } else {
                      cerr << "Warning: Invalid value for --setVsync. Expected 0 or 1. Using default (1)." << endl;
-                     setVsync = true; // Default to true on invalid value
+                     mainProgram.mainProgramValue.setVsync = true; // Default to true on invalid value
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
             catch (const std::invalid_argument &e)
             {
                 std::cerr << "Warning: Invalid argument for --setVsync. Expected a number (0 or 1). Using default (1)." << std::endl;
-                setVsync = true; // Default to true on error
+                mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
              catch (const std::out_of_range &e)
             {
                 std::cerr << "Warning: Value for --setVsync out of range. Using default (1)." << std::endl;
-                setVsync = true; // Default to true on error
+                mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
         }
         
@@ -166,22 +164,10 @@ int main(int argc, char *argv[])
     {
         engine.EngineStdOut("Setting target FPS from command line argument: " + to_string(targetFpsFromArg), 0);
         engine.setfps(targetFpsFromArg); 
-    }
-
-    if (setVsync)
-    {
-        SetWaitVSyncFlag(TRUE); 
-    }
-    else
-    {
-        SetWaitVSyncFlag(FALSE); 
-    }
-    
-
-    
+    }    
     if (projectDataLoaded)
     {
-        if (!engine.initGE())
+        if (!engine.initGE(mainProgram.mainProgramValue.getVsync())) // VSync 설정 전달
         {
             
             engine.EngineStdOut("Engine/Graphic initialization failed. Exiting.", 2);
@@ -189,8 +175,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            
-            SetWindowIconID(IDI_OMOC);
+            //SDL_SetWindowIcon(IDI_OMOC);
             engine.renderLoadingScreen();
 
             if (!engine.loadImages())
@@ -205,27 +190,32 @@ int main(int argc, char *argv[])
 
             engine.EngineStdOut("Entering game loop.", 0);
 
-
-            long long loopStartTime = 0;
+            bool quit = false;
+            SDL_Event event;
+            Uint64 loopStartTime = 0;
             int targetFps = engine.getTargetFps();
             int targetFrameTimeMillis = (targetFps > 0) ? (1000 / targetFps) : (1000 / 60);
-
-            while (ProcessMessage() == 0)
+            
+            while (!quit)
             {                                  
-                loopStartTime = GetNowCount();
-
+                loopStartTime = SDL_GetTicks();
+                while (SDL_PollEvent(&event))
+                {
+                    if (event.type == SDL_EVENT_QUIT)
+                    {
+                        quit = true;
+                    }
+                }
                 engine.processInput();
                 engine.drawAllEntities(); 
                 engine.drawHUD();
-                engine.updateFps();       
-                ScreenFlip();                  
-
-                
-                long long elapsedTime = GetNowCount() - loopStartTime;                
+                SDL_RenderPresent(engine.getRenderer()); // SDL: 화면에 최종 프레임 표시
+                engine.updateFps();
+                long long elapsedTime = SDL_GetTicks() - loopStartTime;                
                 int waitTime = targetFrameTimeMillis - static_cast<int>(elapsedTime); 
                 if (waitTime > 0)
                 {
-                    WaitTimer(waitTime); 
+                    SDL_Delay(static_cast<Uint32>(waitTime));
                 }
                 
             }
@@ -235,8 +225,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    
-    engine.terminateGE();
+    // engine.terminateGE(); // Engine 객체의 소멸자에서 호출됨
 
     return 0; 
 }

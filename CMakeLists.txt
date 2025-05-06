@@ -1,4 +1,5 @@
-﻿cmake_minimum_required (VERSION 3.8)
+﻿list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
+cmake_minimum_required (VERSION 3.8)
 
 
 if (POLICY CMP0141)
@@ -10,14 +11,13 @@ set(GITHUB "https://github.com/maiteil/OmochaEngine")
 project("OmochaEngine" VERSION 1.0.0) 
 
 find_package(jsoncpp CONFIG REQUIRED)
-set(DXLIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/dxlib/)
-set(DXLIB_LIB_DIR ${CMAKE_SOURCE_DIR}/dxlib/)
 set(RESOURCE_RC_FILE ${CMAKE_SOURCE_DIR}/resource.rc)
 set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
     "*.cpp" "*.h"
     "engine/*.cpp" "engine/*.h"
     "engine/blocks/*.cpp" "engine/blocks/*.h"
+    "engine/audio/miniaudio.h"
     "util/*.cpp" "util/*.h"
 )
 add_executable (OmochaEngine ${OMOCHA_ENGINE_SOURCES} ${RESOURCE_RC_FILE})
@@ -25,8 +25,13 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 20)
 endif()
 target_link_libraries(OmochaEngine PRIVATE JsonCpp::JsonCpp)
-target_link_libraries(OmochaEngine PRIVATE DxLib)
-
+#SDL
+find_package(SDL3 CONFIG REQUIRED)
+target_link_libraries(OmochaEngine PRIVATE SDL3::SDL3)
+find_package(SDL3_image CONFIG REQUIRED)
+target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
+find_package(SDL3_ttf CONFIG REQUIRED)
+target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_ttf::SDL3_ttf>,SDL3_ttf::SDL3_ttf,SDL3_ttf::SDL3_ttf-static>)
 configure_file(
     "${PROJECT_SOURCE_DIR}/version_config.h.in" 
     "${PROJECT_BINARY_DIR}/version_config.h"
@@ -37,7 +42,3 @@ configure_file(
 target_include_directories(OmochaEngine PRIVATE "${PROJECT_BINARY_DIR}")
 
 target_include_directories(OmochaEngine PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(OmochaEngine PRIVATE ${DXLIB_INCLUDE_DIR})
-
-
-target_link_directories(OmochaEngine PRIVATE ${DXLIB_LIB_DIR})
