@@ -79,6 +79,12 @@ bool Engine::loadProject(const string &projectFilePath)
         WINDOW_TITLE = PROJECT_NAME + " - " + OMOCHA_ENGINE_NAME + " v" + OMOCHA_ENGINE_VERSION;
         EngineStdOut("Project Name: " + PROJECT_NAME, 0);
     }
+    // project.json에서 speed 값 읽어옴
+    if (root.isMember("speed") && root["speed"].isNumeric())
+    {
+        this->specialConfig.TARGET_FPS = root["speed"].asInt();
+        EngineStdOut("Target FPS set from project.json: " + std::to_string(this->specialConfig.TARGET_FPS), 0);
+    }
     /**
      * @brief 특수 설정
      * 브랜드 이름 (로딩중)
@@ -112,16 +118,9 @@ bool Engine::loadProject(const string &projectFilePath)
             {
                 this->specialConfig.SHOW_PROJECT_NAME = false;
             }
-
-            // project.json에서 targetFps 값을 읽어옵니다. (예시)
-            if (specialConfigJson.isMember("targetFps") && specialConfigJson["targetFps"].isNumeric())
-            {
-                this->specialConfig.TARGET_FPS = specialConfigJson["targetFps"].asInt();
-                EngineStdOut("Target FPS set from project.json: " + std::to_string(this->specialConfig.TARGET_FPS), 0);
-            }
         }
 
-        // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직 (선택 사항)
+        // 예시: project.json에서 showZoomSlider 설정을 읽어오는 로직
         // if(root["specialConfig"].isMember("showZoomSliderUI") && root["specialConfig"]["showZoomSliderUI"].isBool())
         // {
         //     this->specialConfig.showZoomSlider = root["specialConfig"]["showZoomSliderUI"].asBool();
@@ -777,10 +776,12 @@ bool Engine::loadImages()
                     EngineStdOut("ERROR: Image load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                 }
 
-                // 3. 로딩 화면 그리기 및 메시지 처리 (각 이미지 로드 후)
-                renderLoadingScreen();
-                if (ProcessMessage() == -1)
-                    return false; // 창이 닫히면 로딩 중단
+                // 3. 로딩 화면 그리기 및 메시지 처리 (덜 자주 업데이트)
+                    // 예: 5개 이미지마다 또는 실패/성공 시, 또는 마지막 아이템 로드 시 업데이트
+                    if (loadedCount % 5 == 0 || handle == -1 || loadedItemCount == totalItemsToLoad) {
+                        renderLoadingScreen();
+                        if (ProcessMessage() == -1) return false; // 창이 닫히면 로딩 중단
+                    }
             }
         }
     }

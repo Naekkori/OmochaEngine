@@ -24,7 +24,7 @@ javascript 기반 엔진보다 속도가 빠릅니다
                 {
                     "brandName":"DBDO",
                     "showProjectNameUI":true,
-                    "showZoomSlider":false
+                    "showZoomSlider":false,
                 },
                 //... 그외 기타 요소들
 }
