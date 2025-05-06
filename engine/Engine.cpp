@@ -1052,34 +1052,6 @@ void Engine::initFps()
     framecount = 0;
     currentFps = 0.0f;
 }
-void Engine::updateFps()
-{
-    long long currentTime = GetNowCount();
-    long elapseTime = currentTime - lastfpstime; // 밀리초 단위 경과 시간
-
-    deltaTime = elapseTime / 1000.0f; // 초 단위 델타 타임 계산 및 저장
-
-    framecount++;
-    // FPS 계산 로직은 델타 타임 계산과 별개로 유지 가능 (예: 0.5초마다 업데이트)
-    if (elapseTime >= 500) // 500ms 마다 FPS 갱신 (기존 로직 유지 또는 조정 가능)
-    {
-        currentFps = static_cast<float>(framecount) / (elapseTime / 1000.0f);
-        lastfpstime = currentTime;
-        framecount = 0;
-    }
-    // 또는 매 프레임 FPS 계산 (덜 안정적일 수 있음)
-    // if (elapseTime > 0) {
-    //     currentFps = 1000.0f / elapseTime;
-    // } else {
-    //     currentFps = 0.0f; // 또는 매우 큰 값
-    // }
-    // lastfpstime = currentTime; // 매 프레임 업데이트 시 필요
-}
-
-float Engine::getDeltaTime() const
-{
-    return deltaTime;
-}
 void Engine::setfps(int fps)
 {
     this->specialConfig.TARGET_FPS = fps;
