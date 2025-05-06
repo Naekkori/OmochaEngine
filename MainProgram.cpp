@@ -216,9 +216,9 @@ int main(int argc, char *argv[])
 
                 engine.processInput();
                 engine.drawAllEntities(); 
-                engine.drawHUD();         
-                ScreenFlip();             
+                engine.drawHUD();
                 engine.updateFps();       
+                ScreenFlip();                  
 
                 
                 long long elapsedTime = GetNowCount() - loopStartTime;                

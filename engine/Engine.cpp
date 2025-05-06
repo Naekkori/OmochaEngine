@@ -1056,6 +1056,19 @@ void Engine::setfps(int fps)
 {
     this->specialConfig.TARGET_FPS = fps;
 }
+void Engine::updateFps()
+{
+    framecount++;
+    int now = GetNowCount(); // 현재 시간 가져오기 (밀리초)
+    int delta = now - lastfpstime; // 마지막 FPS 계산 이후 경과 시간
+
+    if (delta >= 1000) // 1초(1000ms) 이상 경과했으면 FPS 업데이트
+    {
+        currentFps = static_cast<float>(framecount * 1000) / delta; // 초당 프레임 수 계산
+        lastfpstime = now; // 마지막 계산 시간 업데이트
+        framecount = 0; // 프레임 카운터 리셋
+    }
+}
 Entity *Engine::getEntityById(const string &id)
 {
     auto it = entities.find(id);
@@ -1147,7 +1160,7 @@ void Engine::showMessageBox(const string &message, int IconType)
 {
     MessageBox(NULL, message.c_str(), string(OMOCHA_ENGINE_NAME).c_str(), MB_OK | IconType);
 }
-/*
+/**
  @brief 엔진에 로그를 출력합니다.
  @param s 내용
  @param LEVEL 레벨
