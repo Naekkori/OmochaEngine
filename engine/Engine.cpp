@@ -1,4 +1,4 @@
-﻿#include "Engine.h"
+#include "Engine.h"
 #include "Entity.h"
 #include <fstream>
 #include <filesystem>
@@ -611,18 +611,11 @@ bool Engine::initGE()
         EngineStdOut("DxLib initialization failed: DxLib_Init() returned -1.", 2);
         return false;
     }
-    InitFontToHandle(); // 폰트를 초기화 안해서 오류떴을수 있음.
-
-    // 로딩 화면용 폰트 미리 로드
-    loadingFontHandle = Fontloader("font/NanumBarunpenR.ttf");
-    if (loadingFontHandle == -1)
-    {
-        EngineStdOut("Failed to load essential loading screen font. Loading screen text might not display.", 1);
-        // 필요하다면 여기서 오류 처리 또는 메시지 박스 표시
-    }
 
     initFps();
     SetUseCharSet(DX_CHARCODEFORMAT_UTF8);
+        // 로딩 화면용 폰트 미리 로드
+    loadingFontHandle = Fontloader("font/nanum_barunpen.ttf");
     SetBackgroundColor(255, 255, 255);
     string projectName = PROJECT_NAME;
     SetWindowTextDX(projectName.c_str());
@@ -659,23 +652,52 @@ bool Engine::createTemporaryScreen()
 }
 int Engine::Fontloader(string fontpath)
 {
-    if (filesystem::exists(fontpath.c_str()) == false)
+    vector<char> Readedbuffer;
+    if (!filesystem::exists(fontpath.c_str()))
     {
-        EngineStdOut("font is not found.", 2);
+        EngineStdOut("font is not found. path: "+fontpath, 2);
         return -1;
     }
+
+    ifstream file(fontpath, ios::binary | ios::ate);
+    if (!file.is_open()) {
+        EngineStdOut("Failed to open font file (check permissions?): " + fontpath, 2);
+        return -1;
+    }
+
+    streamsize size = file.tellg();
+    if (size <= 0) { 
+        EngineStdOut("Font file is empty or size could not be determined: " + fontpath, 2);
+ 
+        return -1;
+    }
+
+    file.seekg(0, ios::beg);
+
+    vector<char> buffer(static_cast<size_t>(size)); 
+
+    if (file.read(buffer.data(), size) && file.gcount() == size)
+    {
+        Readedbuffer = std::move(buffer);
+    } else {
+        EngineStdOut("Failed to read font data completely from: " + fontpath, 2);
+        return -1;
+    }
+
     // 폰트로더
-    int fontHandle = LoadFontDataToHandle(fontpath.c_str());
+    if (Readedbuffer.empty()) {
+         EngineStdOut("Internal error: Readedbuffer is empty after successful read for: " + fontpath, 2);
+         return -1;
+    }
+
+    int fontHandle = LoadFontDataFromMemToHandle(Readedbuffer.data(), Readedbuffer.size());
     if (fontHandle == -1)
     {
         EngineStdOut("Failed to load font: " + fontpath, 2);
     }
-    else
-    {
-        EngineStdOut("Loaded font: " + fontpath, 0);
-    }
     return fontHandle;
 }
+
 /**
  * @brief 소리를 로드합니다.
  *
@@ -776,9 +798,8 @@ bool Engine::loadImages()
                     EngineStdOut("ERROR: Image load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                 }
 
-                // 3. 로딩 화면 그리기 및 메시지 처리 (덜 자주 업데이트)
-                    // 예: 5개 이미지마다 또는 실패/성공 시, 또는 마지막 아이템 로드 시 업데이트
-                    if (loadedCount % 5 == 0 || handle == -1 || loadedItemCount == totalItemsToLoad) {
+                    // 3. 로딩 화면 그리기 및 메시지 처리 (덜 자주 업데이트)
+                    if (loadedCount % 3 == 0 || handle == -1 || loadedItemCount == totalItemsToLoad) {
                         renderLoadingScreen();
                         if (ProcessMessage() == -1) return false; // 창이 닫히면 로딩 중단
                     }
