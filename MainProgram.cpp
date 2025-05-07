@@ -10,7 +10,7 @@
 using namespace std;
 
 
-void setConsoleTitle(const string &s);
+//void setConsoleTitle(const string &s);
 void setConsoleUTF8();
 
 
@@ -32,15 +32,15 @@ int main(int argc, char *argv[])
             engineString +="*         도움말         *\n";
             engineString +="**************************\n";
             // Print detailed usage information
-            std:printf(engineString.c_str());
-            std::printf("사용법: %s [옵션]\n\n", argv[0]);
-            std::printf("옵션:\n");
-            std::printf("  --setfps <value>   frames per second (FPS) 를 설정합니다.\n");
-            std::printf("                     기본값은 엔진 내부세팅 60fps 입니다.\n");
-            std::printf("  --setVsync <0|1>   수직동기화 를 설정합니다 0 은 비활성 1 은 활성입니다.\n");
-            std::printf("  -h, --help         도움말 을 출력하고 엔진을 종료합니다.\n\n");
-            std::printf("예제:\n");
-            std::printf("  %s --setfps 120 --setVsync 0\n", argv[0]);
+            printf(engineString.c_str());
+            printf("사용법: %s [옵션]\n\n", argv[0]);
+            printf("옵션:\n");
+            printf("  --setfps <value>   frames per second (FPS) 를 설정합니다.\n");
+            printf("                     기본값은 엔진 내부세팅 60fps 입니다.\n");
+            printf("  --setVsync <0|1>   수직동기화 를 설정합니다 0 은 비활성 1 은 활성입니다.\n");
+            printf("  -h, --help         도움말 을 출력하고 엔진을 종료합니다.\n\n");
+            printf("예제:\n");
+            printf("  %s --setfps 120 --setVsync 0\n", argv[0]);
             return 0; // Exit after displaying help
         }
 
@@ -56,12 +56,12 @@ int main(int argc, char *argv[])
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
-            catch (const std::invalid_argument &e)
+            catch (const invalid_argument &e)
             {
                 cerr << "Warning: Invalid argument for --setfps. Expected a number." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
             }
-            catch (const std::out_of_range &e)
+            catch (const out_of_range &e)
             {
                 cerr << "Warning: FPS value for --setfps out of range." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
@@ -83,14 +83,14 @@ int main(int argc, char *argv[])
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
-            catch (const std::invalid_argument &e)
+            catch (const invalid_argument &e)
             {
-                std::cerr << "Warning: Invalid argument for --setVsync. Expected a number (0 or 1). Using default (1)." << std::endl;
+                cerr << "Warning: Invalid argument for --setVsync. Expected a number (0 or 1). Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
-             catch (const std::out_of_range &e)
+             catch (const out_of_range &e)
             {
-                std::cerr << "Warning: Value for --setVsync out of range. Using default (1)." << std::endl;
+                cerr << "Warning: Value for --setVsync out of range. Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
         }
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 
     setConsoleUTF8(); 
 
-    setConsoleTitle(OMOCHA_ENGINE_NAME); 
+    //setConsoleTitle(OMOCHA_ENGINE_NAME); 
 
     
     string insideprojectPath = string(BASE_ASSETS) + "temp/project.json";
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
             {
                 filesystem::create_directory("assets");
             }
-            catch (const std::filesystem::filesystem_error &e)
+            catch (const filesystem::filesystem_error &e)
             {
                 engine.EngineStdOut("Failed to create 'assets' directory: " + string(e.what()), 2);
                 engine.showMessageBox("Failed to create 'assets' directory.",engine.msgBoxIconType.ICON_ERROR);
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
     bool projectDataLoaded = false;
     if (engine.loadProject(projectPath))
     {
-        setConsoleTitle(PROJECT_NAME + " - " + OMOCHA_ENGINE_NAME); 
+        //setConsoleTitle(PROJECT_NAME + " - " + OMOCHA_ENGINE_NAME); 
         projectDataLoaded = true;
         engine.EngineStdOut("Project loaded successfully: " + PROJECT_NAME, 0);
     }
@@ -228,16 +228,6 @@ int main(int argc, char *argv[])
     // engine.terminateGE(); // Engine 객체의 소멸자에서 호출됨
 
     return 0; 
-}
-
-
-void setConsoleTitle(const string &s)
-{
-#ifdef _WIN32 
-    SetConsoleTitleA(s.c_str());
-#else 
-    cout << "\033]0;" << s << "\007";
-#endif
 }
 
 

@@ -42,3 +42,39 @@ configure_file(
 target_include_directories(OmochaEngine PRIVATE "${PROJECT_BINARY_DIR}")
 
 target_include_directories(OmochaEngine PRIVATE ${CMAKE_SOURCE_DIR})
+if(WIN32)
+    # CMAKE_PREFIX_PATH 리스트의 첫 번째 경로를 vcpkg 설치 경로로 가정합니다.
+    # 예: F:/vcpkg/installed/x64-windows
+    list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR)
+    set(VCPKG_BIN_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/bin")
+
+    # 대상 타겟의 출력 디렉터리로 DLL을 복사하는 함수
+    function(copy_dll_to_target_dir TARGET_NAME DLL_BASENAME)
+        set(DLL_SOURCE_PATH "${VCPKG_BIN_DIR}/${DLL_BASENAME}")
+        if(EXISTS "${DLL_SOURCE_PATH}")
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${DLL_SOURCE_PATH}"
+                $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMENT "Copying ${DLL_BASENAME} to output directory for ${TARGET_NAME}"
+            )
+        else()
+            message(WARNING "DLL to copy not found: ${DLL_SOURCE_PATH}")
+        endif()
+    endfunction()
+
+    # OmochaEngine 타겟을 위해 필요한 DLL들을 복사합니다.
+    copy_dll_to_target_dir(OmochaEngine "SDL3.dll")
+    copy_dll_to_target_dir(OmochaEngine "SDL3_image.dll")
+    copy_dll_to_target_dir(OmochaEngine "SDL3_ttf.dll")
+    copy_dll_to_target_dir(OmochaEngine "tiff.dll")
+    copy_dll_to_target_dir(OmochaEngine "jpeg62.dll")
+    copy_dll_to_target_dir(OmochaEngine "libpng16.dll")
+    copy_dll_to_target_dir(OmochaEngine "libwebpdemux.dll")
+    copy_dll_to_target_dir(OmochaEngine "libwebp.dll")
+    copy_dll_to_target_dir(OmochaEngine "liblzma.dll")
+    copy_dll_to_target_dir(OmochaEngine "libsharpyuv.dll")
+    # jsoncpp.dll의 경우, vcpkg가 공유 라이브러리로 빌드했다면 ${VCPKG_BIN_DIR}에 존재합니다.
+    # 정적으로 링크된 경우에는 이 DLL이 필요 없으며, 파일이 없다면 복사되지 않습니다.
+    copy_dll_to_target_dir(OmochaEngine "jsoncpp.dll")
+endif()

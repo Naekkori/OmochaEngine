@@ -12,7 +12,6 @@
 #include <algorithm> // For min
 #include <memory>
 #include <format>
-#include <iomanip> // For std::setprecision in drawHUD and renderLoadingScreen
 #include "blocks/BlockExecutor.h"
 #include <json/reader.h>
 #include <json/value.h>
@@ -171,7 +170,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         const auto &soundJson = soundsJson[i];
                         if (soundJson.isObject() && soundJson.isMember("id") && soundJson["id"].isString() && soundJson.isMember("filename") && soundJson["filename"].isString())
                         {
-                            Sound sound;
+                            SoundFile sound;
                             string soundId = soundJson["id"].asString();
                             string soundName = soundJson["name"].asString();
                             string soundFilename = soundJson["filename"].asString();
@@ -539,19 +538,8 @@ bool Engine::initGE(bool vsyncEnabled)
         showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
     }
+    
     EngineStdOut("SDL initialized successfully (Video and Audio).", 0);
-
-    // SDL_image 초기화 코드 없음 자체적으로 초기화 하는듯.
-    /*int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
-    if (!(IMG_Init(imgFlags) & imgFlags))
-    {
-        string errMsg = "SDL_image could not initialize! IMG_Error: " + string(IMG_GetError());
-        EngineStdOut(errMsg, 2);
-        showMessageBox("Failed to initialize SDL_image: " + string(IMG_GetError()), msgBoxIconType.ICON_ERROR);
-        SDL_Quit(); // SDL 코어 정리
-        return false;
-    }
-    EngineStdOut("SDL_image initialized successfully (PNG, JPG support).", 0);*/
 
     // 윈도우 생성
     // WINDOW_TITLE은 loadProject에서 설정됨
@@ -593,21 +581,20 @@ bool Engine::initGE(bool vsyncEnabled)
 
     // SDL_ttf 초기화
     if (TTF_Init() == -1) {
-        string errMsg = "SDL_ttf could not initialize! TTF_Error: ";
-        EngineStdOut(errMsg, 2);
-        showMessageBox("Failed to initialize SDL_ttf: ", msgBoxIconType.ICON_ERROR);
+        string errMsg = "SDL_ttf could not initialize!";
+        EngineStdOut(errMsg , 2);
+        showMessageBox("Failed to initialize", msgBoxIconType.ICON_ERROR);
         SDL_DestroyRenderer(this->renderer);
         this->renderer = nullptr;
         SDL_DestroyWindow(this->window);
         this->window = nullptr;
-        //IMG_Quit(); IMG_Quit(); 없음
         SDL_Quit();
         return false;
     }
     EngineStdOut("SDL_ttf initialized successfully.", 0);
 
     // HUD 및 로딩 화면용 폰트 로드
-    string defaultFontPath = string(BASE_ASSETS) + "font/NanumBarunpenR.ttf";
+    string defaultFontPath = "font/nanum_barunpen.ttf";
     hudFont = TTF_OpenFont(defaultFontPath.c_str(), 16);
     loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
 
@@ -664,11 +651,11 @@ bool Engine::createTemporaryScreen()
     return true;
 }
 
-int Engine::Soundloader(string soundUri)
+/*int Engine::Soundloader(string soundUri)
 {
     EngineStdOut("Soundloader: Needs implementation with SDL_mixer. Sound URI: " + soundUri, 1);
     return -1; // Placeholder
-}
+}*/
 void Engine::destroyTemporaryScreen()
 {
     if (this->tempScreenTexture != nullptr)
@@ -750,16 +737,8 @@ bool Engine::loadImages()
                 {
                     fileExtension = imagePath.substr(dotPos);
                 }
-
-                if (fileExtension == ".svg" || fileExtension == ".webp")
-                {
-                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + "): " + fileExtension + " file, skipping SDL_image loading (unsupported or requires extra libraries).", 1);
-                    failedCount++;
-                }
-                else
-                {
                     SDL_Surface* surface = IMG_Load(imagePath.c_str());
-                    if (surface) {
+                    if (surface != NULL) {
                         costume.imageHandle = SDL_CreateTextureFromSurface(this->renderer, surface);
                         SDL_DestroySurface(surface);
 
@@ -774,7 +753,6 @@ bool Engine::loadImages()
                         failedCount++; // IMG_Load 실패도 실패 카운트에 포함
                         EngineStdOut("ERROR: IMG_Load failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath, 2);
                     }
-                }
                 incrementLoadedItemCount();
                 if (loadedItemCount % 3 == 0 || costume.imageHandle == nullptr || loadedItemCount == totalItemsToLoad)
                 {
@@ -944,8 +922,8 @@ void Engine::drawHUD()
         }
     }
 
-    // --- 프로젝트 이름 표시 (옵션) ---
-    if (this->hudFont && this->specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty()) {
+    // ---HUD 에 프로젝트 이름 표시 (사용안함) ---
+    /*if (this->hudFont && this->specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty()) {
         SDL_Color textColor = {200, 200, 200, 255}; // 밝은 회색
         SDL_Surface* nameSurface = TTF_RenderText_Solid(hudFont, PROJECT_NAME.c_str(),PROJECT_NAME.size(), textColor);
         if (nameSurface) {
@@ -960,7 +938,7 @@ void Engine::drawHUD()
             }
             SDL_DestroySurface(nameSurface);
         }
-    }
+    }*/
 
 
     // --- 줌 슬라이더 UI 그리기 (설정에서 활성화된 경우) ---
@@ -1168,20 +1146,20 @@ const string &Engine::getCurrentSceneId() const
 void Engine::showMessageBox(const string &message, int IconType)
 {
     Uint32 flags = 0;
-    const char* title = OMOCHA_ENGINE_NAME; // 전역 변수 대신 매크로 사용
+    const char* title = OMOCHA_ENGINE_NAME;
     switch (IconType)
     {
     case SDL_MESSAGEBOX_ERROR:
         flags = SDL_MESSAGEBOX_ERROR;
-        title = "Error";
+        title = "Omocha is Broken";
         break;
     case SDL_MESSAGEBOX_WARNING:
         flags = SDL_MESSAGEBOX_WARNING;
-        title = "Warning";
+        title = OMOCHA_ENGINE_NAME;
         break;
     case SDL_MESSAGEBOX_INFORMATION:
         flags = SDL_MESSAGEBOX_INFORMATION;
-        title = "Information";
+        title = OMOCHA_ENGINE_NAME;
         break;
     default:
         // 알 수 없는 IconType 처리, 정보 메시지 또는 오류 로그로 기본 설정

@@ -13,7 +13,6 @@
 #include "blocks/Block.h"
 #include "util/fontName.h"
 #include "../util/Logger.h"
-#include <WinUser.h> // For MB_ICON* constants
 using namespace std;
 
 const int PROJECT_STAGE_WIDTH = 640;
@@ -25,7 +24,6 @@ const double ASSET_ROTATION_CORRECTION_RADIAN = -3.14159265358979323846 / 2.0;
 extern const char *BASE_ASSETS;
 extern string PROJECT_NAME;
 extern string WINDOW_TITLE;
-
 struct Costume
 {
     string id;
@@ -47,7 +45,7 @@ struct Costume
 }
 ]
 */
-struct Sound
+struct SoundFile
 {
     double duration;
     string ext;
@@ -65,7 +63,7 @@ struct ObjectInfo
     string sceneId;
     string selectedCostumeId;
     vector<Costume> costumes;
-    vector<Sound> sounds;
+    vector<SoundFile> sounds;
     string textContent;
     SDL_Color textColor;
     string fontName;
@@ -107,7 +105,7 @@ private:
     const string ANSI_COLOR_CYAN = "\x1b[36m";
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
-    int Soundloader(string soundUri);
+    //int Soundloader(const string& soundUri);
     void destroyTemporaryScreen();
     void findRunbtnScript();
     long long lastfpstime;
@@ -143,7 +141,7 @@ public: // TODO: Review public/private for SDL specific members if any
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     void showMessageBox(const string &message, int IconType);
-    void EngineStdOut(string s, int LEVEL = 0);
+    void EngineStdOut(string s, int LEVEL=0);
     map<int, vector<pair<string, const Script *>>> sceneScripts;
     void processInput();
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
