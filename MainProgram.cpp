@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <string>
 #include <filesystem>
 #include <cstdlib>   
@@ -203,10 +203,24 @@ int main(int argc, char *argv[])
                 {
                     if (event.type == SDL_EVENT_QUIT)
                     {
-                        quit = true;
+                        if(engine.showMessageBox("Do you want to quit "+PROJECT_NAME+"?",engine.msgBoxIconType.ICON_INFORMATION,true)){
+                            quit = true;
+                        }else{
+                            quit = false;
+                        }
+                    }
+                    engine.processInput();
+                    if (event.type == SDL_EVENT_RENDER_DEVICE_RESET || event.type == SDL_EVENT_RENDER_TARGETS_RESET) {
+                        engine.handleRenderDeviceReset(); // 리셋 플래그 설정 및 기존 리소스 해제 준비
                     }
                 }
-                engine.processInput();
+                if (!engine.recreateAssetsIfNeeded())
+                {
+                    engine.EngineStdOut("Failed to recreate assets. Exiting");
+                    engine.showMessageBox("Failed to recreate assets. Exiting",engine.msgBoxIconType.ICON_ERROR);
+                    quit = true;
+                    continue;
+                }
                 engine.drawAllEntities(); 
                 engine.drawHUD();
                 SDL_RenderPresent(engine.getRenderer()); // SDL: 화면에 최종 프레임 표시

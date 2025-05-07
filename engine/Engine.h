@@ -3,7 +3,8 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <json/value.h>
+#include <rapidjson/rapidjson.h> // Added for RapidJSON forward declaration if needed, or full include
+#include <rapidjson/document.h>
 #include "Entity.h"
 #include "SDL3/SDL.h"             // SDL 코어
 #include "SDL3_image/SDL_image.h" //SDL 이미지
@@ -15,15 +16,20 @@
 #include "../util/Logger.h"
 using namespace std;
 
-const int PROJECT_STAGE_WIDTH = 640;
-const int PROJECT_STAGE_HEIGHT = 360;
-
 const int WINDOW_WIDTH = 640 * 2;
 const int WINDOW_HEIGHT = 360 * 2;
+static const int PROJECT_STAGE_WIDTH = 480;
+static const int PROJECT_STAGE_HEIGHT = 360;
+
+// HUD 상수 정의
+static const int SLIDER_X = 10;
+static const int SLIDER_Y = WINDOW_HEIGHT - 40;
+static const int SLIDER_WIDTH = 200;
+static const int SLIDER_HEIGHT = 20;
 const double ASSET_ROTATION_CORRECTION_RADIAN = -3.14159265358979323846 / 2.0;
-extern const char *BASE_ASSETS;
-extern string PROJECT_NAME;
-extern string WINDOW_TITLE;
+extern const char *BASE_ASSETS; // Declaration only
+extern string PROJECT_NAME;     // Declaration only
+extern string WINDOW_TITLE;     // Declaration only
 struct Costume
 {
     string id;
@@ -70,7 +76,6 @@ struct ObjectInfo
     int fontSize;
     int textAlign;
 };
-
 class Engine
 {
 private:
@@ -98,6 +103,7 @@ private:
     map<string, string> scenes;
     SimpleLogger logger;
     SDL_Texture *tempScreenTexture;
+    rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -105,24 +111,27 @@ private:
     const string ANSI_COLOR_CYAN = "\x1b[36m";
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
-    //int Soundloader(const string& soundUri);
+    bool m_needsTextureRecreation = false; // Flag to indicate if textures need to be recreated
+    // int Soundloader(const string& soundUri);
     void destroyTemporaryScreen();
-    void findRunbtnScript();
-    long long lastfpstime;
+    void findRunbtnScript(); // 이 함수는 loadProject에서 처리되므로 불필요해 보입니다.
+    Uint64 lastfpstime; // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     int framecount;
     float currentFps;
     int totalItemsToLoad;
     int loadedItemCount; // 로드된 아이템 수
     float zoomFactor;    // 현재 줌 배율 저장
     // int loadingFontHandle=-1; // DxLib specific, to be replaced by SDL_ttf
-    // --- UI Constants (DxLib specific, may need adjustment for SDL) ---
-    static const int SLIDER_X = 10;
-    static const int SLIDER_Y = WINDOW_HEIGHT - 40;
-    static const int SLIDER_WIDTH = 200;
-    static const int SLIDER_HEIGHT = 20;
+    // --- UI Constants (DxLib specific, may need adjustment for SDL) --
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
     int mapEntryKeyToDxLibKey(const string &entryKey);
+    std::string getSafeStringFromJson(const rapidjson::Value &parentValue,
+                                      const std::string &fieldName,
+                                      const std::string &contextDescription,
+                                      const std::string &defaultValue,
+                                      bool isCritical,
+                                      bool allowEmpty);
 
 public: // TODO: Review public/private for SDL specific members if any
     struct MsgBoxIconType
@@ -140,15 +149,15 @@ public: // TODO: Review public/private for SDL specific members if any
     bool loadImages(); // Will require SDL texture loading
     void drawAllEntities();
     const string &getCurrentSceneId() const;
-    void showMessageBox(const string &message, int IconType);
-    void EngineStdOut(string s, int LEVEL=0);
+    bool showMessageBox(const string &message, int IconType,bool showYesNo=false);
+    void EngineStdOut(string s, int LEVEL = 0);
     map<int, vector<pair<string, const Script *>>> sceneScripts;
     void processInput();
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
     void setfps(int fps);
-    SDL_Renderer* getRenderer() // SDL3 에서는 SDL_Renderer* 를 반환해야 합니다.
+    SDL_Renderer *getRenderer() // SDL3 에서는 SDL_Renderer* 를 반환해야 합니다.
     {
         return this->renderer;
     }
@@ -158,5 +167,7 @@ public: // TODO: Review public/private for SDL specific members if any
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();
+    void handleRenderDeviceReset(); // Call this when SDL_EVENT_RENDER_DEVICE_RESET occurs
+    bool recreateAssetsIfNeeded();  // Call this before rendering each frame
     void drawHUD(); // HUD 그리기 메서드 추가
 };

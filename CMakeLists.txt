@@ -10,7 +10,6 @@ set(DEVELOPER_NAME "Maiteil")
 set(GITHUB "https://github.com/maiteil/OmochaEngine")
 project("OmochaEngine" VERSION 1.0.0) 
 
-find_package(jsoncpp CONFIG REQUIRED)
 set(RESOURCE_RC_FILE ${CMAKE_SOURCE_DIR}/resource.rc)
 set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
@@ -24,7 +23,8 @@ add_executable (OmochaEngine ${OMOCHA_ENGINE_SOURCES} ${RESOURCE_RC_FILE})
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 20)
 endif()
-target_link_libraries(OmochaEngine PRIVATE JsonCpp::JsonCpp)
+find_package(RapidJSON CONFIG REQUIRED)
+target_link_libraries(OmochaEngine PRIVATE RapidJSON rapidjson)
 #SDL
 find_package(SDL3 CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE SDL3::SDL3)
@@ -37,7 +37,11 @@ configure_file(
     "${PROJECT_BINARY_DIR}/version_config.h"
     @ONLY
 )
-
+if(MSVC)
+    add_compile_options("/utf-8")
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+    # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8")
+endif()
 
 target_include_directories(OmochaEngine PRIVATE "${PROJECT_BINARY_DIR}")
 
@@ -76,5 +80,5 @@ if(WIN32)
     copy_dll_to_target_dir(OmochaEngine "libsharpyuv.dll")
     # jsoncpp.dll의 경우, vcpkg가 공유 라이브러리로 빌드했다면 ${VCPKG_BIN_DIR}에 존재합니다.
     # 정적으로 링크된 경우에는 이 DLL이 필요 없으며, 파일이 없다면 복사되지 않습니다.
-    copy_dll_to_target_dir(OmochaEngine "jsoncpp.dll")
+    #copy_dll_to_target_dir(OmochaEngine "rapidjson.dll")
 endif()

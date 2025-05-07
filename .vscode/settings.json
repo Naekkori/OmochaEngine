@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.log": "Log",
         "xstring": "cpp",
         "algorithm": "cpp",
         "array": "cpp",
@@ -65,6 +66,27 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "ranges": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "bitset": "cpp",
+        "future": "cpp",
+        "variant": "cpp",
+        "any": "cpp",
+        "cinttypes": "cpp",
+        "complex": "cpp",
+        "condition_variable": "cpp",
+        "coroutine": "cpp",
+        "cstdarg": "cpp",
+        "functional": "cpp",
+        "list": "cpp",
+        "mutex": "cpp",
+        "numeric": "cpp",
+        "queue": "cpp",
+        "random": "cpp",
+        "set": "cpp",
+        "stop_token": "cpp",
+        "thread": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "xhash": "cpp"
     }
 }
