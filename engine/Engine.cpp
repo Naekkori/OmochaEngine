@@ -1587,31 +1587,6 @@ void Engine::drawHUD()
             EngineStdOut("Failed to render FPS text surface ", 2); // TTF_GetError() 사용
         }
     }
-
-    // --- HUD 에 프로젝트 이름 표시 (설정에서 활성화된 경우) ---
-    // 주석 처리된 코드를 활성화하려면 아래 주석을 해제하고 필요한 변수(PROJECT_NAME)가 유효한지 확인하세요.
-    /*
-    if (this->hudFont && this->specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty()) {
-        SDL_Color textColor = {200, 200, 200, 255}; // 밝은 회색
-        // TTF_RenderText_Solid는 문자열 길이 인자가 없습니다.
-        SDL_Surface* nameSurface = TTF_RenderText_Blended(hudFont, PROJECT_NAME.c_str(), textColor); // Blended 사용
-        if (nameSurface) {
-            SDL_Texture* nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
-            if (nameTexture) {
-                // 화면 상단 중앙에 그릴 위치 계산
-                SDL_FRect dstRect = { (windowW - static_cast<float>(nameSurface->w)) / 2.0f, 10.0f, static_cast<float>(nameSurface->w), static_cast<float>(nameSurface->h) };
-                SDL_RenderTexture(renderer, nameTexture, nullptr, &dstRect);
-                SDL_DestroyTexture(nameTexture);
-            } else {
-                 EngineStdOut("Failed to create Project Name text texture: " + string(SDL_GetError()), 2);
-            }
-            SDL_DestroySurface(nameSurface);
-        } else {
-             EngineStdOut("Failed to render Project Name text surface: " + string(TTF_GetError()), 2);
-        }
-    }
-    */
-
     // --- 줌 슬라이더 UI 그리기 (설정에서 활성화된 경우) ---
     if (this->specialConfig.showZoomSlider)
     {
