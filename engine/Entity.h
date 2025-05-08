@@ -29,7 +29,7 @@ public:
         double initial_width, double initial_height, bool initial_visible);
 
     ~Entity();
-
+    bool isPointInside(double pX, double pY) const;
     const std::string& getId() const;
     const std::string& getName() const;
     double getX() const;

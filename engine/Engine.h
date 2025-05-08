@@ -94,7 +94,7 @@ private:
     };
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
     map<string, vector<Script>> objectScripts;
-    vector<pair<string, const Script *>> startButtonScripts; // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
+    vector<pair<string, const Script *>> startButtonScripts;                   // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
@@ -107,6 +107,14 @@ private:
     SimpleLogger logger;
     SDL_Texture *tempScreenTexture;
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data
+    std::string m_pressedObjectId; // ID of the object currently being pressed by the mouse
+    vector<pair<string, const Script *>> m_mouseClickedScripts;
+    vector<pair<string, const Script *>> m_mouseClickCanceledScripts;
+    vector<pair<string, const Script *>> m_whenObjectClickedScripts;
+    vector<pair<string, const Script *>> m_whenObjectClickCanceledScripts;
+    vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
+    map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
+
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -118,27 +126,26 @@ private:
     bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
     // int Soundloader(const string& soundUri);
     void destroyTemporaryScreen();
-    Uint64 lastfpstime; // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
+    Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
     int framecount;
     float currentFps;
     int totalItemsToLoad;
     int loadedItemCount; // 로드된 아이템 수
     float zoomFactor;    // 현재 줌 배율 저장
-    // int loadingFontHandle=-1; // DxLib specific, to be replaced by SDL_ttf
-    // --- UI Constants (DxLib specific, may need adjustment for SDL) --
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
     int mapEntryKeyToDxLibKey(const string &entryKey);
-    std::string getSafeStringFromJson(const rapidjson::Value &parentValue,
-                                      const std::string &fieldName,
-                                      const std::string &contextDescription,
-                                      const std::string &defaultValue,
+    string getSafeStringFromJson(const rapidjson::Value &parentValue,
+                                      const string &fieldName,
+                                      const string &contextDescription,
+                                      const string &defaultValue,
                                       bool isCritical,
                                       bool allowEmpty);
-    SDL_Scancode mapStringToSDLScancode(const std::string& keyName) const;
+    bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float& stageX, float& stageY) const;
+    SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
 
-public: // TODO: Review public/private for SDL specific members if any
+public:
     struct MsgBoxIconType
     {
         const int ICON_ERROR = SDL_MESSAGEBOX_ERROR;
@@ -148,21 +155,21 @@ public: // TODO: Review public/private for SDL specific members if any
     MsgBoxIconType msgBoxIconType;
     Engine();
     ~Engine();
+    bool mapWindowToStageCoordinates(int mouseX, int mouseY, float &stageX, float &stageY);
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
-    bool loadImages(); // Will require SDL texture loading
+    bool loadImages();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
-    bool showMessageBox(const string &message, int IconType,bool showYesNo=false);
+    bool showMessageBox(const string &message, int IconType, bool showYesNo = false);
     void EngineStdOut(string s, int LEVEL = 0);
-    map<int, vector<pair<string, const Script *>>> sceneScripts; // TODO: 이 멤버 변수의 사용처 확인 필요, 현재 코드에서는 직접적인 사용이 보이지 않음.
-    void processInput(const SDL_Event& event);
+    void processInput(const SDL_Event &event);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
     void setfps(int fps);
-    SDL_Renderer *getRenderer() // SDL3 에서는 SDL_Renderer* 를 반환해야 합니다.
+    SDL_Renderer *getRenderer()
     {
         return this->renderer;
     }
@@ -172,7 +179,7 @@ public: // TODO: Review public/private for SDL specific members if any
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
     void renderLoadingScreen();
-    void handleRenderDeviceReset(); // Call this when SDL_EVENT_RENDER_DEVICE_RESET occurs
-    bool recreateAssetsIfNeeded();  // Call this before rendering each frame
-    void drawHUD(); // HUD 그리기 메서드 추가
+    void handleRenderDeviceReset();
+    bool recreateAssetsIfNeeded();
+    void drawHUD();                 // HUD 그리기 메서드 추가
 };

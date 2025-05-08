@@ -149,6 +149,22 @@ int main(int argc, char *argv[])
         engine.EngineStdOut("Found project.json inside 'assets/' folder.", 0);
         projectPath = outSideprojectPath;
     }
+    else if (filesystem::exists("sysmenu/project.json")){ //아무것도 없으면 시스템메뉴 실행
+        if (!filesystem::exists("assets"))
+        {
+            engine.EngineStdOut("Creating 'assets' folder. Please add project assets there.", 1);
+            try
+            {
+                filesystem::create_directory("assets");
+            }
+            catch (const filesystem::filesystem_error &e)
+            {
+                engine.EngineStdOut("Failed to create 'assets' directory: " + string(e.what()), 2);
+                engine.showMessageBox("Failed to create 'assets' directory.",engine.msgBoxIconType.ICON_ERROR);
+            }
+        }
+        projectPath = "sysmenu/project.json";
+    }
     else
     {
         projectPath = ""; 

@@ -1,0 +1,505 @@
+{
+  "objects": [
+    {
+      "id": "53ht",
+      "name": "여기에 .ent 파일 을 끌어 놓아 주십시오.",
+      "script": "[[{\"id\":\"nqgn\",\"x\":1373.06,\"y\":237,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"ecyy\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"0\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"GREATER\",{\"id\":\"vuhk\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"b5im\",\"x\":352.5,\"y\":242,\"type\":\"when_scene_start\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"zirf\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"8f4k\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"svi4\",\"x\":0,\"y\":0,\"type\":\"if_else\",\"params\":[{\"id\":\"vzcx\",\"x\":0,\"y\":0,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"xmpf\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"LESS\",{\"id\":\"3ev1\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,null],\"statements\":[[{\"id\":\"mrfz\",\"x\":0,\"y\":0,\"type\":\"change_variable\",\"params\":[\"m4ic\",{\"id\":\"45v4\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"3\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"ksgf\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"g9mi\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"-1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"xkzl\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"4dg7\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"ujlv\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"wpb4\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"1rgx\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"72wm\",\"x\":99,\"y\":78,\"type\":\"when_run_button_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"5a84\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"1qr2\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"pfj1\",\"x\":0,\"y\":0,\"type\":\"if_else\",\"params\":[{\"id\":\"tehm\",\"x\":0,\"y\":0,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"tdec\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"LESS\",{\"id\":\"9bei\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,null],\"statements\":[[{\"id\":\"igs4\",\"x\":0,\"y\":0,\"type\":\"change_variable\",\"params\":[\"m4ic\",{\"id\":\"r051\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"3\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"rego\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"z46n\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"-1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"3gft\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"k8um\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"amor\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"qm3a\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"gqx8\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "여기에 .ent 파일 을 끌어 놓아 주십시오.",
+      "lock": false,
+      "entity": {
+        "x": -7.2,
+        "y": -104.14,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.1645685872389118,
+        "scaleY": 1.164568587238912,
+        "rotation": 0,
+        "direction": 90,
+        "width": 339.2,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#c5c5c5",
+        "text": "여기에 .ent 파일 을 끌어 놓아 주십시오.",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "qmn7",
+      "name": "설정 버튼_2",
+      "script": "[[{\"id\":\"hcm2\",\"x\":50,\"y\":30,\"type\":\"when_object_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"xw22\",\"x\":0,\"y\":0,\"type\":\"start_scene\",\"params\":[\"6a8o\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "sprite",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [
+          {
+            "id": "ex9v",
+            "dimension": {
+              "width": 201,
+              "height": 201,
+              "scaleX": 0.24791603655730163,
+              "scaleY": 0.24791603655730163
+            },
+            "filename": "설정 버튼_2.png",
+            "fileurl": "menu/설정 버튼_2.png",
+            "name": "설정 버튼_2",
+            "imageType": "svg"
+          }
+        ],
+        "sounds": []
+      },
+      "selectedPictureId": "ex9v",
+      "lock": false,
+      "entity": {
+        "x": 195.49,
+        "y": 101.26,
+        "regX": 103.56,
+        "regY": 90.24,
+        "scaleX": 0.24791603655730163,
+        "scaleY": 0.24791603655730163,
+        "rotation": 0,
+        "direction": 90,
+        "width": 201,
+        "height": 201,
+        "font": "undefinedpx ",
+        "visible": true
+      }
+    },
+    {
+      "id": "qabc",
+      "name": "오모챠 엔진",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "오모챠 엔진",
+      "lock": false,
+      "entity": {
+        "x": 10.44,
+        "y": -26.85,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.0939077663818682,
+        "scaleY": 1.1933539269620377,
+        "rotation": 0,
+        "direction": 90,
+        "width": 83,
+        "height": 22,
+        "font": "20px Nanum Barun Pen",
+        "visible": true,
+        "colour": "#000000",
+        "text": "오모챠 엔진",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "if92",
+      "name": "オモチャエンジン",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "オモチャエンジン",
+      "lock": false,
+      "entity": {
+        "x": 29.21,
+        "y": 27.64,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 2.0900232930723948,
+        "scaleY": 2.0900232930723948,
+        "rotation": 0,
+        "direction": 90,
+        "width": 150.4,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "オモチャエンジン",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "7y0y",
+      "name": "logo",
+      "script": "[[{\"id\":\"7b6q\",\"x\":50,\"y\":30,\"type\":\"when_run_button_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "sprite",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [
+          {
+            "id": "1uz2",
+            "dimension": {
+              "height": 356,
+              "width": 422,
+              "type": "png",
+              "scaleX": 0.17141104952946756,
+              "scaleY": 0.17141104952946756
+            },
+            "filename": "omocha.png",
+            "fileurl": "menu/omocha.png",
+            "name": "omocha",
+            "imageType": "png"
+          }
+        ],
+        "sounds": []
+      },
+      "selectedPictureId": "1uz2",
+      "lock": false,
+      "entity": {
+        "x": -179.15,
+        "y": 27.85,
+        "regX": 211,
+        "regY": 178,
+        "scaleX": 0.1425164941365107,
+        "scaleY": 0.17141104952946756,
+        "rotation": 0,
+        "direction": 90,
+        "width": 422,
+        "height": 356,
+        "font": "undefinedpx ",
+        "visible": true
+      }
+    },
+    {
+      "id": "2ozk",
+      "name": "<OMOCHA_ENGINE_NAME>",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "<OMOCHA_ENGINE_NAME>",
+      "lock": false,
+      "entity": {
+        "x": -3.08,
+        "y": 31.78,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.0541771462567049,
+        "scaleY": 1.1500114322800414,
+        "rotation": 0,
+        "direction": 90,
+        "width": 269.94,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "<OMOCHA_ENGINE_NAME>",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "dp4i",
+      "name": "<OMOCHA_DEVELOPER>",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "<OMOCHA_DEVELOPER>",
+      "lock": false,
+      "entity": {
+        "x": -9.67,
+        "y": -56.94,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.135084108637276,
+        "scaleY": 1.2382735730588479,
+        "rotation": 0,
+        "direction": 90,
+        "width": 237.98,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "<OMOCHA_DEVELOPER>",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "5ey7",
+      "name": "<OMOCHA_SDL_VERSION>",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "<OMOCHA_SDL_VERSION>",
+      "lock": false,
+      "entity": {
+        "x": -10.74,
+        "y": -104.52,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.135084108637276,
+        "scaleY": 1.2382735730588479,
+        "rotation": 0,
+        "direction": 90,
+        "width": 255.48,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "<OMOCHA_SDL_VERSION>",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "npj5",
+      "name": "<OMOCHA_VERSION>",
+      "script": "[]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "<OMOCHA_VERSION>",
+      "lock": false,
+      "entity": {
+        "x": -7.55,
+        "y": -12.54,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.135084108637276,
+        "scaleY": 1.2382735730588479,
+        "rotation": 0,
+        "direction": 90,
+        "width": 209.46,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "<OMOCHA_VERSION>",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "15er",
+      "name": "[묶음] 다음 버튼",
+      "script": "[[{\"id\":\"jl4u\",\"x\":256,\"y\":309,\"type\":\"when_object_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"txlw\",\"x\":0,\"y\":0,\"type\":\"start_neighbor_scene\",\"params\":[\"prev\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "sprite",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [
+          {
+            "id": "49q3",
+            "dimension": {
+              "height": 202,
+              "width": 202,
+              "type": "png",
+              "scaleX": 0.30152736478218256,
+              "scaleY": 0.30152736478218256
+            },
+            "filename": "다음 버튼_1.png",
+            "fileurl": "settings/다음 버튼_1.png",
+            "name": "다음 버튼_1",
+            "imageType": "svg"
+          }
+        ],
+        "sounds": []
+      },
+      "selectedPictureId": "49q3",
+      "lock": false,
+      "entity": {
+        "x": -188.38,
+        "y": 84.42,
+        "regX": 111.15,
+        "regY": 101.79,
+        "scaleX": 0.30152736478218256,
+        "scaleY": 0.30152736478218256,
+        "rotation": 0,
+        "direction": 90,
+        "width": 202,
+        "height": 202,
+        "font": "undefinedpx ",
+        "visible": true
+      }
+    },
+    {
+      "id": "4b1v",
+      "name": "정보",
+      "script": "[[{\"id\":\"mp3e\",\"x\":50,\"y\":30,\"type\":\"when_scene_start\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"oilh\",\"x\":0,\"y\":0,\"type\":\"sound_something_with_block\",\"params\":[{\"id\":\"3was\",\"x\":0,\"y\":0,\"type\":\"get_sounds\",\"params\":[\"24jp\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "6a8o",
+      "sprite": {
+        "pictures": [],
+        "sounds": [
+          {
+            "_id": "545e10d27d1543a81e055466",
+            "duration": 0.3,
+            "ext": ".mp3",
+            "id": "24jp",
+            "filename": "구이로.mp3",
+            "fileurl": "settings/구이로.mp3",
+            "name": "구이로"
+          }
+        ]
+      },
+      "text": "정보",
+      "lock": false,
+      "entity": {
+        "x": -12.69,
+        "y": 94.1,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.5,
+        "scaleY": 1.5,
+        "rotation": 0,
+        "direction": 90,
+        "width": 37.6,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": true,
+        "colour": "#000000",
+        "text": "정보",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "#ffffff",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "id": "7dwq",
+      "name": "menu"
+    },
+    {
+      "id": "6a8o",
+      "name": "settings"
+    }
+  ],
+  "variables": [
+    {
+      "name": "font_fade",
+      "id": "m4ic",
+      "visible": false,
+      "value": 0,
+      "variableType": "variable",
+      "isCloud": false,
+      "isRealTime": false,
+      "cloudDate": false,
+      "object": null,
+      "x": -230,
+      "y": 1
+    },
+    {
+      "name": "초시계",
+      "id": "brih",
+      "visible": false,
+      "value": 0,
+      "variableType": "timer",
+      "isCloud": false,
+      "isRealTime": false,
+      "cloudDate": false,
+      "object": null,
+      "x": 134,
+      "y": -70
+    },
+    {
+      "name": " 대답 ",
+      "id": "1vu8",
+      "visible": false,
+      "value": "0",
+      "variableType": "answer",
+      "isCloud": false,
+      "isRealTime": false,
+      "cloudDate": false,
+      "object": null,
+      "x": 150,
+      "y": -100
+    }
+  ],
+  "messages": [],
+  "functions": [
+    {
+      "id": "2gna",
+      "type": "normal",
+      "localVariables": [],
+      "useLocalVariables": false,
+      "content": "[[{\"id\":\"ii5s\",\"x\":40,\"y\":40,\"type\":\"function_create\",\"params\":[{\"id\":\"x2fl\",\"x\":0,\"y\":0,\"type\":\"function_field_label\",\"params\":[\"함수\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":false,\"assemble\":true,\"extensions\":[]},null],\"statements\":[[]],\"movable\":null,\"deletable\":false,\"emphasized\":false,\"readOnly\":null,\"copyable\":false,\"assemble\":true,\"extensions\":[]}]]"
+    }
+  ],
+  "tables": [],
+  "speed": 60,
+  "interface": {
+    "menuWidth": 280,
+    "canvasWidth": 480,
+    "object": "53ht"
+  },
+  "expansionBlocks": [],
+  "aiUtilizeBlocks": [],
+  "hardwareLiteBlocks": [],
+  "externalModules": [],
+  "externalModulesLite": [],
+  "isPracticalCourse": false,
+  "name": "OmochaEngine"
+}
