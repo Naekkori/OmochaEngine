@@ -133,8 +133,7 @@ bool Engine::loadProject(const string &projectFilePath)
     ifstream projectFile(projectFilePath);
     if (!projectFile.is_open())
     {
-        // showMessageBox 함수는 Engine.h에 선언되어 있어야 합니다.
-        showMessageBox("Failed to open project file: " + projectFilePath, this->msgBoxIconType.ICON_ERROR);
+        showMessageBox("Failed to open project file: " + projectFilePath, msgBoxIconType.ICON_ERROR);
         EngineStdOut(" Failed to open project file: " + projectFilePath, 2);
         return false;
     }
@@ -149,7 +148,7 @@ bool Engine::loadProject(const string &projectFilePath)
         std::string errorMsg = std::string("Failed to parse project file: ") + rapidjson::GetParseError_En(document.GetParseError()) + // Already using 'document' here
                                " (Offset: " + std::to_string(document.GetErrorOffset()) + ")";
         EngineStdOut(errorMsg, 2);
-        showMessageBox(errorMsg, msgBoxIconType.ICON_ERROR);
+        showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
         return false;
     }
 
@@ -640,6 +639,8 @@ bool Engine::loadProject(const string &projectFilePath)
                     std::string scriptErrorMsg = std::string("Failed to parse script JSON string for object '") + objInfo.name + "': " +
                                                  rapidjson::GetParseError_En(scriptDocument.GetParseError()) + " (Offset: " + std::to_string(scriptDocument.GetErrorOffset()) + ")";
                     EngineStdOut(scriptErrorMsg, 1);
+                    showMessageBox("Failed to parse script JSON string for object", msgBoxIconType.ICON_ERROR);
+                    return false; // 스크립트 파싱 실패
                 }
             }
             else // Object does not have a "script" field or it's not a string
@@ -651,6 +652,8 @@ bool Engine::loadProject(const string &projectFilePath)
     else
     {
         EngineStdOut("project.json is missing 'objects' array or it's not an array.", 1);
+        showMessageBox("project.json is missing 'objects' array or it's not an array.\nBrokenProject.",msgBoxIconType.ICON_ERROR);
+        return false; // 프로젝트 로드 실패
     }
 
     // 씬 파싱
