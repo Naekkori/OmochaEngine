@@ -37,11 +37,6 @@ configure_file(
     "${PROJECT_BINARY_DIR}/version_config.h"
     @ONLY
 )
-if(MSVC)
-    add_compile_options("/utf-8")
-    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
-    # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8")
-endif()
 
 target_include_directories(OmochaEngine PRIVATE "${PROJECT_BINARY_DIR}")
 

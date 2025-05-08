@@ -28,6 +28,7 @@ static const int SLIDER_WIDTH = 200;
 static const int SLIDER_HEIGHT = 20;
 const double ASSET_ROTATION_CORRECTION_RADIAN = -3.14159265358979323846 / 2.0;
 extern const char *BASE_ASSETS; // Declaration only
+extern const char *FONT_ASSETS; // Declaration only
 extern string PROJECT_NAME;     // Declaration only
 extern string WINDOW_TITLE;     // Declaration only
 struct Costume
@@ -144,7 +145,7 @@ public: // TODO: Review public/private for SDL specific members if any
     Engine();
     ~Engine();
     bool loadProject(const string &projectFilePath);
-    bool initGE(bool vsyncEnabled); // VSync 설정을 인자로 받도록 수정
+    bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
     bool loadImages(); // Will require SDL texture loading
     void drawAllEntities();

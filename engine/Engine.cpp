@@ -19,7 +19,7 @@
 #include "rapidjson/stringbuffer.h"   // For serializing Value to string
 #include "rapidjson/writer.h"         // For serializing Value to string
 #include "blocks/BlockExecutor.h"
-using namespace std;                  // std 네임스페이스 사용
+using namespace std; // std 네임스페이스 사용
 
 // Engine Class Static Constants Definition
 const float Engine::MIN_ZOOM = 1.0f;
@@ -27,6 +27,7 @@ const float Engine::MAX_ZOOM = 3.0f;
 
 // Global variable definitions
 const char *BASE_ASSETS = "assets/";
+const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
 
@@ -73,7 +74,7 @@ std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
 {
     if (!parentValue.IsObject())
     {
-        EngineStdOut("ERROR: Parent for field '" + fieldName + "' in " + contextDescription + " is not an object. Value: " + RapidJsonValueToString(parentValue), 2);
+        EngineStdOut("Parent for field '" + fieldName + "' in " + contextDescription + " is not an object. Value: " + RapidJsonValueToString(parentValue), 2);
         return defaultValue;
     }
 
@@ -81,7 +82,7 @@ std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
     {
         if (isCritical)
         {
-            EngineStdOut("ERROR: Critical field '" + fieldName + "' missing in " + contextDescription + ". Using default: '" + defaultValue + "'.", 2);
+            EngineStdOut("Critical field '" + fieldName + "' missing in " + contextDescription + ". Using default: '" + defaultValue + "'.", 2);
         }
         // Optionally log non-critical missing fields if needed for debugging
         // else {
@@ -97,7 +98,7 @@ std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
         // isString()이 false이고 null이 아닌 경우에만 경고
         if (isCritical || !fieldValue.IsNull())
         {
-            EngineStdOut("WARN: Field '" + fieldName + "' in " + contextDescription + " is not a string. Value: [" + RapidJsonValueToString(fieldValue) +
+            EngineStdOut("Field '" + fieldName + "' in " + contextDescription + " is not a string. Value: [" + RapidJsonValueToString(fieldValue) +
                              "]. Using default: '" + defaultValue + "'.",
                          1);
         }
@@ -109,11 +110,11 @@ std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
     {
         if (isCritical)
         {
-            EngineStdOut("ERROR: Critical field '" + fieldName + "' in " + contextDescription + " is an empty string, but empty is not allowed. Using default: '" + defaultValue + "'.", 2);
+            EngineStdOut("Critical field '" + fieldName + "' in " + contextDescription + " is an empty string, but empty is not allowed. Using default: '" + defaultValue + "'.", 2);
         }
         else
         {
-            EngineStdOut("WARN: Field '" + fieldName + "' in " + contextDescription + " is an empty string, but empty is not allowed. Using default: '" + defaultValue + "'.", 1);
+            EngineStdOut("Field '" + fieldName + "' in " + contextDescription + " is an empty string, but empty is not allowed. Using default: '" + defaultValue + "'.", 1);
         }
         return defaultValue;
     }
@@ -168,7 +169,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
     else
     {
-        EngineStdOut("WARN: 'speed' field missing or not numeric in project.json. Using default TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
+        EngineStdOut("'speed' field missing or not numeric in project.json. Using default TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
     }
     /**
      * @brief 특수 설정
@@ -190,7 +191,7 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.showZoomSlider = false; // 기본값
-                EngineStdOut("WARN: 'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1);
             }
 
             if (specialConfigJson.HasMember("showProjectNameUI") && specialConfigJson["showProjectNameUI"].IsBool())
@@ -200,7 +201,7 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.SHOW_PROJECT_NAME = false; // 기본값
-                EngineStdOut("WARN: 'specialConfig.showProjectNameUI' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showProjectNameUI' field missing or not boolean. Using default: false", 1);
             }
             if (specialConfigJson.HasMember("showFPS") && specialConfigJson["showFPS"].IsBool())
             {
@@ -209,17 +210,17 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.showFPS = false; // 기본값
-                EngineStdOut("WARN: 'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
         }
         else
         {
-            EngineStdOut("WARN: 'specialConfig' field is not an object. Skipping special config.", 1);
+            EngineStdOut("'specialConfig' field is not an object. Skipping special config.", 1);
         }
     }
     else
     {
-        EngineStdOut("WARN: 'specialConfig' field missing in project.json. Using default special config.", 1);
+        EngineStdOut("'specialConfig' field missing in project.json. Using default special config.", 1);
     }
 
     // 오브젝트 파싱
@@ -233,14 +234,14 @@ bool Engine::loadProject(const string &projectFilePath)
             const auto &objectJson = objectsJson[i];
             if (!objectJson.IsObject())
             {
-                EngineStdOut("WARN: Object entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(objectJson), 1);
+                EngineStdOut("Object entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(objectJson), 1);
                 continue;
             }
 
             string objectId = getSafeStringFromJson(objectJson, "id", "object entry " + to_string(i), "", true, false);
             if (objectId.empty())
             {
-                EngineStdOut("ERROR: Object ID is empty for object at index " + to_string(i) + ". Skipping object.", 2);
+                EngineStdOut("Object ID is empty for object at index " + to_string(i) + ". Skipping object.", 2);
                 continue;
             }
 
@@ -266,14 +267,14 @@ bool Engine::loadProject(const string &projectFilePath)
                         ctu.id = getSafeStringFromJson(pictureJson, "id", "costume entry " + to_string(j) + " for " + objInfo.name, "", true, false);
                         if (ctu.id.empty())
                         {
-                            EngineStdOut("ERROR: Costume ID is empty for object " + objInfo.name + " at picture index " + to_string(j) + ". Skipping costume.", 2);
+                            EngineStdOut("Costume ID is empty for object " + objInfo.name + " at picture index " + to_string(j) + ". Skipping costume.", 2);
                             continue;
                         }
                         ctu.name = getSafeStringFromJson(pictureJson, "name", "costume id: " + ctu.id, "Unnamed Shape", false, true);
                         ctu.filename = getSafeStringFromJson(pictureJson, "filename", "costume id: " + ctu.id, "", true, false);
                         if (ctu.filename.empty())
                         {
-                            EngineStdOut("ERROR: Costume filename is empty for " + ctu.name + " (ID: " + ctu.id + "). Skipping costume.", 2);
+                            EngineStdOut("Costume filename is empty for " + ctu.name + " (ID: " + ctu.id + "). Skipping costume.", 2);
                             continue;
                         }
                         ctu.fileurl = getSafeStringFromJson(pictureJson, "fileurl", "costume id: " + ctu.id, "", false, true);
@@ -284,13 +285,13 @@ bool Engine::loadProject(const string &projectFilePath)
                     }
                     else
                     {
-                        EngineStdOut("WARN: Invalid picture structure for object '" + objInfo.name + "' at index " + to_string(j) + ". Skipping.", 1);
+                        EngineStdOut("Invalid picture structure for object '" + objInfo.name + "' at index " + to_string(j) + ". Skipping.", 1);
                     }
                 }
             }
             else
             {
-                EngineStdOut("WARN: Object '" + objInfo.name + "' has no 'sprite/pictures' array or it's invalid.", 1);
+                EngineStdOut("Object '" + objInfo.name + "' has no 'sprite/pictures' array or it's invalid.", 1);
             }
 
             // 사운드 로드
@@ -310,14 +311,14 @@ bool Engine::loadProject(const string &projectFilePath)
                         sound.id = soundId;
                         if (sound.id.empty())
                         {
-                            EngineStdOut("ERROR: Sound ID is empty for object " + objInfo.name + " at sound index " + to_string(j) + ". Skipping sound.", 2);
+                            EngineStdOut("Sound ID is empty for object " + objInfo.name + " at sound index " + to_string(j) + ". Skipping sound.", 2);
                             continue;
                         }
                         sound.name = getSafeStringFromJson(soundJson, "name", "sound id: " + sound.id, "Unnamed Sound", false, true);
                         sound.filename = getSafeStringFromJson(soundJson, "filename", "sound id: " + sound.id, "", true, false);
                         if (sound.filename.empty())
                         {
-                            EngineStdOut("ERROR: Sound filename is empty for " + sound.name + " (ID: " + sound.id + "). Skipping sound.", 2);
+                            EngineStdOut("Sound filename is empty for " + sound.name + " (ID: " + sound.id + "). Skipping sound.", 2);
                             continue;
                         }
                         sound.fileurl = getSafeStringFromJson(soundJson, "fileurl", "sound id: " + sound.id, "", false, true);
@@ -330,7 +331,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         }
                         else
                         {
-                            EngineStdOut("WARN: Sound '" + sound.name + "' (ID: " + sound.id + ") is missing 'duration' or it's not numeric. Using default duration 0.0.", 1);
+                            EngineStdOut("Sound '" + sound.name + "' (ID: " + sound.id + ") is missing 'duration' or it's not numeric. Using default duration 0.0.", 1);
                         }
                         sound.duration = soundDuration;
                         objInfo.sounds.push_back(sound);
@@ -338,13 +339,13 @@ bool Engine::loadProject(const string &projectFilePath)
                     }
                     else
                     {
-                        EngineStdOut("WARN: Invalid sound structure for object '" + objInfo.name + "' at index " + to_string(j) + ". Skipping.", 1);
+                        EngineStdOut("Invalid sound structure for object '" + objInfo.name + "' at index " + to_string(j) + ". Skipping.", 1);
                     }
                 }
             }
             else
             {
-                EngineStdOut("WARN: Object '" + objInfo.name + "' has no 'sprite/sounds' array or it's invalid.", 1);
+                EngineStdOut("Object '" + objInfo.name + "' has no 'sprite/sounds' array or it's invalid.", 1);
             }
 
             // 선택된 코스튬 ID 찾기 (여러 필드 호환성)
@@ -382,11 +383,11 @@ bool Engine::loadProject(const string &projectFilePath)
                 if (!objInfo.costumes.empty())
                 {
                     objInfo.selectedCostumeId = objInfo.costumes[0].id;
-                    EngineStdOut("WARN: Object '" + objInfo.name + "' (ID: " + objInfo.id + ") is missing selectedPictureId/selectedCostume or it's invalid. Using first costume ID: " + objInfo.costumes[0].id, 1);
+                    EngineStdOut("Object '" + objInfo.name + "' (ID: " + objInfo.id + ") is missing selectedPictureId/selectedCostume or it's invalid. Using first costume ID: " + objInfo.costumes[0].id, 1);
                 }
                 else
                 {
-                    EngineStdOut("WARN: Object '" + objInfo.name + "' (ID: " + objInfo.id + ") is missing selectedPictureId/selectedCostume and has no costumes.", 1);
+                    EngineStdOut("Object '" + objInfo.name + "' (ID: " + objInfo.id + ") is missing selectedPictureId/selectedCostume and has no costumes.", 1);
                     objInfo.selectedCostumeId = ""; // 코스튬이 없으면 ID를 비워둡니다.
                 }
             }
@@ -414,13 +415,13 @@ bool Engine::loadProject(const string &projectFilePath)
                         else
                         {
                             objInfo.textContent = "[INVALID TEXT TYPE]";
-                            EngineStdOut("WARN: textBox '" + objInfo.name + "' 'text' field has invalid type: " + RapidJsonValueToString(entityJson["text"]), 1);
+                            EngineStdOut("textBox '" + objInfo.name + "' 'text' field has invalid type: " + RapidJsonValueToString(entityJson["text"]), 1);
                         }
                     }
                     else
                     {
                         objInfo.textContent = "[NO TEXT FIELD]";
-                        EngineStdOut("WARN: textBox '" + objInfo.name + "' is missing 'text' field.", 1);
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'text' field.", 1);
                     }
 
                     // 텍스트 색상 (HEX 문자열 #RRGGBB)
@@ -440,19 +441,19 @@ bool Engine::loadProject(const string &projectFilePath)
                             }
                             catch (const exception &e)
                             {
-                                EngineStdOut("ERROR: Failed to parse text color '" + hexColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #000000.", 2);
+                                EngineStdOut("Failed to parse text color '" + hexColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #000000.", 2);
                                 objInfo.textColor = {0, 0, 0, 255};
                             }
                         }
                         else
                         {
-                            EngineStdOut("WARN: textBox '" + objInfo.name + "' 'colour' field is not a valid HEX string (#RRGGBB): " + hexColor + ". Using default #000000.", 1);
+                            EngineStdOut("textBox '" + objInfo.name + "' 'colour' field is not a valid HEX string (#RRGGBB): " + hexColor + ". Using default #000000.", 1);
                             objInfo.textColor = {0, 0, 0, 255};
                         }
                     }
                     else
                     {
-                        EngineStdOut("WARN: textBox '" + objInfo.name + "' is missing 'colour' field or it's not a string. Using default #000000.", 1);
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'colour' field or it's not a string. Using default #000000.", 1);
                         objInfo.textColor = {0, 0, 0, 255};
                     }
 
@@ -471,7 +472,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             catch (...)
                             {
                                 objInfo.fontSize = 20;
-                                EngineStdOut("WARN: Failed to parse font size from '" + fontString + "' for textBox '" + objInfo.name + "'. Using default size 20.", 1);
+                                EngineStdOut("Failed to parse font size from '" + fontString + "' for textBox '" + objInfo.name + "'. Using default size 20.", 1);
                             }
                             size_t spaceAfterPx = fontString.find(' ', pxPos + 2);
                             if (spaceAfterPx != string::npos)
@@ -492,12 +493,12 @@ bool Engine::loadProject(const string &projectFilePath)
                         {
                             objInfo.fontSize = 20;         // "px" 형식이 아니면 기본 크기 사용
                             objInfo.fontName = fontString; // 전체 문자열을 이름으로 사용
-                            EngineStdOut("WARN: textBox '" + objInfo.name + "' 'font' field is not in 'size px Name' format: '" + fontString + "'. Using default size 20 and '" + objInfo.fontName + "' as name.", 1);
+                            EngineStdOut("textBox '" + objInfo.name + "' 'font' field is not in 'size px Name' format: '" + fontString + "'. Using default size 20 and '" + objInfo.fontName + "' as name.", 1);
                         }
                     }
                     else
                     {
-                        EngineStdOut("WARN: textBox '" + objInfo.name + "' is missing 'font' field or it's not a string. Using default size 20 and empty font name.", 1);
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'font' field or it's not a string. Using default size 20 and empty font name.", 1);
                         objInfo.fontSize = 20;
                         objInfo.fontName = ""; // 기본 폰트 이름 (예: 나눔바른펜)
                     }
@@ -511,12 +512,12 @@ bool Engine::loadProject(const string &projectFilePath)
                     else
                     {
                         objInfo.textAlign = 0; // 기본값 (예: 좌측 정렬)
-                        EngineStdOut("WARN: textBox '" + objInfo.name + "' is missing 'textAlign' field or it's not numeric. Using default alignment 0.", 1);
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'textAlign' field or it's not numeric. Using default alignment 0.", 1);
                     }
                 }
                 else
                 {
-                    EngineStdOut("WARN: textBox '" + objInfo.name + "' is missing 'entity' block or it's not an object. Cannot load text box properties.", 1);
+                    EngineStdOut("textBox '" + objInfo.name + "' is missing 'entity' block or it's not an object. Cannot load text box properties.", 1);
                     objInfo.textContent = "[NO ENTITY BLOCK]";
                     objInfo.textColor = {0, 0, 0, 255};
                     objInfo.fontName = "";
@@ -568,7 +569,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                EngineStdOut("WARN: Object '" + objInfo.name + "' (ID: " + objectId + ") is missing 'entity' block or it's not an object. Cannot create Entity.", 1);
+                EngineStdOut("Object '" + objInfo.name + "' (ID: " + objectId + ") is missing 'entity' block or it's not an object. Cannot create Entity.", 1);
                 // Entity가 없는 경우 해당 오브젝트는 렌더링되지 않거나 기본값으로 처리될 수 있습니다.
             }
 
@@ -602,13 +603,13 @@ bool Engine::loadProject(const string &projectFilePath)
                                         block.id = getSafeStringFromJson(blockJson, "id", "script block index " + to_string(k) + " in script " + to_string(j) + " for " + objInfo.name, "", true, false);
                                         if (block.id.empty())
                                         {
-                                            EngineStdOut("ERROR: Script block ID is empty for object " + objInfo.name + " at script index " + to_string(j) + ", block index " + to_string(k) + ". Skipping block.", 2);
+                                            EngineStdOut("Script block ID is empty for object " + objInfo.name + " at script index " + to_string(j) + ", block index " + to_string(k) + ". Skipping block.", 2);
                                             continue;
                                         }
                                         block.type = getSafeStringFromJson(blockJson, "type", "script block " + block.id + " in " + objInfo.name, "", true, false);
                                         if (block.type.empty())
                                         {
-                                            EngineStdOut("ERROR: Script block type is empty for block " + block.id + " in object " + objInfo.name + ". Skipping block.", 2);
+                                            EngineStdOut("Script block type is empty for block " + block.id + " in object " + objInfo.name + ". Skipping block.", 2);
                                             continue;
                                         }
                                         if (blockJson.HasMember("params") && blockJson["params"].IsArray())
@@ -617,21 +618,21 @@ bool Engine::loadProject(const string &projectFilePath)
                                         }
                                         else
                                         {
-                                            EngineStdOut("WARN: Script block " + block.id + " in object " + objInfo.name + " is missing 'params' array or it's invalid.", 1);
+                                            EngineStdOut("Script block " + block.id + " in object " + objInfo.name + " is missing 'params' array or it's invalid.", 1);
                                         }
                                         // TODO: statements 파싱 로직 추가 (재귀적으로) - 이 부분은 Engine.h의 Block 구조체 정의 및 파싱 함수에 따라 달라집니다.
                                         currentScript.blocks.push_back(block);
                                     }
                                     else
                                     { // Invalid block structure
-                                        EngineStdOut("WARN: Invalid block structure in script " + to_string(j) + " for object '" + objInfo.name + "' at block index " + to_string(k) + ". Skipping block. Content: " + RapidJsonValueToString(blockJson), 1);
+                                        EngineStdOut("Invalid block structure in script " + to_string(j) + " for object '" + objInfo.name + "' at block index " + to_string(k) + ". Skipping block. Content: " + RapidJsonValueToString(blockJson), 1);
                                     }
                                 } // End of inner loop for blocks
                                 scriptsForObject.push_back(currentScript); // Add populated script to the list
                             }
                             else // scriptListJson is not an array
                             {
-                                EngineStdOut("WARN: Script entry at index " + to_string(j) + " for object '" + objInfo.name + "' is not an array of blocks. Skipping this script.", 1);
+                                EngineStdOut("Script entry at index " + to_string(j) + " for object '" + objInfo.name + "' is not an array of blocks. Skipping this script.", 1);
                             }
                         }
                         objectScripts[objectId] = scriptsForObject; // Add all parsed scripts for this object
@@ -639,7 +640,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     }
                     else // scriptDocument is not an array (root of script string)
                     {
-                        EngineStdOut("WARN: Script root for object '" + objInfo.name + "' is not an array of scripts. Skipping script parsing.", 1);
+                        EngineStdOut("Script root for object '" + objInfo.name + "' is not an array of scripts. Skipping script parsing.", 1);
                     }
                 }
                 else // Failed to parse the entire script string
@@ -651,13 +652,13 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else // Object does not have a "script" field or it's not a string
             {
-                EngineStdOut("WARN: Object '" + objInfo.name + "' is missing 'script' field or it's not a string. No scripts loaded for this object.", 1);
+                EngineStdOut("Object '" + objInfo.name + "' is missing 'script' field or it's not a string. No scripts loaded for this object.", 1);
             }
         } // End of main loop for objectsJson
     } // End of if (document.HasMember("objects") ...
     else
     {
-        EngineStdOut("WARN: project.json is missing 'objects' array or it's not an array.", 1);
+        EngineStdOut("project.json is missing 'objects' array or it's not an array.", 1);
     }
 
     // 씬 파싱
@@ -674,7 +675,7 @@ bool Engine::loadProject(const string &projectFilePath)
 
             if (!sceneJson.IsObject())
             {
-                EngineStdOut("WARN: Scene entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(sceneJson), 1);
+                EngineStdOut("Scene entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(sceneJson), 1);
                 continue;
             }
 
@@ -683,7 +684,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 string sceneId = getSafeStringFromJson(sceneJson, "id", "scene entry " + to_string(i), "", true, false);
                 if (sceneId.empty())
                 {
-                    EngineStdOut("ERROR: Scene ID is empty for scene at index " + to_string(i) + ". Skipping scene.", 2);
+                    EngineStdOut("Scene ID is empty for scene at index " + to_string(i) + ". Skipping scene.", 2);
                     continue;
                 }
                 string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene", false, true);
@@ -697,14 +698,14 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                EngineStdOut("WARN: Invalid scene structure or 'id'/'name' fields missing/not strings for scene at index " + to_string(i) + ". Skipping.", 1);
+                EngineStdOut("Invalid scene structure or 'id'/'name' fields missing/not strings for scene at index " + to_string(i) + ". Skipping.", 1);
                 EngineStdOut("  Scene content: " + RapidJsonValueToString(sceneJson), 1);
             }
         }
     }
     else
     {
-        EngineStdOut("WARN: project.json is missing 'scenes' array or it's not an array. No scenes loaded.", 1);
+        EngineStdOut("project.json is missing 'scenes' array or it's not an array. No scenes loaded.", 1);
     }
 
     // 시작 씬 설정
@@ -723,7 +724,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
     else
     {
-        EngineStdOut("WARN: No explicit 'startScene' or 'start/sceneId' found in project.json.", 1);
+        EngineStdOut("No explicit 'startScene' or 'start/sceneId' found in project.json.", 1);
     }
 
     // 유효한 시작 씬 ID가 있고, 해당 ID가 로드된 씬 맵에 존재하는지 확인
@@ -742,7 +743,7 @@ bool Engine::loadProject(const string &projectFilePath)
         }
         else
         {
-            EngineStdOut("ERROR: No valid starting scene found in project.json or no scenes were loaded.", 2);
+            EngineStdOut("No valid starting scene found in project.json or no scenes were loaded.", 2);
             currentSceneId = ""; // 시작 씬 없음 상태
             return false;        // 시작 씬 없으면 로드 실패
         }
@@ -782,13 +783,13 @@ bool Engine::loadProject(const string &projectFilePath)
 }
 
 // SDL 및 그래픽 엔진 초기화
-bool Engine::initGE(bool vsyncEnabled)
+bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) // Vulkan 사용 여부 인자 추가
 {
     EngineStdOut("Initializing SDL...", 0);
     // SDL 비디오 및 오디오 서브시스템 초기화
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
-        string errMsg = "SDL could not initialize! SDL_Error: " + string(SDL_GetError());
+        string errMsg = "SDL could not initialize! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
@@ -808,10 +809,10 @@ bool Engine::initGE(bool vsyncEnabled)
     EngineStdOut("SDL_ttf initialized successfully.", 0);
 
     // 윈도우 생성 (WINDOW_TITLE은 loadProject에서 설정됨)
-    this->window = SDL_CreateWindow(WINDOW_TITLE.c_str(), WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
+    this->window = SDL_CreateWindow(WINDOW_TITLE.c_str(), WINDOW_WIDTH, WINDOW_HEIGHT, 0);
     if (this->window == nullptr)
     {
-        string errMsg = "Window could not be created! SDL_Error: " + string(SDL_GetError());
+        string errMsg = "Window could not be created! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create window: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         TTF_Quit(); // TTF 초기화 해제
@@ -820,14 +821,69 @@ bool Engine::initGE(bool vsyncEnabled)
         return false;
     }
     EngineStdOut("SDL Window created successfully.", 0);
+    if (attemptVulkan)
+    {
+        EngineStdOut("Attempting to create Vulkan renderer as requested by command line argument...", 0);
 
-    // 렌더러 생성
-    // SDL3에서는 SDL_CreateRenderer에 플래그를 직접 전달하지 않고,
-    // SDL_SetRenderVSync 함수를 사용하여 VSync를 설정합니다.
-    this->renderer = SDL_CreateRenderer(this->window, nullptr); // 플래그 없이 생성
+        // 사용 가능한 렌더링 드라이버 수 가져오기
+        int numRenderDrivers = SDL_GetNumRenderDrivers();
+        if (numRenderDrivers < 0)
+        {
+            EngineStdOut("Failed to get number of render drivers: " + string(SDL_GetError()), 2);
+            SDL_DestroyWindow(this->window);
+            this->window = nullptr;
+            TTF_Quit();
+            SDL_Quit();
+            return false;
+        }
+        EngineStdOut("Available render drivers: " + std::to_string(numRenderDrivers), 0);
+
+        int vulkanDriverIndex = -1;
+        for (int i = 0; i < numRenderDrivers; ++i)
+        {
+            EngineStdOut("Checking render driver at index: " + std::to_string(i) + " " + SDL_GetRenderDriver(i), 0);
+            const char *driverName = SDL_GetRenderDriver(i);
+            // strcmp를 사용하여 문자열 내용을 비교합니다.
+            if (driverName != nullptr && strcmp(driverName, "vulkan") == 0)
+            {
+                vulkanDriverIndex = i;
+                EngineStdOut("Vulkan driver found at index: " + std::to_string(i), 0);
+                break; // Vulkan 드라이버를 찾았으므로 루프를 중단합니다.
+            }
+        }
+
+        if (vulkanDriverIndex != -1)
+        {
+            // SDL_CreateRenderer는 드라이버 이름을 직접 받을 수 있습니다.
+            this->renderer = SDL_CreateRenderer(this->window, "vulkan");
+            if (this->renderer)
+            {
+                EngineStdOut("Successfully created Vulkan renderer.", 0);
+                string projectName = PROJECT_NAME;
+                string windowTitleWithRenderer = projectName + " (Vulkan)";
+                SDL_SetWindowTitle(window, windowTitleWithRenderer.c_str());
+            }
+            else
+            {
+                EngineStdOut("Failed to create Vulkan renderer even though driver was found: " + string(SDL_GetError()) + ". Falling back to default.", 1);
+                this->renderer = SDL_CreateRenderer(this->window, nullptr); // 기본 렌더러로 폴백
+            }
+        }
+        else
+        {
+            EngineStdOut("Vulkan render driver not found. Using default renderer.", 1);
+            showMessageBox("Vulkan render driver not found. Using default renderer.", msgBoxIconType.ICON_WARNING);
+            this->renderer = SDL_CreateRenderer(this->window, nullptr); // 기본 렌더러 사용
+        }
+    }
+    else
+    {
+        // 선택하지 않았을때
+        this->renderer = SDL_CreateRenderer(this->window, nullptr); // 기본 렌더러 사용
+    }
     if (this->renderer == nullptr)
     {
-        string errMsg = "Renderer could not be created! SDL_Error: " + string(SDL_GetError());
+        string errMsg = "Renderer could not be created! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create renderer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         SDL_DestroyWindow(this->window);
@@ -842,7 +898,7 @@ bool Engine::initGE(bool vsyncEnabled)
     // vsyncEnabled 값에 따라 SDL_VSYNC_ADAPTIVE 또는 SDL_VSYNC_DISABLED 설정
     if (SDL_SetRenderVSync(this->renderer, vsyncEnabled ? SDL_RENDERER_VSYNC_ADAPTIVE : SDL_RENDERER_VSYNC_DISABLED) != 0)
     {
-        EngineStdOut("WARN: Failed to set VSync mode. SDL_Error: " + string(SDL_GetError()), 1);
+        EngineStdOut("Failed to set VSync mode. SDL_" + string(SDL_GetError()), 1);
         // VSync 설정 실패가 치명적이지는 않으므로 경고만 출력하고 진행합니다.
     }
     else
@@ -851,9 +907,9 @@ bool Engine::initGE(bool vsyncEnabled)
     }
 
     // HUD 및 로딩 화면용 폰트 로드
-    string defaultFontPath = "font/nanum_barunpen.ttf"; // 폰트 파일 경로 확인 필요
-    hudFont = TTF_OpenFont(defaultFontPath.c_str(), 16);
-    loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
+    string defaultFontPath = "font/nanum_gothic.ttf"; // 폰트 파일 경로 확인 필요
+    hudFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
+    loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 30);
 
     if (!hudFont)
     {
@@ -926,14 +982,14 @@ bool Engine::createTemporaryScreen()
     if (this->renderer == nullptr)
     {
         EngineStdOut("Renderer not initialized. Cannot create temporary screen texture.", 2);
-        showMessageBox("Internal Error: Renderer not available for offscreen buffer.", msgBoxIconType.ICON_ERROR);
+        showMessageBox("Internal Renderer not available for offscreen buffer.", msgBoxIconType.ICON_ERROR);
         return false;
     }
     // SDL_TEXTUREACCESS_TARGET 플래그로 텍스처를 렌더링 대상으로 사용할 수 있도록 생성
     this->tempScreenTexture = SDL_CreateTexture(this->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT);
     if (this->tempScreenTexture == nullptr)
     {
-        string errMsg = "Failed to create temporary screen texture! SDL_Error: " + string(SDL_GetError());
+        string errMsg = "Failed to create temporary screen texture! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create offscreen buffer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
@@ -1016,7 +1072,7 @@ void Engine::terminateGE()
 // Called when SDL_EVENT_RENDER_DEVICE_RESET or SDL_EVENT_RENDER_TARGETS_RESET occurs
 void Engine::handleRenderDeviceReset()
 {
-    EngineStdOut("WARN: Render device was reset. All GPU resources will be recreated.", 1);
+    EngineStdOut("Render device was reset. All GPU resources will be recreated.", 1);
 
     // Destroy existing temporary screen texture
     destroyTemporaryScreen();
@@ -1094,12 +1150,13 @@ bool Engine::loadImages()
                 string imagePath = string(BASE_ASSETS) + costume.fileurl;
                 if (!this->renderer)
                 {
-                    EngineStdOut("CRITICAL ERROR: Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
+                    EngineStdOut("CRITICAL Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
                 }
                 SDL_ClearError();
                 // SDL_image를 사용하여 이미지 파일을 SDL_Surface로 로드
                 costume.imageHandle = IMG_LoadTexture(this->renderer, imagePath.c_str());
-                if (!costume.imageHandle) {
+                if (!costume.imageHandle)
+                {
                     EngineStdOut("Renderer pointer value at IMG_LoadTexture failure: " + std::to_string(reinterpret_cast<uintptr_t>(this->renderer)), 3);
                 }
                 if (costume.imageHandle)
@@ -1110,7 +1167,7 @@ bool Engine::loadImages()
                 else
                 {
                     failedCount++;
-                    EngineStdOut("ERROR: IMG_LoadTexture failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath + ". SDL_Error: " + SDL_GetError(), 2); // IMG_LoadTexture 실패 시 SDL_GetError() 사용
+                    EngineStdOut("IMG_LoadTexture failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " + imagePath + ". SDL_" + SDL_GetError(), 2); // IMG_LoadTexture 실패 시 SDL_GetError() 사용
                 }
 
                 // 로딩 진행률 업데이트 및 화면 갱신
@@ -1140,13 +1197,13 @@ bool Engine::loadImages()
     // 모든 이미지가 로드 실패하고 로드할 이미지가 0보다 많으면 치명적인 오류
     if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0)
     {
-        EngineStdOut("ERROR: All images failed to load. Cannot continue.", 2);
-        showMessageBox("Fatal Error: No images could be loaded. Check asset paths and file integrity.", msgBoxIconType.ICON_ERROR);
+        EngineStdOut("All images failed to load. Cannot continue.", 2);
+        showMessageBox("Fatal No images could be loaded. Check asset paths and file integrity.", msgBoxIconType.ICON_ERROR);
         return false; // 모든 이미지 로드 실패 시 중단
     }
     else if (failedCount > 0)
     {
-        EngineStdOut("WARN: Some images failed to load, processing with available resources.", 1);
+        EngineStdOut("Some images failed to load, processing with available resources.", 1);
     }
     return true; // 로드 완료 (일부 실패 포함 가능)
 }
@@ -1163,13 +1220,13 @@ bool Engine::recreateAssetsIfNeeded()
 
     if (!createTemporaryScreen())
     {
-        EngineStdOut("ERROR: Failed to recreate temporary screen texture after device reset.", 2);
+        EngineStdOut("Failed to recreate temporary screen texture after device reset.", 2);
         return false;
     }
 
     if (!loadImages())
     { // loadImages should now correctly clear old textures and load new ones
-        EngineStdOut("ERROR: Failed to reload images after device reset.", 2);
+        EngineStdOut("Failed to reload images after device reset.", 2);
         return false;
     }
     // TODO: Reload other GPU-dependent assets like fonts if they were turned into textures that got lost.
@@ -1212,7 +1269,7 @@ void Engine::drawAllEntities()
         auto it_entity = entities.find(objInfo.id);
         if (it_entity == entities.end())
         {
-            // EngineStdOut("WARN: Entity not found for object ID: " + objInfo.id + ". Cannot draw.", 1); // 너무 많은 로그 방지
+            // EngineStdOut("Entity not found for object ID: " + objInfo.id + ". Cannot draw.", 1); // 너무 많은 로그 방지
             continue; // Entity가 없으면 그릴 수 없습니다.
         }
         const Entity *entityPtr = it_entity->second; // Entity 포인터
@@ -1255,7 +1312,7 @@ void Engine::drawAllEntities()
                 float texW = 0, texH = 0; // int 타입으로 선언
                 if (!selectedCostume->imageHandle)
                 { // imageHandle 유효성 검사 추가
-                    EngineStdOut("ERROR: Texture handle is null for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Cannot get texture size.", 2);
+                    EngineStdOut("Texture handle is null for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Cannot get texture size.", 2);
                     continue; // 다음 오브젝트 또는 코스튬으로 넘어갑니다.
                 }
 
@@ -1271,7 +1328,7 @@ void Engine::drawAllEntities()
                     std::ostringstream oss;
                     oss << selectedCostume->imageHandle;
                     std::string texturePtrStr = oss.str();
-                    EngineStdOut("ERROR: Failed to get texture size for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Texture Ptr: " + texturePtrStr + ". SDL_Error: " + errorDetail, 2);
+                    EngineStdOut("Failed to get texture size for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Texture Ptr: " + texturePtrStr + ". SDL_" + errorDetail, 2);
                     SDL_ClearError(); // 다음 SDL 호출에 영향을 주지 않도록 오류 상태를 클리어 (선택 사항)
                     continue;         // 텍스처 크기를 가져올 수 없으면 그리지 않습니다.
                 }
@@ -1281,39 +1338,9 @@ void Engine::drawAllEntities()
                 // 스케일 적용된 너비/높이
                 dstRect.w = static_cast<float>(texW * entityPtr->getScaleX());
                 dstRect.h = static_cast<float>(texH * entityPtr->getScaleY());
-
-                // 위치는 중심점을 기준으로 설정
-                // SDL_RenderTextureRotated는 dstRect의 좌상단을 기준으로 그림.
-                // 회전 중심점 (center)은 텍스처 로컬 좌표계 (0,0 ~ texW, texH) 기준.
-                // Entry의 (x, y)는 오브젝트의 중심점. 이 중심점이 SDL 좌표계의 (sdlX, sdlY)에 해당.
-                // SDL_RenderTextureRotated의 center는 회전의 기준점. Entry의 regX, regY는 이미지의 등록점.
-                // 등록점(regX, regY)을 회전 중심점으로 사용해야 합니다.
-                // 등록점은 이미지의 좌상단 (0,0) 기준 픽셀 오프셋입니다.
-                // SDL의 center는 텍스처의 로컬 좌표계 (0,0) 기준 픽셀 오프셋입니다.
-                // 따라서 SDL center는 Entry의 regX, regY와 동일합니다.
-
                 SDL_FPoint center; // 회전 및 스케일링 중심점 (텍스처 로컬 좌표)
-                // TODO: objInfo.regX, objInfo.regY (픽셀 단위)를 사용하여 center 값 설정 필요
-                // 현재는 임시로 이미지 중앙을 사용하거나, regX/Y를 파싱했다면 그 값을 사용해야 합니다.
-                // loadProject에서 objInfo에 regX/Y를 저장하지 않았으므로, Entity의 regX/Y를 사용해야 합니다.
-                // Entity의 regX, regY는 스케일링되지 않은 원본 이미지 기준 픽셀 오프셋이라고 가정합니다.
-                // SDL center는 스케일링된 텍스처의 로컬 좌표계 기준이므로,
-                // Entity의 regX/Y에 해당 스케일 팩터를 곱해주어야 할 수 있습니다.
-                // 또는 SDL center를 원본 텍스처 크기 기준 비율로 계산하고, SDL_RenderTextureRotated가
-                // 내부적으로 스케일링을 고려하도록 해야 합니다. (SDL3 문서를 확인해야 정확함)
-                // 여기서는 Entity의 regX, regY가 스케일링된 텍스처 기준 픽셀 오프셋이라고 가정하고 적용합니다.
                 center.x = static_cast<float>(entityPtr->getRegX());
                 center.y = static_cast<float>(entityPtr->getRegY());
-
-                // dstRect의 좌상단 위치 계산: (sdlX, sdlY)는 오브젝트의 중심점.
-                // 회전 중심점 (center)은 텍스처의 (regX, regY) 픽셀에 해당.
-                // 오브젝트 중심점 (sdlX, sdlY)이 텍스처의 (regX, regY) 위치에 오도록 dstRect 좌상단 조정.
-                // dstRect.x = sdlX - center.x; // 이것은 center가 SDL 좌표계 기준일 때
-                // dstRect.y = sdlY - center.y; // 이것은 center가 SDL 좌표계 기준일 때
-
-                // SDL_RenderTextureRotated는 dstRect의 좌상단을 기준으로 텍스처를 그리고,
-                // center 인자는 텍스처의 로컬 좌표계 (0,0 ~ texW, texH) 내에서 회전 중심점의 위치를 픽셀 단위로 지정합니다.
-                // 따라서 dstRect의 위치는 (sdlX, sdlY)가 회전 중심점 (regX, regY)에 오도록 계산해야 합니다.
                 dstRect.x = sdlX - static_cast<float>(entityPtr->getRegX() * entityPtr->getScaleX()); // 스케일 적용된 regX 만큼 좌측으로 이동
                 dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY()); // 스케일 적용된 regY 만큼 상단으로 이동
 
@@ -1327,10 +1354,6 @@ void Engine::drawAllEntities()
                 // SDL_RenderTextureRotated 함수 호출하여 텍스처 그리기
                 SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
             }
-            else
-            {
-                // EngineStdOut("WARN: Object '" + objInfo.name + "' (ID: " + objInfo.id + ") has no selected costume or image handle is null.", 1); // 너무 많은 로그 방지
-            }
         }
         else if (objInfo.objectType == "textBox")
         {
@@ -1339,12 +1362,63 @@ void Engine::drawAllEntities()
             // 위치는 entityPtr->getX(), getY() 사용 (좌표계 변환 필요)
             // 텍스트 정렬(objInfo.textAlign) 구현 필요
 
-            // 텍스트 내용이 비어있지 않고 폰트가 로드되었는지 확인
-            if (!objInfo.textContent.empty() && hudFont) // 임시로 hudFont 사용, 실제로는 objInfo의 폰트 사용 필요
+            // 텍스트 내용이 비어있지 않았는지 확인.
+            if (!objInfo.textContent.empty())
             {
                 // 텍스트 Surface 생성
                 // TTF_RenderText_Blended 또는 TTF_RenderText_Solid 사용
-                SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, objInfo.textContent.c_str(), objInfo.textContent.size(), objInfo.textColor); // Blended가 더 부드러움
+                // 폰트 사이즈 와 종류는 이렇게 로드한다.
+                // "font": "bold 20px NotoSans"
+                string fontString = objInfo.fontName;
+                // 폰트 설정
+                string determinedFontPath;
+                string fontfamily = objInfo.fontName;
+                string fontAsset = string(FONT_ASSETS);
+                int fontSize = objInfo.fontSize;
+                SDL_Color textColor = objInfo.textColor;
+                FontName fontLoadEnum = getFontNameFromString(fontfamily);
+                TTF_Font *Usefont = nullptr;
+                int currentFontSize = objInfo.fontSize;
+                switch (fontLoadEnum)
+                {
+                case FontName::D2Coding:
+                    determinedFontPath = fontAsset + "d2coding.ttf";
+                    break;
+                case FontName::NanumGothic:
+                    determinedFontPath = fontAsset + "nanum_gothic.ttf";
+                    break;
+                case FontName::MaruBuri:
+                    determinedFontPath = fontAsset + "maruburi.ttf";
+                    break;
+                case FontName::NanumBarunPen:
+                    determinedFontPath = fontAsset + "nanum_barunpen.ttf";
+                    break;
+                case FontName::NanumPen:
+                    determinedFontPath = fontAsset + "nanum_pen.ttf";
+                    break;
+                case FontName::NanumMyeongjo:
+                    determinedFontPath = fontAsset + "nanum_myeongjo.ttf";
+                    break;
+                case FontName::NanumSquareRound:
+                    determinedFontPath = fontAsset + "nanum_square_round.ttf";
+                    break;
+                default: // 정의된 폰트 없으면 기본값.
+                    determinedFontPath = fontAsset + "nanum_gothic.ttf";
+                    break;
+                }
+                if (!determinedFontPath.empty())
+                {
+                    Usefont = TTF_OpenFont(determinedFontPath.c_str(), fontSize);
+                    if (!Usefont) {
+                        EngineStdOut("Failed to load font: " + determinedFontPath + " at size " + std::to_string(currentFontSize) + " for textBox '" + objInfo.name + "'. Falling back to HUD font.", 2);
+                        Usefont = hudFont; // Fallback to the globally loaded HUD font
+                    }
+                    
+                }else{
+                    Usefont = hudFont; // Fallback to the globally loaded HUD font
+                }
+                
+                SDL_Surface *textSurface = TTF_RenderText_Blended(Usefont, objInfo.textContent.c_str(), objInfo.textContent.size(), objInfo.textColor); // Blended가 더 부드러움
                 if (textSurface)
                 {
                     // Surface에서 텍스처 생성
@@ -1357,11 +1431,28 @@ void Engine::drawAllEntities()
                         float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
                         float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
 
-                        SDL_FRect dstRect = {sdlX, sdlY, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)};
+                        // 텍스트의 너비와 높이
+                        float textWidth = static_cast<float>(textSurface->w);
+                        float textHeight = static_cast<float>(textSurface->h);
 
-                        // TODO: 텍스트 정렬 (objInfo.textAlign)에 따라 dstRect.x, dstRect.y 조정 필요
+                        SDL_FRect dstRect = {sdlX, sdlY, textWidth, textHeight};
+
                         // textAlign 값에 따른 정렬 로직 구현 (예: 0=좌측, 1=중앙, 2=우측)
-
+                        // sdlX를 기준으로 텍스트의 시작점을 조정합니다.
+                        switch (objInfo.textAlign)
+                        {
+                        case 0: // 좌측 정렬: sdlX가 텍스트의 왼쪽 시작점
+                            // dstRect.x는 이미 sdlX로 설정되어 있으므로 변경 없음
+                            break;
+                        case 1: // 중앙 정렬: sdlX가 텍스트의 중앙점
+                            dstRect.x = sdlX - textWidth / 2.0f;
+                            break;
+                        case 2: // 우측 정렬: sdlX가 텍스트의 오른쪽 끝점
+                            dstRect.x = sdlX - textWidth;
+                            break;
+                        default:
+                            break;
+                        }
                         // 텍스처 렌더링
                         SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
 
@@ -1370,19 +1461,15 @@ void Engine::drawAllEntities()
                     }
                     else
                     {
-                        EngineStdOut("ERROR: Failed to create text texture for textBox '" + objInfo.name + "'. SDL_Error: " + SDL_GetError(), 2);
+                        EngineStdOut("Failed to create text texture for textBox '" + objInfo.name + "'. SDL_" + SDL_GetError(), 2);
                     }
                     // Surface 해제
                     SDL_DestroySurface(textSurface);
                 }
                 else
                 {
-                    EngineStdOut("ERROR: Failed to render text surface for textBox '" + objInfo.name, 2);
+                    EngineStdOut("Failed to render text surface for textBox '" + objInfo.name, 2);
                 }
-            }
-            else if (!objInfo.textContent.empty() && !hudFont)
-            {
-                // EngineStdOut("WARN: Cannot draw textBox '" + objInfo.name + "' because font is not loaded.", 1); // 너무 많은 로그 방지
             }
         }
         // TODO: 다른 오브젝트 타입 (예: line, circle 등) 그리기 로직 추가
@@ -1634,7 +1721,7 @@ void Engine::setfps(int fps)
     }
     else
     {
-        EngineStdOut("WARN: Attempted to set invalid Target FPS: " + std::to_string(fps) + ". Keeping current TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
+        EngineStdOut("Attempted to set invalid Target FPS: " + std::to_string(fps) + ". Keeping current TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
     }
 }
 
@@ -1661,7 +1748,7 @@ Entity *Engine::getEntityById(const string &id)
     {
         return it->second; // 찾았으면 Entity 포인터 반환
     }
-    // EngineStdOut("WARN: Entity with ID '" + id + "' not found.", 1); // 너무 많은 로그 방지
+    // EngineStdOut("Entity with ID '" + id + "' not found.", 1); // 너무 많은 로그 방지
     return nullptr; // 찾지 못했으면 nullptr 반환
 }
 
@@ -1814,12 +1901,12 @@ const string &Engine::getCurrentSceneId() const
 
 /**
  * @brief 메시지 박스 표시
- * 
+ *
  * @param message 메시지 내용
  * @param IconType 아이콘 종류
  * @param showYesNo 예 / 아니오
  */
-bool Engine::showMessageBox(const string &message, int IconType,bool showYesNo)
+bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
 {
     Uint32 flags = 0;
     const char *title = OMOCHA_ENGINE_NAME;
@@ -1831,7 +1918,7 @@ bool Engine::showMessageBox(const string &message, int IconType,bool showYesNo)
         flags = SDL_MESSAGEBOX_ERROR;
         title = "Omocha is Broken"; // 오류 메시지 박스 제목
         break;
-    case SDL_MESSAGEBOX_WARNING: 
+    case SDL_MESSAGEBOX_WARNING:
         flags = SDL_MESSAGEBOX_WARNING;
         title = PROJECT_NAME.c_str(); // 경고 메시지 박스 제목
         break;
@@ -1850,8 +1937,7 @@ bool Engine::showMessageBox(const string &message, int IconType,bool showYesNo)
     // this->window는 Engine 클래스의 멤버 변수 SDL_Window* 입니다.
     const SDL_MessageBoxButtonData buttons[]{
         {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Yes"},
-        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "No"}
-    };
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "No"}};
     const SDL_MessageBoxData messageboxData{
         flags,
         window,
@@ -1859,32 +1945,36 @@ bool Engine::showMessageBox(const string &message, int IconType,bool showYesNo)
         message.c_str(),
         SDL_arraysize(buttons),
         buttons,
-        nullptr
-    };
+        nullptr};
     if (showYesNo)
     {
-        int buttonid_press=-1;
-        if (SDL_ShowMessageBox(&messageboxData,&buttonid_press) < 0)
+        int buttonid_press = -1;
+        if (SDL_ShowMessageBox(&messageboxData, &buttonid_press) < 0)
         {
             EngineStdOut("Can't Showing MessageBox");
-        }else{
-            if (buttonid_press==0)
+        }
+        else
+        {
+            if (buttonid_press == 0)
             {
                 return true;
-            }else{
+            }
+            else
+            {
                 return false;
             }
         }
-    }else{
+    }
+    else
+    {
         SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window);
         return true;
     }
-    
 }
 
 /**
  * @brief 엔진 로그출력
- * 
+ *
  * @param s 출력할내용
  * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수
  */
@@ -1913,8 +2003,8 @@ void Engine::EngineStdOut(string s, int LEVEL)
         prefix = "[DEBUG]";
         color_code = ANSI_STYLE_BOLD; // 색상 없이 굵게만
         break;
-    case 4:                                               // OMOCHA_ENGINE_INFO (엔진 자체 정보)
-        prefix = "[SAYHELLO]";  // 엔진 이름 접두사
+    case 4:
+        prefix = "[SAYHELLO]";                            // 환영
         color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD; // 노란색 + 굵게
         break;
     default: // 기본 로그 레벨

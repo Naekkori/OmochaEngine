@@ -1,8 +1,9 @@
-#include <iostream>
+﻿#include <iostream>
 #include <string>
 #include <filesystem>
 #include <cstdlib>   
 #include <stdexcept> 
+#include <Windows.h>
 #include "engine/Engine.h"
 #include "MainProgram.h"
 #include "resource.h" 
@@ -10,7 +11,7 @@
 using namespace std;
 
 
-//void setConsoleTitle(const string &s);
+void SetTitle(const string &s);
 void setConsoleUTF8();
 
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
             printf("옵션:\n");
             printf("  --setfps <value>   frames per second (FPS) 를 설정합니다.\n");
             printf("                     기본값은 엔진 내부세팅 60fps 입니다.\n");
+            printf("  --useVk <0|1>      Vulkan 렌더러 사용 여부를 설정합니다. 0: 사용 안 함 (기본값), 1: 사용 시도.\n");
             printf("  --setVsync <0|1>   수직동기화 를 설정합니다 0 은 비활성 1 은 활성입니다.\n");
             printf("  -h, --help         도움말 을 출력하고 엔진을 종료합니다.\n\n");
             printf("예제:\n");
@@ -94,13 +96,38 @@ int main(int argc, char *argv[])
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
         }
-        
+        else if (arg == "--useVk" && i + 1 < argc)
+        {
+            try
+            {
+                string argValue = argv[i + 1];
+                int vkValue = stoi(argValue);
+                if (vkValue == 0) {
+                    mainProgram.mainProgramValue.useVulkan = false;
+                } else if (vkValue == 1) {
+                    mainProgram.mainProgramValue.useVulkan = true;
+                } else {
+                    cerr << "Warning: Invalid value for --useVk. Expected 0 or 1. Using default (0)." << endl;
+                    mainProgram.mainProgramValue.useVulkan = false; // Default to false
+                }
+                i++; 
+            }
+            catch (const invalid_argument &e)
+            {
+                cerr << "Warning: Invalid argument for --useVk. Expected a number (0 or 1). Using default (0)." << endl;
+                mainProgram.mainProgramValue.useVulkan = false; // Default to false
+            }
+            catch (const out_of_range &e) {
+                cerr << "Warning: Value for --useVk out of range. Using default (0)." << endl;
+                mainProgram.mainProgramValue.useVulkan = false; // Default to false
+            }
+        }
     }
     
 
     setConsoleUTF8(); 
 
-    //setConsoleTitle(OMOCHA_ENGINE_NAME); 
+    SetTitle(OMOCHA_ENGINE_NAME); 
 
     
     string insideprojectPath = string(BASE_ASSETS) + "temp/project.json";
@@ -148,7 +175,7 @@ int main(int argc, char *argv[])
     bool projectDataLoaded = false;
     if (engine.loadProject(projectPath))
     {
-        //setConsoleTitle(PROJECT_NAME + " - " + OMOCHA_ENGINE_NAME); 
+        SetTitle(PROJECT_NAME); 
         projectDataLoaded = true;
         engine.EngineStdOut("Project loaded successfully: " + PROJECT_NAME, 0);
     }
@@ -167,7 +194,7 @@ int main(int argc, char *argv[])
     }    
     if (projectDataLoaded)
     {
-        if (!engine.initGE(mainProgram.mainProgramValue.getVsync())) // VSync 설정 전달
+        if (!engine.initGE(mainProgram.mainProgramValue.getVsync(), mainProgram.mainProgramValue.useVulkan)) // VSync 및 Vulkan 사용 여부 전달
         {
             
             engine.EngineStdOut("Engine/Graphic initialization failed. Exiting.", 2);
@@ -195,7 +222,6 @@ int main(int argc, char *argv[])
             Uint64 loopStartTime = 0;
             int targetFps = engine.getTargetFps();
             int targetFrameTimeMillis = (targetFps > 0) ? (1000 / targetFps) : (1000 / 60);
-            
             while (!quit)
             {                                  
                 loopStartTime = SDL_GetTicks();
@@ -203,7 +229,8 @@ int main(int argc, char *argv[])
                 {
                     if (event.type == SDL_EVENT_QUIT)
                     {
-                        if(engine.showMessageBox("Do you want to quit "+PROJECT_NAME+"?",engine.msgBoxIconType.ICON_INFORMATION,true)){
+                        string notice = "Quit?";
+                        if(engine.showMessageBox(notice,engine.msgBoxIconType.ICON_INFORMATION,true)){
                             quit = true;
                         }else{
                             quit = false;
@@ -251,4 +278,10 @@ void setConsoleUTF8()
     system("chcp 65001 > nul"); 
 #endif
     
+}
+void SetTitle(const string &s)
+{
+#ifdef _WIN32
+    SetConsoleTitleA(s.c_str());
+#endif
 }

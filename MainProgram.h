@@ -10,7 +10,8 @@ class MainProgram
 public:
     struct MainProgramValue
     {
-        bool setVsync = true;
+        bool setVsync = true; // 수직 동기화 사용 여부 (기본값 true)
+        bool useVulkan = false; // Vulkan 렌더러 사용 여부 (기본값 false)
         const bool getVsync() const { return setVsync; }
     };
     MainProgramValue mainProgramValue;
