@@ -11,6 +11,7 @@
 #include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
 #include "SDL3/SDL_audio.h"       // SDL 오디오
 #include "SDL3/SDL_render.h"      // SDL 렌더링
+#include "SDL3/SDL_scancode.h"    // For SDL_Scancode
 #include "blocks/Block.h"
 #include "util/fontName.h"
 #include "../util/Logger.h"
@@ -94,6 +95,7 @@ private:
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
     map<string, vector<Script>> objectScripts;
     vector<pair<string, const Script *>> startButtonScripts; // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
+    map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
     SDL_Window *window;     // SDL Window
@@ -113,10 +115,11 @@ private:
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
     bool m_needsTextureRecreation = false; // Flag to indicate if textures need to be recreated
+    bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
     // int Soundloader(const string& soundUri);
     void destroyTemporaryScreen();
-    void findRunbtnScript(); // 이 함수는 loadProject에서 처리되므로 불필요해 보입니다.
     Uint64 lastfpstime; // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
+    bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
     int framecount;
     float currentFps;
     int totalItemsToLoad;
@@ -133,6 +136,7 @@ private:
                                       const std::string &defaultValue,
                                       bool isCritical,
                                       bool allowEmpty);
+    SDL_Scancode mapStringToSDLScancode(const std::string& keyName) const;
 
 public: // TODO: Review public/private for SDL specific members if any
     struct MsgBoxIconType
@@ -152,8 +156,8 @@ public: // TODO: Review public/private for SDL specific members if any
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType,bool showYesNo=false);
     void EngineStdOut(string s, int LEVEL = 0);
-    map<int, vector<pair<string, const Script *>>> sceneScripts;
-    void processInput();
+    map<int, vector<pair<string, const Script *>>> sceneScripts; // TODO: 이 멤버 변수의 사용처 확인 필요, 현재 코드에서는 직접적인 사용이 보이지 않음.
+    void processInput(const SDL_Event& event);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();

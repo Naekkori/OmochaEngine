@@ -41,7 +41,7 @@ static std::string RapidJsonValueToString(const rapidjson::Value &value)
 }
 
 // 생성자: 엔진 초기 상태 설정
-Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), logger("omocha_engine.log")
+Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), m_isDraggingZoomSlider(false), logger("omocha_engine.log")
 {
     // 엔진 정보 출력 (EngineStdOut은 Engine.h에 선언되어야 합니다)
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -773,6 +773,45 @@ bool Engine::loadProject(const string &projectFilePath)
                         EngineStdOut("  -> Found 'Start Button Clicked' script for object ID: " + objectId + " but it has no subsequent blocks. Skipping.", 1);
                     }
                 }
+                // "when_some_key_pressed" 블록 처리
+                else if (firstBlock.type == "when_some_key_pressed")
+                {
+                    if (script.blocks.size() > 1) // 실제 실행할 내용이 있는지 확인
+                    {
+                        string keyIdentifierString;
+                        bool keyIdentifierFound = false;
+                        if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() > 0)
+                        {
+                            if(firstBlock.paramsJson[0].IsString())
+                            {
+                                keyIdentifierString = firstBlock.paramsJson[0].GetString();
+                                keyIdentifierFound = true;
+                            }else if(firstBlock.paramsJson[0].IsNull() && firstBlock.paramsJson.Size() > 1 && firstBlock.paramsJson[1].IsString())
+                            {
+                                keyIdentifierString = firstBlock.paramsJson[1].GetString();
+                                keyIdentifierFound = true;
+                            }
+
+                            if (keyIdentifierFound)
+                            {
+                                SDL_Scancode keyScancode = SDL_GetScancodeFromName(keyIdentifierString.c_str());
+                                if (keyScancode != SDL_SCANCODE_UNKNOWN)
+                                {
+                                    keyPressedScripts[keyScancode].push_back({objectId, &script});
+                                }
+                            }else{
+                                rapidjson::StringBuffer buffer;
+                                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                                firstBlock.paramsJson.Accept(writer);
+                                EngineStdOut("  -> 'when_some_key_pressed' script for object ID: " + objectId + " has invalid or missing key parameter. Params JSON: " + string(buffer.GetString()) + ". Skipping.", 1);
+                            }
+                            
+                        } else {
+                            EngineStdOut("  -> Found 'Key Pressed' script for object ID: " + objectId + " but it has no subsequent blocks. Skipping.", 1);
+                        }
+                        
+                    }
+                }
             }
         }
     }
@@ -1015,12 +1054,6 @@ void Engine::destroyTemporaryScreen()
         this->tempScreenTexture = nullptr;
         EngineStdOut("Temporary screen texture destroyed.", 0);
     }
-}
-
-// 이 함수는 loadProject에서 이미 시작 스크립트를 찾으므로 불필요해 보입니다.
-void Engine::findRunbtnScript()
-{
-    Engine::EngineStdOut("findRunbtnScript: This function seems to be a duplicate or placeholder. 'Start Button Clicked' scripts are identified in loadProject.", 1);
 }
 
 // SDL 및 엔진 리소스 종료
@@ -1630,50 +1663,132 @@ void Engine::drawHUD()
 }
 
 // 사용자 입력 처리 (마우스, 키보드 등)
-void Engine::processInput()
+void Engine::processInput(const SDL_Event& event)
 {
-    // 이 함수는 메인 루프에서 SDL_PollEvent를 호출하여 이벤트 처리를 수행해야 합니다.
-    // 예시 코드는 주석 처리되어 있습니다. 필요에 따라 활성화하고 구현하세요.
-    // SDL 이벤트 루프에서 마우스 입력 처리 (메인 루프에서 호출)
-    // 예시:
-    // SDL_Event e;
-    // while (SDL_PollEvent(&e) != 0) {
-    //     if (e.type == SDL_EVENT_QUIT) {
-    //          // 종료 이벤트 처리
-    //     } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-    //         if (e.button.button == SDL_BUTTON_LEFT) {
-    //             int mouseX = e.button.x;
-    //             int mouseY = e.button.y;
-    //             // 줌 슬라이더 클릭 처리 예시
-    //             if (this->specialConfig.showZoomSlider &&
-    //                 mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
-    //                 mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) {
-    //                 // 슬라이더 위치에 따라 줌 팩터 업데이트
-    //                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
-    //                 zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-    //                 // 줌 팩터 범위를 MIN_ZOOM ~ MAX_ZOOM으로 제한
-    //                 zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, zoomFactor));
-    //             }
-    //             // TODO: 다른 마우스 클릭 이벤트 처리 (오브젝트 클릭 등)
-    //         }
-    //     }
-    //     // TODO: 키보드 이벤트, 창 크기 변경 이벤트 등 다른 이벤트 처리
-    //     if (e.type == SDL_EVENT_WINDOW_RESIZED) {
-    //         // 창 크기 변경 시 렌더링 관련 설정 업데이트 필요 (예: 렌더링 타겟 크기 조정)
-    //         // SDL_GetRenderOutputSize(renderer, &WINDOW_WIDTH, &WINDOW_HEIGHT); // 전역 변수 업데이트 (주의)
-    //         // 또는 렌더링 로직에서 현재 윈도우 크기를 가져와 사용
-    //     }
-    // }
+    // 마우스 입력 처리 (줌 슬라이더)
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        if (event.button.button == SDL_BUTTON_LEFT) {
+            int mouseX = event.button.x;
+            int mouseY = event.button.y;
+            if (this->specialConfig.showZoomSlider &&
+                mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
+                mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5) {
+                float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+                this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+                this->zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, this->zoomFactor));
+                this->m_isDraggingZoomSlider = true; // 드래그 시작
+            }
+
+            //엔트리
+            if (m_gameplayInputActive)
+            {
+                //오브젝트 클릭했을때 처리
+            }
+            
+        }
+    }
+    else if (event.type == SDL_EVENT_KEY_DOWN) {
+        if (m_gameplayInputActive)
+        {
+            SDL_Scancode scancode = event.key.scancode;
+            auto it = keyPressedScripts.find(scancode);
+            if (it != keyPressedScripts.end()) {
+                const auto& scriptsToRun = it->second;
+                for (const auto& scriptPair : scriptsToRun) {
+                    const string& objectId = scriptPair.first;
+                    const Script* scriptPtr = scriptPair.second;
+                    EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
+                    executeScript(*this, objectId, scriptPtr);
+                }
+            }
+        }
+    } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+        if (this->m_isDraggingZoomSlider && (event.motion.state & SDL_BUTTON_LMASK)) { // 왼쪽 버튼이 눌린 상태로 움직일 때
+            int mouseX = event.motion.x;
+            // 슬라이더 범위 내에서만 업데이트
+            if (mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH) {
+                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+                 this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+                 this->zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, this->zoomFactor));
+            }
+        }
+    } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        if (event.button.button == SDL_BUTTON_LEFT) {
+            this->m_isDraggingZoomSlider = false; // 드래그 종료
+        }
+    }
+    // TODO: 다른 이벤트 처리 (예: SDL_EVENT_WINDOW_RESIZED)
 }
 
-// Entry 키 코드를 DxLib 키 코드로 매핑하는 함수 (SDL로 대체 필요)
-int Engine::mapEntryKeyToDxLibKey(const string &entryKey)
+// Entry/Scratch 스타일 키 이름을 SDL_Scancode로 변환
+SDL_Scancode Engine::mapStringToSDLScancode(const std::string& keyIdentifier) const
 {
-    // 이 함수는 DxLib 의존성을 제거하면서 SDL_Keycode 등으로 대체되어야 합니다.
-    // 현재는 사용되지 않으므로 경고만 출력하거나 내용을 비워둘 수 있습니다.
-    EngineStdOut("mapEntryKeyToDxLibKey is deprecated and needs replacement with SDL key handling.", 1);
-    // TODO: Entry 키 문자열을 SDL_Scancode 또는 SDL_Keycode로 변환하는 로직 구현
-    return -1; // Placeholder
+    // JavaScript 스타일 숫자 문자열 키 코드를 SDL_Scancode로 매핑하기 위한 정적 맵
+    static const std::map<std::string, SDL_Scancode> jsKeyCodeMap = {
+        {"8", SDL_SCANCODE_BACKSPACE},
+        {"9", SDL_SCANCODE_TAB},
+        {"13", SDL_SCANCODE_RETURN},
+        // Shift, Ctrl, Alt는 JS에서 좌우 구분이 없으므로 기본적으로 왼쪽 키로 매핑합니다.
+        {"16", SDL_SCANCODE_LSHIFT}, 
+        {"17", SDL_SCANCODE_LCTRL},
+        {"18", SDL_SCANCODE_LALT},
+        {"27", SDL_SCANCODE_ESCAPE},
+        {"32", SDL_SCANCODE_SPACE},
+        {"37", SDL_SCANCODE_LEFT},
+        {"38", SDL_SCANCODE_UP},
+        {"39", SDL_SCANCODE_RIGHT},
+        {"40", SDL_SCANCODE_DOWN},
+        // 숫자 키 (JS keycode 48-57 for '0'-'9')
+        {"48", SDL_SCANCODE_0}, {"49", SDL_SCANCODE_1}, {"50", SDL_SCANCODE_2},
+        {"51", SDL_SCANCODE_3}, {"52", SDL_SCANCODE_4}, {"53", SDL_SCANCODE_5},
+        {"54", SDL_SCANCODE_6}, {"55", SDL_SCANCODE_7}, {"56", SDL_SCANCODE_8},
+        {"57", SDL_SCANCODE_9},
+        // 알파벳 키 (JS keycode 65-90 for 'A'-'Z')
+        {"65", SDL_SCANCODE_A}, {"66", SDL_SCANCODE_B}, {"67", SDL_SCANCODE_C},
+        {"68", SDL_SCANCODE_D}, {"69", SDL_SCANCODE_E}, {"70", SDL_SCANCODE_F},
+        {"71", SDL_SCANCODE_G}, {"72", SDL_SCANCODE_H}, {"73", SDL_SCANCODE_I},
+        {"74", SDL_SCANCODE_J}, {"75", SDL_SCANCODE_K}, {"76", SDL_SCANCODE_L},
+        {"77", SDL_SCANCODE_M}, {"78", SDL_SCANCODE_N}, {"79", SDL_SCANCODE_O},
+        {"80", SDL_SCANCODE_P}, {"81", SDL_SCANCODE_Q}, {"82", SDL_SCANCODE_R},
+        {"83", SDL_SCANCODE_S}, {"84", SDL_SCANCODE_T}, {"85", SDL_SCANCODE_U},
+        {"86", SDL_SCANCODE_V}, {"87", SDL_SCANCODE_W}, {"88", SDL_SCANCODE_X},
+        {"89", SDL_SCANCODE_Y}, {"90", SDL_SCANCODE_Z},
+        // 특수 문자 키
+        {"186", SDL_SCANCODE_SEMICOLON},      // ;
+        {"187", SDL_SCANCODE_EQUALS},         // =
+        {"188", SDL_SCANCODE_COMMA},          // ,
+        {"189", SDL_SCANCODE_MINUS},          // -
+        {"190", SDL_SCANCODE_PERIOD},         // .
+        {"191", SDL_SCANCODE_SLASH},          // /
+        {"192", SDL_SCANCODE_GRAVE},          // ` (Grave Accent)
+        {"219", SDL_SCANCODE_LEFTBRACKET},   // [
+        {"220", SDL_SCANCODE_BACKSLASH},      // \
+        {"221", SDL_SCANCODE_RIGHTBRACKET},  // ]
+        {"222", SDL_SCANCODE_APOSTROPHE}     // ' (or SDL_SCANCODE_QUOTE)
+    };
+
+    auto it = jsKeyCodeMap.find(keyIdentifier);
+    if (it != jsKeyCodeMap.end()) {
+        return it->second;
+    }
+
+    // 숫자 문자열 키 코드가 아닌 경우, SDL 표준 키 이름으로 시도
+    SDL_Scancode sc = SDL_GetScancodeFromName(keyIdentifier.c_str());
+    if (sc != SDL_SCANCODE_UNKNOWN) {
+        return sc;
+    }
+
+    // 마지막으로, 단일 소문자 알파벳인 경우 대문자로 변환하여 다시 시도 (예: "a" -> "A")
+    if (keyIdentifier.length() == 1) {
+        char c = keyIdentifier[0];
+        if (c >= 'a' && c <= 'z') {
+            char upper_c = static_cast<char>(toupper(c));
+            std::string upper_s(1, upper_c);
+            return SDL_GetScancodeFromName(upper_s.c_str());
+        }
+    }
+
+    return SDL_SCANCODE_UNKNOWN; // 매핑되는 키가 없는 경우
 }
 
 // '시작하기' 버튼 클릭 시 실행되는 스크립트들을 실행합니다.
@@ -1695,8 +1810,8 @@ void Engine::runStartButtonScripts()
         // BlockExecutor.h/cpp에 정의된 executeScript 함수 호출
         // executeScript 함수는 Engine 인스턴스, 오브젝트 ID, 스크립트 포인터를 받아 스크립트를 실행합니다.
         // 이 함수는 스크립트 블록들을 순차적으로 처리하는 로직을 포함해야 합니다.
-        // TODO: executeScript 함수 구현 필요
         executeScript(*this, objectId, scriptPtr);
+        m_gameplayInputActive=true;
         EngineStdOut(" -> executeScript call is commented out. Script for object " + objectId + " was not executed.", 1);
     }
     EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);

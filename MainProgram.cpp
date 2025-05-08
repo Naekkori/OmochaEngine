@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
                             quit = false;
                         }
                     }
-                    engine.processInput();
+                    engine.processInput(event); // 수정: SDL_Event를 processInput으로 전달
                     if (event.type == SDL_EVENT_RENDER_DEVICE_RESET || event.type == SDL_EVENT_RENDER_TARGETS_RESET) {
                         engine.handleRenderDeviceReset(); // 리셋 플래그 설정 및 기존 리소스 해제 준비
                     }
