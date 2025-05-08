@@ -213,14 +213,6 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
         }
-        else
-        {
-            EngineStdOut("'specialConfig' field is not an object. Skipping special config.", 1);
-        }
-    }
-    else
-    {
-        EngineStdOut("'specialConfig' field missing in project.json. Using default special config.", 1);
     }
 
     // 오브젝트 파싱
