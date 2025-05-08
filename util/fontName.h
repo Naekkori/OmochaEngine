@@ -37,10 +37,10 @@ inline FontName getFontNameFromString(const std::string& familyName) {
     if (lowerFamilyName == "d2coding") return FontName::D2Coding;
     if (lowerFamilyName == "maru buri") return FontName::MaruBuri;
     if (lowerFamilyName == "nanum barun pen") return FontName::NanumBarunPen;
-    if (lowerFamilyName == "nanumgothic" || lowerFamilyName == "나눔고딕") return FontName::NanumGothic;
-    if (lowerFamilyName == "nanummyeongjo" || lowerFamilyName == "나눔명조") return FontName::NanumMyeongjo;
+    if (lowerFamilyName == "nanum gothic" || lowerFamilyName == "나눔고딕") return FontName::NanumGothic;
+    if (lowerFamilyName == "nanumm yeongjo" || lowerFamilyName == "나눔명조") return FontName::NanumMyeongjo;
     if (lowerFamilyName == "nanum pen script") return FontName::NanumPen;
-    if (lowerFamilyName == "nanumsquareround") return FontName::NanumSquareRound;
+    if (lowerFamilyName == "nanum squareround") return FontName::NanumSquareRound;
     // 필요한 다른 폰트 이름 비교 추가
     return FontName::Default; // 일치하는 이름이 없으면 기본값 반환
 }
