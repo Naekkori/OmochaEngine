@@ -144,11 +144,13 @@ int main(int argc, char *argv[])
     {
         engine.EngineStdOut("Found project.json inside 'assets/temp/' folder.", 0);
         projectPath = insideprojectPath;
+        engine.IsSysMenu=false;
     }
     else if (filesystem::exists(outSideprojectPath))
     {
         engine.EngineStdOut("Found project.json inside 'assets/' folder.", 0);
         projectPath = outSideprojectPath;
+        engine.IsSysMenu=false;
     }
     else if (filesystem::exists("sysmenu/project.json")){ //아무것도 없으면 시스템메뉴 실행
         if (!filesystem::exists("assets"))
@@ -165,6 +167,7 @@ int main(int argc, char *argv[])
             }
         }
         projectPath = "sysmenu/project.json";
+        engine.IsSysMenu=true;
     }
     else
     {

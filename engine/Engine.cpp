@@ -57,11 +57,11 @@ Engine::~Engine()
 }
 
 string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
-                                          const string &fieldName,
-                                          const string &contextDescription,
-                                          const string &defaultValue,
-                                          bool isCritical,
-                                          bool allowEmpty)
+                                     const string &fieldName,
+                                     const string &contextDescription,
+                                     const string &defaultValue,
+                                     bool isCritical,
+                                     bool allowEmpty)
 {
     if (!parentValue.IsObject())
     {
@@ -108,7 +108,13 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
 
     return s_val;
 }
-
+/**
+ * @brief 프로젝트 로드
+ *
+ * @param projectFilePath 프로젝트 경로
+ * @return true 성공하면
+ * @return false 실패하면
+ */
 bool Engine::loadProject(const string &projectFilePath)
 {
     m_blockParamsAllocatorDoc = rapidjson::Document();
@@ -131,7 +137,7 @@ bool Engine::loadProject(const string &projectFilePath)
     if (document.HasParseError())
     {
         string errorMsg = string("Failed to parse project file: ") + rapidjson::GetParseError_En(document.GetParseError()) +
-                               " (Offset: " + to_string(document.GetErrorOffset()) + ")";
+                          " (Offset: " + to_string(document.GetErrorOffset()) + ")";
         EngineStdOut(errorMsg, 2);
         showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
         return false;
@@ -146,6 +152,7 @@ bool Engine::loadProject(const string &projectFilePath)
     m_whenObjectClickCanceledScripts.clear();
     m_messageReceivedScripts.clear();
     m_pressedObjectId = "";
+    m_sceneOrder.clear();
     PROJECT_NAME = getSafeStringFromJson(document, "name", "project root", "Omocha Project", false, false);
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
     EngineStdOut("Project Name: " + (PROJECT_NAME.empty() ? "[Not Set]" : PROJECT_NAME), 0);
@@ -640,7 +647,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     else
                     {
                         string scriptErrorMsg = string("ERROR: Failed to parse script JSON string for object '") + objInfo.name + "': " +
-                                                     rapidjson::GetParseError_En(scriptDocument.GetParseError()) + " (Offset: " + to_string(scriptDocument.GetErrorOffset()) + ")";
+                                                rapidjson::GetParseError_En(scriptDocument.GetParseError()) + " (Offset: " + to_string(scriptDocument.GetErrorOffset()) + ")";
                         EngineStdOut(scriptErrorMsg, 2);
                         showMessageBox("Failed to parse script JSON string for object '" + objInfo.name + "'. Project loading aborted.", msgBoxIconType.ICON_ERROR);
                         return false;
@@ -661,7 +668,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
 
     scenes.clear();
-    string firstSceneIdInOrder = "";
+    // string firstSceneIdInOrder = ""; // m_sceneOrder.front() will serve this if m_sceneOrder is not empty
     /**
      * @brief 엔트리 씬
      *
@@ -689,12 +696,8 @@ bool Engine::loadProject(const string &projectFilePath)
                     continue;
                 }
                 string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene", false, true);
-                if (i == 0)
-                {
-                    firstSceneIdInOrder = sceneId;
-                    EngineStdOut("Identified first scene in array order: " + sceneName + " (ID: " + firstSceneIdInOrder + ")", 0);
-                }
                 scenes[sceneId] = sceneName;
+                m_sceneOrder.push_back(sceneId); // Store scene ID in order
                 EngineStdOut("  Parsed scene: " + sceneName + " (ID: " + sceneId + ")", 0);
             }
             else
@@ -735,9 +738,9 @@ bool Engine::loadProject(const string &projectFilePath)
     else
     {
 
-        if (!firstSceneIdInOrder.empty() && scenes.count(firstSceneIdInOrder))
+        if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front()))
         {
-            currentSceneId = firstSceneIdInOrder;
+            currentSceneId = m_sceneOrder.front();
             EngineStdOut("Initial scene set to first scene in array order: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
         }
         else
@@ -746,6 +749,17 @@ bool Engine::loadProject(const string &projectFilePath)
             currentSceneId = "";
             return false;
         }
+    }
+
+    // Trigger "when_scene_start" scripts for the initial scene
+    if (!currentSceneId.empty())
+    {
+        EngineStdOut("Triggering 'when_scene_start' scripts for initial scene: " + currentSceneId, 0);
+        triggerWhenSceneStartScripts();
+    }
+    else
+    {
+        // This case should be caught by the return false above if no valid start scene.
     }
 
     /**
@@ -1217,7 +1231,7 @@ bool Engine::loadImages()
 
     int loadedCount = 0;
     int failedCount = 0;
-
+    string imagePath = "";
     for (auto &objInfo : objects_in_order)
     {
         if (objInfo.objectType == "sprite")
@@ -1225,7 +1239,15 @@ bool Engine::loadImages()
 
             for (auto &costume : objInfo.costumes)
             {
-                string imagePath = string(BASE_ASSETS) + costume.fileurl;
+                if (IsSysMenu)
+                {
+                    imagePath = "sysmenu/" + costume.fileurl;
+                }
+                else
+                {
+                    imagePath = string(BASE_ASSETS) + costume.fileurl;
+                }
+
                 if (!this->renderer)
                 {
                     EngineStdOut("CRITICAL Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
@@ -2285,4 +2307,126 @@ void Engine::EngineStdOut(string s, int LEVEL) const
 
     string logMessage = format("{} {}", prefix, s);
     logger.log(logMessage);
+}
+
+void Engine::goToScene(const std::string &sceneId)
+{
+    if (scenes.count(sceneId))
+    {
+        if (currentSceneId == sceneId)
+        {
+            EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0);
+            // Optionally, re-trigger scene start scripts if needed, or do nothing.
+            // For now, we only trigger if the scene actually changes.
+            return;
+        }
+        currentSceneId = sceneId;
+        EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+        triggerWhenSceneStartScripts();
+    }
+    else
+    {
+        EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2);
+    }
+}
+
+void Engine::goToNextScene()
+{
+    if (m_sceneOrder.empty())
+    {
+        EngineStdOut("Cannot go to next scene: Scene order is not defined or no scenes loaded.", 1);
+        return;
+    }
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot go to next scene: Current scene ID is empty.", 1);
+        return;
+    }
+
+    auto it = std::find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
+    if (it != m_sceneOrder.end())
+    {
+        size_t currentIndex = std::distance(m_sceneOrder.begin(), it);
+        if (currentIndex + 1 < m_sceneOrder.size())
+        {
+            goToScene(m_sceneOrder[currentIndex + 1]);
+        }
+        else
+        {
+            EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+            // Optional: Loop to the first scene
+            // goToScene(m_sceneOrder[0]);
+            // EngineStdOut("Looping to the first scene.", 0);
+        }
+    }
+    else
+    {
+        EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine next scene.", 2);
+    }
+}
+
+void Engine::goToPreviousScene()
+{
+    if (m_sceneOrder.empty())
+    {
+        EngineStdOut("Cannot go to previous scene: Scene order is not defined or no scenes loaded.", 1);
+        return;
+    }
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot go to previous scene: Current scene ID is empty.", 1);
+        return;
+    }
+
+    auto it = std::find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
+    if (it != m_sceneOrder.end())
+    {
+        size_t currentIndex = std::distance(m_sceneOrder.begin(), it);
+        if (currentIndex > 0)
+        {
+            goToScene(m_sceneOrder[currentIndex - 1]);
+        }
+        else
+        {
+            EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+            // Optional: Loop to the last scene
+            // goToScene(m_sceneOrder.back());
+            // EngineStdOut("Looping to the last scene.", 0);
+        }
+    }
+    else
+    {
+        EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine previous scene.", 2);
+    }
+}
+
+void Engine::triggerWhenSceneStartScripts()
+{
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
+        return;
+    }
+    EngineStdOut("Triggering 'when_scene_start' scripts for scene: " + currentSceneId, 0);
+    for (const auto &scriptPair : m_whenStartSceneLoadedScripts)
+    {
+        const std::string &objectId = scriptPair.first;
+        const Script *scriptPtr = scriptPair.second;
+
+        bool executeForScene = false;
+        for (const auto &objInfo : objects_in_order)
+        {
+            if (objInfo.id == objectId && (objInfo.sceneId == currentSceneId || objInfo.sceneId == "global" || objInfo.sceneId.empty()))
+            {
+                executeForScene = true;
+                break;
+            }
+        }
+
+        if (executeForScene)
+        {
+            EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
+            executeScript(*this, objectId, scriptPtr);
+        }
+    }
 }

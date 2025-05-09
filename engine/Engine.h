@@ -98,6 +98,7 @@ private:
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
+    vector<std::string> m_sceneOrder; // Stores scene IDs in the order they are defined
     SDL_Window *window;     // SDL Window
     SDL_Renderer *renderer; // SDL Renderer
     string currentSceneId;
@@ -155,6 +156,7 @@ public:
     MsgBoxIconType msgBoxIconType;
     Engine();
     ~Engine();
+    bool IsSysMenu=false;
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
@@ -180,5 +182,9 @@ public:
     void renderLoadingScreen();
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();
-    void drawHUD();                 // HUD 그리기 메서드 추가
+    void drawHUD(); // HUD 그리기 메서드 추가
+    void goToScene(const std::string& sceneId);
+    void goToNextScene();
+    void goToPreviousScene();
+    void triggerWhenSceneStartScripts();
 };
