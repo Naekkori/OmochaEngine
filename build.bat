@@ -13,23 +13,39 @@ if %errorlevel% neq 0 (
     goto :eof
 )
 
-echo Changing directory to build folder...
-cd /d "F:\kkori\OmochaEngine\out\build\x64-debug"
+set BUILD_TYPE=Release
+set PROJECT_ROOT_DIR=F:\kkori\OmochaEngine
+set BUILD_DIR=%PROJECT_ROOT_DIR%\out\build\x64-%BUILD_TYPE%
+
+echo Creating build directory: %BUILD_DIR%
+mkdir "%BUILD_DIR%"
+cd /d "%BUILD_DIR%"
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to change directory to F:\kkori\OmochaEngine\out\build\x64-debug.
+    echo ERROR: Failed to change or create directory: %BUILD_DIR%.
     goto :eof
 )
 
-echo Building create_package target...
-cmake -B build .
-cmake --build build
-cd build
-cpack
+echo Configuring CMake for %BUILD_TYPE% build...
+cmake -S "%PROJECT_ROOT_DIR%" -B . -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
 if %errorlevel% neq 0 (
-    echo ERROR: Build failed.
+    echo ERROR: CMake configuration failed for %BUILD_TYPE%.
+    goto :eof
+)
+
+echo Building %BUILD_TYPE% target...
+cmake --build . --config %BUILD_TYPE%
+if %errorlevel% neq 0 (
+    echo ERROR: %BUILD_TYPE% build failed.
+    goto :eof
+)
+
+echo Creating package for %BUILD_TYPE% build...
+cpack --config CPackConfig.cmake
+if %errorlevel% neq 0 (
+    echo ERROR: Packaging failed for %BUILD_TYPE%.
 ) else (
-    echo Build and packaging completed successfully.
-    echo Package created at F:\kkori\OmochaEngine\out\build\x64-debug\OmochaEngine-1.0.0-win64.zip
+    echo %BUILD_TYPE% build and packaging completed successfully.
+    echo Package created in %BUILD_DIR%
 )
 
 echo.

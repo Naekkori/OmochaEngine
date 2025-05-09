@@ -4,6 +4,14 @@
 #include <chrono>
 #include <iomanip> 
 
+
+#if defined(_DEBUG) && defined(_WIN32)
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <Windows.h>
+#endif
+
 class SimpleLogger {
 private:
     mutable std::ofstream logFile;
@@ -43,6 +51,11 @@ public:
             std::cerr << "Warning: Log file is not open. Cannot write: " << message << std::endl;
             return;
         }
+
+#if defined(_DEBUG) && defined(_WIN32) // 조건 확인 시에도 _WIN32 사용
+        OutputDebugStringA(message.c_str());
+        OutputDebugStringA("\n");
+#endif
 
         
         auto now = std::chrono::system_clock::now();
