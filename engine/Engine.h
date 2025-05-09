@@ -10,6 +10,7 @@
 #include "SDL3_image/SDL_image.h" //SDL 이미지
 #include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
 #include "SDL3/SDL_audio.h"       // SDL 오디오
+#include "SDL3/SDL_stdinc.h"      // For SDL_PI_D
 #include "SDL3/SDL_render.h"      // SDL 렌더링
 #include "SDL3/SDL_scancode.h"    // For SDL_Scancode
 #include "blocks/Block.h"
@@ -27,7 +28,7 @@ static const int SLIDER_X = 10;
 static const int SLIDER_Y = WINDOW_HEIGHT - 40;
 static const int SLIDER_WIDTH = 200;
 static const int SLIDER_HEIGHT = 20;
-const double ASSET_ROTATION_CORRECTION_RADIAN = -3.14159265358979323846 / 2.0;
+const double ASSET_ROTATION_CORRECTION_RADIAN = -SDL_PI_D / 2.0; // Using SDL's PI constant
 extern const char *BASE_ASSETS; // Declaration only
 extern const char *FONT_ASSETS; // Declaration only
 extern string PROJECT_NAME;     // Declaration only
@@ -90,7 +91,8 @@ private:
         bool showFPS = false;           // FPS 표시 여부
         int TARGET_FPS = 60;
         //-- Experimal
-        bool useSqlite = true;
+        bool useSqlite = false; //클라우드 변수를 sqlite 에 저장 (네이버 서버에 연결할수 없으니 로컬 db에 저장 false 면 project.json 에 키 저장)
+        float setZoomfactor = 1.0f;
     };
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
     map<string, vector<Script>> objectScripts;

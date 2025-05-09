@@ -35,7 +35,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 
-Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log")
+Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log")
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -188,7 +188,15 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.showZoomSlider = false;
                 EngineStdOut("'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1);
             }
-
+            if(specialConfigJson.HasMember("setZoomfactor") && specialConfigJson["setZoomfactor"].IsNumber())
+            {
+                this->specialConfig.setZoomfactor = std::clamp(specialConfigJson["setZoomfactor"].GetDouble(), (double)Engine::MIN_ZOOM, (double)Engine::MAX_ZOOM);
+            }
+            else
+            {
+                this->specialConfig.setZoomfactor = 1.26f;
+                EngineStdOut("'specialConfig.setZoomfactor' field missing or not numeric. Using default: 1.26", 1);
+            }
             if (specialConfigJson.HasMember("showProjectNameUI") && specialConfigJson["showProjectNameUI"].IsBool())
             {
                 this->specialConfig.SHOW_PROJECT_NAME = specialConfigJson["showProjectNameUI"].GetBool();
@@ -668,7 +676,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
 
     scenes.clear();
-    // string firstSceneIdInOrder = ""; // m_sceneOrder.front() will serve this if m_sceneOrder is not empty
+
     /**
      * @brief 엔트리 씬
      *
@@ -697,7 +705,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene", false, true);
                 scenes[sceneId] = sceneName;
-                m_sceneOrder.push_back(sceneId); // Store scene ID in order
+                m_sceneOrder.push_back(sceneId);
                 EngineStdOut("  Parsed scene: " + sceneName + " (ID: " + sceneId + ")", 0);
             }
             else
@@ -751,7 +759,6 @@ bool Engine::loadProject(const string &projectFilePath)
         }
     }
 
-    // Trigger "when_scene_start" scripts for the initial scene
     if (!currentSceneId.empty())
     {
         EngineStdOut("Triggering 'when_scene_start' scripts for initial scene: " + currentSceneId, 0);
@@ -759,7 +766,6 @@ bool Engine::loadProject(const string &projectFilePath)
     }
     else
     {
-        // This case should be caught by the return false above if no valid start scene.
     }
 
     /**
@@ -1019,7 +1025,6 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         return false;
     }
     EngineStdOut("SDL Renderer created successfully.", 0);
-
     if (SDL_SetRenderVSync(this->renderer, vsyncEnabled ? SDL_RENDERER_VSYNC_ADAPTIVE : SDL_RENDERER_VSYNC_DISABLED) != 0)
     {
         EngineStdOut("Failed to set VSync mode. SDL_" + string(SDL_GetError()), 1);
@@ -2316,8 +2321,7 @@ void Engine::goToScene(const std::string &sceneId)
         if (currentSceneId == sceneId)
         {
             EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0);
-            // Optionally, re-trigger scene start scripts if needed, or do nothing.
-            // For now, we only trigger if the scene actually changes.
+
             return;
         }
         currentSceneId = sceneId;
@@ -2354,9 +2358,6 @@ void Engine::goToNextScene()
         else
         {
             EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-            // Optional: Loop to the first scene
-            // goToScene(m_sceneOrder[0]);
-            // EngineStdOut("Looping to the first scene.", 0);
         }
     }
     else
@@ -2389,9 +2390,6 @@ void Engine::goToPreviousScene()
         else
         {
             EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-            // Optional: Loop to the last scene
-            // goToScene(m_sceneOrder.back());
-            // EngineStdOut("Looping to the last scene.", 0);
         }
     }
     else

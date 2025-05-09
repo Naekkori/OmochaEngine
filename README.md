@@ -7,6 +7,13 @@ the entryjs cpp porting
 entry hw,카메라 와 마이크(stt 처리), ai 기능들은 전부 제외되어있습니다
 **게임엔진** 에 가깝습니다.
 
+### 왜 만들었나요?
+Scratch 를 개선한 turbo warp 나
+<br>
+Scratch 를 C++ 로 옮긴 프로젝트 를보고
+<br>
+엔트리는 이런거 없을까? 하며 탄생한 프로젝트 입니다.
+
 ### 그래서 이거쓰면 뭐가좋아요?
 javascript 기반 엔진보다 속도가 빠릅니다
 <br>
@@ -24,7 +31,8 @@ javascript 기반 엔진보다 속도가 빠릅니다
                 {
                     "brandName":"DBDO",
                     "showProjectNameUI":true,
-                    "showZoomSlider":false,
+                    "showZoomSliderUI":false,
+                    "setZoomfactor":1.26
                 },
                 //... 그외 기타 요소들
 }
