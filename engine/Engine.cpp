@@ -26,8 +26,8 @@ const char *BASE_ASSETS = "assets/";
 const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
-const double PI_VALUE = std::acos(-1.0);
-static std::string RapidJsonValueToString(const rapidjson::Value &value)
+const double PI_VALUE = acos(-1.0);
+static string RapidJsonValueToString(const rapidjson::Value &value)
 {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -56,10 +56,10 @@ Engine::~Engine()
     objectScripts.clear();
 }
 
-std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
-                                          const std::string &fieldName,
-                                          const std::string &contextDescription,
-                                          const std::string &defaultValue,
+string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
+                                          const string &fieldName,
+                                          const string &contextDescription,
+                                          const string &defaultValue,
                                           bool isCritical,
                                           bool allowEmpty)
 {
@@ -92,7 +92,7 @@ std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
         return defaultValue;
     }
 
-    std::string s_val = fieldValue.GetString();
+    string s_val = fieldValue.GetString();
     if (s_val.empty() && !allowEmpty)
     {
         if (isCritical)
@@ -130,8 +130,8 @@ bool Engine::loadProject(const string &projectFilePath)
 
     if (document.HasParseError())
     {
-        std::string errorMsg = std::string("Failed to parse project file: ") + rapidjson::GetParseError_En(document.GetParseError()) +
-                               " (Offset: " + std::to_string(document.GetErrorOffset()) + ")";
+        string errorMsg = string("Failed to parse project file: ") + rapidjson::GetParseError_En(document.GetParseError()) +
+                               " (Offset: " + to_string(document.GetErrorOffset()) + ")";
         EngineStdOut(errorMsg, 2);
         showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
         return false;
@@ -153,11 +153,11 @@ bool Engine::loadProject(const string &projectFilePath)
     if (document.HasMember("speed") && document["speed"].IsNumber())
     {
         this->specialConfig.TARGET_FPS = document["speed"].GetInt();
-        EngineStdOut("Target FPS set from project.json: " + std::to_string(this->specialConfig.TARGET_FPS), 0);
+        EngineStdOut("Target FPS set from project.json: " + to_string(this->specialConfig.TARGET_FPS), 0);
     }
     else
     {
-        EngineStdOut("'speed' field missing or not numeric in project.json. Using default TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
+        EngineStdOut("'speed' field missing or not numeric in project.json. Using default TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
     }
     /**
      * @brief 특수 설정
@@ -385,7 +385,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         else if (entityJson["text"].IsNumber())
                         {
 
-                            objInfo.textContent = std::to_string(entityJson["text"].GetDouble());
+                            objInfo.textContent = to_string(entityJson["text"].GetDouble());
                             EngineStdOut("INFO: textBox '" + objInfo.name + "' 'text' field is numeric. Converted to string: " + objInfo.textContent, 0);
                         }
                         else
@@ -412,7 +412,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                 unsigned int g = stoul(hexColor.substr(3, 2), nullptr, 16);
                                 unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
                                 objInfo.textColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
-                                EngineStdOut("INFO: textBox '" + objInfo.name + "' text color parsed: R=" + std::to_string(r) + ", G=" + std::to_string(g) + ", B=" + std::to_string(b), 0);
+                                EngineStdOut("INFO: textBox '" + objInfo.name + "' text color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 0);
                             }
                             catch (const exception &e)
                             {
@@ -441,7 +441,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             try
                             {
                                 objInfo.fontSize = stoi(fontString.substr(0, pxPos));
-                                EngineStdOut("INFO: textBox '" + objInfo.name + "' font size parsed: " + std::to_string(objInfo.fontSize), 0);
+                                EngineStdOut("INFO: textBox '" + objInfo.name + "' font size parsed: " + to_string(objInfo.fontSize), 0);
                             }
                             catch (...)
                             {
@@ -480,7 +480,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (entityJson.HasMember("textAlign") && entityJson["textAlign"].IsNumber())
                     {
                         objInfo.textAlign = entityJson["textAlign"].GetInt();
-                        EngineStdOut("INFO: textBox '" + objInfo.name + "' text alignment parsed: " + std::to_string(objInfo.textAlign), 0);
+                        EngineStdOut("INFO: textBox '" + objInfo.name + "' text alignment parsed: " + to_string(objInfo.textAlign), 0);
                     }
                     else
                     {
@@ -630,7 +630,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                 }
                             }
                             objectScripts[objectId] = scriptsForObject;
-                            EngineStdOut("INFO: Parsed " + std::to_string(scriptsForObject.size()) + " script stacks for object ID: " + objectId, 0);
+                            EngineStdOut("INFO: Parsed " + to_string(scriptsForObject.size()) + " script stacks for object ID: " + objectId, 0);
                         }
                         else
                         {
@@ -639,8 +639,8 @@ bool Engine::loadProject(const string &projectFilePath)
                     }
                     else
                     {
-                        std::string scriptErrorMsg = std::string("ERROR: Failed to parse script JSON string for object '") + objInfo.name + "': " +
-                                                     rapidjson::GetParseError_En(scriptDocument.GetParseError()) + " (Offset: " + std::to_string(scriptDocument.GetErrorOffset()) + ")";
+                        string scriptErrorMsg = string("ERROR: Failed to parse script JSON string for object '") + objInfo.name + "': " +
+                                                     rapidjson::GetParseError_En(scriptDocument.GetParseError()) + " (Offset: " + to_string(scriptDocument.GetErrorOffset()) + ")";
                         EngineStdOut(scriptErrorMsg, 2);
                         showMessageBox("Failed to parse script JSON string for object '" + objInfo.name + "'. Project loading aborted.", msgBoxIconType.ICON_ERROR);
                         return false;
@@ -810,7 +810,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                 rapidjson::StringBuffer buffer;
                                 rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
                                 firstBlock.paramsJson.Accept(writer);
-                                EngineStdOut(" -> object ID " + objectId + " 'press key' invalid param or missing message ID. Params JSON: " + std::string(buffer.GetString()) + ".", 1);
+                                EngineStdOut(" -> object ID " + objectId + " 'press key' invalid param or missing message ID. Params JSON: " + string(buffer.GetString()) + ".", 1);
                             }
                         }
                     }
@@ -856,7 +856,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 {
                     if (script.blocks.size() > 1)
                     {
-                        std::string messageIdToReceive;
+                        string messageIdToReceive;
                         bool messageParamFound = false;
 
                         if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() > 1 &&
@@ -876,7 +876,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             rapidjson::StringBuffer buffer;
                             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
                             firstBlock.paramsJson.Accept(writer);
-                            EngineStdOut(" -> object ID " + objectId + " 'recive signal' invalid param or missing message ID. Params JSON: " + std::string(buffer.GetString()) + ".", 1);
+                            EngineStdOut(" -> object ID " + objectId + " 'recive signal' invalid param or missing message ID. Params JSON: " + string(buffer.GetString()) + ".", 1);
                         }
                     }
                 }
@@ -892,7 +892,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
         }
     }
-    EngineStdOut("Finished identifying 'Start Button Clicked' scripts. Found: " + std::to_string(startButtonScripts.size()), 0);
+    EngineStdOut("Finished identifying 'Start Button Clicked' scripts. Found: " + to_string(startButtonScripts.size()), 0);
 
     EngineStdOut("Project JSON file parsed successfully.", 0);
     return true;
@@ -948,18 +948,18 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
             SDL_Quit();
             return false;
         }
-        EngineStdOut("Available render drivers: " + std::to_string(numRenderDrivers), 0);
+        EngineStdOut("Available render drivers: " + to_string(numRenderDrivers), 0);
 
         int vulkanDriverIndex = -1;
         for (int i = 0; i < numRenderDrivers; ++i)
         {
-            EngineStdOut("Checking render driver at index: " + std::to_string(i) + " " + SDL_GetRenderDriver(i), 0);
+            EngineStdOut("Checking render driver at index: " + to_string(i) + " " + SDL_GetRenderDriver(i), 0);
             const char *driverName = SDL_GetRenderDriver(i);
 
             if (driverName != nullptr && strcmp(driverName, "vulkan") == 0)
             {
                 vulkanDriverIndex = i;
-                EngineStdOut("Vulkan driver found at index: " + std::to_string(i), 0);
+                EngineStdOut("Vulkan driver found at index: " + to_string(i), 0);
                 break;
             }
         }
@@ -1235,7 +1235,7 @@ bool Engine::loadImages()
                 costume.imageHandle = IMG_LoadTexture(this->renderer, imagePath.c_str());
                 if (!costume.imageHandle)
                 {
-                    EngineStdOut("Renderer pointer value at IMG_LoadTexture failure: " + std::to_string(reinterpret_cast<uintptr_t>(this->renderer)), 3);
+                    EngineStdOut("Renderer pointer value at IMG_LoadTexture failure: " + to_string(reinterpret_cast<uintptr_t>(this->renderer)), 3);
                 }
                 if (costume.imageHandle)
                 {
@@ -1380,15 +1380,15 @@ void Engine::drawAllEntities()
                 if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH) != true)
                 {
                     const char *sdlErrorChars = SDL_GetError();
-                    std::string errorDetail = "No specific SDL error message available.";
+                    string errorDetail = "No specific SDL error message available.";
                     if (sdlErrorChars && sdlErrorChars[0] != '\0')
                     {
-                        errorDetail = std::string(sdlErrorChars);
+                        errorDetail = string(sdlErrorChars);
                     }
 
-                    std::ostringstream oss;
+                    ostringstream oss;
                     oss << selectedCostume->imageHandle;
-                    std::string texturePtrStr = oss.str();
+                    string texturePtrStr = oss.str();
                     EngineStdOut("Failed to get texture size for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Texture Ptr: " + texturePtrStr + ". SDL_" + errorDetail, 2);
                     SDL_ClearError();
                     continue;
@@ -1457,7 +1457,7 @@ void Engine::drawAllEntities()
                     Usefont = TTF_OpenFont(determinedFontPath.c_str(), fontSize);
                     if (!Usefont)
                     {
-                        EngineStdOut("Failed to load font: " + determinedFontPath + " at size " + std::to_string(currentFontSize) + " for textBox '" + objInfo.name + "'. Falling back to HUD font.", 2);
+                        EngineStdOut("Failed to load font: " + determinedFontPath + " at size " + to_string(currentFontSize) + " for textBox '" + objInfo.name + "'. Falling back to HUD font.", 2);
                         Usefont = hudFont;
                     }
                 }
@@ -1603,8 +1603,8 @@ void Engine::drawHUD()
 
         if (this->hudFont)
         {
-            std::ostringstream zoomStream;
-            zoomStream << std::fixed << std::setprecision(2) << zoomFactor;
+            ostringstream zoomStream;
+            zoomStream << fixed << setprecision(2) << zoomFactor;
             string zoomText = "Zoom: " + zoomStream.str();
             SDL_Color textColor = {220, 220, 220, 255};
 
@@ -1683,7 +1683,7 @@ void Engine::processInput(const SDL_Event &event)
             {
                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
                 this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-                this->zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, this->zoomFactor));
+                this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
             }
@@ -1734,7 +1734,7 @@ void Engine::processInput(const SDL_Event &event)
                     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
                     {
                         const ObjectInfo &objInfo = objects_in_order[i];
-                        const std::string &objectId = objInfo.id;
+                        const string &objectId = objInfo.id;
 
                         bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
                         bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
@@ -1806,7 +1806,7 @@ void Engine::processInput(const SDL_Event &event)
             {
                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
                 this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-                this->zoomFactor = std::max(MIN_ZOOM, std::min(MAX_ZOOM, this->zoomFactor));
+                this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
             }
         }
     }
@@ -1856,7 +1856,7 @@ void Engine::processInput(const SDL_Event &event)
 
                 if (!m_pressedObjectId.empty())
                 {
-                    const std::string &canceledObjectId = m_pressedObjectId;
+                    const string &canceledObjectId = m_pressedObjectId;
                     m_pressedObjectId = "";
 
                     for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
@@ -1876,10 +1876,10 @@ void Engine::processInput(const SDL_Event &event)
     }
 }
 
-SDL_Scancode Engine::mapStringToSDLScancode(const std::string &keyIdentifier) const
+SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
 {
 
-    static const std::map<std::string, SDL_Scancode> jsKeyCodeMap = {
+    static const map<string, SDL_Scancode> jsKeyCodeMap = {
         {"8", SDL_SCANCODE_BACKSPACE},
         {"9", SDL_SCANCODE_TAB},
         {"13", SDL_SCANCODE_RETURN},
@@ -1962,7 +1962,7 @@ SDL_Scancode Engine::mapStringToSDLScancode(const std::string &keyIdentifier) co
         if (c >= 'a' && c <= 'z')
         {
             char upper_c = static_cast<char>(toupper(c));
-            std::string upper_s(1, upper_c);
+            string upper_s(1, upper_c);
             return SDL_GetScancodeFromName(upper_s.c_str());
         }
     }
@@ -2006,11 +2006,11 @@ void Engine::setfps(int fps)
     if (fps > 0)
     {
         this->specialConfig.TARGET_FPS = fps;
-        EngineStdOut("Target FPS set to: " + std::to_string(this->specialConfig.TARGET_FPS), 0);
+        EngineStdOut("Target FPS set to: " + to_string(this->specialConfig.TARGET_FPS), 0);
     }
     else
     {
-        EngineStdOut("Attempted to set invalid Target FPS: " + std::to_string(fps) + ". Keeping current TARGET_FPS: " + std::to_string(this->specialConfig.TARGET_FPS), 1);
+        EngineStdOut("Attempted to set invalid Target FPS: " + to_string(fps) + ". Keeping current TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
     }
 }
 
@@ -2072,7 +2072,7 @@ void Engine::renderLoadingScreen()
     {
         progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
     }
-    progressPercent = std::min(1.0f, std::max(0.0f, progressPercent));
+    progressPercent = min(1.0f, max(0.0f, progressPercent));
 
     int progressWidth = static_cast<int>((barWidth - 4) * progressPercent);
     SDL_FRect progressRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(progressWidth), static_cast<float>(barHeight - 4)};
@@ -2083,8 +2083,8 @@ void Engine::renderLoadingScreen()
     {
         SDL_Color textColor = {220, 220, 220, 255};
 
-        std::ostringstream percentStream;
-        percentStream << std::fixed << std::setprecision(0) << (progressPercent * 100.0f) << "%";
+        ostringstream percentStream;
+        percentStream << fixed << setprecision(0) << (progressPercent * 100.0f) << "%";
         string percentText = percentStream.str();
 
         SDL_Surface *surfPercent = TTF_RenderText_Blended(loadingScreenFont, percentText.c_str(), percentText.size(), textColor);
@@ -2199,7 +2199,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         break;
     default:
 
-        EngineStdOut("Unknown IconType passed to showMessageBox: " + std::to_string(IconType) + ". Using default INFORMATION.", 1);
+        EngineStdOut("Unknown IconType passed to showMessageBox: " + to_string(IconType) + ". Using default INFORMATION.", 1);
         flags = SDL_MESSAGEBOX_INFORMATION;
         title = "Message";
         break;

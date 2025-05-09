@@ -19,7 +19,22 @@ file(GLOB OMOCHA_ENGINE_SOURCES
     "engine/audio/miniaudio.h"
     "util/*.cpp" "util/*.h"
 )
-add_executable (OmochaEngine ${OMOCHA_ENGINE_SOURCES} ${RESOURCE_RC_FILE})
+
+# OMOCHA_ENGINE_SOURCES 변수는 MainProgram.cpp (루트 디렉토리에 있다면) 및
+# engine/*.cpp, util/*.cpp 등의 모든 필요한 .cpp 파일을 포함해야 합니다.
+if(WIN32)
+    set(RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
+    if(EXISTS "${RESOURCE_FILE}")
+        message(STATUS "Using resource file: ${RESOURCE_FILE}")
+        # OMOCHA_ENGINE_SOURCES에 .cpp 파일들이 이미 포함되어 있다고 가정하고, 리소스 파일을 추가합니다.
+        add_executable(OmochaEngine WIN32 ${OMOCHA_ENGINE_SOURCES} "${RESOURCE_FILE}")
+    else()
+        message(WARNING "Resource file not found: ${RESOURCE_FILE}. Application icon will be missing.")
+        add_executable(OmochaEngine WIN32 ${OMOCHA_ENGINE_SOURCES})
+    endif()
+else()
+    add_executable(OmochaEngine ${OMOCHA_ENGINE_SOURCES})
+endif()
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 20)
 endif()

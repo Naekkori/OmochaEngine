@@ -8,6 +8,7 @@
 #include "MainProgram.h"
 #include "resource.h" 
 #include "SDL3/SDL.h"
+#include "SDL3/SDL_main.h"
 using namespace std;
 
 
