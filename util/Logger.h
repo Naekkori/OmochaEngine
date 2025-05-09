@@ -6,7 +6,7 @@
 
 class SimpleLogger {
 private:
-    std::ofstream logFile;
+    mutable std::ofstream logFile;
     std::string logFilePath;
     bool isOpen = false;
 
@@ -37,7 +37,7 @@ public:
     SimpleLogger& operator=(const SimpleLogger&) = delete;
 
     
-    void log(const std::string& message) {
+    void log(const std::string& message) const { // const 추가
         if (!isOpen) {
             
             std::cerr << "Warning: Log file is not open. Cannot write: " << message << std::endl;
@@ -52,7 +52,7 @@ public:
     }
 
     
-    void flush() {
+    void flush() const { // const 추가
          if (isOpen) {
             logFile.flush();
         }

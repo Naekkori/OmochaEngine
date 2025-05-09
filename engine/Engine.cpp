@@ -26,7 +26,7 @@ const char *BASE_ASSETS = "assets/";
 const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
-const double PI_VALUE =acos(-1.0);
+const double PI_VALUE = std::acos(-1.0);
 static std::string RapidJsonValueToString(const rapidjson::Value &value)
 {
     rapidjson::StringBuffer buffer;
@@ -35,23 +35,15 @@ static std::string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 
-Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), 
-totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), m_isDraggingZoomSlider(false), logger("omocha_engine.log"),
-m_pressedObjectId("")
+Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.26f), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log")
 {
-    m_whenObjectClickCanceledScripts.clear();
-    m_whenObjectClickedScripts.clear();
-    m_mouseClickCanceledScripts.clear();
-    m_mouseClickedScripts.clear();
-    m_messageReceivedScripts.clear();
-    m_pressedObjectId="";
+
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
 }
 
 Engine::~Engine()
 {
-    EngineStdOut(string(OMOCHA_ENGINE_NAME)+" Shutting down...", 5);
     terminateGE();
 
     for (auto const &pair : entities)
@@ -63,6 +55,7 @@ Engine::~Engine()
     objects_in_order.clear();
     objectScripts.clear();
 }
+
 std::string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
                                           const std::string &fieldName,
                                           const std::string &contextDescription,
@@ -152,6 +145,7 @@ bool Engine::loadProject(const string &projectFilePath)
     m_whenObjectClickedScripts.clear();
     m_whenObjectClickCanceledScripts.clear();
     m_messageReceivedScripts.clear();
+    m_pressedObjectId = "";
     PROJECT_NAME = getSafeStringFromJson(document, "name", "project root", "Omocha Project", false, false);
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
     EngineStdOut("Project Name: " + (PROJECT_NAME.empty() ? "[Not Set]" : PROJECT_NAME), 0);
@@ -210,7 +204,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
     /**
      * @brief 오브젝트 블럭
-     * 
+     *
      */
     if (document.HasMember("objects") && document["objects"].IsArray())
     {
@@ -548,7 +542,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             /**
              * @brief 스크립트 블럭
-             * 
+             *
              */
             if (objectJson.HasMember("script") && objectJson["script"].IsString())
             {
@@ -670,7 +664,7 @@ bool Engine::loadProject(const string &projectFilePath)
     string firstSceneIdInOrder = "";
     /**
      * @brief 엔트리 씬
-     * 
+     *
      */
     if (document.HasMember("scenes") && document["scenes"].IsArray())
     {
@@ -756,7 +750,7 @@ bool Engine::loadProject(const string &projectFilePath)
 
     /**
      * @brief 이벤트 블럭들
-     * 
+     *
      */
     EngineStdOut("Identifying 'Start Button Clicked' scripts...", 0);
     startButtonScripts.clear();
@@ -886,7 +880,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         }
                     }
                 }
-                
+
                 else if (firstBlock.type == "when_scene_start")
                 {
                     if (script.blocks.size() > 1)
@@ -895,7 +889,6 @@ bool Engine::loadProject(const string &projectFilePath)
                         EngineStdOut("  -> object ID " + objectId + " found 'when scene start' script.", 0);
                     }
                 }
-                
             }
         }
     }
@@ -1247,7 +1240,7 @@ bool Engine::loadImages()
                 if (costume.imageHandle)
                 {
                     loadedCount++;
-                    //EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.", 0);
+                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.", 0);
                 }
                 else
                 {
@@ -1315,39 +1308,7 @@ bool Engine::recreateAssetsIfNeeded()
     EngineStdOut("GPU assets recreated successfully.", 0);
     return true;
 }
-bool Engine::mapWindowToStageCoordinates(int mouseX, int mouseY, float &stageX, float &stageY){
-    if (!renderer)
-    {
-       EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 1);
-        return false;
-    }
-    int windowRenderW = 0, windowRenderH = 0;
-    SDL_GetCurrentRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
-    if (windowRenderW==0,windowRenderH)
-    {
-        EngineStdOut("mapWindowToStageCoordinates: invalid window render size");
-        return false;
-    }
-    float currentZoom = this->zoomFactor;
-    int srcViewWidth = static_cast<int>(PROJECT_STAGE_WIDTH / currentZoom);
-    int srcViewHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / currentZoom);
 
-    SDL_Rect srcRectInTexture;
-    srcRectInTexture.x = (PROJECT_STAGE_WIDTH - srcViewWidth) / 2;
-    srcRectInTexture.y = (PROJECT_STAGE_HEIGHT - srcViewHeight) / 2;
-    srcRectInTexture.w = srcViewWidth;
-    srcRectInTexture.h = srcViewHeight;
-
-    float texCoordX = static_cast<float>(srcRectInTexture.x) + (static_cast<float>(mouseX) / windowRenderW) * srcRectInTexture.w;
-    float texCoordY = static_cast<float>(srcRectInTexture.y) + (static_cast<float>(mouseY) / windowRenderH) * srcRectInTexture.h;
-
-
-    stageX = texCoordX - (PROJECT_STAGE_WIDTH / 2.0F);
-    stageY = (PROJECT_STAGE_HEIGHT / 2.0F) - texCoordY;
-    return true;
-
-    
-}
 void Engine::drawAllEntities()
 {
 
@@ -1672,6 +1633,40 @@ void Engine::drawHUD()
     }
 }
 
+bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
+{
+    if (!renderer)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 1);
+        return false;
+    }
+
+    int windowRenderW = 0, windowRenderH = 0;
+    SDL_GetRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
+    if (windowRenderW == 0 || windowRenderH == 0)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Invalid render output size.", 1);
+        return false;
+    }
+
+    float currentZoom = this->zoomFactor;
+    int srcViewWidth = static_cast<int>(PROJECT_STAGE_WIDTH / currentZoom);
+    int srcViewHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / currentZoom);
+
+    SDL_Rect srcRectInTexture;
+    srcRectInTexture.x = (PROJECT_STAGE_WIDTH - srcViewWidth) / 2;
+    srcRectInTexture.y = (PROJECT_STAGE_HEIGHT - srcViewHeight) / 2;
+    srcRectInTexture.w = srcViewWidth;
+    srcRectInTexture.h = srcViewHeight;
+
+    float texCoordX = static_cast<float>(srcRectInTexture.x) + (static_cast<float>(windowMouseX) / windowRenderW) * srcRectInTexture.w;
+    float texCoordY = static_cast<float>(srcRectInTexture.y) + (static_cast<float>(windowMouseY) / windowRenderH) * srcRectInTexture.h;
+
+    stageX = texCoordX - (PROJECT_STAGE_WIDTH / 2.0f);
+    stageY = (PROJECT_STAGE_HEIGHT / 2.0f) - texCoordY;
+    return true;
+}
+
 void Engine::processInput(const SDL_Event &event)
 {
 
@@ -1695,86 +1690,90 @@ void Engine::processInput(const SDL_Event &event)
 
             if (!uiClicked && m_gameplayInputActive)
             {
-                uiClicked=false;
-                //마우스 를 클릭했을때
+
                 if (!m_mouseClickedScripts.empty())
                 {
                     for (const auto &scriptPair : m_mouseClickedScripts)
                     {
-                        const string& objectId = scriptPair.first;
-                        const Script* scriptPtr = scriptPair.second;
-                        Entity* currentEntity = getEntityById(objectId); // getEntityById는 Entity*를 반환합니다.
+                        const string &objectId = scriptPair.first;
+                        const Script *scriptPtr = scriptPair.second;
+                        Entity *currentEntity = getEntityById(objectId);
 
-                        //엔티티가 존재하고 보이는지 확인
                         if (currentEntity && currentEntity->isVisible())
                         {
-                            //엔티티가 현재 씬에 속하거나 글로벌 엔티티인지 확인
                             bool executeForScene = false;
-                            for (const auto& objInfo : objects_in_order) {
-                                if (objInfo.id == objectId) {
+                            for (const auto &objInfo : objects_in_order)
+                            {
+                                if (objInfo.id == objectId)
+                                {
                                     bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                    //"global" 또는 sceneId가 비어있는 경우 모든 씬에서 활성화된 것으로 간주
                                     bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                                    if (isInCurrentScene || isGlobal) {
+                                    if (isInCurrentScene || isGlobal)
+                                    {
                                         executeForScene = true;
                                     }
-                                    break; //해당 objectId에 대한 ObjectInfo를 찾았으므로 루프 종료
+                                    break;
                                 }
                             }
-
-                            if (executeForScene) {
-                                
+                            if (executeForScene)
+                            {
                                 executeScript(*this, objectId, scriptPtr);
                             }
-                        } else if (!currentEntity) {
+                        }
+                        else if (!currentEntity)
+                        {
                             EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
                         }
-                        // currentEntity가 존재하지만 isVisible()이 false인 경우, 스크립트는 실행되지 않음 (의도대로 동작)
                     }
                 }
-                //오브젝트 를 클릭했을때.
-                float stageMouseX = 0.0f;
-                float stageMouseY = 0.0f;
-                if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX,stageMouseY))
+
+                float stageMouseX = 0.0f, stageMouseY = 0.0f;
+                if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY))
                 {
-                    //엔트리 는 레이어가 역순이다.
-                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >=0; i--)
+
+                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
                     {
                         const ObjectInfo &objInfo = objects_in_order[i];
-                        const string& objectId = objInfo.id;
+                        const std::string &objectId = objInfo.id;
 
                         bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
                         bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-
                         if (!isInCurrentScene && !isGlobal)
                         {
                             continue;
                         }
-                        Entity* entity = getEntityById(objectId);
+
+                        Entity *entity = getEntityById(objectId);
                         if (!entity || !entity->isVisible())
                         {
                             continue;
                         }
-                        if(entity->isPointInside(stageMouseX,stageMouseY))
+
+                        if (entity->isPointInside(stageMouseX, stageMouseY))
                         {
                             m_pressedObjectId = objectId;
+
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
-                               if (clickScriptPair.first == objectId)
-                               {
-                                const Script* scriptPtr = clickScriptPair.second;
-                                executeScript(*this, objectId, scriptPtr);
-                               }
-                               
+                                if (clickScriptPair.first == objectId)
+                                {
+                                    const Script *scriptPtr = clickScriptPair.second;
+                                    EngineStdOut("Executing 'when_object_click' for object: " + objectId, 0);
+                                    executeScript(*this, objectId, scriptPtr);
+                                }
                             }
-                            
-                        }else{
-                            m_pressedObjectId="";//UI 가 클릭되면 오브젝트가 눌린상태 아님
+                            break;
                         }
                     }
-                    
                 }
-                
+                else
+                {
+                    EngineStdOut("Warning: Could not map window to stage coordinates for object click.", 1);
+                }
+            }
+            else if (uiClicked)
+            {
+                m_pressedObjectId = "";
             }
         }
     }
@@ -1816,43 +1815,64 @@ void Engine::processInput(const SDL_Event &event)
         if (event.button.button == SDL_BUTTON_LEFT)
         {
             this->m_isDraggingZoomSlider = false;
-        }
 
-        if (m_gameplayInputActive)
-        {
-            for (const auto &scriptPair : m_mouseClickCanceledScripts)
+            if (m_gameplayInputActive)
             {
-                const string& objectId = scriptPair.first;
-                const Script* scriptPtr = scriptPair.second;
-                Entity* currentEntity = getEntityById(objectId); // getEntityById는 Entity*를 반환합니다.
-                 //엔티티가 존재하고 보이는지 확인
-                 if (currentEntity && currentEntity->isVisible())
-                 {
-                     //엔티티가 현재 씬에 속하거나 글로벌 엔티티인지 확인
-                     bool executeForScene = false;
-                     for (const auto& objInfo : objects_in_order) {
-                         if (objInfo.id == objectId) {
-                             bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                             //"global" 또는 sceneId가 비어있는 경우 모든 씬에서 활성화된 것으로 간주
-                             bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                             if (isInCurrentScene || isGlobal) {
-                                 executeForScene = true;
-                             }
-                             break; //해당 objectId에 대한 ObjectInfo를 찾았으므로 루프 종료
-                         }
-                     }
 
-                     if (executeForScene) {
-                         
-                         executeScript(*this, objectId, scriptPtr);
-                     }
-                 } else if (!currentEntity) {
-                     EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
-                 }
-                 // currentEntity가 존재하지만 isVisible()이 false인 경우, 스크립트는 실행되지 않음 (의도대로 동작)
+                if (!m_mouseClickCanceledScripts.empty())
+                {
+                    for (const auto &scriptPair : m_mouseClickCanceledScripts)
+                    {
+                        const string &objectId = scriptPair.first;
+                        const Script *scriptPtr = scriptPair.second;
+                        Entity *currentEntity = getEntityById(objectId);
+                        if (currentEntity && currentEntity->isVisible())
+                        {
+                            bool executeForScene = false;
+                            for (const auto &objInfo : objects_in_order)
+                            {
+                                if (objInfo.id == objectId)
+                                {
+                                    bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+                                    bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+                                    if (isInCurrentScene || isGlobal)
+                                    {
+                                        executeForScene = true;
+                                    }
+                                    break;
+                                }
+                            }
+                            if (executeForScene)
+                            {
+                                executeScript(*this, objectId, scriptPtr);
+                            }
+                        }
+                        else if (!currentEntity)
+                        {
+                            EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
+                        }
+                    }
+                }
+
+                if (!m_pressedObjectId.empty())
+                {
+                    const std::string &canceledObjectId = m_pressedObjectId;
+                    m_pressedObjectId = "";
+
+                    for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
+                    {
+                        if (scriptPair.first == canceledObjectId)
+                        {
+                            const Script *scriptPtr = scriptPair.second;
+                            Entity *entity = getEntityById(canceledObjectId);
+
+                            EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
+                            executeScript(*this, canceledObjectId, scriptPtr);
+                        }
+                    }
+                }
             }
-            
-        }//마우스 클릭이 해제됬을때 클릭했을때와 같은 동작 임.  
+        }
     }
 }
 
@@ -2158,7 +2178,7 @@ const string &Engine::getCurrentSceneId() const
  * @param IconType 아이콘 종류
  * @param showYesNo 예 / 아니오
  */
-bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
+bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo) const
 {
     Uint32 flags = 0;
     const char *title = OMOCHA_ENGINE_NAME;
@@ -2226,9 +2246,9 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
  * @brief 엔진 로그출력
  *
  * @param s 출력할내용
- * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수 5->끝낼때
+ * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수
  */
-void Engine::EngineStdOut(string s, int LEVEL)
+void Engine::EngineStdOut(string s, int LEVEL) const
 {
     string prefix;
 
@@ -2255,10 +2275,6 @@ void Engine::EngineStdOut(string s, int LEVEL)
     case 4:
         prefix = "[SAYHELLO]";
         color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD;
-        break;
-    case 5:
-        prefix = "[BYE]";
-        color_code = ANSI_COLOR_RESET + ANSI_STYLE_BOLD;
         break;
     default:
         prefix = "[LOG]";

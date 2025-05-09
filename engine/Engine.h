@@ -155,15 +155,14 @@ public:
     MsgBoxIconType msgBoxIconType;
     Engine();
     ~Engine();
-    bool mapWindowToStageCoordinates(int mouseX, int mouseY, float &stageX, float &stageY);
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
     bool loadImages();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
-    bool showMessageBox(const string &message, int IconType, bool showYesNo = false);
-    void EngineStdOut(string s, int LEVEL = 0);
+    bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
+    void EngineStdOut(string s, int LEVEL = 0) const;
     void processInput(const SDL_Event &event);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();

@@ -2,26 +2,27 @@
 
 #include <iostream>
 #include <string>
-#include <cmath>
+#include <cmath> // For std::cos, std::sin, std::acos
 #include <stdexcept>
 
-Entity::Entity(const std::string &entityId, const std::string &entityName,
-               double initial_x, double initial_y, double initial_regX, double initial_regY,
-               double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
-               double initial_width, double initial_height, bool initial_visible)
+
+Entity::Entity(const std::string& entityId, const std::string& entityName,
+    double initial_x, double initial_y, double initial_regX, double initial_regY,
+    double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
+    double initial_width, double initial_height, bool initial_visible)
     : id(entityId), name(entityName),
-      x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
-      scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
-      width(initial_width), height(initial_height), visible(initial_visible)
+    x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
+    scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
+    width(initial_width), height(initial_height), visible(initial_visible)
 {
 }
 
-Entity::~Entity()
-{
+Entity::~Entity() {
 }
 
-const std::string &Entity::getId() const { return id; }
-const std::string &Entity::getName() const { return name; }
+
+const std::string& Entity::getId() const { return id; }
+const std::string& Entity::getName() const { return name; }
 double Entity::getX() const { return x; }
 double Entity::getY() const { return y; }
 double Entity::getRegX() const { return regX; }
@@ -33,6 +34,7 @@ double Entity::getDirection() const { return direction; }
 double Entity::getWidth() const { return width; }
 double Entity::getHeight() const { return height; }
 bool Entity::isVisible() const { return visible; }
+
 
 void Entity::setX(double newX) { x = newX; }
 void Entity::setY(double newY) { y = newY; }
@@ -46,27 +48,41 @@ void Entity::setWidth(double newWidth) { width = newWidth; }
 void Entity::setHeight(double newHeight) { height = newHeight; }
 void Entity::setVisible(bool newVisible) { visible = newVisible; }
 
-bool Entity::isPointInside(double pX, double pY) const
-{
+bool Entity::isPointInside(double pX, double pY) const {
+    // pX, pY는 스테이지 좌표 (중앙 (0,0), Y축 위쪽)
+    // this->x, this->y는 엔티티의 등록점의 스테이지 좌표
 
+    // 1. 점을 엔티티의 로컬 좌표계로 변환 (등록점을 원점으로)
     double localPX = pX - this->x;
     double localPY = pY - this->y;
 
+    // 2. 엔티티의 회전만큼 점을 반대로 회전
+    // SDL 각도는 시계 방향이므로, 점을 객체 프레임으로 가져오려면 반시계 방향(-rotation)으로 회전
     const double PI = std::acos(-1.0);
-    double angleRad = -this->rotation * (PI / 180.0);
+    double angleRad = -this->rotation * (PI / 180.0); // 도 -> 라디안, 반대 방향
 
     double rotatedPX = localPX * std::cos(angleRad) - localPY * std::sin(angleRad);
     double rotatedPY = localPX * std::sin(angleRad) + localPY * std::cos(angleRad);
 
+    // 3. 이제 rotatedPX, rotatedPY는 엔티티의 비회전 로컬 좌표계에 있음 (등록점이 원점)
+    //    이 좌표계에서 엔티티의 경계 상자를 확인합니다.
+    //    regX, regY는 비스케일 이미지의 좌상단으로부터 등록점까지의 오프셋입니다.
+    //    로컬 좌표계 (Y 위쪽)에서:
+    //    - 좌측 X: -regX * scaleX
+    //    - 우측 X: (-regX + width) * scaleX
+    //    - 상단 Y: regY * scaleY
+    //    - 하단 Y: (regY - height) * scaleY
+
     double localMinX = -this->regX * this->scaleX;
     double localMaxX = (-this->regX + this->width) * this->scaleX;
 
+    // Y축이 위를 향하므로, regY가 클수록 위쪽, (regY - height)가 아래쪽
     double localMinY = (this->regY - this->height) * this->scaleY;
     double localMaxY = this->regY * this->scaleY;
 
+
     if (rotatedPX >= localMinX && rotatedPX <= localMaxX &&
-        rotatedPY >= localMinY && rotatedPY <= localMaxY)
-    {
+        rotatedPY >= localMinY && rotatedPY <= localMaxY) {
         return true;
     }
 
