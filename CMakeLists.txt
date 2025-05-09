@@ -73,7 +73,107 @@ if(WIN32)
     copy_dll_to_target_dir(OmochaEngine "libwebp.dll")
     copy_dll_to_target_dir(OmochaEngine "liblzma.dll")
     copy_dll_to_target_dir(OmochaEngine "libsharpyuv.dll")
+    copy_dll_to_target_dir(OmochaEngine "zlib1.dll")
+
     # jsoncpp.dll의 경우, vcpkg가 공유 라이브러리로 빌드했다면 ${VCPKG_BIN_DIR}에 존재합니다.
     # 정적으로 링크된 경우에는 이 DLL이 필요 없으며, 파일이 없다면 복사되지 않습니다.
     #copy_dll_to_target_dir(OmochaEngine "rapidjson.dll")
 endif()
+
+# Installation rules for CPack
+# -----------------------------------------------------------------------------
+
+# Install the main executable
+install(TARGETS OmochaEngine
+    RUNTIME DESTINATION bin COMPONENT Application
+)
+
+# Install fonts
+set(FONT_DIR_RELATIVE "font")
+set(FONT_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${FONT_DIR_RELATIVE}")
+
+if(EXISTS "${FONT_DIR_ABSOLUTE}")
+    # This will install the 'fonts' directory into 'assets' in the package.
+    # e.g., package_root/assets/fonts/your_font.ttf
+    install(DIRECTORY "${FONT_DIR_ABSOLUTE}/" DESTINATION "${FONT_DIR_RELATIVE}" COMPONENT Assets)
+    message(STATUS "Fonts from ${FONT_DIR_ABSOLUTE} will be packaged into ${FONT_DIR_RELATIVE}.")
+else()
+    message(WARNING "Font directory not found: ${FONT_DIR_ABSOLUTE}. Fonts will not be packaged.")
+endif()
+
+# Install sysmenu
+set(FONT_DIR_RELATIVE "sysmenu")
+set(FONT_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${FONT_DIR_RELATIVE}")
+
+if(EXISTS "${FONT_DIR_ABSOLUTE}")
+    # This will install the 'fonts' directory into 'assets' in the package.
+    # e.g., package_root/assets/fonts/your_font.ttf
+    install(DIRECTORY "${FONT_DIR_ABSOLUTE}/" DESTINATION "${FONT_DIR_RELATIVE}" COMPONENT Assets)
+    message(STATUS "Fonts from ${FONT_DIR_ABSOLUTE} will be packaged into ${FONT_DIR_RELATIVE}.")
+else()
+    message(WARNING "Font directory not found: ${FONT_DIR_ABSOLUTE}. Fonts will not be packaged.")
+endif()
+# Install DLLs for Windows
+if(WIN32)
+    # VCPKG_BIN_DIR should be set from the DLL copying section above.
+    # If not, ensure CMAKE_PREFIX_PATH is correctly set and vcpkg integration is working.
+    if(NOT DEFINED VCPKG_BIN_DIR)
+        if(CMAKE_PREFIX_PATH)
+            list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR_TEMP)
+            set(VCPKG_BIN_DIR_TEMP "${VCPKG_INSTALL_TRIPLET_DIR_TEMP}/bin")
+            if(IS_DIRECTORY "${VCPKG_BIN_DIR_TEMP}")
+                set(VCPKG_BIN_DIR ${VCPKG_BIN_DIR_TEMP})
+            endif()
+        endif()
+    endif()
+
+    if(DEFINED VCPKG_BIN_DIR AND IS_DIRECTORY "${VCPKG_BIN_DIR}")
+        set(PROJECT_DLLS
+            "SDL3.dll"
+            "SDL3_image.dll"
+            "SDL3_ttf.dll"
+            "tiff.dll"
+            "jpeg62.dll"
+            "libpng16.dll"
+            "libwebpdemux.dll"
+            "libwebp.dll"
+            "liblzma.dll"
+            "libsharpyuv.dll"
+            "zlib1.dll"
+        )
+
+        foreach(DLL_BASENAME ${PROJECT_DLLS})
+            set(DLL_SOURCE_PATH "${VCPKG_BIN_DIR}/${DLL_BASENAME}")
+            if(EXISTS "${DLL_SOURCE_PATH}")
+                install(FILES "${DLL_SOURCE_PATH}" DESTINATION bin COMPONENT RuntimeLibraries)
+            else()
+                message(WARNING "DLL to install for packaging not found: ${DLL_SOURCE_PATH}")
+            endif()
+        endforeach()
+    else()
+        message(WARNING "VCPKG_BIN_DIR is not defined or not a directory. DLLs will not be packaged.")
+    endif()
+endif()
+
+# CPack configuration
+# -----------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "${DEVELOPER_NAME}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OmochaEngine Game Engine")
+set(CPACK_PACKAGE_HOMEPAGE_URL "${GITHUB}")
+set(CPACK_PACKAGE_CONTACT "${DEVELOPER_NAME}") # You can use an email here
+
+set(CPACK_COMPONENTS_ALL Application RuntimeLibraries Assets)
+
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP") # Creates a .zip file
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop") # Creates a .dmg file on macOS
+elseif(UNIX)
+    set(CPACK_GENERATOR "TGZ") # Creates a .tar.gz archive
+else()
+    set(CPACK_GENERATOR "ZIP") # Default fallback
+endif()
+
+include(CPack)
