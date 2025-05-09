@@ -85,7 +85,7 @@ endif()
 
 # Install the main executable
 install(TARGETS OmochaEngine
-    RUNTIME DESTINATION bin COMPONENT Application
+    RUNTIME DESTINATION . COMPONENT Application
 )
 
 # Install fonts
@@ -102,16 +102,16 @@ else()
 endif()
 
 # Install sysmenu
-set(FONT_DIR_RELATIVE "sysmenu")
-set(FONT_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${FONT_DIR_RELATIVE}")
+set(SYSMENU_DIR_RELATIVE "sysmenu")
+set(SYSMENU_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${SYSMENU_DIR_RELATIVE}")
 
-if(EXISTS "${FONT_DIR_ABSOLUTE}")
-    # This will install the 'fonts' directory into 'assets' in the package.
-    # e.g., package_root/assets/fonts/your_font.ttf
-    install(DIRECTORY "${FONT_DIR_ABSOLUTE}/" DESTINATION "${FONT_DIR_RELATIVE}" COMPONENT Assets)
-    message(STATUS "Fonts from ${FONT_DIR_ABSOLUTE} will be packaged into ${FONT_DIR_RELATIVE}.")
+if(EXISTS "${SYSMENU_DIR_ABSOLUTE}")
+    # This will install the 'sysmenu' directory into the package root.
+    # e.g., package_root/sysmenu/your_file
+    install(DIRECTORY "${SYSMENU_DIR_ABSOLUTE}/" DESTINATION "${SYSMENU_DIR_RELATIVE}" COMPONENT Assets)
+    message(STATUS "Sysmenu files from ${SYSMENU_DIR_ABSOLUTE} will be packaged into ${SYSMENU_DIR_RELATIVE}.")
 else()
-    message(WARNING "Font directory not found: ${FONT_DIR_ABSOLUTE}. Fonts will not be packaged.")
+    message(WARNING "Sysmenu directory not found: ${SYSMENU_DIR_ABSOLUTE}. Sysmenu files will not be packaged.")
 endif()
 # Install DLLs for Windows
 if(WIN32)
@@ -120,6 +120,7 @@ if(WIN32)
     if(NOT DEFINED VCPKG_BIN_DIR)
         if(CMAKE_PREFIX_PATH)
             list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR_TEMP)
+            # Ensure the fallback path also points to a 'bin' directory
             set(VCPKG_BIN_DIR_TEMP "${VCPKG_INSTALL_TRIPLET_DIR_TEMP}/bin")
             if(IS_DIRECTORY "${VCPKG_BIN_DIR_TEMP}")
                 set(VCPKG_BIN_DIR ${VCPKG_BIN_DIR_TEMP})
@@ -145,7 +146,7 @@ if(WIN32)
         foreach(DLL_BASENAME ${PROJECT_DLLS})
             set(DLL_SOURCE_PATH "${VCPKG_BIN_DIR}/${DLL_BASENAME}")
             if(EXISTS "${DLL_SOURCE_PATH}")
-                install(FILES "${DLL_SOURCE_PATH}" DESTINATION bin COMPONENT RuntimeLibraries)
+                install(FILES "${DLL_SOURCE_PATH}" DESTINATION . COMPONENT RuntimeLibraries)
             else()
                 message(WARNING "DLL to install for packaging not found: ${DLL_SOURCE_PATH}")
             endif()

@@ -21,7 +21,10 @@ if %errorlevel% neq 0 (
 )
 
 echo Building create_package target...
-cmake --build . --target create_package
+cmake -B build .
+cmake --build build
+cd build
+cpack
 if %errorlevel% neq 0 (
     echo ERROR: Build failed.
 ) else (
