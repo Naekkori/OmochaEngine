@@ -412,9 +412,9 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId, 1);
-
-                return OperandValue(std::floor(left_val / right_val));
+                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId, 2);
+                return OperandValue("devide by zero error quotient");
+                throw "Division by zero in quotient_and_mod (QUOTIENT)";
             }
             return OperandValue(std::floor(left_val / right_val));
         }
@@ -422,9 +422,9 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId, 1);
-
-                return OperandValue(left_val - right_val * std::floor(left_val / right_val));
+                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId, 2);
+                return OperandValue("devide by zero error mod");
+                throw "Division by zero in quotient_and_mod (MOD)";
             }
             return OperandValue(left_val - right_val * std::floor(left_val / right_val));
         }

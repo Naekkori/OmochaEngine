@@ -48,3 +48,11 @@ showZoomSliderUI 뷰포트를 확대/축소 하는 슬라이더 를 표시합니
 showFPS fps 를 표시합니다
 <br>
 setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니다. 최대 3배율)
+
+# 사용 라이브러리
+| Name       | URL                                     |
+|------------|-----------------------------------------|
+| Rapid Json | https://rapidjson.org/                  |
+| SDL        | https://github.com/libsdl-org/SDL       |
+| SDL_image  | https://github.com/libsdl-org/SDL_image |
+| SDL_ttf    | https://github.com/libsdl-org/SDL_ttf   |
