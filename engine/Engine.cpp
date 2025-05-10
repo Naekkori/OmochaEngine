@@ -188,7 +188,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.showZoomSlider = false;
                 EngineStdOut("'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1);
             }
-            if(specialConfigJson.HasMember("setZoomfactor") && specialConfigJson["setZoomfactor"].IsNumber())
+            if (specialConfigJson.HasMember("setZoomfactor") && specialConfigJson["setZoomfactor"].IsNumber())
             {
                 this->specialConfig.setZoomfactor = std::clamp(specialConfigJson["setZoomfactor"].GetDouble(), (double)Engine::MIN_ZOOM, (double)Engine::MAX_ZOOM);
             }
@@ -216,7 +216,9 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
         }
+        this->zoomFactor = this->specialConfig.setZoomfactor;
     }
+
     /**
      * @brief 오브젝트 블럭
      *
@@ -494,7 +496,16 @@ bool Engine::loadProject(const string &projectFilePath)
 
                     if (entityJson.HasMember("textAlign") && entityJson["textAlign"].IsNumber())
                     {
-                        objInfo.textAlign = entityJson["textAlign"].GetInt();
+                        int parsedAlign = entityJson["textAlign"].GetInt();
+                        if (parsedAlign >= 0 && parsedAlign <= 2)
+                        { // 0: left, 1: center, 2: right
+                            objInfo.textAlign = parsedAlign;
+                        }
+                        else
+                        {
+                            objInfo.textAlign = 0; // Default to left align for invalid values
+                            EngineStdOut("textBox '" + objInfo.name + "' 'textAlign' field has an invalid value: " + std::to_string(parsedAlign) + ". Using default alignment 0 (left).", 1);
+                        }
                         EngineStdOut("INFO: textBox '" + objInfo.name + "' text alignment parsed: " + to_string(objInfo.textAlign), 0);
                     }
                     else
@@ -917,11 +928,19 @@ bool Engine::loadProject(const string &projectFilePath)
     EngineStdOut("Project JSON file parsed successfully.", 0);
     return true;
 }
-
+const ObjectInfo* Engine::getObjectInfoById(const std::string& id) const {
+    // objects_in_order is a vector, so we need to iterate.
+    // This could be optimized if access becomes frequent by creating a map during loadProject.
+    for (const auto& objInfo : objects_in_order) {
+        if (objInfo.id == id) {
+            return &objInfo;
+        }
+    }
+    return nullptr;
+}
 bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
 {
     EngineStdOut("Initializing SDL...", 0);
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
         string errMsg = "SDL could not initialize! SDL_" + string(SDL_GetError());
@@ -1431,7 +1450,7 @@ void Engine::drawAllEntities()
                 dstRect.x = sdlX - static_cast<float>(entityPtr->getRegX() * entityPtr->getScaleX());
                 dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY());
 
-                double sdlAngle = entityPtr->getRotation();
+                double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0);
 
                 SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
             }
@@ -1508,23 +1527,28 @@ void Engine::drawAllEntities()
 
                         float textWidth = static_cast<float>(textSurface->w);
                         float textHeight = static_cast<float>(textSurface->h);
-
-                        SDL_FRect dstRect = {sdlX, sdlY, textWidth, textHeight};
-
+                        float scaledWidth = textWidth * entityPtr->getScaleX();
+                        float scaledHeight = textHeight * entityPtr->getScaleY();
+                        SDL_FRect dstRect;
+                        dstRect.w = scaledWidth;
+                        dstRect.h = scaledHeight;
+                        // showMessageBox("textAlign:"+to_string(objInfo.textAlign),msgBoxIconType.ICON_INFORMATION);
                         switch (objInfo.textAlign)
                         {
-                        case 0:
-
+                        case 0: // 가운데 정렬 (EntryJS 기준)
+                            dstRect.x = sdlX - scaledWidth / 2.0f;
                             break;
-                        case 1:
-                            dstRect.x = sdlX - textWidth / 2.0f;
+                        case 1: // 왼쪽 정렬 (EntryJS 기준)
+                            dstRect.x = sdlX;
                             break;
-                        case 2:
-                            dstRect.x = sdlX - textWidth;
+                        case 2: // 오른쪽 정렬 (EntryJS 기준)
+                            dstRect.x = sdlX - scaledWidth;
                             break;
-                        default:
+                        default: // 기본값: 왼쪽 정렬 (또는 EntryJS의 기본값에 맞춰 수정)
+                            dstRect.x = sdlX;
                             break;
                         }
+                        dstRect.y = sdlY - scaledHeight / 2.0f;
 
                         SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
 
@@ -1550,23 +1574,44 @@ void Engine::drawAllEntities()
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    int windowW = 0, windowH = 0;
-    SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+    int windowRenderW = 0, windowRenderH = 0;
+    SDL_GetRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
 
-    int srcWidth = static_cast<int>(PROJECT_STAGE_WIDTH / zoomFactor);
-    int srcHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / zoomFactor);
+    if (windowRenderW <= 0 || windowRenderH <= 0)
+    {
+        EngineStdOut("drawAllEntities: Window render dimensions are zero or negative.", 1);
+        return;
+    }
 
-    SDL_Rect srcRect;
-    srcRect.x = (PROJECT_STAGE_WIDTH - srcWidth) / 2;
-    srcRect.y = (PROJECT_STAGE_HEIGHT - srcHeight) / 2;
-    srcRect.w = srcWidth;
-    srcRect.h = srcHeight;
+    float srcViewWidth = static_cast<float>(PROJECT_STAGE_WIDTH) / zoomFactor;
+    float srcViewHeight = static_cast<float>(PROJECT_STAGE_HEIGHT) / zoomFactor;
+    float srcViewX = (static_cast<float>(PROJECT_STAGE_WIDTH) - srcViewWidth) / 2.0f;
+    float srcViewY = (static_cast<float>(PROJECT_STAGE_HEIGHT) - srcViewHeight) / 2.0f;
+    SDL_FRect currentSrcFRect = {srcViewX, srcViewY, srcViewWidth, srcViewHeight};
 
-    SDL_FRect dstFRect = {0.0f, 0.0f, static_cast<float>(windowW), static_cast<float>(windowH)};
+    float stageContentAspectRatio = static_cast<float>(PROJECT_STAGE_WIDTH) / static_cast<float>(PROJECT_STAGE_HEIGHT);
 
-    SDL_FRect srcFRect = {static_cast<float>(srcRect.x), static_cast<float>(srcRect.y), static_cast<float>(srcRect.w), static_cast<float>(srcRect.h)};
+    SDL_FRect finalDisplayDstRect;
+    float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
 
-    SDL_RenderTexture(renderer, tempScreenTexture, &srcFRect, &dstFRect);
+    if (windowAspectRatio >= stageContentAspectRatio)
+    {
+
+        finalDisplayDstRect.h = static_cast<float>(windowRenderH);
+        finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
+        finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
+        finalDisplayDstRect.y = 0.0f;
+    }
+    else
+    {
+
+        finalDisplayDstRect.w = static_cast<float>(windowRenderW);
+        finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
+        finalDisplayDstRect.x = 0.0f;
+        finalDisplayDstRect.y = (static_cast<float>(windowRenderH) - finalDisplayDstRect.h) / 2.0f;
+    }
+
+    SDL_RenderTexture(renderer, tempScreenTexture, &currentSrcFRect, &finalDisplayDstRect);
 }
 
 void Engine::drawHUD()
@@ -1662,35 +1707,70 @@ void Engine::drawHUD()
 
 bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
 {
-    if (!renderer)
-    {
-        EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 1);
-        return false;
-    }
-
     int windowRenderW = 0, windowRenderH = 0;
-    SDL_GetRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
-    if (windowRenderW == 0 || windowRenderH == 0)
+    if (this->renderer)
     {
-        EngineStdOut("mapWindowToStageCoordinates: Invalid render output size.", 1);
+        SDL_GetRenderOutputSize(this->renderer, &windowRenderW, &windowRenderH);
+    }
+    else
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 2);
         return false;
     }
 
-    float currentZoom = this->zoomFactor;
-    int srcViewWidth = static_cast<int>(PROJECT_STAGE_WIDTH / currentZoom);
-    int srcViewHeight = static_cast<int>(PROJECT_STAGE_HEIGHT / currentZoom);
+    if (windowRenderW <= 0 || windowRenderH <= 0)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Render dimensions are zero or negative.", 2);
+        return false;
+    }
 
-    SDL_Rect srcRectInTexture;
-    srcRectInTexture.x = (PROJECT_STAGE_WIDTH - srcViewWidth) / 2;
-    srcRectInTexture.y = (PROJECT_STAGE_HEIGHT - srcViewHeight) / 2;
-    srcRectInTexture.w = srcViewWidth;
-    srcRectInTexture.h = srcViewHeight;
+    float fullStageWidthTex = static_cast<float>(PROJECT_STAGE_WIDTH);
+    float fullStageHeightTex = static_cast<float>(PROJECT_STAGE_HEIGHT);
 
-    float texCoordX = static_cast<float>(srcRectInTexture.x) + (static_cast<float>(windowMouseX) / windowRenderW) * srcRectInTexture.w;
-    float texCoordY = static_cast<float>(srcRectInTexture.y) + (static_cast<float>(windowMouseY) / windowRenderH) * srcRectInTexture.h;
+    float currentSrcViewWidth = fullStageWidthTex / this->zoomFactor;
+    float currentSrcViewHeight = fullStageHeightTex / this->zoomFactor;
+    float currentSrcViewX = (fullStageWidthTex - currentSrcViewWidth) / 2.0f;
+    float currentSrcViewY = (fullStageHeightTex - currentSrcViewHeight) / 2.0f;
 
-    stageX = texCoordX - (PROJECT_STAGE_WIDTH / 2.0f);
-    stageY = (PROJECT_STAGE_HEIGHT / 2.0f) - texCoordY;
+    float stageContentAspectRatio = fullStageWidthTex / fullStageHeightTex;
+    SDL_FRect finalDisplayDstRect;
+    float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
+
+    if (windowAspectRatio >= stageContentAspectRatio)
+    {
+        finalDisplayDstRect.h = static_cast<float>(windowRenderH);
+        finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
+        finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
+        finalDisplayDstRect.y = 0.0f;
+    }
+    else
+    {
+        finalDisplayDstRect.w = static_cast<float>(windowRenderW);
+        finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
+        finalDisplayDstRect.x = 0.0f;
+        finalDisplayDstRect.y = (static_cast<float>(windowRenderH) - finalDisplayDstRect.h) / 2.0f;
+    }
+
+    if (finalDisplayDstRect.w <= 0.0f || finalDisplayDstRect.h <= 0.0f)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Calculated final display rect has zero or negative dimension.", 2);
+        return false;
+    }
+
+    if (static_cast<float>(windowMouseX) < finalDisplayDstRect.x || static_cast<float>(windowMouseX) >= finalDisplayDstRect.x + finalDisplayDstRect.w ||
+        static_cast<float>(windowMouseY) < finalDisplayDstRect.y || static_cast<float>(windowMouseY) >= finalDisplayDstRect.y + finalDisplayDstRect.h)
+    {
+        return false;
+    }
+    float normX_on_displayed_stage = (static_cast<float>(windowMouseX) - finalDisplayDstRect.x) / finalDisplayDstRect.w;
+    float normY_on_displayed_stage = (static_cast<float>(windowMouseY) - finalDisplayDstRect.y) / finalDisplayDstRect.h;
+
+    float texture_coord_x_abs = currentSrcViewX + (normX_on_displayed_stage * currentSrcViewWidth);
+    float texture_coord_y_abs = currentSrcViewY + (normY_on_displayed_stage * currentSrcViewHeight);
+
+    stageX = texture_coord_x_abs - (fullStageWidthTex / 2.0f);
+    stageY = (fullStageHeightTex / 2.0f) - texture_coord_y_abs;
+
     return true;
 }
 
@@ -2314,6 +2394,22 @@ void Engine::EngineStdOut(string s, int LEVEL) const
     logger.log(logMessage);
 }
 
+void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY) {
+    float stageX_calc, stageY_calc; 
+    if (mapWindowToStageCoordinates(windowMouseX, windowMouseY, stageX_calc, stageY_calc)) {
+        this->m_currentStageMouseX = stageX_calc;
+        this->m_currentStageMouseY = stageY_calc;
+        this->m_isMouseOnStage = true;
+    } else {
+        this->m_isMouseOnStage = false;
+        // 마우스가 스테이지 밖에 있을 때의 처리:
+        // 엔트리는 마지막 유효 좌표를 유지하거나 0을 반환할 수 있습니다.
+        // 현재는 m_isMouseOnStage 플래그로 구분하고, BlockExecutor에서 이 플래그를 확인하여 처리합니다.
+        // 필요하다면 여기서 m_currentStageMouseX/Y를 특정 값(예: 0)으로 리셋할 수 있습니다.
+        // this->m_currentStageMouseX = 0.0f;
+        // this->m_currentStageMouseY = 0.0f;
+    }
+}
 void Engine::goToScene(const std::string &sceneId)
 {
     if (scenes.count(sceneId))

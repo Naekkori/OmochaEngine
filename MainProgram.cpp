@@ -245,6 +245,12 @@ int main(int argc, char *argv[])
             while (!quit)
             {                                  
                 loopStartTime = SDL_GetTicks();
+
+                // 엔진의 현재 마우스 스테이지 좌표 업데이트
+                float windowMouseX_main, windowMouseY_main;
+                SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main); 
+                engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main);
+
                 while (SDL_PollEvent(&event))
                 {
                     if (event.type == SDL_EVENT_QUIT)

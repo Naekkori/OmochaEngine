@@ -18,10 +18,10 @@
 #include "../util/Logger.h"
 using namespace std;
 
-const int WINDOW_WIDTH = 640 * 2;
-const int WINDOW_HEIGHT = 360 * 2;
-static const int PROJECT_STAGE_WIDTH = 480;
-static const int PROJECT_STAGE_HEIGHT = 360;
+const int WINDOW_WIDTH = 480 * 3;
+const int WINDOW_HEIGHT = 270 * 3;
+static const int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
+static const int PROJECT_STAGE_HEIGHT = 270; // 실제 프로젝트의 세로 크기(16:9 비율)에 맞춤
 
 // HUD 상수 정의
 static const int SLIDER_X = 10;
@@ -29,10 +29,10 @@ static const int SLIDER_Y = WINDOW_HEIGHT - 40;
 static const int SLIDER_WIDTH = 200;
 static const int SLIDER_HEIGHT = 20;
 const double ASSET_ROTATION_CORRECTION_RADIAN = -SDL_PI_D / 2.0; // Using SDL's PI constant
-extern const char *BASE_ASSETS; // Declaration only
-extern const char *FONT_ASSETS; // Declaration only
-extern string PROJECT_NAME;     // Declaration only
-extern string WINDOW_TITLE;     // Declaration only
+extern const char *BASE_ASSETS;                                  // Declaration only
+extern const char *FONT_ASSETS;                                  // Declaration only
+extern string PROJECT_NAME;                                      // Declaration only
+extern string WINDOW_TITLE;                                      // Declaration only
 struct Costume
 {
     string id;
@@ -91,7 +91,7 @@ private:
         bool showFPS = false;           // FPS 표시 여부
         int TARGET_FPS = 60;
         //-- Experimal
-        bool useSqlite = false; //클라우드 변수를 sqlite 에 저장 (네이버 서버에 연결할수 없으니 로컬 db에 저장 false 면 project.json 에 키 저장)
+        bool useSqlite = false; // 클라우드 변수를 sqlite 에 저장 (네이버 서버에 연결할수 없으니 로컬 db에 저장 false 면 project.json 에 키 저장)
         float setZoomfactor = 1.0f;
     };
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수
@@ -101,15 +101,13 @@ private:
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
     vector<std::string> m_sceneOrder; // Stores scene IDs in the order they are defined
-    SDL_Window *window;     // SDL Window
-    SDL_Renderer *renderer; // SDL Renderer
+    SDL_Window *window;               // SDL Window
+    SDL_Renderer *renderer;           // SDL Renderer
     string currentSceneId;
     TTF_Font *hudFont = nullptr;           // HUD용 폰트
     TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
-    SimpleLogger logger;
     SDL_Texture *tempScreenTexture;
-    rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data
     std::string m_pressedObjectId; // ID of the object currently being pressed by the mouse
     vector<pair<string, const Script *>> m_mouseClickedScripts;
     vector<pair<string, const Script *>> m_mouseClickCanceledScripts;
@@ -128,6 +126,11 @@ private:
     bool m_needsTextureRecreation = false; // Flag to indicate if textures need to be recreated
     bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
     // int Soundloader(const string& soundUri);
+    // --- Mouse State ---
+    float m_currentStageMouseX = 0.0f;
+    float m_currentStageMouseY = 0.0f;
+    bool m_isMouseOnStage = false; // True if the mouse is currently over the stage display area
+
     void destroyTemporaryScreen();
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
@@ -140,12 +143,12 @@ private:
     static const float MAX_ZOOM;
     int mapEntryKeyToDxLibKey(const string &entryKey);
     string getSafeStringFromJson(const rapidjson::Value &parentValue,
-                                      const string &fieldName,
-                                      const string &contextDescription,
-                                      const string &defaultValue,
-                                      bool isCritical,
-                                      bool allowEmpty);
-    bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float& stageX, float& stageY) const;
+                                 const string &fieldName,
+                                 const string &contextDescription,
+                                 const string &defaultValue,
+                                 bool isCritical,
+                                 bool allowEmpty);
+
     SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
 
 public:
@@ -155,10 +158,11 @@ public:
         const int ICON_WARNING = SDL_MESSAGEBOX_WARNING;
         const int ICON_INFORMATION = SDL_MESSAGEBOX_INFORMATION;
     };
+    bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const;
     MsgBoxIconType msgBoxIconType;
     Engine();
     ~Engine();
-    bool IsSysMenu=false;
+    bool IsSysMenu = false;
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
@@ -185,8 +189,16 @@ public:
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();
     void drawHUD(); // HUD 그리기 메서드 추가
-    void goToScene(const std::string& sceneId);
+    void goToScene(const std::string &sceneId);
     void goToNextScene();
     void goToPreviousScene();
     void triggerWhenSceneStartScripts();
+    void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
+    // --- Mouse State Getters ---
+    float getCurrentStageMouseX() const { return m_currentStageMouseX; }
+    float getCurrentStageMouseY() const { return m_currentStageMouseY; }
+    const ObjectInfo* getObjectInfoById(const std::string& id) const;
+    bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
+    SimpleLogger logger;                           // public으로 이동하여 BlockExecutor 등에서 접근 가능하도록 함 (또는 getter 제공)
+    rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };
