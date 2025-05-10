@@ -1053,7 +1053,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         EngineStdOut("VSync mode set to: " + string(vsyncEnabled ? "Adaptive" : "Disabled"), 0);
     }
 
-    string defaultFontPath = "font/nanum_gothic.ttf";
+    string defaultFontPath = "font/nanum_barun_bold.ttf";
     hudFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
     loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 30);
 

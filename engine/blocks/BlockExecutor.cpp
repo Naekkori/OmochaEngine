@@ -165,11 +165,7 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
         engine.EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + objectId, 0);
 
         Behavior(block.type, engine, objectId, block);
-        OperandValue mathResult = Mathematical(block.type, engine, objectId, block);
-        if (block.type == "calc_basic" && mathResult.type != OperandValue::Type::EMPTY)
-        {
-            engine.EngineStdOut("    Top-level calc_basic result (usually discarded): " + mathResult.asString(), 0);
-        }
+        Mathematical(block.type, engine, objectId, block);
         Shape(block.type, engine, objectId, block);
         Sound(block.type, engine, objectId, block);
         Variable(block.type, engine, objectId, block);
@@ -557,20 +553,20 @@ void Shape(std::string BlockType, Engine &engine, const std::string &objectId, c
  * @brief 사운드블럭
  *
  */
-void Sound(std::string BlockType)
+void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
 }
 /**
  * @brief 변수블럭
  *
  */
-void Variable(std::string BlockType)
+void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
 }
 /**
  * @brief 함수블럭
  *
  */
-void Function(std::string BlockType)
+void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
 }
