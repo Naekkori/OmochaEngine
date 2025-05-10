@@ -27,14 +27,14 @@ javascript 기반 엔진보다 속도가 빠릅니다
 `project.json` 최상단에 아래와 같은 항목을 넣어 사용합니다.
 ```json
 {
-    "specialConfig":
-                {
-                    "brandName":"DBDO",
-                    "showProjectNameUI":true,
-                    "showZoomSliderUI":false,
-                    "setZoomfactor":1.26
-                },
-                //... 그외 기타 요소들
+  "specialConfig": {
+    "brandName": "<브랜드네임>",
+    "showFPS":false,
+    "showProjectNameUI": true,
+    "showZoomSliderUI": false,
+    "setZoomfactor": 1.0
+  },
+ //... 그외 기타 요소들
 }
 ```
 설명
@@ -43,4 +43,8 @@ brandName  브랜드네임 여기에 자기가 적고싶은 문구를 적습니�
 <br>
 showProjectNameUI 프로젝트 제목을 출력합니다.
 <br>
-showZoomSlider 뷰포트를 확대/축소 하는 슬라이더 를 표시합니다.
+showZoomSliderUI 뷰포트를 확대/축소 하는 슬라이더 를 표시합니다.
+<br>
+showFPS fps 를 표시합니다
+<br>
+setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니다. 최대 3배율)

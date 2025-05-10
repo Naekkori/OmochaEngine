@@ -1,4 +1,11 @@
 {
+  "specialConfig": {
+    "brandName": "SystemMenu",
+    "showFPS":true,
+    "showProjectNameUI": true,
+    "showZoomSliderUI": false,
+    "setZoomfactor": 1.0
+  },
   "objects": [
     {
       "id": "53ht",
