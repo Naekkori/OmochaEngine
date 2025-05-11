@@ -9,7 +9,7 @@ endif()
 set(DEVELOPER_NAME "Maiteil")
 set(GITHUB "https://github.com/maiteil/OmochaEngine")
 project("OmochaEngine" VERSION 1.0.0) 
-
+add_compile_options(-finput-charset=UTF-8)
 set(RESOURCE_RC_FILE ${CMAKE_SOURCE_DIR}/resource.rc)
 set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES

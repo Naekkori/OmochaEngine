@@ -129,7 +129,7 @@ private:
     bool m_projectTimerRunning = false;
     bool m_projectTimerVisible = false; // 타이머 UI 표시 여부
     bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
-    long m_projectTimerStartTime = 0; // Start time of the project timer
+    Uint64 m_projectTimerStartTime = 0; // Start time of the project timer (Uint64로 변경)
     // int Soundloader(const string& soundUri);
     // --- Mouse State ---
     float m_currentStageMouseX = 0.0f;

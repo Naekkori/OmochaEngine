@@ -1,4 +1,4 @@
-#include "Engine.h"
+﻿#include "Engine.h"
 #include "Entity.h"
 #include <fstream>
 #include <filesystem>
@@ -35,7 +35,9 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 
-Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"), m_projectTimerValue(0.0), m_projectTimerRunning(false), m_projectTimerVisible(false), m_gameplayInputActive(false)
+Engine::Engine() : window(nullptr), renderer(nullptr), 
+tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"), 
+m_projectTimerValue(0.0), m_projectTimerRunning(false), m_projectTimerVisible(true), m_gameplayInputActive(false)
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -1701,6 +1703,83 @@ void Engine::drawHUD()
             {
                 EngineStdOut("Failed to render Zoom text surface ", 2);
             }
+        }
+    }
+    // --- 엔트리 UI 그리기 ---
+    if (m_projectTimerVisible)
+    {
+        // 초시계 사용자가 자유롭게 위치를 옮길수 있음.
+        SDL_Color widgetBgColor = {255, 255, 255, 255};    // 전체 위젯 배경색 (흰색)
+        SDL_Color labelTextColor = {0, 0, 0, 255};          // "초시계" 레이블 텍스트 색상 (검정색)
+        SDL_Color valueBoxBgColor = {255, 150, 0, 255};     // 값 표시용 배경 상자 색상 (주황색)
+        SDL_Color valueTextColor = {255, 255, 255, 255};    // 값 텍스트 색상 (흰색)
+
+        string labelTextStr = "초시계";
+        string valueTextStr = to_string(static_cast<int>(getProjectTimerValue())); // 현재 타이머 값 사용
+
+        // 위젯의 위치와 크기를 정의합니다. HUD의 다른 요소들과 겹치지 않도록 조정하세요.
+        float widgetX = 10.0f; 
+        float widgetY = 70.0f; // 예: FPS 및 줌 슬라이더 아래
+        float widgetFixedW = 120.0f; 
+        float widgetFixedH = 25.0f;  
+        float padding = 3.0f; // 내부 여백
+
+        // 1. 전체 위젯 배경 그리기 (흰색)
+        SDL_FRect widgetRect = {widgetX, widgetY, widgetFixedW, widgetFixedH};
+        SDL_SetRenderDrawColor(renderer, widgetBgColor.r, widgetBgColor.g, widgetBgColor.b, widgetBgColor.a);
+        SDL_RenderFillRect(renderer, &widgetRect);
+
+        // 2. "초시계" 레이블 텍스트 렌더링 및 그리기
+        SDL_Surface* labelSurface = TTF_RenderText_Blended(hudFont, labelTextStr.c_str(),labelTextStr.size(), labelTextColor);
+        if (!labelSurface) {
+            EngineStdOut("Failed to render timer label text surface ", 2);
+        } else {
+            SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
+            if (!labelTexture) {
+                EngineStdOut("Failed to create timer label texture: " + string(SDL_GetError()), 2);
+            } else {
+                SDL_FRect labelDestRect = {
+                    widgetRect.x + padding,
+                    widgetRect.y + (widgetRect.h - static_cast<float>(labelSurface->h)) / 2.0f, // 수직 중앙 정렬
+                    static_cast<float>(labelSurface->w),
+                    static_cast<float>(labelSurface->h)
+                };
+                SDL_RenderTexture(renderer, labelTexture, nullptr, &labelDestRect);
+
+                // 3. 값 표시용 배경 상자(주황색) 및 값 텍스트(흰색) 렌더링 및 그리기
+                SDL_Surface* valueSurface = TTF_RenderText_Blended(hudFont, valueTextStr.c_str(), valueTextStr.size(), valueTextColor);
+                if (!valueSurface) {
+                    EngineStdOut("Failed to render timer value text surface ", 2);
+                } else {
+                    SDL_Texture* valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+                    if (!valueTexture) {
+                        EngineStdOut("Failed to create timer value texture: " + string(SDL_GetError()), 2);
+                    } else {
+                        // 값 배경 상자 위치 및 크기 (레이블 오른쪽, 위젯 높이에 맞춤)
+                        SDL_FRect valueBgRect = {
+                            labelDestRect.x + labelDestRect.w + padding, // 레이블 오른쪽 + 여백
+                            widgetRect.y + padding, // 위젯 내부 여백 적용
+                            widgetRect.w - (labelDestRect.w + 3 * padding), // 레이블과 여백을 제외한 나머지 공간
+                            widgetRect.h - 2 * padding // 위젯 높이에서 상하 여백 제외
+                        };
+                        SDL_SetRenderDrawColor(renderer, valueBoxBgColor.r, valueBoxBgColor.g, valueBoxBgColor.b, valueBoxBgColor.a);
+                        SDL_RenderFillRect(renderer, &valueBgRect);
+
+                        // 값 텍스트 위치 (주황색 배경 상자 내부 중앙 정렬)
+                        SDL_FRect valueDestRect = {
+                            valueBgRect.x + (valueBgRect.w - static_cast<float>(valueSurface->w)) / 2.0f,
+                            valueBgRect.y + (valueBgRect.h - static_cast<float>(valueSurface->h)) / 2.0f,
+                            static_cast<float>(valueSurface->w),
+                            static_cast<float>(valueSurface->h)
+                        };
+                        SDL_RenderTexture(renderer, valueTexture, nullptr, &valueDestRect);
+                        SDL_DestroyTexture(valueTexture);
+                    }
+                    SDL_DestroySurface(valueSurface);
+                }
+                SDL_DestroyTexture(labelTexture);
+            }
+            SDL_DestroySurface(labelSurface);
         }
     }
 }
