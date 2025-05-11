@@ -79,6 +79,13 @@ struct ObjectInfo
     int fontSize;
     int textAlign;
 };
+
+// HUD에 표시될 일반 변수의 정보를 담는 구조체
+struct HUDVariableDisplay {
+    std::string name;  // 변수 이름
+    std::string value; // 변수 값 (문자열로 표시)
+};
+
 class Engine
 {
 private:
@@ -135,6 +142,20 @@ private:
     float m_currentStageMouseX = 0.0f;
     float m_currentStageMouseY = 0.0f;
     bool m_isMouseOnStage = false; // True if the mouse is currently over the stage display area
+    // --- Project Timer UI ---
+    float m_projectTimerWidgetX = 10.0f; // Default X position
+    float m_projectTimerWidgetY = 70.0f; // Default Y position
+    bool m_isDraggingProjectTimer = false;
+    float m_projectTimerDragOffsetX = 0.0f;
+    float m_projectTimerDragOffsetY = 0.0f;
+    // --- General Variables Display UI ---
+    std::vector<HUDVariableDisplay> m_visibleHUDVariables; // HUD에 표시될 변수 목록
+    float m_variablesListWidgetX = 10.0f;
+    float m_variablesListWidgetY = 120.0f; // 초시계 아래에 위치 (예시)
+    bool m_isDraggingVariablesList = false;
+    float m_variablesListDragOffsetX = 0.0f;
+    float m_variablesListDragOffsetY = 0.0f;
+    bool m_showVariablesList = true; // 변수 목록 HUD 요소 전체 표시 여부
 
     void destroyTemporaryScreen();
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
@@ -159,6 +180,7 @@ private:
 public:
     struct MsgBoxIconType
     {
+        // Note: SDL_MESSAGEBOX_ERROR etc. are already integers, so this struct might be redundant if only used for these constants.
         const int ICON_ERROR = SDL_MESSAGEBOX_ERROR;
         const int ICON_WARNING = SDL_MESSAGEBOX_WARNING;
         const int ICON_INFORMATION = SDL_MESSAGEBOX_INFORMATION;
@@ -209,6 +231,8 @@ public:
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
     const ObjectInfo* getObjectInfoById(const std::string& id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
+    // HUD에 표시할 변수 목록을 설정하는 메서드
+    void setVisibleHUDVariables(const std::vector<HUDVariableDisplay>& variables);
     SimpleLogger logger;                           // public으로 이동하여 BlockExecutor 등에서 접근 가능하도록 함 (또는 getter 제공)
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };
