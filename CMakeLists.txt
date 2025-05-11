@@ -1,8 +1,9 @@
 ﻿if(EXISTS "F:/vcpkg/installed/x64-windows")
     list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
 endif()
-if(EXISTS "C:/Users/Administrator/Documents/vcpkg")
-    list(APPEND CMAKE_PREFIX_PATH "C:/Users/Administrator/Documents/vcpkg")
+set(VCPKG_USER_DOCS_INSTALLED_PATH "C:/Users/Administrator/Documents/vcpkg/installed/x64-windows") 
+if(EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
+    list(APPEND CMAKE_PREFIX_PATH "${VCPKG_USER_DOCS_INSTALLED_PATH}")
 endif()
 cmake_minimum_required (VERSION 3.8)
 
