@@ -23,7 +23,7 @@ const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
 
 const char *BASE_ASSETS = "assets/";
-const char *FONT_ASSETS = "font/";
+const char* FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
 const double PI_VALUE = acos(-1.0);
@@ -35,7 +35,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 
-Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log")
+Engine::Engine() : window(nullptr), renderer(nullptr), tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"), m_projectTimerValue(0.0), m_projectTimerRunning(false), m_projectTimerVisible(false), m_gameplayInputActive(false)
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -1357,7 +1357,7 @@ bool Engine::recreateAssetsIfNeeded()
 
 void Engine::drawAllEntities()
 {
-
+    getProjectTimerValue();
     if (!renderer || !tempScreenTexture)
     {
         EngineStdOut("drawAllEntities: Renderer or temporary screen texture not available.", 1);
@@ -2134,7 +2134,35 @@ void Engine::updateFps()
         framecount = 0;
     }
 }
+void Engine::startProjectTimer() {
+    m_projectTimerRunning = true;
+    EngineStdOut("Project timer started.", 0);
+}
 
+void Engine::stopProjectTimer() {
+    m_projectTimerRunning = false;
+    EngineStdOut("Project timer stopped.", 0);
+}
+
+void Engine::resetProjectTimer() {
+    m_projectTimerValue = 0.0;
+    EngineStdOut("Project timer reset.", 0);
+}
+
+void Engine::showProjectTimer(bool show) {
+    m_projectTimerVisible = show;
+    EngineStdOut(string("Project timer visibility set to: ") + (show ? "Visible" : "Hidden"), 0);
+}
+
+double Engine::getProjectTimerValue() const {
+    if (m_projectTimerRunning)
+    {
+        Uint64 now = SDL_GetTicks();
+        Uint64 delta = now - lastfpstime;
+        return static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
+    }
+    return m_projectTimerValue;
+}
 Entity *Engine::getEntityById(const string &id)
 {
     auto it = entities.find(id);

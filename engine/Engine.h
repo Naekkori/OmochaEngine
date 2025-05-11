@@ -124,7 +124,12 @@ private:
     const string ANSI_STYLE_BOLD = "\x1b[1m";
     bool createTemporaryScreen();
     bool m_needsTextureRecreation = false; // Flag to indicate if textures need to be recreated
+    // --- Project Timer Members ---
+    double m_projectTimerValue = 0.0;
+    bool m_projectTimerRunning = false;
+    bool m_projectTimerVisible = false; // 타이머 UI 표시 여부
     bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
+    long m_projectTimerStartTime = 0; // Start time of the project timer
     // int Soundloader(const string& soundUri);
     // --- Mouse State ---
     float m_currentStageMouseX = 0.0f;
@@ -193,6 +198,11 @@ public:
     void goToNextScene();
     void goToPreviousScene();
     void triggerWhenSceneStartScripts();
+    void startProjectTimer();
+    void stopProjectTimer();
+    void resetProjectTimer();
+    void showProjectTimer(bool show);
+    double getProjectTimerValue() const;
     void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }

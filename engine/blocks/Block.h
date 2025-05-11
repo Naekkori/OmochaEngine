@@ -10,19 +10,21 @@ class Block {
 public:
     std::string id;
     std::string type;
-    rapidjson::Value paramsJson;
+    rapidjson::Document paramsJson; // Value에서 Document로 변경
     std::vector<Script> statementScripts;
 
-    Block() : paramsJson(rapidjson::kNullType) {} // paramsJson을 Null 타입으로 초기화
+    Block() {} // Document는 기본 생성 시 kNullType 입니다.
     Block(const std::string& blockType) : type(blockType) {}
 
     // 복사 생성자
     Block(const Block& other) : id(other.id), type(other.type), statementScripts(other.statementScripts) {
-
-        if (other.paramsJson.IsNull()) {
-            paramsJson.SetNull();
+        // other.paramsJson (Document)이 Null이 아니면, this.paramsJson (Document)으로 복사합니다.
+        // this.paramsJson.GetAllocator()를 사용하여 자체 할당자로 복사합니다.
+        if (!other.paramsJson.IsNull()) {
+            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
         } else {
-            paramsJson.SetNull(); // 안전하게 Null로 설정 (실제 데이터 복사 필요 시 수정)
+            // paramsJson은 기본적으로 Null 상태이므로 별도 처리가 필요 없을 수 있습니다.
+            // 명시적으로 Null로 설정하려면 paramsJson.SetNull();
         }
     }
 
@@ -30,7 +32,7 @@ public:
     Block(Block&& other) noexcept
         : id(std::move(other.id)),
           type(std::move(other.type)),
-          paramsJson(std::move(other.paramsJson)), // rapidjson::Value는 이동 가능
+          paramsJson(std::move(other.paramsJson)), // rapidjson::Document도 이동 가능
           statementScripts(std::move(other.statementScripts)) {}
 
     // 복사 대입 연산자
@@ -39,11 +41,10 @@ public:
         id = other.id;
         type = other.type;
         statementScripts = other.statementScripts;
-        // paramsJson 복사 (복사 생성자와 동일한 주의사항 적용)
-        if (other.paramsJson.IsNull()) {
-            paramsJson.SetNull();
+        if (!other.paramsJson.IsNull()) {
+            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
         } else {
-            paramsJson.SetNull(); // 안전하게 Null로 설정 (실제 데이터 복사 필요 시 수정)
+            paramsJson.SetNull(); // 원본이 Null이면 대상도 Null로 설정
         }
         return *this;
     }
@@ -52,7 +53,7 @@ public:
         if (this == &other) return *this;
         id = std::move(other.id);
         type = std::move(other.type);
-        paramsJson = std::move(other.paramsJson);
+        paramsJson = std::move(other.paramsJson); // Document 이동 대입
         statementScripts = std::move(other.statementScripts);
         return *this;
     }
