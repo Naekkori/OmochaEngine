@@ -1,4 +1,9 @@
-﻿list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
+﻿if(EXISTS "F:/vcpkg/installed/x64-windows")
+    list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
+endif()
+if(EXISTS "C:/Users/Administrator/Documents/vcpkg")
+    list(APPEND CMAKE_PREFIX_PATH "C:/Users/Administrator/Documents/vcpkg")
+endif()
 cmake_minimum_required (VERSION 3.8)
 
 
@@ -35,11 +40,11 @@ if(WIN32)
 else()
     add_executable(OmochaEngine ${OMOCHA_ENGINE_SOURCES})
 endif()
-if (CMAKE_VERSION VERSION_GREATER 3.12)
+if (CMAKE_CXX_STANDARD) # CXX_STANDARD property exists since CMake 3.1, check if it's already set.
   set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 20)
 endif()
-find_package(RapidJSON CONFIG REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE RapidJSON rapidjson)
+find_package(rapidjson CONFIG REQUIRED)
+target_link_libraries(OmochaEngine PRIVATE rapidjson)
 #SDL
 find_package(SDL3 CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE SDL3::SDL3)
