@@ -63,7 +63,11 @@ struct SoundFile
     string name;
     string fileurl;
 };
-
+struct HUDVariable
+{
+    string name; // 변수 이름
+    string value; // 변수 값 (문자열로 표시)
+};
 struct ObjectInfo
 {
     string id;
@@ -82,8 +86,9 @@ struct ObjectInfo
 
 // HUD에 표시될 일반 변수의 정보를 담는 구조체
 struct HUDVariableDisplay {
-    std::string name;  // 변수 이름
-    std::string value; // 변수 값 (문자열로 표시)
+    string name;  // 변수 이름
+    string value; // 변수 값 (문자열로 표시)
+    bool isVisible;    // HUD에 표시 여부
 };
 
 class Engine
@@ -107,7 +112,7 @@ private:
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order;
     map<string, Entity *> entities;
-    vector<std::string> m_sceneOrder; // Stores scene IDs in the order they are defined
+    vector<string> m_sceneOrder; // Stores scene IDs in the order they are defined
     SDL_Window *window;               // SDL Window
     SDL_Renderer *renderer;           // SDL Renderer
     string currentSceneId;
@@ -115,7 +120,7 @@ private:
     TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
     SDL_Texture *tempScreenTexture;
-    std::string m_pressedObjectId; // ID of the object currently being pressed by the mouse
+    string m_pressedObjectId; // ID of the object currently being pressed by the mouse
     vector<pair<string, const Script *>> m_mouseClickedScripts;
     vector<pair<string, const Script *>> m_mouseClickCanceledScripts;
     vector<pair<string, const Script *>> m_whenObjectClickedScripts;
@@ -149,7 +154,7 @@ private:
     float m_projectTimerDragOffsetX = 0.0f;
     float m_projectTimerDragOffsetY = 0.0f;
     // --- General Variables Display UI ---
-    std::vector<HUDVariableDisplay> m_visibleHUDVariables; // HUD에 표시될 변수 목록
+    vector<HUDVariableDisplay> m_HUDVariables; // HUD에 표시될 변수 목록
     float m_variablesListWidgetX = 10.0f;
     float m_variablesListWidgetY = 120.0f; // 초시계 아래에 위치 (예시)
     bool m_isDraggingVariablesList = false;
@@ -216,7 +221,7 @@ public:
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();
     void drawHUD(); // HUD 그리기 메서드 추가
-    void goToScene(const std::string &sceneId);
+    void goToScene(const string &sceneId);
     void goToNextScene();
     void goToPreviousScene();
     void triggerWhenSceneStartScripts();
@@ -229,10 +234,10 @@ public:
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
-    const ObjectInfo* getObjectInfoById(const std::string& id) const;
+    const ObjectInfo* getObjectInfoById(const string& id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     // HUD에 표시할 변수 목록을 설정하는 메서드
-    void setVisibleHUDVariables(const std::vector<HUDVariableDisplay>& variables);
+    void setVisibleHUDVariables(const vector<HUDVariableDisplay>& variables);
     SimpleLogger logger;                           // public으로 이동하여 BlockExecutor 등에서 접근 가능하도록 함 (또는 getter 제공)
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };

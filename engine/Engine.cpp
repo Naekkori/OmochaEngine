@@ -1763,13 +1763,13 @@ void Engine::drawHUD()
     // --- 엔트리 UI 그리기 ---
     if (m_projectTimerVisible)
     {
-        SDL_Color widgetBgColor = {255, 255, 255, 255};  // 전체 위젯 배경색 (흰색)
-        SDL_Color labelTextColor = {0, 0, 0, 255};       // "초시계" 레이블 텍스트 색상 (검정색)
-        SDL_Color valueBoxBgColor = {255, 150, 0, 255};  // 값 표시용 배경 상자 색상 (주황색)
-        SDL_Color valueTextColor = {255, 255, 255, 255}; // 값 텍스트 색상 (흰색)
+        SDL_Color widgetBgColor = {255, 255, 255, 255};     // 전체 위젯 배경색 (흰색)
+        SDL_Color labelTextColor = {0, 0, 0, 255};          // "초시계" 레이블 텍스트 색상 (검정색)
+        SDL_Color valueBoxBgColor = {255, 150, 0, 255};     // 값 표시용 배경 상자 색상 (주황색)
+        SDL_Color valueTextColor = {255, 255, 255, 255};    // 값 텍스트 색상 (흰색)
         SDL_Color widgetBorderColor = {120, 120, 120, 255}; // 얇은 테두리 색상
-        float widgetCornerRadius = 5.0f;                   // 코너 둥글기 반지름
-        float widgetBorderWidth = 1.0f;                    // 테두리 두께
+        float widgetCornerRadius = 5.0f;                    // 코너 둥글기 반지름
+        float widgetBorderWidth = 1.0f;                     // 테두리 두께
 
         string labelTextStr = "초시계";                                            // "초시계" 레이블 텍스트
         string valueTextStr = to_string(static_cast<int>(getProjectTimerValue())); // 현재 타이머 값 사용
@@ -1777,7 +1777,7 @@ void Engine::drawHUD()
         // 위젯의 위치와 크기를 정의합니다. HUD의 다른 요소들과 겹치지 않도록 조정하세요.
         float widgetX = m_projectTimerWidgetX; // 드래그 가능한 위치 사용
         float widgetY = m_projectTimerWidgetY; // 드래그 가능한 위치 사용
-        float widgetFixedW = 120.0f; // 위젯 고정 너비
+        float widgetFixedW = 120.0f;           // 위젯 고정 너비
         float widgetFixedH = 25.0f;
         float padding = 3.0f; // 내부 여백
 
@@ -1813,7 +1813,7 @@ void Engine::drawHUD()
         }
 
         // 2. "초시계" 레이블 텍스트 렌더링 및 그리기
-        SDL_Surface* labelSurface = TTF_RenderText_Blended(hudFont, labelTextStr.c_str(), 0, labelTextColor);
+        SDL_Surface *labelSurface = TTF_RenderText_Blended(hudFont, labelTextStr.c_str(), 0, labelTextColor);
         if (!labelSurface)
         {
             EngineStdOut("Failed to render timer label text surface ", 2);
@@ -1834,7 +1834,8 @@ void Engine::drawHUD()
                     static_cast<float>(labelSurface->h)};
                 // Ensure label text doesn't overflow the available width in fillRect for the label part
                 float maxLabelWidth = fillRect.w - 2 * padding; // Max width for label area
-                if (labelDestRect.w > maxLabelWidth) labelDestRect.w = maxLabelWidth;
+                if (labelDestRect.w > maxLabelWidth)
+                    labelDestRect.w = maxLabelWidth;
 
                 SDL_RenderTexture(renderer, labelTexture, nullptr, &labelDestRect);
 
@@ -1889,73 +1890,86 @@ void Engine::drawHUD()
     }
 
     // --- 일반 변수 목록 UI 그리기 ---
-    if (m_showVariablesList && !m_visibleHUDVariables.empty()) {
-        SDL_Color containerBgColor = {240, 240, 240, 220};      // 컨테이너 배경색 (약간 투명한 밝은 회색)
-        SDL_Color containerBorderColor = {100, 100, 100, 255};  // 컨테이너 테두리 색상
-        SDL_Color itemLabelTextColor = {0, 0, 0, 255};          // 변수 이름 텍스트 색상
-        SDL_Color itemValueBoxBgColor = {0, 120, 255, 255};     // 변수 값 배경 상자 색상 (파란색 계열)
-        SDL_Color itemValueTextColor = {255, 255, 255, 255};    // 변수 값 텍스트 색상
+    if (!m_HUDVariables.empty())
+    {
+        for (const auto &var : m_HUDVariables)
+        {
+            if (!var.isVisible)
+            {
+                continue; // Skip if the variable is not visible
+            }
+            SDL_Color containerBgColor = {240, 240, 240, 220};     // 컨테이너 배경색 (약간 투명한 밝은 회색)
+            SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
+            SDL_Color itemLabelTextColor = {0, 0, 0, 255};         // 변수 이름 텍스트 색상
+            SDL_Color itemValueBoxBgColor = {0, 120, 255, 255};    // 변수 값 배경 상자 색상 (파란색 계열)
+            SDL_Color itemValueTextColor = {255, 255, 255, 255};   // 변수 값 텍스트 색상
 
-        float containerX = m_variablesListWidgetX;
-        float containerY = m_variablesListWidgetY;
-        float containerFixedWidth = 180.0f; // 컨테이너 고정 너비 (필요시 조절)
-        float itemHeight = 22.0f;           // 각 변수 항목의 높이
-        float itemPadding = 3.0f;           // 항목 내부 여백
-        float verticalSpacing = 2.0f;       // 항목 간 수직 간격
-        float containerCornerRadius = 5.0f;
-        float containerBorderWidth = 1.0f;
+            float containerX = m_variablesListWidgetX;
+            float containerY = m_variablesListWidgetY;
+            float containerFixedWidth = 180.0f; // 컨테이너 고정 너비 (필요시 조절)
+            float itemHeight = 22.0f;           // 각 변수 항목의 높이
+            float itemPadding = 3.0f;           // 항목 내부 여백
+            float verticalSpacing = 2.0f;       // 항목 간 수직 간격
+            float containerCornerRadius = 5.0f;
+            float containerBorderWidth = 1.0f;
 
-        // 컨테이너 전체 높이 계산
-        float totalItemsHeight = m_visibleHUDVariables.size() * itemHeight;
-        float totalSpacingHeight = (m_visibleHUDVariables.size() > 1) ? (m_visibleHUDVariables.size() - 1) * verticalSpacing : 0;
-        float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
+            // 컨테이너 전체 높이 계산
+            float totalItemsHeight = m_HUDVariables.size() * itemHeight;
+            float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
+            float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
 
-        // 1. 컨테이너 테두리 그리기
-        SDL_FRect outerContainerRect = {containerX, containerY, containerFixedWidth, containerDynamicHeight};
-        if (containerBorderWidth > 0.0f) {
-            SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
-            Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
-        }
+            // 1. 컨테이너 테두리 그리기
+            SDL_FRect outerContainerRect = {containerX, containerY, containerFixedWidth, containerDynamicHeight};
+            if (containerBorderWidth > 0.0f)
+            {
+                SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
+                Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
+            }
 
-        // 2. 컨테이너 배경 그리기 (테두리 안쪽)
-        SDL_FRect fillContainerRect = {
-            containerX + containerBorderWidth,
-            containerY + containerBorderWidth,
-            containerFixedWidth - 2 * containerBorderWidth,
-            containerDynamicHeight - 2 * containerBorderWidth
-        };
-        if (fillContainerRect.w < 0) fillContainerRect.w = 0;
-        if (fillContainerRect.h < 0) fillContainerRect.h = 0;
-        float fillRadius = containerCornerRadius - containerBorderWidth;
-        if (fillRadius < 0.0f) fillRadius = 0.0f;
+            // 2. 컨테이너 배경 그리기 (테두리 안쪽)
+            SDL_FRect fillContainerRect = {
+                containerX + containerBorderWidth,
+                containerY + containerBorderWidth,
+                containerFixedWidth - 2 * containerBorderWidth,
+                containerDynamicHeight - 2 * containerBorderWidth};
+            if (fillContainerRect.w < 0)
+                fillContainerRect.w = 0;
+            if (fillContainerRect.h < 0)
+                fillContainerRect.h = 0;
+            float fillRadius = containerCornerRadius - containerBorderWidth;
+            if (fillRadius < 0.0f)
+                fillRadius = 0.0f;
 
-        if (fillContainerRect.w > 0 && fillContainerRect.h > 0) {
-            SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b, containerBgColor.a);
-            Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
-        }
+            if (fillContainerRect.w > 0 && fillContainerRect.h > 0)
+            {
+                SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b, containerBgColor.a);
+                Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
+            }
 
-        // 3. 각 변수 항목 그리기
-        float currentItemY = fillContainerRect.y + itemPadding;
-        for (const auto& var : m_visibleHUDVariables) {
+            // 3. 각 변수 항목 그리기
+            float currentItemY = fillContainerRect.y + itemPadding;
             // 변수 이름 레이블
-            SDL_Surface* nameSurface = TTF_RenderText_Blended(hudFont, var.name.c_str(), 0, itemLabelTextColor);
-            if (nameSurface) {
-                SDL_Texture* nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
-                if (nameTexture) {
+            SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, var.name.c_str(), 0, itemLabelTextColor);
+            if (nameSurface)
+            {
+                SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
+                if (nameTexture)
+                {
                     float labelMaxWidth = fillContainerRect.w * 0.45f - 2 * itemPadding; // 이름 레이블 최대 너비 (컨테이너 너비의 약 45%)
                     SDL_FRect nameDestRect = {
                         fillContainerRect.x + itemPadding,
                         currentItemY + (itemHeight - static_cast<float>(nameSurface->h)) / 2.0f,
                         min(static_cast<float>(nameSurface->w), labelMaxWidth),
-                        static_cast<float>(nameSurface->h)
-                    };
+                        static_cast<float>(nameSurface->h)};
                     SDL_RenderTexture(renderer, nameTexture, nullptr, &nameDestRect);
 
                     // 변수 값 배경 상자 및 텍스트
-                    SDL_Surface* valueSurface = TTF_RenderText_Blended(hudFont, var.value.c_str(), 0, itemValueTextColor);
-                    if (valueSurface) {
-                        SDL_Texture* valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-                        if (valueTexture) {
+                    SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, var.value.c_str(), 0, itemValueTextColor);
+                    if (valueSurface)
+                    {
+                        SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+                        if (valueTexture)
+                        {
                             float valueBgX = nameDestRect.x + nameDestRect.w + itemPadding;
                             float valueBgW = (fillContainerRect.x + fillContainerRect.w - itemPadding) - valueBgX;
                             SDL_FRect valueBgRect = {valueBgX, currentItemY, valueBgW, itemHeight};
@@ -1966,7 +1980,7 @@ void Engine::drawHUD()
                                 valueBgRect.x + (valueBgRect.w - static_cast<float>(valueSurface->w)) / 2.0f,
                                 valueBgRect.y + (valueBgRect.h - static_cast<float>(valueSurface->h)) / 2.0f,
                                 static_cast<float>(valueSurface->w),
-                                static_cast<float>(valueSurface->h) };
+                                static_cast<float>(valueSurface->h)};
                             SDL_RenderTexture(renderer, valueTexture, nullptr, &valueDestRect);
                             SDL_DestroyTexture(valueTexture);
                         }
@@ -1980,972 +1994,983 @@ void Engine::drawHUD()
         }
     }
 }
-        bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
+bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
+{
+    int windowRenderW = 0, windowRenderH = 0;
+    if (this->renderer)
+    {
+        SDL_GetRenderOutputSize(this->renderer, &windowRenderW, &windowRenderH);
+    }
+    else
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 2);
+        return false;
+    }
+
+    if (windowRenderW <= 0 || windowRenderH <= 0)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Render dimensions are zero or negative.", 2);
+        return false;
+    }
+
+    float fullStageWidthTex = static_cast<float>(PROJECT_STAGE_WIDTH);
+    float fullStageHeightTex = static_cast<float>(PROJECT_STAGE_HEIGHT);
+
+    float currentSrcViewWidth = fullStageWidthTex / this->zoomFactor;
+    float currentSrcViewHeight = fullStageHeightTex / this->zoomFactor;
+    float currentSrcViewX = (fullStageWidthTex - currentSrcViewWidth) / 2.0f;
+    float currentSrcViewY = (fullStageHeightTex - currentSrcViewHeight) / 2.0f;
+
+    float stageContentAspectRatio = fullStageWidthTex / fullStageHeightTex;
+    SDL_FRect finalDisplayDstRect;
+    float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
+
+    if (windowAspectRatio >= stageContentAspectRatio)
+    {
+        finalDisplayDstRect.h = static_cast<float>(windowRenderH);
+        finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
+        finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
+        finalDisplayDstRect.y = 0.0f;
+    }
+    else
+    {
+        finalDisplayDstRect.w = static_cast<float>(windowRenderW);
+        finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
+        finalDisplayDstRect.x = 0.0f;
+        finalDisplayDstRect.y = (static_cast<float>(windowRenderH) - finalDisplayDstRect.h) / 2.0f;
+    }
+
+    if (finalDisplayDstRect.w <= 0.0f || finalDisplayDstRect.h <= 0.0f)
+    {
+        EngineStdOut("mapWindowToStageCoordinates: Calculated final display rect has zero or negative dimension.", 2);
+        return false;
+    }
+
+    if (static_cast<float>(windowMouseX) < finalDisplayDstRect.x || static_cast<float>(windowMouseX) >= finalDisplayDstRect.x + finalDisplayDstRect.w ||
+        static_cast<float>(windowMouseY) < finalDisplayDstRect.y || static_cast<float>(windowMouseY) >= finalDisplayDstRect.y + finalDisplayDstRect.h)
+    {
+        return false;
+    }
+    float normX_on_displayed_stage = (static_cast<float>(windowMouseX) - finalDisplayDstRect.x) / finalDisplayDstRect.w;
+    float normY_on_displayed_stage = (static_cast<float>(windowMouseY) - finalDisplayDstRect.y) / finalDisplayDstRect.h;
+
+    float texture_coord_x_abs = currentSrcViewX + (normX_on_displayed_stage * currentSrcViewWidth);
+    float texture_coord_y_abs = currentSrcViewY + (normY_on_displayed_stage * currentSrcViewHeight);
+
+    stageX = texture_coord_x_abs - (fullStageWidthTex / 2.0f);
+    stageY = (fullStageHeightTex / 2.0f) - texture_coord_y_abs;
+
+    return true;
+}
+
+void Engine::processInput(const SDL_Event &event)
+{
+
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+    {
+        if (event.button.button == SDL_BUTTON_LEFT)
         {
-            int windowRenderW = 0, windowRenderH = 0;
-            if (this->renderer)
+            bool uiClicked = false;
+            int mouseX = event.button.x;
+            int mouseY = event.button.y;
+            if (this->specialConfig.showZoomSlider &&
+                mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
+                mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5)
             {
-                SDL_GetRenderOutputSize(this->renderer, &windowRenderW, &windowRenderH);
+                float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+                this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+                this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
+                this->m_isDraggingZoomSlider = true;
+                uiClicked = true;
             }
-            else
+            if (!uiClicked && m_projectTimerVisible)
             {
-                EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 2);
-                return false;
-            }
+                float widgetFixedW = 120.0f; // Must match drawHUD
+                float widgetFixedH = 25.0f;  // Must match drawHUD
+                SDL_FRect timerWidgetRect = {m_projectTimerWidgetX, m_projectTimerWidgetY, widgetFixedW, widgetFixedH};
 
-            if (windowRenderW <= 0 || windowRenderH <= 0)
-            {
-                EngineStdOut("mapWindowToStageCoordinates: Render dimensions are zero or negative.", 2);
-                return false;
-            }
-
-            float fullStageWidthTex = static_cast<float>(PROJECT_STAGE_WIDTH);
-            float fullStageHeightTex = static_cast<float>(PROJECT_STAGE_HEIGHT);
-
-            float currentSrcViewWidth = fullStageWidthTex / this->zoomFactor;
-            float currentSrcViewHeight = fullStageHeightTex / this->zoomFactor;
-            float currentSrcViewX = (fullStageWidthTex - currentSrcViewWidth) / 2.0f;
-            float currentSrcViewY = (fullStageHeightTex - currentSrcViewHeight) / 2.0f;
-
-            float stageContentAspectRatio = fullStageWidthTex / fullStageHeightTex;
-            SDL_FRect finalDisplayDstRect;
-            float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
-
-            if (windowAspectRatio >= stageContentAspectRatio)
-            {
-                finalDisplayDstRect.h = static_cast<float>(windowRenderH);
-                finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
-                finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
-                finalDisplayDstRect.y = 0.0f;
-            }
-            else
-            {
-                finalDisplayDstRect.w = static_cast<float>(windowRenderW);
-                finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
-                finalDisplayDstRect.x = 0.0f;
-                finalDisplayDstRect.y = (static_cast<float>(windowRenderH) - finalDisplayDstRect.h) / 2.0f;
-            }
-
-            if (finalDisplayDstRect.w <= 0.0f || finalDisplayDstRect.h <= 0.0f)
-            {
-                EngineStdOut("mapWindowToStageCoordinates: Calculated final display rect has zero or negative dimension.", 2);
-                return false;
-            }
-
-            if (static_cast<float>(windowMouseX) < finalDisplayDstRect.x || static_cast<float>(windowMouseX) >= finalDisplayDstRect.x + finalDisplayDstRect.w ||
-                static_cast<float>(windowMouseY) < finalDisplayDstRect.y || static_cast<float>(windowMouseY) >= finalDisplayDstRect.y + finalDisplayDstRect.h)
-            {
-                return false;
-            }
-            float normX_on_displayed_stage = (static_cast<float>(windowMouseX) - finalDisplayDstRect.x) / finalDisplayDstRect.w;
-            float normY_on_displayed_stage = (static_cast<float>(windowMouseY) - finalDisplayDstRect.y) / finalDisplayDstRect.h;
-
-            float texture_coord_x_abs = currentSrcViewX + (normX_on_displayed_stage * currentSrcViewWidth);
-            float texture_coord_y_abs = currentSrcViewY + (normY_on_displayed_stage * currentSrcViewHeight);
-
-            stageX = texture_coord_x_abs - (fullStageWidthTex / 2.0f);
-            stageY = (fullStageHeightTex / 2.0f) - texture_coord_y_abs;
-
-            return true;
-        }
-
-        void Engine::processInput(const SDL_Event &event)
-        {
-
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
-            {
-                if (event.button.button == SDL_BUTTON_LEFT)
+                if (mouseX >= timerWidgetRect.x && mouseX <= timerWidgetRect.x + timerWidgetRect.w &&
+                    mouseY >= timerWidgetRect.y && mouseY <= timerWidgetRect.y + timerWidgetRect.h)
                 {
-                    bool uiClicked = false;
-                    int mouseX = event.button.x;
-                    int mouseY = event.button.y;
-                    if (this->specialConfig.showZoomSlider &&
-                        mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
-                        mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5)
-                    {
-                        float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
-                        this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-                        this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
-                        this->m_isDraggingZoomSlider = true;
-                        uiClicked = true;
-                    }
-                    if (!uiClicked && m_projectTimerVisible)
-                    {
-                        float widgetFixedW = 120.0f; // Must match drawHUD
-                        float widgetFixedH = 25.0f;  // Must match drawHUD
-                        SDL_FRect timerWidgetRect = {m_projectTimerWidgetX, m_projectTimerWidgetY, widgetFixedW, widgetFixedH};
+                    m_isDraggingProjectTimer = true;
+                    m_projectTimerDragOffsetX = static_cast<float>(mouseX) - m_projectTimerWidgetX;
+                    m_projectTimerDragOffsetY = static_cast<float>(mouseY) - m_projectTimerWidgetY;
+                    uiClicked = true;
+                }
+            }
+            // 3. Check Variables List Container Drag
+            if (!uiClicked && m_showVariablesList && !m_HUDVariables.empty())
+            {
+                // Calculate dynamic height for accurate click detection
+                float itemHeight = 22.0f;
+                float itemPadding = 3.0f;
+                float verticalSpacing = 2.0f;
+                float totalItemsHeight = m_HUDVariables.size() * itemHeight;
+                float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
+                float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
+                float containerFixedWidth = 180.0f; // Must match drawHUD
 
-                        if (mouseX >= timerWidgetRect.x && mouseX <= timerWidgetRect.x + timerWidgetRect.w &&
-                            mouseY >= timerWidgetRect.y && mouseY <= timerWidgetRect.y + timerWidgetRect.h)
+                SDL_FRect varListWidgetRect = {m_variablesListWidgetX, m_variablesListWidgetY, containerFixedWidth, containerDynamicHeight};
+                if (mouseX >= varListWidgetRect.x && mouseX <= varListWidgetRect.x + varListWidgetRect.w &&
+                    mouseY >= varListWidgetRect.y && mouseY <= varListWidgetRect.y + varListWidgetRect.h)
+                {
+                    m_isDraggingVariablesList = true;
+                    m_variablesListDragOffsetX = static_cast<float>(mouseX) - m_variablesListWidgetX;
+                    m_variablesListDragOffsetY = static_cast<float>(mouseY) - m_variablesListWidgetY;
+                    uiClicked = true;
+                }
+            }
+            if (!uiClicked && m_gameplayInputActive)
+            {
+
+                if (!m_mouseClickedScripts.empty())
+                {
+                    for (const auto &scriptPair : m_mouseClickedScripts)
+                    {
+                        const string &objectId = scriptPair.first;
+                        const Script *scriptPtr = scriptPair.second;
+                        Entity *currentEntity = getEntityById(objectId);
+
+                        if (currentEntity && currentEntity->isVisible())
                         {
-                            m_isDraggingProjectTimer = true;
-                            m_projectTimerDragOffsetX = static_cast<float>(mouseX) - m_projectTimerWidgetX;
-                            m_projectTimerDragOffsetY = static_cast<float>(mouseY) - m_projectTimerWidgetY;
-                            uiClicked = true;
-                        }
-                    }
-                    // 3. Check Variables List Container Drag
-                    if (!uiClicked && m_showVariablesList && !m_visibleHUDVariables.empty()) {
-                        // Calculate dynamic height for accurate click detection
-                        float itemHeight = 22.0f; float itemPadding = 3.0f; float verticalSpacing = 2.0f;
-                        float totalItemsHeight = m_visibleHUDVariables.size() * itemHeight;
-                        float totalSpacingHeight = (m_visibleHUDVariables.size() > 1) ? (m_visibleHUDVariables.size() - 1) * verticalSpacing : 0;
-                        float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
-                        float containerFixedWidth = 180.0f; // Must match drawHUD
-
-                        SDL_FRect varListWidgetRect = {m_variablesListWidgetX, m_variablesListWidgetY, containerFixedWidth, containerDynamicHeight};
-                        if (mouseX >= varListWidgetRect.x && mouseX <= varListWidgetRect.x + varListWidgetRect.w &&
-                            mouseY >= varListWidgetRect.y && mouseY <= varListWidgetRect.y + varListWidgetRect.h) {
-                            m_isDraggingVariablesList = true;
-                            m_variablesListDragOffsetX = static_cast<float>(mouseX) - m_variablesListWidgetX;
-                            m_variablesListDragOffsetY = static_cast<float>(mouseY) - m_variablesListWidgetY;
-                            uiClicked = true;
-                        }
-                    }
-                    if (!uiClicked && m_gameplayInputActive)
-                    {
-
-                        if (!m_mouseClickedScripts.empty())
-                        {
-                            for (const auto &scriptPair : m_mouseClickedScripts)
+                            bool executeForScene = false;
+                            for (const auto &objInfo : objects_in_order)
                             {
-                                const string &objectId = scriptPair.first;
-                                const Script *scriptPtr = scriptPair.second;
-                                Entity *currentEntity = getEntityById(objectId);
-
-                                if (currentEntity && currentEntity->isVisible())
+                                if (objInfo.id == objectId)
                                 {
-                                    bool executeForScene = false;
-                                    for (const auto &objInfo : objects_in_order)
+                                    bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+                                    bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+                                    if (isInCurrentScene || isGlobal)
                                     {
-                                        if (objInfo.id == objectId)
-                                        {
-                                            bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                            bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                                            if (isInCurrentScene || isGlobal)
-                                            {
-                                                executeForScene = true;
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    if (executeForScene)
-                                    {
-                                        executeScript(*this, objectId, scriptPtr);
-                                    }
-                                }
-                                else if (!currentEntity)
-                                {
-                                    EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
-                                }
-                            }
-                        }
-
-                        float stageMouseX = 0.0f, stageMouseY = 0.0f;
-                        if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY))
-                        {
-
-                            for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
-                            {
-                                const ObjectInfo &objInfo = objects_in_order[i];
-                                const string &objectId = objInfo.id;
-
-                                bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                                if (!isInCurrentScene && !isGlobal)
-                                {
-                                    continue;
-                                }
-
-                                Entity *entity = getEntityById(objectId);
-                                if (!entity || !entity->isVisible())
-                                {
-                                    continue;
-                                }
-
-                                if (entity->isPointInside(stageMouseX, stageMouseY))
-                                {
-                                    m_pressedObjectId = objectId;
-
-                                    for (const auto &clickScriptPair : m_whenObjectClickedScripts)
-                                    {
-                                        if (clickScriptPair.first == objectId)
-                                        {
-                                            const Script *scriptPtr = clickScriptPair.second;
-                                            EngineStdOut("Executing 'when_object_click' for object: " + objectId, 0);
-                                            executeScript(*this, objectId, scriptPtr);
-                                        }
+                                        executeForScene = true;
                                     }
                                     break;
                                 }
                             }
-                        }
-                        else
-                        {
-                            EngineStdOut("Warning: Could not map window to stage coordinates for object click.", 1);
-                        }
-                    }
-                    else if (uiClicked)
-                    {
-                        m_pressedObjectId = "";
-                    }
-                }
-            }
-            else if (event.type == SDL_EVENT_KEY_DOWN)
-            {
-                if (m_gameplayInputActive)
-                {
-                    SDL_Scancode scancode = event.key.scancode;
-                    auto it = keyPressedScripts.find(scancode);
-                    if (it != keyPressedScripts.end())
-                    {
-                        const auto &scriptsToRun = it->second;
-                        for (const auto &scriptPair : scriptsToRun)
-                        {
-                            const string &objectId = scriptPair.first;
-                            const Script *scriptPtr = scriptPair.second;
-                            EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
-                            executeScript(*this, objectId, scriptPtr);
-                        }
-                    }
-                }
-            }
-            else if (event.type == SDL_EVENT_MOUSE_MOTION)
-            {
-                if (this->m_isDraggingZoomSlider && (event.motion.state & SDL_BUTTON_LMASK))
-                {
-                    int mouseX = event.motion.x;
-
-                    if (mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH)
-                    {
-                        float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
-                        this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
-                        this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
-                    }
-                }
-                // Project timer drag
-                if (m_isDraggingProjectTimer && (event.motion.state & SDL_BUTTON_LMASK))
-                {
-                    int mouseX = event.motion.x;
-                    int mouseY = event.motion.y;
-                    m_projectTimerWidgetX = static_cast<float>(mouseX) - m_projectTimerDragOffsetX;
-                    m_projectTimerWidgetY = static_cast<float>(mouseY) - m_projectTimerDragOffsetY;
-
-                    int windowW = 0, windowH = 0;
-                    if (renderer)
-                        SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
-                    float widgetFixedW = 120.0f;
-                    float widgetFixedH = 25.0f;
-
-                    if (windowW > 0 && windowH > 0)
-                    {
-                        m_projectTimerWidgetX = max(0.0f, min(m_projectTimerWidgetX, static_cast<float>(windowW) - widgetFixedW));
-                        m_projectTimerWidgetY = max(0.0f, min(m_projectTimerWidgetY, static_cast<float>(windowH) - widgetFixedH));
-                    }
-                }
-                // Variables list container drag
-                if (m_isDraggingVariablesList && (event.motion.state & SDL_BUTTON_LMASK)) {
-                    int mouseX = event.motion.x;
-                    int mouseY = event.motion.y;
-                    m_variablesListWidgetX = static_cast<float>(mouseX) - m_variablesListDragOffsetX;
-                    m_variablesListWidgetY = static_cast<float>(mouseY) - m_variablesListDragOffsetY;
-
-                    int windowW = 0, windowH = 0;
-                    if (renderer) SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
-                    // Dynamic height calculation for clamping
-                    float itemHeight = 22.0f; float itemPadding = 3.0f; float verticalSpacing = 2.0f;
-                    float totalItemsHeight = m_visibleHUDVariables.size() * itemHeight;
-                    float totalSpacingHeight = (m_visibleHUDVariables.size() > 1) ? (m_visibleHUDVariables.size() - 1) * verticalSpacing : 0;
-                    float widgetDynamicH = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
-                    float widgetFixedW = 180.0f;
-
-                    if (windowW > 0 && windowH > 0) {
-                        m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - widgetFixedW));
-                        m_variablesListWidgetY = max(0.0f, min(m_variablesListWidgetY, static_cast<float>(windowH) - widgetDynamicH));
-                    }
-                }
-            }
-            else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP)
-            {
-                if (event.button.button == SDL_BUTTON_LEFT)
-                {                    
-                    bool uiDragReleased = false;
-                    if (this->m_isDraggingZoomSlider)
-                    {
-                        // this->m_isDraggingZoomSlider = false; // 이 줄은 중복될 수 있습니다. 아래에서 이미 처리됨.
-                        this->m_isDraggingZoomSlider = false;
-                        uiDragReleased = true;
-                    }
-                    if (m_isDraggingProjectTimer)
-                    {
-                        m_isDraggingProjectTimer = false;
-                        uiDragReleased = true;
-                    }
-                    if (m_isDraggingVariablesList) {
-                        m_isDraggingVariablesList = false;
-                        uiDragReleased = true;
-                    }
-
-                    // Ensure m_isDraggingZoomSlider is false if it wasn't the one released (though it should be caught above)
-                    if (!uiDragReleased && this->m_isDraggingZoomSlider) { // This case should ideally not happen if logic is correct
-                        this->m_isDraggingZoomSlider = false;
-                    }
-
-                    if (m_gameplayInputActive && !uiDragReleased) // Only if not releasing a UI drag
-                    {
-
-                        if (!m_mouseClickCanceledScripts.empty())
-                        {
-                            for (const auto &scriptPair : m_mouseClickCanceledScripts)
+                            if (executeForScene)
                             {
-                                const string &objectId = scriptPair.first;
-                                const Script *scriptPtr = scriptPair.second;
-                                Entity *currentEntity = getEntityById(objectId);
-                                if (currentEntity && currentEntity->isVisible())
-                                {
-                                    bool executeForScene = false;
-                                    for (const auto &objInfo : objects_in_order)
-                                    {
-                                        if (objInfo.id == objectId)
-                                        {
-                                            bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                            bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                                            if (isInCurrentScene || isGlobal)
-                                            {
-                                                executeForScene = true;
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    if (executeForScene)
-                                    {
-                                        executeScript(*this, objectId, scriptPtr);
-                                    }
-                                }
-                                else if (!currentEntity)
-                                {
-                                    EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
-                                }
+                                executeScript(*this, objectId, scriptPtr);
                             }
                         }
-
-                        if (!m_pressedObjectId.empty())
+                        else if (!currentEntity)
                         {
-                            const string &canceledObjectId = m_pressedObjectId;
-                            // m_pressedObjectId is reset here, important!
-                            // Check if the mouse is still over the object that was initially pressed.
-                            // If not, it's a click cancel. If it is, it could be a click completion (handled elsewhere or by specific blocks).
-                            // For "when_object_click_canceled", it usually means the mouse was released *off* the object or after dragging.
-                            // The current logic triggers it if m_pressedObjectId was set.
-                            
-                            // Let's ensure m_pressedObjectId is cleared *after* using its value
-                            // for the scripts, but before the next potential click.
+                            EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
+                        }
+                    }
+                }
 
-                            for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
+                float stageMouseX = 0.0f, stageMouseY = 0.0f;
+                if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY))
+                {
+
+                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
+                    {
+                        const ObjectInfo &objInfo = objects_in_order[i];
+                        const string &objectId = objInfo.id;
+
+                        bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+                        bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+                        if (!isInCurrentScene && !isGlobal)
+                        {
+                            continue;
+                        }
+
+                        Entity *entity = getEntityById(objectId);
+                        if (!entity || !entity->isVisible())
+                        {
+                            continue;
+                        }
+
+                        if (entity->isPointInside(stageMouseX, stageMouseY))
+                        {
+                            m_pressedObjectId = objectId;
+
+                            for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
-                                if (scriptPair.first == canceledObjectId)
+                                if (clickScriptPair.first == objectId)
                                 {
-                                    const Script *scriptPtr = scriptPair.second;
-                                    // Entity *entity = getEntityById(canceledObjectId); // Not strictly needed for execution here
-
-                                    EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                                    executeScript(*this, canceledObjectId, scriptPtr);
+                                    const Script *scriptPtr = clickScriptPair.second;
+                                    EngineStdOut("Executing 'when_object_click' for object: " + objectId, 0);
+                                    executeScript(*this, objectId, scriptPtr);
                                 }
                             }
+                            break;
                         }
                     }
-                    // Clear m_pressedObjectId after all processing for this MOUSE_BUTTON_UP event is done,
-                    // especially if it was a UI drag release that didn't involve game objects.
-                    // If it was a game object interaction, it should have been cleared inside the `if (!m_pressedObjectId.empty())` block.
-                    // This ensures it's clean for the next MOUSE_BUTTON_DOWN.
-                    m_pressedObjectId = "";
-                }
-            }
-        }
-
-        void Engine::setVisibleHUDVariables(const vector<HUDVariableDisplay>& variables)
-        {
-            m_visibleHUDVariables = variables;
-            // EngineStdOut("HUD variables updated. Count: " + to_string(m_visibleHUDVariables.size()), 0);
-        }
-
-        SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
-        {
-
-            static const map<string, SDL_Scancode> jsKeyCodeMap = {
-                {"8", SDL_SCANCODE_BACKSPACE},
-                {"9", SDL_SCANCODE_TAB},
-                {"13", SDL_SCANCODE_RETURN},
-
-                {"16", SDL_SCANCODE_LSHIFT},
-                {"17", SDL_SCANCODE_LCTRL},
-                {"18", SDL_SCANCODE_LALT},
-                {"27", SDL_SCANCODE_ESCAPE},
-                {"32", SDL_SCANCODE_SPACE},
-                {"37", SDL_SCANCODE_LEFT},
-                {"38", SDL_SCANCODE_UP},
-                {"39", SDL_SCANCODE_RIGHT},
-                {"40", SDL_SCANCODE_DOWN},
-
-                {"48", SDL_SCANCODE_0},
-                {"49", SDL_SCANCODE_1},
-                {"50", SDL_SCANCODE_2},
-                {"51", SDL_SCANCODE_3},
-                {"52", SDL_SCANCODE_4},
-                {"53", SDL_SCANCODE_5},
-                {"54", SDL_SCANCODE_6},
-                {"55", SDL_SCANCODE_7},
-                {"56", SDL_SCANCODE_8},
-                {"57", SDL_SCANCODE_9},
-
-                {"65", SDL_SCANCODE_A},
-                {"66", SDL_SCANCODE_B},
-                {"67", SDL_SCANCODE_C},
-                {"68", SDL_SCANCODE_D},
-                {"69", SDL_SCANCODE_E},
-                {"70", SDL_SCANCODE_F},
-                {"71", SDL_SCANCODE_G},
-                {"72", SDL_SCANCODE_H},
-                {"73", SDL_SCANCODE_I},
-                {"74", SDL_SCANCODE_J},
-                {"75", SDL_SCANCODE_K},
-                {"76", SDL_SCANCODE_L},
-                {"77", SDL_SCANCODE_M},
-                {"78", SDL_SCANCODE_N},
-                {"79", SDL_SCANCODE_O},
-                {"80", SDL_SCANCODE_P},
-                {"81", SDL_SCANCODE_Q},
-                {"82", SDL_SCANCODE_R},
-                {"83", SDL_SCANCODE_S},
-                {"84", SDL_SCANCODE_T},
-                {"85", SDL_SCANCODE_U},
-                {"86", SDL_SCANCODE_V},
-                {"87", SDL_SCANCODE_W},
-                {"88", SDL_SCANCODE_X},
-                {"89", SDL_SCANCODE_Y},
-                {"90", SDL_SCANCODE_Z},
-
-                {"186", SDL_SCANCODE_SEMICOLON},
-                {"187", SDL_SCANCODE_EQUALS},
-                {"188", SDL_SCANCODE_COMMA},
-                {"189", SDL_SCANCODE_MINUS},
-                {"190", SDL_SCANCODE_PERIOD},
-                {"191", SDL_SCANCODE_SLASH},
-                {"192", SDL_SCANCODE_GRAVE},
-                {"219", SDL_SCANCODE_LEFTBRACKET},
-                {"220", SDL_SCANCODE_BACKSLASH},
-                {"221", SDL_SCANCODE_RIGHTBRACKET},
-                {"222", SDL_SCANCODE_APOSTROPHE}};
-
-            auto it = jsKeyCodeMap.find(keyIdentifier);
-            if (it != jsKeyCodeMap.end())
-            {
-                return it->second;
-            }
-
-            SDL_Scancode sc = SDL_GetScancodeFromName(keyIdentifier.c_str());
-            if (sc != SDL_SCANCODE_UNKNOWN)
-            {
-                return sc;
-            }
-
-            if (keyIdentifier.length() == 1)
-            {
-                char c = keyIdentifier[0];
-                if (c >= 'a' && c <= 'z')
-                {
-                    char upper_c = static_cast<char>(toupper(c));
-                    string upper_s(1, upper_c);
-                    return SDL_GetScancodeFromName(upper_s.c_str());
-                }
-            }
-
-            return SDL_SCANCODE_UNKNOWN;
-        }
-
-        void Engine::runStartButtonScripts()
-        {
-            if (startButtonScripts.empty())
-            {
-                EngineStdOut("No 'Start Button Clicked' scripts found to run.", 1);
-                return;
-            }
-            EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
-
-            for (const auto &scriptPair : startButtonScripts)
-            {
-                const string &objectId = scriptPair.first;
-                const Script *scriptPtr = scriptPair.second;
-
-                EngineStdOut(" -> Running script for object: " + objectId, 3);
-
-                executeScript(*this, objectId, scriptPtr);
-                m_gameplayInputActive = true;
-                EngineStdOut(" -> executeScript call is commented out. Script for object " + objectId + " was not executed.", 1);
-            }
-            EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
-        }
-
-        void Engine::initFps()
-        {
-            lastfpstime = SDL_GetTicks();
-            framecount = 0;
-            currentFps = 0.0f;
-            EngineStdOut("FPS counter initialized.", 0);
-        }
-
-        void Engine::setfps(int fps)
-        {
-            if (fps > 0)
-            {
-                this->specialConfig.TARGET_FPS = fps;
-                EngineStdOut("Target FPS set to: " + to_string(this->specialConfig.TARGET_FPS), 0);
-            }
-            else
-            {
-                EngineStdOut("Attempted to set invalid Target FPS: " + to_string(fps) + ". Keeping current TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
-            }
-        }
-
-        void Engine::updateFps()
-        {
-            framecount++;
-            Uint64 now = SDL_GetTicks();
-            Uint64 delta = now - lastfpstime;
-
-            if (delta >= 1000)
-            {
-                currentFps = static_cast<float>(framecount * 1000.0) / delta;
-                lastfpstime = now;
-                framecount = 0;
-            }
-        }
-        void Engine::startProjectTimer()
-        {
-            m_projectTimerRunning = true;
-            EngineStdOut("Project timer started.", 0);
-        }
-
-        void Engine::stopProjectTimer()
-        {
-            m_projectTimerRunning = false;
-            EngineStdOut("Project timer stopped.", 0);
-        }
-
-        void Engine::resetProjectTimer()
-        {
-            m_projectTimerValue = 0.0;
-            EngineStdOut("Project timer reset.", 0);
-        }
-
-        void Engine::showProjectTimer(bool show)
-        {
-            m_projectTimerVisible = show;
-            EngineStdOut(string("Project timer visibility set to: ") + (show ? "Visible" : "Hidden"), 0);
-        }
-
-        double Engine::getProjectTimerValue() const
-        {
-            if (m_projectTimerRunning)
-            {
-                Uint64 now = SDL_GetTicks();
-                Uint64 delta = now - lastfpstime;
-                return static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
-            }
-            return m_projectTimerValue;
-        }
-        Entity *Engine::getEntityById(const string &id)
-        {
-            auto it = entities.find(id);
-            if (it != entities.end())
-            {
-                return it->second;
-            }
-
-            return nullptr;
-        }
-
-        void Engine::renderLoadingScreen()
-        {
-
-            if (!this->renderer)
-            {
-                EngineStdOut("renderLoadingScreen: Renderer not available.", 1);
-                return;
-            }
-
-            SDL_SetRenderDrawColor(this->renderer, 30, 30, 30, 255);
-            SDL_RenderClear(this->renderer);
-
-            int windowW = 0, windowH = 0;
-            SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
-            int barWidth = 400;
-            int barHeight = 30;
-            int barX = (windowW - barWidth) / 2;
-            int barY = (windowH - barHeight) / 2;
-
-            SDL_FRect bgRect = {static_cast<float>(barX), static_cast<float>(barY), static_cast<float>(barWidth), static_cast<float>(barHeight)};
-            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-            SDL_RenderFillRect(renderer, &bgRect);
-
-            SDL_FRect innerBgRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(barWidth - 4), static_cast<float>(barHeight - 4)};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-            SDL_RenderFillRect(renderer, &innerBgRect);
-
-            float progressPercent = 0.0f;
-            if (totalItemsToLoad > 0)
-            {
-                progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
-            }
-            progressPercent = min(1.0f, max(0.0f, progressPercent));
-
-            int progressWidth = static_cast<int>((barWidth - 4) * progressPercent);
-            SDL_FRect progressRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(progressWidth), static_cast<float>(barHeight - 4)};
-            SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
-            SDL_RenderFillRect(renderer, &progressRect);
-
-            if (loadingScreenFont)
-            {
-                SDL_Color textColor = {220, 220, 220, 255};
-
-                ostringstream percentStream;
-                percentStream << fixed << setprecision(0) << (progressPercent * 100.0f) << "%";
-                string percentText = percentStream.str();
-
-                SDL_Surface *surfPercent = TTF_RenderText_Blended(loadingScreenFont, percentText.c_str(), percentText.size(), textColor);
-                if (surfPercent)
-                {
-                    SDL_Texture *texPercent = SDL_CreateTextureFromSurface(renderer, surfPercent);
-                    if (texPercent)
-                    {
-
-                        SDL_FRect dstRect = {barX + barWidth + 10.0f, barY + (barHeight - static_cast<float>(surfPercent->h)) / 2.0f, static_cast<float>(surfPercent->w), static_cast<float>(surfPercent->h)};
-                        SDL_RenderTexture(renderer, texPercent, nullptr, &dstRect);
-                        SDL_DestroyTexture(texPercent);
-                    }
-                    else
-                    {
-                        EngineStdOut("Failed to create loading percent text texture: " + string(SDL_GetError()), 2);
-                    }
-                    SDL_DestroySurface(surfPercent);
                 }
                 else
                 {
-                    EngineStdOut("Failed to render loading percent text surface ", 2);
-                }
-
-                if (!specialConfig.BRAND_NAME.empty())
-                {
-                    SDL_Surface *surfBrand = TTF_RenderText_Blended(loadingScreenFont, specialConfig.BRAND_NAME.c_str(), specialConfig.BRAND_NAME.size(), textColor);
-                    if (surfBrand)
-                    {
-                        SDL_Texture *texBrand = SDL_CreateTextureFromSurface(renderer, surfBrand);
-                        if (texBrand)
-                        {
-
-                            SDL_FRect dstRect = {(windowW - static_cast<float>(surfBrand->w)) / 2.0f, barY - static_cast<float>(surfBrand->h) - 10.0f, static_cast<float>(surfBrand->w), static_cast<float>(surfBrand->h)};
-                            SDL_RenderTexture(renderer, texBrand, nullptr, &dstRect);
-                            SDL_DestroyTexture(texBrand);
-                        }
-                        else
-                        {
-                            EngineStdOut("Failed to create brand name text texture: " + string(SDL_GetError()), 2);
-                        }
-                        SDL_DestroySurface(surfBrand);
-                    }
-                    else
-                    {
-                        EngineStdOut("Failed to render brand name text surface ", 2);
-                    }
-                }
-
-                if (specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty())
-                {
-                    SDL_Surface *surfProject = TTF_RenderText_Blended(loadingScreenFont, PROJECT_NAME.c_str(), PROJECT_NAME.size(), textColor);
-                    if (surfProject)
-                    {
-                        SDL_Texture *texProject = SDL_CreateTextureFromSurface(renderer, surfProject);
-                        if (texProject)
-                        {
-                            SDL_FRect dstRect = {(windowW - static_cast<float>(surfProject->w)) / 2.0f, barY + static_cast<float>(surfProject->h) + 20.0f, static_cast<float>(surfProject->w), static_cast<float>(surfProject->h)};
-                            SDL_RenderTexture(renderer, texProject, nullptr, &dstRect);
-                            SDL_DestroyTexture(texProject);
-                        }
-                        else
-                        {
-                            EngineStdOut("Failed to create project name text texture: " + string(SDL_GetError()), 2);
-                        }
-                        SDL_DestroySurface(surfProject);
-                    }
-                    else
-                    {
-                        EngineStdOut("Failed to render project name text surface ", 2);
-                    }
+                    EngineStdOut("Warning: Could not map window to stage coordinates for object click.", 1);
                 }
             }
-            else
+            else if (uiClicked)
             {
-                EngineStdOut("renderLoadingScreen: Loading screen font not available. Cannot draw text.", 1);
-            }
-
-            SDL_RenderPresent(this->renderer);
-        }
-
-        const string &Engine::getCurrentSceneId() const
-        {
-            return currentSceneId;
-        }
-
-        /**
-         * @brief 메시지 박스 표시
-         *
-         * @param message 메시지 내용
-         * @param IconType 아이콘 종류
-         * @param showYesNo 예 / 아니오
-         */
-        bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo) const
-        {
-            Uint32 flags = 0;
-            const char *title = OMOCHA_ENGINE_NAME;
-
-            switch (IconType)
-            {
-            case SDL_MESSAGEBOX_ERROR:
-                flags = SDL_MESSAGEBOX_ERROR;
-                title = "Omocha is Broken";
-                break;
-            case SDL_MESSAGEBOX_WARNING:
-                flags = SDL_MESSAGEBOX_WARNING;
-                title = PROJECT_NAME.c_str();
-                break;
-            case SDL_MESSAGEBOX_INFORMATION:
-                flags = SDL_MESSAGEBOX_INFORMATION;
-                title = PROJECT_NAME.c_str();
-                break;
-            default:
-
-                EngineStdOut("Unknown IconType passed to showMessageBox: " + to_string(IconType) + ". Using default INFORMATION.", 1);
-                flags = SDL_MESSAGEBOX_INFORMATION;
-                title = "Message";
-                break;
-            }
-
-            const SDL_MessageBoxButtonData buttons[]{
-                {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Yes"},
-                {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "No"}};
-            const SDL_MessageBoxData messageboxData{
-                flags,
-                window,
-                title,
-                message.c_str(),
-                SDL_arraysize(buttons),
-                buttons,
-                nullptr};
-            if (showYesNo)
-            {
-                int buttonid_press = -1;
-                if (SDL_ShowMessageBox(&messageboxData, &buttonid_press) < 0)
-                {
-                    EngineStdOut("Can't Showing MessageBox");
-                }
-                else
-                {
-                    if (buttonid_press == 0)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-            }
-            else
-            {
-                SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window);
-                return true;
+                m_pressedObjectId = "";
             }
         }
-
-        /**
-         * @brief 엔진 로그출력
-         *
-         * @param s 출력할내용
-         * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수
-         */
-        void Engine::EngineStdOut(string s, int LEVEL) const
+    }
+    else if (event.type == SDL_EVENT_KEY_DOWN)
+    {
+        if (m_gameplayInputActive)
         {
-            string prefix;
-
-            string color_code = ANSI_COLOR_RESET;
-
-            switch (LEVEL)
+            SDL_Scancode scancode = event.key.scancode;
+            auto it = keyPressedScripts.find(scancode);
+            if (it != keyPressedScripts.end())
             {
-            case 0:
-                prefix = "[INFO]";
-                color_code = ANSI_COLOR_CYAN;
-                break;
-            case 1:
-                prefix = "[WARN]";
-                color_code = ANSI_COLOR_YELLOW;
-                break;
-            case 2:
-                prefix = "[ERROR]";
-                color_code = ANSI_COLOR_RED;
-                break;
-            case 3:
-                prefix = "[DEBUG]";
-                color_code = ANSI_STYLE_BOLD;
-                break;
-            case 4:
-                prefix = "[SAYHELLO]";
-                color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD;
-                break;
-            default:
-                prefix = "[LOG]";
-                break;
-            }
-
-            printf("%s%s %s%s\n", color_code.c_str(), prefix.c_str(), s.c_str(), ANSI_COLOR_RESET.c_str());
-
-            string logMessage = format("{} {}", prefix, s);
-            logger.log(logMessage);
-        }
-
-        void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY)
-        {
-            float stageX_calc, stageY_calc;
-            if (mapWindowToStageCoordinates(windowMouseX, windowMouseY, stageX_calc, stageY_calc))
-            {
-                this->m_currentStageMouseX = stageX_calc;
-                this->m_currentStageMouseY = stageY_calc;
-                this->m_isMouseOnStage = true;
-            }
-            else
-            {
-                this->m_isMouseOnStage = false;
-                // 마우스가 스테이지 밖에 있을 때의 처리:
-                // 엔트리는 마지막 유효 좌표를 유지하거나 0을 반환할 수 있습니다.
-                // 현재는 m_isMouseOnStage 플래그로 구분하고, BlockExecutor에서 이 플래그를 확인하여 처리합니다.
-                // 필요하다면 여기서 m_currentStageMouseX/Y를 특정 값(예: 0)으로 리셋할 수 있습니다.
-                // this->m_currentStageMouseX = 0.0f;
-                // this->m_currentStageMouseY = 0.0f;
-            }
-        }
-        void Engine::goToScene(const string &sceneId)
-        {
-            if (scenes.count(sceneId))
-            {
-                if (currentSceneId == sceneId)
+                const auto &scriptsToRun = it->second;
+                for (const auto &scriptPair : scriptsToRun)
                 {
-                    EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0);
-
-                    return;
-                }
-                currentSceneId = sceneId;
-                EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-                triggerWhenSceneStartScripts();
-            }
-            else
-            {
-                EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2);
-            }
-        }
-
-        void Engine::goToNextScene()
-        {
-            if (m_sceneOrder.empty())
-            {
-                EngineStdOut("Cannot go to next scene: Scene order is not defined or no scenes loaded.", 1);
-                return;
-            }
-            if (currentSceneId.empty())
-            {
-                EngineStdOut("Cannot go to next scene: Current scene ID is empty.", 1);
-                return;
-            }
-
-            auto it = find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
-            if (it != m_sceneOrder.end())
-            {
-                size_t currentIndex = distance(m_sceneOrder.begin(), it);
-                if (currentIndex + 1 < m_sceneOrder.size())
-                {
-                    goToScene(m_sceneOrder[currentIndex + 1]);
-                }
-                else
-                {
-                    EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-                }
-            }
-            else
-            {
-                EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine next scene.", 2);
-            }
-        }
-
-        void Engine::goToPreviousScene()
-        {
-            if (m_sceneOrder.empty())
-            {
-                EngineStdOut("Cannot go to previous scene: Scene order is not defined or no scenes loaded.", 1);
-                return;
-            }
-            if (currentSceneId.empty())
-            {
-                EngineStdOut("Cannot go to previous scene: Current scene ID is empty.", 1);
-                return;
-            }
-
-            auto it = find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
-            if (it != m_sceneOrder.end())
-            {
-                size_t currentIndex = distance(m_sceneOrder.begin(), it);
-                if (currentIndex > 0)
-                {
-                    goToScene(m_sceneOrder[currentIndex - 1]);
-                }
-                else
-                {
-                    EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
-                }
-            }
-            else
-            {
-                EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine previous scene.", 2);
-            }
-        }
-
-        void Engine::triggerWhenSceneStartScripts()
-        {
-            if (currentSceneId.empty())
-            {
-                EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
-                return;
-            }
-            EngineStdOut("Triggering 'when_scene_start' scripts for scene: " + currentSceneId, 0);
-            for (const auto &scriptPair : m_whenStartSceneLoadedScripts)
-            {
-                const string &objectId = scriptPair.first;
-                const Script *scriptPtr = scriptPair.second;
-
-                bool executeForScene = false;
-                for (const auto &objInfo : objects_in_order)
-                {
-                    if (objInfo.id == objectId && (objInfo.sceneId == currentSceneId || objInfo.sceneId == "global" || objInfo.sceneId.empty()))
-                    {
-                        executeForScene = true;
-                        break;
-                    }
-                }
-
-                if (executeForScene)
-                {
-                    EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
+                    const string &objectId = scriptPair.first;
+                    const Script *scriptPtr = scriptPair.second;
+                    EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
                     executeScript(*this, objectId, scriptPtr);
                 }
             }
         }
+    }
+    else if (event.type == SDL_EVENT_MOUSE_MOTION)
+    {
+        if (this->m_isDraggingZoomSlider && (event.motion.state & SDL_BUTTON_LMASK))
+        {
+            int mouseX = event.motion.x;
+
+            if (mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH)
+            {
+                float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
+                this->zoomFactor = MIN_ZOOM + ratio * (MAX_ZOOM - MIN_ZOOM);
+                this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
+            }
+        }
+        // Project timer drag
+        if (m_isDraggingProjectTimer && (event.motion.state & SDL_BUTTON_LMASK))
+        {
+            int mouseX = event.motion.x;
+            int mouseY = event.motion.y;
+            m_projectTimerWidgetX = static_cast<float>(mouseX) - m_projectTimerDragOffsetX;
+            m_projectTimerWidgetY = static_cast<float>(mouseY) - m_projectTimerDragOffsetY;
+
+            int windowW = 0, windowH = 0;
+            if (renderer)
+                SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+
+            float widgetFixedW = 120.0f;
+            float widgetFixedH = 25.0f;
+
+            if (windowW > 0 && windowH > 0)
+            {
+                m_projectTimerWidgetX = max(0.0f, min(m_projectTimerWidgetX, static_cast<float>(windowW) - widgetFixedW));
+                m_projectTimerWidgetY = max(0.0f, min(m_projectTimerWidgetY, static_cast<float>(windowH) - widgetFixedH));
+            }
+        }
+        // Variables list container drag
+        if (m_isDraggingVariablesList && (event.motion.state & SDL_BUTTON_LMASK))
+        {
+            int mouseX = event.motion.x;
+            int mouseY = event.motion.y;
+            m_variablesListWidgetX = static_cast<float>(mouseX) - m_variablesListDragOffsetX;
+            m_variablesListWidgetY = static_cast<float>(mouseY) - m_variablesListDragOffsetY;
+
+            int windowW = 0, windowH = 0;
+            if (renderer)
+                SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+
+            // Dynamic height calculation for clamping
+            float itemHeight = 22.0f;
+            float itemPadding = 3.0f;
+            float verticalSpacing = 2.0f;
+            float totalItemsHeight = m_HUDVariables.size() * itemHeight;
+            float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
+            float widgetDynamicH = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
+            float widgetFixedW = 180.0f;
+
+            if (windowW > 0 && windowH > 0)
+            {
+                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - widgetFixedW));
+                m_variablesListWidgetY = max(0.0f, min(m_variablesListWidgetY, static_cast<float>(windowH) - widgetDynamicH));
+            }
+        }
+    }
+    else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP)
+    {
+        if (event.button.button == SDL_BUTTON_LEFT)
+        {
+            bool uiDragReleased = false;
+            if (this->m_isDraggingZoomSlider)
+            {
+                // this->m_isDraggingZoomSlider = false; // 이 줄은 중복될 수 있습니다. 아래에서 이미 처리됨.
+                this->m_isDraggingZoomSlider = false;
+                uiDragReleased = true;
+            }
+            if (m_isDraggingProjectTimer)
+            {
+                m_isDraggingProjectTimer = false;
+                uiDragReleased = true;
+            }
+            if (m_isDraggingVariablesList)
+            {
+                m_isDraggingVariablesList = false;
+                uiDragReleased = true;
+            }
+
+            // Ensure m_isDraggingZoomSlider is false if it wasn't the one released (though it should be caught above)
+            if (!uiDragReleased && this->m_isDraggingZoomSlider)
+            { // This case should ideally not happen if logic is correct
+                this->m_isDraggingZoomSlider = false;
+            }
+
+            if (m_gameplayInputActive && !uiDragReleased) // Only if not releasing a UI drag
+            {
+
+                if (!m_mouseClickCanceledScripts.empty())
+                {
+                    for (const auto &scriptPair : m_mouseClickCanceledScripts)
+                    {
+                        const string &objectId = scriptPair.first;
+                        const Script *scriptPtr = scriptPair.second;
+                        Entity *currentEntity = getEntityById(objectId);
+                        if (currentEntity && currentEntity->isVisible())
+                        {
+                            bool executeForScene = false;
+                            for (const auto &objInfo : objects_in_order)
+                            {
+                                if (objInfo.id == objectId)
+                                {
+                                    bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+                                    bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+                                    if (isInCurrentScene || isGlobal)
+                                    {
+                                        executeForScene = true;
+                                    }
+                                    break;
+                                }
+                            }
+                            if (executeForScene)
+                            {
+                                executeScript(*this, objectId, scriptPtr);
+                            }
+                        }
+                        else if (!currentEntity)
+                        {
+                            EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
+                        }
+                    }
+                }
+
+                if (!m_pressedObjectId.empty())
+                {
+                    const string &canceledObjectId = m_pressedObjectId;
+                    // m_pressedObjectId is reset here, important!
+                    // Check if the mouse is still over the object that was initially pressed.
+                    // If not, it's a click cancel. If it is, it could be a click completion (handled elsewhere or by specific blocks).
+                    // For "when_object_click_canceled", it usually means the mouse was released *off* the object or after dragging.
+                    // The current logic triggers it if m_pressedObjectId was set.
+
+                    // Let's ensure m_pressedObjectId is cleared *after* using its value
+                    // for the scripts, but before the next potential click.
+
+                    for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
+                    {
+                        if (scriptPair.first == canceledObjectId)
+                        {
+                            const Script *scriptPtr = scriptPair.second;
+                            // Entity *entity = getEntityById(canceledObjectId); // Not strictly needed for execution here
+
+                            EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
+                            executeScript(*this, canceledObjectId, scriptPtr);
+                        }
+                    }
+                }
+            }
+            // Clear m_pressedObjectId after all processing for this MOUSE_BUTTON_UP event is done,
+            // especially if it was a UI drag release that didn't involve game objects.
+            // If it was a game object interaction, it should have been cleared inside the `if (!m_pressedObjectId.empty())` block.
+            // This ensures it's clean for the next MOUSE_BUTTON_DOWN.
+            m_pressedObjectId = "";
+        }
+    }
+}
+
+void Engine::setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables)
+{
+    m_HUDVariables = variables;
+    // EngineStdOut("HUD variables updated. Count: " + to_string(m_visibleHUDVariables.size()), 0);
+}
+
+SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
+{
+
+    static const map<string, SDL_Scancode> jsKeyCodeMap = {
+        {"8", SDL_SCANCODE_BACKSPACE},
+        {"9", SDL_SCANCODE_TAB},
+        {"13", SDL_SCANCODE_RETURN},
+
+        {"16", SDL_SCANCODE_LSHIFT},
+        {"17", SDL_SCANCODE_LCTRL},
+        {"18", SDL_SCANCODE_LALT},
+        {"27", SDL_SCANCODE_ESCAPE},
+        {"32", SDL_SCANCODE_SPACE},
+        {"37", SDL_SCANCODE_LEFT},
+        {"38", SDL_SCANCODE_UP},
+        {"39", SDL_SCANCODE_RIGHT},
+        {"40", SDL_SCANCODE_DOWN},
+
+        {"48", SDL_SCANCODE_0},
+        {"49", SDL_SCANCODE_1},
+        {"50", SDL_SCANCODE_2},
+        {"51", SDL_SCANCODE_3},
+        {"52", SDL_SCANCODE_4},
+        {"53", SDL_SCANCODE_5},
+        {"54", SDL_SCANCODE_6},
+        {"55", SDL_SCANCODE_7},
+        {"56", SDL_SCANCODE_8},
+        {"57", SDL_SCANCODE_9},
+
+        {"65", SDL_SCANCODE_A},
+        {"66", SDL_SCANCODE_B},
+        {"67", SDL_SCANCODE_C},
+        {"68", SDL_SCANCODE_D},
+        {"69", SDL_SCANCODE_E},
+        {"70", SDL_SCANCODE_F},
+        {"71", SDL_SCANCODE_G},
+        {"72", SDL_SCANCODE_H},
+        {"73", SDL_SCANCODE_I},
+        {"74", SDL_SCANCODE_J},
+        {"75", SDL_SCANCODE_K},
+        {"76", SDL_SCANCODE_L},
+        {"77", SDL_SCANCODE_M},
+        {"78", SDL_SCANCODE_N},
+        {"79", SDL_SCANCODE_O},
+        {"80", SDL_SCANCODE_P},
+        {"81", SDL_SCANCODE_Q},
+        {"82", SDL_SCANCODE_R},
+        {"83", SDL_SCANCODE_S},
+        {"84", SDL_SCANCODE_T},
+        {"85", SDL_SCANCODE_U},
+        {"86", SDL_SCANCODE_V},
+        {"87", SDL_SCANCODE_W},
+        {"88", SDL_SCANCODE_X},
+        {"89", SDL_SCANCODE_Y},
+        {"90", SDL_SCANCODE_Z},
+
+        {"186", SDL_SCANCODE_SEMICOLON},
+        {"187", SDL_SCANCODE_EQUALS},
+        {"188", SDL_SCANCODE_COMMA},
+        {"189", SDL_SCANCODE_MINUS},
+        {"190", SDL_SCANCODE_PERIOD},
+        {"191", SDL_SCANCODE_SLASH},
+        {"192", SDL_SCANCODE_GRAVE},
+        {"219", SDL_SCANCODE_LEFTBRACKET},
+        {"220", SDL_SCANCODE_BACKSLASH},
+        {"221", SDL_SCANCODE_RIGHTBRACKET},
+        {"222", SDL_SCANCODE_APOSTROPHE}};
+
+    auto it = jsKeyCodeMap.find(keyIdentifier);
+    if (it != jsKeyCodeMap.end())
+    {
+        return it->second;
+    }
+
+    SDL_Scancode sc = SDL_GetScancodeFromName(keyIdentifier.c_str());
+    if (sc != SDL_SCANCODE_UNKNOWN)
+    {
+        return sc;
+    }
+
+    if (keyIdentifier.length() == 1)
+    {
+        char c = keyIdentifier[0];
+        if (c >= 'a' && c <= 'z')
+        {
+            char upper_c = static_cast<char>(toupper(c));
+            string upper_s(1, upper_c);
+            return SDL_GetScancodeFromName(upper_s.c_str());
+        }
+    }
+
+    return SDL_SCANCODE_UNKNOWN;
+}
+
+void Engine::runStartButtonScripts()
+{
+    if (startButtonScripts.empty())
+    {
+        EngineStdOut("No 'Start Button Clicked' scripts found to run.", 1);
+        return;
+    }
+    EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
+
+    for (const auto &scriptPair : startButtonScripts)
+    {
+        const string &objectId = scriptPair.first;
+        const Script *scriptPtr = scriptPair.second;
+
+        EngineStdOut(" -> Running script for object: " + objectId, 3);
+
+        executeScript(*this, objectId, scriptPtr);
+        m_gameplayInputActive = true;
+        EngineStdOut(" -> executeScript call is commented out. Script for object " + objectId + " was not executed.", 1);
+    }
+    EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
+}
+
+void Engine::initFps()
+{
+    lastfpstime = SDL_GetTicks();
+    framecount = 0;
+    currentFps = 0.0f;
+    EngineStdOut("FPS counter initialized.", 0);
+}
+
+void Engine::setfps(int fps)
+{
+    if (fps > 0)
+    {
+        this->specialConfig.TARGET_FPS = fps;
+        EngineStdOut("Target FPS set to: " + to_string(this->specialConfig.TARGET_FPS), 0);
+    }
+    else
+    {
+        EngineStdOut("Attempted to set invalid Target FPS: " + to_string(fps) + ". Keeping current TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
+    }
+}
+
+void Engine::updateFps()
+{
+    framecount++;
+    Uint64 now = SDL_GetTicks();
+    Uint64 delta = now - lastfpstime;
+
+    if (delta >= 1000)
+    {
+        currentFps = static_cast<float>(framecount * 1000.0) / delta;
+        lastfpstime = now;
+        framecount = 0;
+    }
+}
+void Engine::startProjectTimer()
+{
+    m_projectTimerRunning = true;
+    EngineStdOut("Project timer started.", 0);
+}
+
+void Engine::stopProjectTimer()
+{
+    m_projectTimerRunning = false;
+    EngineStdOut("Project timer stopped.", 0);
+}
+
+void Engine::resetProjectTimer()
+{
+    m_projectTimerValue = 0.0;
+    EngineStdOut("Project timer reset.", 0);
+}
+
+void Engine::showProjectTimer(bool show)
+{
+    m_projectTimerVisible = show;
+    EngineStdOut(string("Project timer visibility set to: ") + (show ? "Visible" : "Hidden"), 0);
+}
+
+double Engine::getProjectTimerValue() const
+{
+    if (m_projectTimerRunning)
+    {
+        Uint64 now = SDL_GetTicks();
+        Uint64 delta = now - lastfpstime;
+        return static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
+    }
+    return m_projectTimerValue;
+}
+Entity *Engine::getEntityById(const string &id)
+{
+    auto it = entities.find(id);
+    if (it != entities.end())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+void Engine::renderLoadingScreen()
+{
+
+    if (!this->renderer)
+    {
+        EngineStdOut("renderLoadingScreen: Renderer not available.", 1);
+        return;
+    }
+
+    SDL_SetRenderDrawColor(this->renderer, 30, 30, 30, 255);
+    SDL_RenderClear(this->renderer);
+
+    int windowW = 0, windowH = 0;
+    SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+
+    int barWidth = 400;
+    int barHeight = 30;
+    int barX = (windowW - barWidth) / 2;
+    int barY = (windowH - barHeight) / 2;
+
+    SDL_FRect bgRect = {static_cast<float>(barX), static_cast<float>(barY), static_cast<float>(barWidth), static_cast<float>(barHeight)};
+    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_RenderFillRect(renderer, &bgRect);
+
+    SDL_FRect innerBgRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(barWidth - 4), static_cast<float>(barHeight - 4)};
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+    SDL_RenderFillRect(renderer, &innerBgRect);
+
+    float progressPercent = 0.0f;
+    if (totalItemsToLoad > 0)
+    {
+        progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
+    }
+    progressPercent = min(1.0f, max(0.0f, progressPercent));
+
+    int progressWidth = static_cast<int>((barWidth - 4) * progressPercent);
+    SDL_FRect progressRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(progressWidth), static_cast<float>(barHeight - 4)};
+    SDL_SetRenderDrawColor(renderer, 255, 165, 0, 255);
+    SDL_RenderFillRect(renderer, &progressRect);
+
+    if (loadingScreenFont)
+    {
+        SDL_Color textColor = {220, 220, 220, 255};
+
+        ostringstream percentStream;
+        percentStream << fixed << setprecision(0) << (progressPercent * 100.0f) << "%";
+        string percentText = percentStream.str();
+
+        SDL_Surface *surfPercent = TTF_RenderText_Blended(loadingScreenFont, percentText.c_str(), percentText.size(), textColor);
+        if (surfPercent)
+        {
+            SDL_Texture *texPercent = SDL_CreateTextureFromSurface(renderer, surfPercent);
+            if (texPercent)
+            {
+
+                SDL_FRect dstRect = {barX + barWidth + 10.0f, barY + (barHeight - static_cast<float>(surfPercent->h)) / 2.0f, static_cast<float>(surfPercent->w), static_cast<float>(surfPercent->h)};
+                SDL_RenderTexture(renderer, texPercent, nullptr, &dstRect);
+                SDL_DestroyTexture(texPercent);
+            }
+            else
+            {
+                EngineStdOut("Failed to create loading percent text texture: " + string(SDL_GetError()), 2);
+            }
+            SDL_DestroySurface(surfPercent);
+        }
+        else
+        {
+            EngineStdOut("Failed to render loading percent text surface ", 2);
+        }
+
+        if (!specialConfig.BRAND_NAME.empty())
+        {
+            SDL_Surface *surfBrand = TTF_RenderText_Blended(loadingScreenFont, specialConfig.BRAND_NAME.c_str(), specialConfig.BRAND_NAME.size(), textColor);
+            if (surfBrand)
+            {
+                SDL_Texture *texBrand = SDL_CreateTextureFromSurface(renderer, surfBrand);
+                if (texBrand)
+                {
+
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfBrand->w)) / 2.0f, barY - static_cast<float>(surfBrand->h) - 10.0f, static_cast<float>(surfBrand->w), static_cast<float>(surfBrand->h)};
+                    SDL_RenderTexture(renderer, texBrand, nullptr, &dstRect);
+                    SDL_DestroyTexture(texBrand);
+                }
+                else
+                {
+                    EngineStdOut("Failed to create brand name text texture: " + string(SDL_GetError()), 2);
+                }
+                SDL_DestroySurface(surfBrand);
+            }
+            else
+            {
+                EngineStdOut("Failed to render brand name text surface ", 2);
+            }
+        }
+
+        if (specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty())
+        {
+            SDL_Surface *surfProject = TTF_RenderText_Blended(loadingScreenFont, PROJECT_NAME.c_str(), PROJECT_NAME.size(), textColor);
+            if (surfProject)
+            {
+                SDL_Texture *texProject = SDL_CreateTextureFromSurface(renderer, surfProject);
+                if (texProject)
+                {
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfProject->w)) / 2.0f, barY + static_cast<float>(surfProject->h) + 20.0f, static_cast<float>(surfProject->w), static_cast<float>(surfProject->h)};
+                    SDL_RenderTexture(renderer, texProject, nullptr, &dstRect);
+                    SDL_DestroyTexture(texProject);
+                }
+                else
+                {
+                    EngineStdOut("Failed to create project name text texture: " + string(SDL_GetError()), 2);
+                }
+                SDL_DestroySurface(surfProject);
+            }
+            else
+            {
+                EngineStdOut("Failed to render project name text surface ", 2);
+            }
+        }
+    }
+    else
+    {
+        EngineStdOut("renderLoadingScreen: Loading screen font not available. Cannot draw text.", 1);
+    }
+
+    SDL_RenderPresent(this->renderer);
+}
+
+const string &Engine::getCurrentSceneId() const
+{
+    return currentSceneId;
+}
+
+/**
+ * @brief 메시지 박스 표시
+ *
+ * @param message 메시지 내용
+ * @param IconType 아이콘 종류
+ * @param showYesNo 예 / 아니오
+ */
+bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo) const
+{
+    Uint32 flags = 0;
+    const char *title = OMOCHA_ENGINE_NAME;
+
+    switch (IconType)
+    {
+    case SDL_MESSAGEBOX_ERROR:
+        flags = SDL_MESSAGEBOX_ERROR;
+        title = "Omocha is Broken";
+        break;
+    case SDL_MESSAGEBOX_WARNING:
+        flags = SDL_MESSAGEBOX_WARNING;
+        title = PROJECT_NAME.c_str();
+        break;
+    case SDL_MESSAGEBOX_INFORMATION:
+        flags = SDL_MESSAGEBOX_INFORMATION;
+        title = PROJECT_NAME.c_str();
+        break;
+    default:
+
+        EngineStdOut("Unknown IconType passed to showMessageBox: " + to_string(IconType) + ". Using default INFORMATION.", 1);
+        flags = SDL_MESSAGEBOX_INFORMATION;
+        title = "Message";
+        break;
+    }
+
+    const SDL_MessageBoxButtonData buttons[]{
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Yes"},
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "No"}};
+    const SDL_MessageBoxData messageboxData{
+        flags,
+        window,
+        title,
+        message.c_str(),
+        SDL_arraysize(buttons),
+        buttons,
+        nullptr};
+    if (showYesNo)
+    {
+        int buttonid_press = -1;
+        if (SDL_ShowMessageBox(&messageboxData, &buttonid_press) < 0)
+        {
+            EngineStdOut("Can't Showing MessageBox");
+        }
+        else
+        {
+            if (buttonid_press == 0)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+    }
+    else
+    {
+        SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window);
+        return true;
+    }
+}
+
+/**
+ * @brief 엔진 로그출력
+ *
+ * @param s 출력할내용
+ * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수
+ */
+void Engine::EngineStdOut(string s, int LEVEL) const
+{
+    string prefix;
+
+    string color_code = ANSI_COLOR_RESET;
+
+    switch (LEVEL)
+    {
+    case 0:
+        prefix = "[INFO]";
+        color_code = ANSI_COLOR_CYAN;
+        break;
+    case 1:
+        prefix = "[WARN]";
+        color_code = ANSI_COLOR_YELLOW;
+        break;
+    case 2:
+        prefix = "[ERROR]";
+        color_code = ANSI_COLOR_RED;
+        break;
+    case 3:
+        prefix = "[DEBUG]";
+        color_code = ANSI_STYLE_BOLD;
+        break;
+    case 4:
+        prefix = "[SAYHELLO]";
+        color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD;
+        break;
+    default:
+        prefix = "[LOG]";
+        break;
+    }
+
+    printf("%s%s %s%s\n", color_code.c_str(), prefix.c_str(), s.c_str(), ANSI_COLOR_RESET.c_str());
+
+    string logMessage = format("{} {}", prefix, s);
+    logger.log(logMessage);
+}
+
+void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY)
+{
+    float stageX_calc, stageY_calc;
+    if (mapWindowToStageCoordinates(windowMouseX, windowMouseY, stageX_calc, stageY_calc))
+    {
+        this->m_currentStageMouseX = stageX_calc;
+        this->m_currentStageMouseY = stageY_calc;
+        this->m_isMouseOnStage = true;
+    }
+    else
+    {
+        this->m_isMouseOnStage = false;
+        // 마우스가 스테이지 밖에 있을 때의 처리:
+        // 엔트리는 마지막 유효 좌표를 유지하거나 0을 반환할 수 있습니다.
+        // 현재는 m_isMouseOnStage 플래그로 구분하고, BlockExecutor에서 이 플래그를 확인하여 처리합니다.
+        // 필요하다면 여기서 m_currentStageMouseX/Y를 특정 값(예: 0)으로 리셋할 수 있습니다.
+        // this->m_currentStageMouseX = 0.0f;
+        // this->m_currentStageMouseY = 0.0f;
+    }
+}
+void Engine::goToScene(const string &sceneId)
+{
+    if (scenes.count(sceneId))
+    {
+        if (currentSceneId == sceneId)
+        {
+            EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0);
+
+            return;
+        }
+        currentSceneId = sceneId;
+        EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+        triggerWhenSceneStartScripts();
+    }
+    else
+    {
+        EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2);
+    }
+}
+
+void Engine::goToNextScene()
+{
+    if (m_sceneOrder.empty())
+    {
+        EngineStdOut("Cannot go to next scene: Scene order is not defined or no scenes loaded.", 1);
+        return;
+    }
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot go to next scene: Current scene ID is empty.", 1);
+        return;
+    }
+
+    auto it = find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
+    if (it != m_sceneOrder.end())
+    {
+        size_t currentIndex = distance(m_sceneOrder.begin(), it);
+        if (currentIndex + 1 < m_sceneOrder.size())
+        {
+            goToScene(m_sceneOrder[currentIndex + 1]);
+        }
+        else
+        {
+            EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+        }
+    }
+    else
+    {
+        EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine next scene.", 2);
+    }
+}
+
+void Engine::goToPreviousScene()
+{
+    if (m_sceneOrder.empty())
+    {
+        EngineStdOut("Cannot go to previous scene: Scene order is not defined or no scenes loaded.", 1);
+        return;
+    }
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot go to previous scene: Current scene ID is empty.", 1);
+        return;
+    }
+
+    auto it = find(m_sceneOrder.begin(), m_sceneOrder.end(), currentSceneId);
+    if (it != m_sceneOrder.end())
+    {
+        size_t currentIndex = distance(m_sceneOrder.begin(), it);
+        if (currentIndex > 0)
+        {
+            goToScene(m_sceneOrder[currentIndex - 1]);
+        }
+        else
+        {
+            EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+        }
+    }
+    else
+    {
+        EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine previous scene.", 2);
+    }
+}
+
+void Engine::triggerWhenSceneStartScripts()
+{
+    if (currentSceneId.empty())
+    {
+        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
+        return;
+    }
+    EngineStdOut("Triggering 'when_scene_start' scripts for scene: " + currentSceneId, 0);
+    for (const auto &scriptPair : m_whenStartSceneLoadedScripts)
+    {
+        const string &objectId = scriptPair.first;
+        const Script *scriptPtr = scriptPair.second;
+
+        bool executeForScene = false;
+        for (const auto &objInfo : objects_in_order)
+        {
+            if (objInfo.id == objectId && (objInfo.sceneId == currentSceneId || objInfo.sceneId == "global" || objInfo.sceneId.empty()))
+            {
+                executeForScene = true;
+                break;
+            }
+        }
+
+        if (executeForScene)
+        {
+            EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
+            executeScript(*this, objectId, scriptPtr);
+        }
+    }
+}
