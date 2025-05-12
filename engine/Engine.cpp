@@ -21,7 +21,6 @@ using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
-
 const char *BASE_ASSETS = "assets/";
 const char *FONT_ASSETS = "font/";
 float actualListContentWidthForClamping = 0.0f;
@@ -38,7 +37,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
-                   m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f),m_maxVariablesListContentWidth(180.0f) // Variables List UI
+                   m_draggedHUDVariableIndex(-1), m_maxVariablesListContentWidth(180.0f)
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -293,7 +292,7 @@ bool Engine::loadProject(const string &projectFilePath)
             currentVarDisplay.name = getSafeStringFromJson(variableJson, "name", "variable entry " + to_string(i), "", true, false);
             if (currentVarDisplay.name.empty())
             {
-                EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 3);
+                EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 1);
                 continue;
             }
              // New logic for parsing 'value'
@@ -307,7 +306,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     currentVarDisplay.value = valNode.GetBool() ? "true" : "false";
                 } else if (valNode.IsNull()) {
                     currentVarDisplay.value = ""; // Default for null
-                    EngineStdOut("Variable '" + currentVarDisplay.name + "' has a null value. Interpreting as empty string for 'value' field.", 0);
+                    EngineStdOut("Variable '" + currentVarDisplay.name + "' has a null value. Interpreting as empty string for 'value' field.", 1);
                 } else {
                     currentVarDisplay.value = ""; // Default for other unexpected types
                     EngineStdOut("Variable '" + currentVarDisplay.name + "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " + RapidJsonValueToString(valNode), 1);
@@ -321,7 +320,7 @@ bool Engine::loadProject(const string &projectFilePath)
             // This fixes numeric 0 being skipped, as "0" is not empty.
             // It maintains skipping for actual empty strings, nulls, or missing values.
             if (currentVarDisplay.value.empty()) {
-                EngineStdOut("Variable value is effectively empty for variable '" + currentVarDisplay.name + "' at index " + to_string(i) + ". Skipping variable.", 3);
+                EngineStdOut("Variable value is effectively empty for variable '" + currentVarDisplay.name + "' at index " + to_string(i) + ". Skipping variable.", 1);
                 continue;
             }
             // 위에서 currentVarDisplay.value가 이미 올바르게 설정되었으므로, 아래 중복 코드는 제거합니다.
@@ -332,7 +331,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                EngineStdOut("'visible' field missing or not boolean for variable '" + currentVarDisplay.name + "'. Using default: false", 0);
+                EngineStdOut("'visible' field missing or not boolean for variable '" + currentVarDisplay.name + "'. Using default: false", 2);
             }
             
             currentVarDisplay.variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i), "variable", false, true);
@@ -414,7 +413,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             
             this->m_HUDVariables.push_back(currentVarDisplay); // Add the fully populated display object
-            EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 0);
+            EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 3);
         }
     }
     /**
@@ -1319,6 +1318,47 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         return false;
     }
     EngineStdOut("Engine graphics initialization complete.", 0);
+
+    // --- Initial HUD Variable Position Clamping ---
+    // project.json에서 로드된 x, y 좌표가 엔트리 좌표계 기준일 수 있으므로,
+    // SDL 창 내에 있도록 초기 위치를 클램핑합니다.
+    if (renderer && !m_HUDVariables.empty()) { // 렌더러와 HUD 변수가 모두 유효할 때만 실행
+        EngineStdOut("Performing initial HUD variable position clamping...", 0);
+        int windowW = 0, windowH = 0;
+        SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+
+        if (windowW > 0 && windowH > 0) {
+            float itemHeight_const = 22.0f; // drawHUD 및 processInput과 일치
+            float itemPadding_const = 3.0f; // drawHUD 및 processInput과 일치
+            float clampedItemHeight = itemHeight_const + 2 * itemPadding_const;
+            // drawHUD/processInput의 minContainerFixedWidth와 일치시키거나 적절한 기본값 사용
+            float minContainerFixedWidth_const = 80.0f; 
+
+            for (auto& var : m_HUDVariables) { // x, y를 수정해야 하므로 참조로 반복
+                if (!var.isVisible) continue;
+
+                float currentItemEstimatedWidth;
+                if (var.variableType == "list" && var.width > 0) {
+                    // 리스트이고 project.json에 너비가 지정된 경우 해당 너비 사용
+                    currentItemEstimatedWidth = max(minContainerFixedWidth_const, var.width);
+                } else {
+                    // 일반 변수 또는 너비가 지정되지 않은 리스트의 경우, m_maxVariablesListContentWidth의 기본값을 사용
+                    // m_maxVariablesListContentWidth는 drawHUD에서 계산되지만, 초기에는 기본값(180.0f)을 가짐
+                    currentItemEstimatedWidth = m_maxVariablesListContentWidth; 
+                }
+
+                // 추정된 너비가 창 너비보다 크지 않도록 하고, 최소 너비는 보장
+                currentItemEstimatedWidth = min(currentItemEstimatedWidth, static_cast<float>(windowW) - 10.0f); // 창 오른쪽 10px 여유
+                currentItemEstimatedWidth = max(minContainerFixedWidth_const, currentItemEstimatedWidth);
+
+                var.x = std::clamp(var.x, 0.0f, static_cast<float>(windowW) - currentItemEstimatedWidth);
+                var.y = std::clamp(var.y, 0.0f, static_cast<float>(windowH) - clampedItemHeight);
+                EngineStdOut("Clamped initial pos for '" + var.name + "' to X=" + std::to_string(var.x) + ", Y=" + std::to_string(var.y) + " (Est. W=" + std::to_string(currentItemEstimatedWidth) + ", H=" + std::to_string(clampedItemHeight) + ")", 3);
+            }
+        } else {
+            EngineStdOut("Window dimensions (W:" + std::to_string(windowW) + ", H:" + std::to_string(windowH) + ") not valid for initial HUD clamping.", 1);
+        }
+    }
     return true;
 }
 
@@ -1909,18 +1949,17 @@ void Engine::drawHUD()
     if (!m_HUDVariables.empty())
     {
         int windowW = 0;
-        float maxObservedItemWidthThisFrame = 0.0f;
+        float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
         int visibleVarsCount = 0;
         if (renderer) SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
-        float currentWidgetYPosition = m_variablesListWidgetY; // Y position for the top of the current variable's box
-        const float spacingBetweenBoxes = 2.0f;                 // Vertical space between individual variable boxes
 
-        for (const auto &var : m_HUDVariables)
+        // float currentWidgetYPosition = m_variablesListWidgetY; // No longer used for individual items
+        // float spacingBetweenBoxes = 2.0f; // No longer used for individual items
+        for (auto &var : m_HUDVariables) // Use non-const auto& if var.width might be updated
         {
             if (!var.isVisible)
             {
                 continue; // 변수 가 보이지 않으면 건너뜁니다.
-                
             }
 
             // Colors and fixed dimensions for a single item box
@@ -1989,30 +2028,36 @@ void Engine::drawHUD()
 
             // 컨테이너 최소/최대 너비 정의
             float minContainerFixedWidth = 80.0f; // 최소 너비
-            float maxAvailContainerWidth = static_cast<float>(windowW) - m_variablesListWidgetX - 10.0f; // 창 오른쪽 가장자리에서 10px 여유
+            // 최대 사용 가능 너비는 현재 변수의 x 위치를 기준으로 계산해야 합니다.
+            float maxAvailContainerWidth = static_cast<float>(windowW) - var.x - 10.0f; // 창 오른쪽 가장자리에서 10px 여유
             maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
 
             // 이 항목의 최종 컨테이너 너비
             float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth, maxAvailContainerWidth);
+            if (var.variableType == "list" && var.width > 0) { // 리스트 타입이고 명시적 너비가 있다면 사용
+                // 참고: 리스트의 경우 var.width는 사용자가 project.json에서 명시적으로 설정한 너비를 의미할 수 있습니다.
+                currentItemContainerWidth = clamp(var.width, minContainerFixedWidth, maxAvailContainerWidth);
+            }
+
             maxObservedItemWidthThisFrame = max(maxObservedItemWidthThisFrame, currentItemContainerWidth);
-            visibleVarsCount++;
+            visibleVarsCount++; // Count visible variables to update m_maxVariablesListContentWidth later
 
             // 이 변수 항목 상자의 높이
+            var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
             float singleBoxHeight = itemHeight + 2 * itemPadding; 
 
             // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
-            float containerX = m_variablesListWidgetX;
-            SDL_FRect outerContainerRect = {containerX, currentWidgetYPosition, currentItemContainerWidth, singleBoxHeight};
+            // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
+            SDL_FRect outerContainerRect = {var.x, var.y, currentItemContainerWidth, singleBoxHeight};
             if (containerBorderWidth > 0.0f)
             {
                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
             }
-
             // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
             SDL_FRect fillContainerRect = {
-                containerX + containerBorderWidth,
-                currentWidgetYPosition + containerBorderWidth,
+                var.x + containerBorderWidth,
+                var.y + containerBorderWidth,
                 max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
                 max(0.0f, singleBoxHeight - (2 * containerBorderWidth))
             };
@@ -2109,8 +2154,7 @@ void Engine::drawHUD()
             if(nameTexture) SDL_DestroyTexture(nameTexture);
             if(valueTexture) SDL_DestroyTexture(valueTexture);
 
-            // 다음 변수 항목 상자의 Y 위치로 이동
-            currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes;
+            // currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes; // 개별 위치를 사용하므로 이 줄은 제거됩니다.
         }
 
         if (visibleVarsCount > 0) {
@@ -2215,38 +2259,65 @@ void Engine::processInput(const SDL_Event &event)
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
             }
-            // 3. Check Variables List Container Drag
+            // 3. Check Individual HUD Variable Drag
             if (!uiClicked && !m_HUDVariables.empty())
             {
-                // Calculate dynamic height for accurate click detection
-                // This needs to calculate the total height of the stack of variable boxes
                 float itemHeight = 22.0f;
                 float itemPadding = 3.0f;
-                float spacingBetweenBoxes = 2.0f; // Should match drawHUD
-                int visibleItemCount = 0;
-                for (const auto& var_item : m_HUDVariables) {
-                    if (var_item.isVisible) visibleItemCount++;
-                }
+                float singleBoxHeight = itemHeight + 2 * itemPadding;
+                float containerBorderWidth = 1.0f; // Matches drawHUD
+                float minContainerFixedWidth = 80.0f; // Matches drawHUD
+                int windowW_render = 0;
+                if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, nullptr);
 
-                float totalStackHeight = 0;
-                if (visibleItemCount > 0) {
-                    float singleBoxHeight = itemHeight + 2 * itemPadding;
-                    totalStackHeight = visibleItemCount * singleBoxHeight + (visibleItemCount - 1) * spacingBetweenBoxes;
-                }
-                // 드래그 감지를 위해 실제 내용물 너비 사용 (또는 최소 너비)
-                float listDragHitTestWidth = m_maxVariablesListContentWidth;
-                if (listDragHitTestWidth <= 0) { // 안전장치
-                    listDragHitTestWidth = 180.0f;
-                }
+                for (int i = 0; i < m_HUDVariables.size(); ++i) {
+                    const auto& var_item = m_HUDVariables[i];
+                    if (!var_item.isVisible) continue;
 
-                SDL_FRect varListWidgetRect = {m_variablesListWidgetX, m_variablesListWidgetY, listDragHitTestWidth, max(0.0f, totalStackHeight)};
-                if (mouseX >= varListWidgetRect.x && mouseX <= varListWidgetRect.x + varListWidgetRect.w &&
-                    mouseY >= varListWidgetRect.y && mouseY <= varListWidgetRect.y + varListWidgetRect.h)
-                {
-                    m_isDraggingVariablesList = true;
-                    m_variablesListDragOffsetX = static_cast<float>(mouseX) - m_variablesListWidgetX;
-                    m_variablesListDragOffsetY = static_cast<float>(mouseY) - m_variablesListWidgetY;
-                    uiClicked = true;
+                    float itemActualWidth;
+                    if (var_item.variableType == "list" && var_item.width > 0) {
+                        // For list type, use its defined width, clamped by available space
+                        float maxAvailW = static_cast<float>(windowW_render) - var_item.x - 10.0f; // 10px margin from window edge
+                        maxAvailW = max(minContainerFixedWidth, maxAvailW);
+                        itemActualWidth = std::clamp(var_item.width, minContainerFixedWidth, maxAvailW);
+                    } else {
+                        // For other types, calculate width similar to drawHUD
+                        float nameTextActualWidth_calc = 0, valueTextActualWidth_calc = 0;
+                        if (hudFont) { // Ensure hudFont is available
+                            string nameToDisplay_calc = var_item.name;
+                            if (!var_item.objectId.empty()) {
+                                const ObjectInfo* objInfoPtr_calc = getObjectInfoById(var_item.objectId);
+                                if (objInfoPtr_calc) nameToDisplay_calc = objInfoPtr_calc->name + " : " + var_item.name;
+                            }
+                            SDL_Surface* nameSurf = TTF_RenderText_Blended(hudFont, nameToDisplay_calc.c_str(), 0, {0,0,0,255});
+                            if (nameSurf) { nameTextActualWidth_calc = static_cast<float>(nameSurf->w); SDL_DestroySurface(nameSurf); }
+
+                            string valueToDisplay_calc = (var_item.variableType == "timer") ? std::to_string(static_cast<int>(getProjectTimerValue())) : var_item.value;
+                            SDL_Surface* valSurf = TTF_RenderText_Blended(hudFont, valueToDisplay_calc.c_str(), 0, {255,255,255,255});
+                            if (valSurf) { valueTextActualWidth_calc = static_cast<float>(valSurf->w); SDL_DestroySurface(valSurf); }
+                        }
+
+                        float idealValueBgWidth_calc = valueTextActualWidth_calc + (2 * itemPadding);
+                        float idealFillWidth_calc = nameTextActualWidth_calc + idealValueBgWidth_calc + (3 * itemPadding); // 3 paddings: left, middle, right
+                        float idealContainerFixedWidth_calc = idealFillWidth_calc + (2 * containerBorderWidth);
+                        
+                        float maxAvailContainerWidth_calc = static_cast<float>(windowW_render) - var_item.x - 10.0f; // 10px margin
+                        maxAvailContainerWidth_calc = max(minContainerFixedWidth, maxAvailContainerWidth_calc);
+                        itemActualWidth = std::clamp(idealContainerFixedWidth_calc, minContainerFixedWidth, maxAvailContainerWidth_calc);
+                    }
+
+                    SDL_FRect varRect = {var_item.x, var_item.y, itemActualWidth, singleBoxHeight};
+
+                    if (static_cast<float>(mouseX) >= varRect.x && static_cast<float>(mouseX) <= varRect.x + varRect.w &&
+                        static_cast<float>(mouseY) >= varRect.y && static_cast<float>(mouseY) <= varRect.y + varRect.h)
+                    {
+                        m_draggedHUDVariableIndex = i;
+                        m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - var_item.x;
+                        m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - var_item.y;
+                        uiClicked = true;
+                        EngineStdOut("Started dragging HUD variable: " + var_item.name, 0);
+                        break; // Found a clicked item, no need to check others
+                    }
                 }
             }
             if (!uiClicked && m_gameplayInputActive)
@@ -2370,49 +2441,41 @@ void Engine::processInput(const SDL_Event &event)
                 this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
             }
         }
-        // Variables list container drag
-        if (m_isDraggingVariablesList && (event.motion.state & SDL_BUTTON_LMASK))
+        // HUD 변수 드래그 중 마우스 이동 처리
+        else if (m_draggedHUDVariableIndex != -1 && (event.motion.state & SDL_BUTTON_LMASK))
         {
+            HUDVariableDisplay& draggedVar = m_HUDVariables[m_draggedHUDVariableIndex]; // 참조로 가져옴
+            
             int mouseX = event.motion.x;
             int mouseY = event.motion.y;
-            m_variablesListWidgetX = static_cast<float>(mouseX) - m_variablesListDragOffsetX;
-            m_variablesListWidgetY = static_cast<float>(mouseY) - m_variablesListDragOffsetY;
+
+            float newX = static_cast<float>(mouseX) - m_draggedHUDVariableMouseOffsetX;
+            float newY = static_cast<float>(mouseY) - m_draggedHUDVariableMouseOffsetY;
 
             int windowW = 0, windowH = 0;
-            if (renderer)
+            if (renderer) {
                 SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
-            // Dynamic height calculation for clamping - should be total height of the stack
-            float itemHeight = 22.0f;
-            float itemPadding = 3.0f;
-            float spacingBetweenBoxes = 2.0f; // Should match drawHUD
-            int visibleItemCount = 0;
-            for (const auto& var_item : m_HUDVariables) { // Iterate to count visible items
-                if (var_item.isVisible) {
-                    visibleItemCount++;
-                }
             }
 
-            float totalHeightOfVariableStack = 0;
-            if (visibleItemCount > 0) {
-                float singleBoxHeight = itemHeight + 2 * itemPadding;
-                totalHeightOfVariableStack = visibleItemCount * singleBoxHeight;
-                if (visibleItemCount > 1) {
-                    totalHeightOfVariableStack += (visibleItemCount - 1) * spacingBetweenBoxes;
-                }
-            }
-            // 화면 밖으로 드래그되는 것을 방지하기 위해 실제 내용물 너비 사용
-            actualListContentWidthForClamping = m_maxVariablesListContentWidth;
-            if (actualListContentWidthForClamping <= 0) { // 안전장치
-                actualListContentWidthForClamping = 180.0f;
+            // 드래그 중인 아이템의 크기 가져오기
+            float itemHeight_const = 22.0f; // drawHUD의 itemHeight
+            float itemPadding_const = 3.0f; // drawHUD의 itemPadding
+            float draggedItemHeight = itemHeight_const + 2 * itemPadding_const; // drawHUD의 singleBoxHeight
+
+            // 너비는 drawHUD에서 계산되어 transient_render_width에 저장된 값을 사용
+            float draggedItemWidth = (draggedVar.transient_render_width > 0) ? draggedVar.transient_render_width : 180.0f; // transient_render_width가 0이면 기본 너비 사용
+
+            if (windowW > 0 && draggedItemWidth > 0) {
+                draggedVar.x = std::clamp(newX, 0.0f, static_cast<float>(windowW) - draggedItemWidth);
+            } else {
+                draggedVar.x = newX; // 창/아이템 너비가 유효하지 않으면 클램핑 안 함
             }
 
-            if (windowW > 0 && windowH > 0)
-            {
-                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - actualListContentWidthForClamping));
-                m_variablesListWidgetY = max(0.0f, min(m_variablesListWidgetY, static_cast<float>(windowH) - totalHeightOfVariableStack));
+            if (windowH > 0 && draggedItemHeight > 0) {
+                draggedVar.y = std::clamp(newY, 0.0f, static_cast<float>(windowH) - draggedItemHeight);
+            } else {
+                draggedVar.y = newY; // 창/아이템 높이가 유효하지 않으면 클램핑 안 함
             }
-            EngineStdOut("Dragging Variables List to: (" + to_string(m_variablesListWidgetX) + ", " + to_string(m_variablesListWidgetY) + ")", 0);
         }
     }
     else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP)
@@ -2426,9 +2489,10 @@ void Engine::processInput(const SDL_Event &event)
                 this->m_isDraggingZoomSlider = false;
                 uiDragReleased = true;
             }
-            if (m_isDraggingVariablesList)
+            if (m_draggedHUDVariableIndex != -1) // 드래그 중이던 HUD 변수가 있었는지 확인
             {
-                m_isDraggingVariablesList = false;
+                EngineStdOut("Stopped dragging HUD variable: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0);
+                m_draggedHUDVariableIndex = -1; // 드래그 상태 해제
                 uiDragReleased = true;
             }
 

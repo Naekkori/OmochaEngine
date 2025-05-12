@@ -93,6 +93,7 @@ struct HUDVariableDisplay {
     string variableType; // 변수 유형 ("variable", "timer", "answer" 등)
     float width=0; // HUD에서의 너비 리스트전용
     float height=0; // HUD에서의 높이 리스트전용
+    float transient_render_width = 0.0f; // 드래그 클램핑을 위해 마지막으로 계산된 렌더링 너비
     vector<ListItem> array; // 리스트 항목 (리스트 전용)
 };
 class Engine
@@ -158,12 +159,10 @@ private:
     // float m_projectTimerDragOffsetX = 0.0f;
     // float m_projectTimerDragOffsetY = 0.0f;
     // --- General Variables Display UI ---
-    vector<HUDVariableDisplay> m_HUDVariables; // HUD에 표시될 변수 목록
-    float m_variablesListWidgetX = 10.0f;
-    float m_variablesListWidgetY = 120.0f; // 초시계 아래에 위치 (예시)
-    bool m_isDraggingVariablesList = false;
-    float m_variablesListDragOffsetX = 0.0f;
-    float m_variablesListDragOffsetY = 0.0f;
+    vector<HUDVariableDisplay> m_HUDVariables;      // HUD에 표시될 변수 목록
+    int m_draggedHUDVariableIndex = -1;             // 드래그 중인 HUD 변수의 인덱스, 없으면 -1
+    float m_draggedHUDVariableMouseOffsetX = 0.0f;  // 드래그 중인 변수의 마우스 오프셋 X
+    float m_draggedHUDVariableMouseOffsetY = 0.0f;  // 드래그 중인 변수의 마우스 오프셋 Y
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
