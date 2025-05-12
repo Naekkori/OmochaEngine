@@ -63,11 +63,6 @@ struct SoundFile
     string name;
     string fileurl;
 };
-struct HUDVariable
-{
-    string name; // 변수 이름
-    string value; // 변수 값 (문자열로 표시)
-};
 struct ObjectInfo
 {
     string id;
@@ -88,6 +83,7 @@ struct ObjectInfo
 struct HUDVariableDisplay {
     string name;  // 변수 이름
     string value; // 변수 값 (문자열로 표시)
+    string objectId; // 변수를 표시할 오브젝트 ID nullptr 이면 public 변수
     bool isVisible;    // HUD에 표시 여부
 };
 
@@ -161,6 +157,7 @@ private:
     float m_variablesListDragOffsetX = 0.0f;
     float m_variablesListDragOffsetY = 0.0f;
     bool m_showVariablesList = true; // 변수 목록 HUD 요소 전체 표시 여부
+    float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경

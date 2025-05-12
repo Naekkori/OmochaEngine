@@ -24,6 +24,7 @@ const float Engine::MAX_ZOOM = 3.0f;
 
 const char *BASE_ASSETS = "assets/";
 const char *FONT_ASSETS = "font/";
+float actualListContentWidthForClamping = 0.0f;
 string PROJECT_NAME;
 string WINDOW_TITLE;
 const double PI_VALUE = acos(-1.0);
@@ -37,8 +38,8 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_projectTimerVisible(false), m_gameplayInputActive(false),
-                   m_projectTimerWidgetX(10.0f), m_projectTimerWidgetY(70.0f), m_isDraggingProjectTimer(false), m_projectTimerDragOffsetX(0.0f), m_projectTimerDragOffsetY(0.0f),
-                   m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f), m_showVariablesList(true)
+                   m_projectTimerWidgetX(10.0f), m_projectTimerWidgetY(70.0f), m_isDraggingProjectTimer(false), m_projectTimerDragOffsetX(0.0f), m_projectTimerDragOffsetY(0.0f), // Project Timer UI
+                   m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f), m_showVariablesList(true), m_maxVariablesListContentWidth(180.0f) // Variables List UI
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -272,7 +273,66 @@ bool Engine::loadProject(const string &projectFilePath)
         }
         this->zoomFactor = this->specialConfig.setZoomfactor;
     }
+    /**
+     * @brief 변수 
+     * 
+     */
+    if (document.HasMember("variables") && document["variables"].IsArray()){
+        const rapidjson::Value &variablesJson = document["variables"];
+        EngineStdOut("Found " + to_string(variablesJson.Size()) + " variables. Processing...", 0);
 
+        for (rapidjson::SizeType i = 0; i < variablesJson.Size(); ++i)
+        {
+            const auto &variableJson = variablesJson[i];
+            if (!variableJson.IsObject())
+            {
+                EngineStdOut("Variable entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(variableJson), 3);
+                continue;
+            }
+            string variableName = getSafeStringFromJson(variableJson, "name", "variable entry " + to_string(i), "", true, false);
+            if (variableName.empty())
+            {
+                EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 3);
+                continue;
+            }
+            string variableValue = getSafeStringFromJson(variableJson, "value", "variable entry " + to_string(i), "", false, false);
+            if (variableValue.empty())
+            {
+                EngineStdOut("Variable value is empty for variable '" + variableName + "' at index " + to_string(i) + ". Skipping variable.", 3);
+                continue;
+            }
+            bool isvariableVisible = false;
+            if (variableJson.HasMember("visible") && variableJson["visible"].IsBool())
+            {
+                isvariableVisible = variableJson["visible"].GetBool();
+            }
+            else
+            {
+                EngineStdOut("'visible' field missing or not boolean for variable '" + variableName + "'. Using default: false", 3);
+            }
+            /*
+            Json 분석결과
+            {
+                "name": "variableName",
+                "value": "variableValue",
+                "visible": true,
+                "object": "objectId" // objectId가 없으면 이곳은 null 로 처리됨 이걸 활용해서 public 인지 private 인지 구분
+            }
+            TODO: x,y 좌표도 추가
+            */
+            string objectId;
+            if (variableJson.HasMember("object") && !variableJson["object"].IsNull())
+            {
+                objectId = getSafeStringFromJson(variableJson, "object", "variable entry " + to_string(i), "", false, false);
+            }
+            else
+            {
+                objectId = "";
+            }
+            m_HUDVariables.push_back({variableName, variableValue,objectId, isvariableVisible}); // HUD에 표시될 변수 목록에 추가
+            EngineStdOut("  Parsed variable: " + variableName + " = " + variableValue, 0);
+        }
+    }
     /**
      * @brief 오브젝트 블럭
      *
@@ -1889,110 +1949,216 @@ void Engine::drawHUD()
         }
     }
 
-    // --- 일반 변수 목록 UI 그리기 ---
-    if (!m_HUDVariables.empty())
+    // --- 일반 변수 그리기 ---
+    if (m_showVariablesList && !m_HUDVariables.empty())
     {
+        int windowW = 0;
+        float maxObservedItemWidthThisFrame = 0.0f;
+        int visibleVarsCount = 0;
+        if (renderer) SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
+        float currentWidgetYPosition = m_variablesListWidgetY; // Y position for the top of the current variable's box
+        const float spacingBetweenBoxes = 2.0f;                 // Vertical space between individual variable boxes
+
         for (const auto &var : m_HUDVariables)
         {
             if (!var.isVisible)
             {
-                continue; // Skip if the variable is not visible
+                continue; // 변수 가 보이지 않으면 건너뜁니다.
+                
             }
+
+            // Colors and fixed dimensions for a single item box
             SDL_Color containerBgColor = {240, 240, 240, 220};     // 컨테이너 배경색 (약간 투명한 밝은 회색)
             SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
             SDL_Color itemLabelTextColor = {0, 0, 0, 255};         // 변수 이름 텍스트 색상
             SDL_Color itemValueBoxBgColor = {0, 120, 255, 255};    // 변수 값 배경 상자 색상 (파란색 계열)
             SDL_Color itemValueTextColor = {255, 255, 255, 255};   // 변수 값 텍스트 색상
-
-            float containerX = m_variablesListWidgetX;
-            float containerY = m_variablesListWidgetY;
-            float containerFixedWidth = 180.0f; // 컨테이너 고정 너비 (필요시 조절)
             float itemHeight = 22.0f;           // 각 변수 항목의 높이
             float itemPadding = 3.0f;           // 항목 내부 여백
-            float verticalSpacing = 2.0f;       // 항목 간 수직 간격
             float containerCornerRadius = 5.0f;
-            float containerBorderWidth = 1.0f;
+            float containerBorderWidth = 1.0f; 
 
-            // 컨테이너 전체 높이 계산
-            float totalItemsHeight = m_HUDVariables.size() * itemHeight;
-            float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
-            float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
+           
+            // 변수 이름 레이블
+            // 변수 의 object 키에 오브젝트의 id 가 있을경우 해당오브젝트 이름을 가져온다.
+            // 없을경우 그냥 변수 이름을 사용한다.
+            string nameToDisplay; // HUD에 최종적으로 표시될 변수의 이름
+            bool foundAssociatedObject = false;
 
-            // 1. 컨테이너 테두리 그리기
-            SDL_FRect outerContainerRect = {containerX, containerY, containerFixedWidth, containerDynamicHeight};
+            if (!var.objectId.empty()) { 
+                const ObjectInfo* objInfoPtr = getObjectInfoById(var.objectId);
+                if (objInfoPtr) {
+                    nameToDisplay = objInfoPtr->name + " : " + var.name;
+                    foundAssociatedObject = true;
+                }
+            }
+
+            if (!foundAssociatedObject) {
+                nameToDisplay = var.name; // 변수 자체의 이름을 표시할 이름으로 사용합니다.
+            }
+            
+            SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
+            SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, var.value.c_str(), 0, itemValueTextColor);
+
+            if (!nameSurface || !valueSurface) {
+                if(nameSurface) SDL_DestroySurface(nameSurface);
+                if(valueSurface) SDL_DestroySurface(valueSurface);
+                EngineStdOut("Failed to render name or value surface for variable: " + var.name, 2);
+                continue;
+            }
+
+            float nameTextActualWidth = static_cast<float>(nameSurface->w);
+            float valueTextActualWidth = static_cast<float>(valueSurface->w);
+
+            // 값 텍스트와 내부 여백(좌우 itemPadding)을 포함한 이상적인 파란색 값 배경 상자 너비
+            float idealValueBgWidth = valueTextActualWidth + (2 * itemPadding);
+
+            // 이름, 값 배경, 그리고 그 사이 및 양옆의 내부 여백을 모두 포함하는 이상적인 컨테이너 내용물 영역의 너비
+            // (왼쪽패딩 + 이름너비 + 중간패딩 + 값배경너비 + 오른쪽패딩)
+            float idealFillWidth = itemPadding + nameTextActualWidth + itemPadding + idealValueBgWidth + itemPadding;
+            idealFillWidth = nameTextActualWidth + idealValueBgWidth + (3 * itemPadding); // Simplified
+
+            // 이상적인 전체 컨테이너 너비 (테두리 포함)
+            float idealContainerFixedWidth = idealFillWidth + (2 * containerBorderWidth);
+
+            // 컨테이너 최소/최대 너비 정의
+            float minContainerFixedWidth = 80.0f; // 최소 너비
+            float maxAvailContainerWidth = static_cast<float>(windowW) - m_variablesListWidgetX - 10.0f; // 창 오른쪽 가장자리에서 10px 여유
+            maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
+
+            // 이 항목의 최종 컨테이너 너비
+            float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth, maxAvailContainerWidth);
+            maxObservedItemWidthThisFrame = max(maxObservedItemWidthThisFrame, currentItemContainerWidth);
+            visibleVarsCount++;
+
+            // 이 변수 항목 상자의 높이
+            float singleBoxHeight = itemHeight + 2 * itemPadding; 
+
+            // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
+            float containerX = m_variablesListWidgetX;
+            SDL_FRect outerContainerRect = {containerX, currentWidgetYPosition, currentItemContainerWidth, singleBoxHeight};
             if (containerBorderWidth > 0.0f)
             {
                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
             }
 
-            // 2. 컨테이너 배경 그리기 (테두리 안쪽)
+            // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
             SDL_FRect fillContainerRect = {
                 containerX + containerBorderWidth,
-                containerY + containerBorderWidth,
-                containerFixedWidth - 2 * containerBorderWidth,
-                containerDynamicHeight - 2 * containerBorderWidth};
-            if (fillContainerRect.w < 0)
-                fillContainerRect.w = 0;
-            if (fillContainerRect.h < 0)
-                fillContainerRect.h = 0;
-            float fillRadius = containerCornerRadius - containerBorderWidth;
-            if (fillRadius < 0.0f)
-                fillRadius = 0.0f;
-
+                currentWidgetYPosition + containerBorderWidth,
+                max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
+                max(0.0f, singleBoxHeight - (2 * containerBorderWidth))
+            };
+            float fillRadius = max(0.0f, containerCornerRadius - containerBorderWidth);
             if (fillContainerRect.w > 0 && fillContainerRect.h > 0)
             {
                 SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b, containerBgColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
             }
+            
+            // 3. 각 변수 항목 그리기 (name and value)
+            float contentAreaTopY = fillContainerRect.y + itemPadding; 
 
-            // 3. 각 변수 항목 그리기
-            float currentItemY = fillContainerRect.y + itemPadding;
-            // 변수 이름 레이블
-            SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, var.name.c_str(), 0, itemLabelTextColor);
-            if (nameSurface)
+            SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
+            SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+            SDL_DestroySurface(nameSurface); 
+            SDL_DestroySurface(valueSurface); 
+
+            if (nameTexture && valueTexture)
             {
-                SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
-                if (nameTexture)
-                {
-                    float labelMaxWidth = fillContainerRect.w * 0.45f - 2 * itemPadding; // 이름 레이블 최대 너비 (컨테이너 너비의 약 45%)
-                    SDL_FRect nameDestRect = {
-                        fillContainerRect.x + itemPadding,
-                        currentItemY + (itemHeight - static_cast<float>(nameSurface->h)) / 2.0f,
-                        min(static_cast<float>(nameSurface->w), labelMaxWidth),
-                        static_cast<float>(nameSurface->h)};
-                    SDL_RenderTexture(renderer, nameTexture, nullptr, &nameDestRect);
+                // Determine available width for (NameText + ValueBox) within fillContainerRect,
+                // accounting for 3 itemPaddings (left, middle, right).
+                float spaceForNameTextAndValueBox = max(0.0f, fillContainerRect.w - (3 * itemPadding));
 
-                    // 변수 값 배경 상자 및 텍스트
-                    SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, var.value.c_str(), 0, itemValueTextColor);
-                    if (valueSurface)
-                    {
-                        SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-                        if (valueTexture)
-                        {
-                            float valueBgX = nameDestRect.x + nameDestRect.w + itemPadding;
-                            float valueBgW = (fillContainerRect.x + fillContainerRect.w - itemPadding) - valueBgX;
-                            SDL_FRect valueBgRect = {valueBgX, currentItemY, valueBgW, itemHeight};
-                            SDL_SetRenderDrawColor(renderer, itemValueBoxBgColor.r, itemValueBoxBgColor.g, itemValueBoxBgColor.b, itemValueBoxBgColor.a);
-                            SDL_RenderFillRect(renderer, &valueBgRect); // 값 배경은 일반 사각형
+                // Ideal widths for name text and the blue value background box
+                float targetNameTextWidth = nameTextActualWidth;
+                float targetValueBoxWidth = idealValueBgWidth; // Already calculated: valueTextActualWidth + (2 * itemPadding)
+                
+                float totalIdealInternalWidth = targetNameTextWidth + targetValueBoxWidth;
 
-                            SDL_FRect valueDestRect = {
-                                valueBgRect.x + (valueBgRect.w - static_cast<float>(valueSurface->w)) / 2.0f,
-                                valueBgRect.y + (valueBgRect.h - static_cast<float>(valueSurface->h)) / 2.0f,
-                                static_cast<float>(valueSurface->w),
-                                static_cast<float>(valueSurface->h)};
-                            SDL_RenderTexture(renderer, valueTexture, nullptr, &valueDestRect);
-                            SDL_DestroyTexture(valueTexture);
+                float finalNameTextWidth;
+                float finalValueBoxWidth;
+
+                if (totalIdealInternalWidth <= spaceForNameTextAndValueBox) {
+                    // Enough space for both to be drawn at their ideal widths
+                    finalNameTextWidth = targetNameTextWidth;
+                    finalValueBoxWidth = targetValueBoxWidth;
+                } else {
+                    // Not enough space, scale them down proportionally to fit spaceForNameTextAndValueBox
+                    if (totalIdealInternalWidth > 0) {
+                        float scaleFactor = spaceForNameTextAndValueBox / totalIdealInternalWidth;
+                        finalNameTextWidth = targetNameTextWidth * scaleFactor;
+                        finalValueBoxWidth = targetValueBoxWidth * scaleFactor;
+                    } else { // Both target widths are 0
+                        finalNameTextWidth = 0;
+                        finalValueBoxWidth = spaceForNameTextAndValueBox; // Or distribute 0/0 or space/2, space/2
+                        if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0) { // if space exists but content is zero
+                             finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
+                             finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
+                        } else {
+                             finalValueBoxWidth = 0;
                         }
-                        SDL_DestroySurface(valueSurface);
                     }
-                    SDL_DestroyTexture(nameTexture);
                 }
-                SDL_DestroySurface(nameSurface);
+                finalNameTextWidth = max(0.0f, finalNameTextWidth);
+                finalValueBoxWidth = max(0.0f, finalValueBoxWidth);
+
+                // Draw Name
+                SDL_FRect nameDestRect = {
+                    fillContainerRect.x + itemPadding,
+                    contentAreaTopY + (itemHeight - static_cast<float>(nameTexture->h)) / 2.0f,
+                    finalNameTextWidth,
+                    static_cast<float>(nameTexture->h)
+                };
+                SDL_FRect nameSrcRect = {0, 0, static_cast<int>(finalNameTextWidth), static_cast<int>(nameTexture->h)};
+                SDL_RenderTexture(renderer, nameTexture, &nameSrcRect, &nameDestRect);
+
+                // Draw Value Background Box and Value Text
+                if (finalValueBoxWidth > 0) {
+                    SDL_FRect valueBgRect = {
+                        nameDestRect.x + finalNameTextWidth + itemPadding, 
+                        contentAreaTopY, 
+                        finalValueBoxWidth, 
+                        itemHeight
+                    };
+                    SDL_SetRenderDrawColor(renderer, itemValueBoxBgColor.r, itemValueBoxBgColor.g, itemValueBoxBgColor.b, itemValueBoxBgColor.a);
+                    SDL_RenderFillRect(renderer, &valueBgRect);
+
+                    // Value text display width is capped by the blue box's inner width
+                    float valueTextDisplayWidth = max(0.0f, min(valueTextActualWidth, finalValueBoxWidth - (2 * itemPadding)));
+                    if (valueTextDisplayWidth > 0)
+                    {
+                        SDL_FRect valueDestRect = {
+                            valueBgRect.x + itemPadding, // 파란색 상자 내에서 왼쪽 정렬
+                            valueBgRect.y + (valueBgRect.h - static_cast<float>(valueTexture->h)) / 2.0f,
+                            valueTextDisplayWidth,
+                            static_cast<float>(valueTexture->h)
+                        };
+                        SDL_FRect valueSrcRect = {0, 0, static_cast<int>(valueTextDisplayWidth), static_cast<int>(valueTexture->h)};
+                        SDL_RenderTexture(renderer, valueTexture, &valueSrcRect, &valueDestRect);
+                    }
+                }
             }
-            currentItemY += itemHeight + verticalSpacing;
+            if(nameTexture) SDL_DestroyTexture(nameTexture);
+            if(valueTexture) SDL_DestroyTexture(valueTexture);
+
+            // 다음 변수 항목 상자의 Y 위치로 이동
+            currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes;
         }
+
+        if (visibleVarsCount > 0) {
+            // maxObservedItemWidthThisFrame은 minContainerFixedWidth(80.0f) 이상이어야 합니다.
+            // currentItemContainerWidth가 그렇게 clamp되기 때문입니다.
+            m_maxVariablesListContentWidth = maxObservedItemWidthThisFrame;
+        } else {
+            m_maxVariablesListContentWidth = 180.0f; // 보이는 항목이 없으면 기본 너비
+        }
+    } else {
+        // 목록이 아예 표시되지 않거나 비어있으면 기본 너비
+        m_maxVariablesListContentWidth = 180.0f;
     }
+
 }
 bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
 {
@@ -2102,15 +2268,27 @@ void Engine::processInput(const SDL_Event &event)
             if (!uiClicked && m_showVariablesList && !m_HUDVariables.empty())
             {
                 // Calculate dynamic height for accurate click detection
+                // This needs to calculate the total height of the stack of variable boxes
                 float itemHeight = 22.0f;
                 float itemPadding = 3.0f;
-                float verticalSpacing = 2.0f;
-                float totalItemsHeight = m_HUDVariables.size() * itemHeight;
-                float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
-                float containerDynamicHeight = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
-                float containerFixedWidth = 180.0f; // Must match drawHUD
+                float spacingBetweenBoxes = 2.0f; // Should match drawHUD
+                int visibleItemCount = 0;
+                for (const auto& var_item : m_HUDVariables) {
+                    if (var_item.isVisible) visibleItemCount++;
+                }
 
-                SDL_FRect varListWidgetRect = {m_variablesListWidgetX, m_variablesListWidgetY, containerFixedWidth, containerDynamicHeight};
+                float totalStackHeight = 0;
+                if (visibleItemCount > 0) {
+                    float singleBoxHeight = itemHeight + 2 * itemPadding;
+                    totalStackHeight = visibleItemCount * singleBoxHeight + (visibleItemCount - 1) * spacingBetweenBoxes;
+                }
+                // 드래그 감지를 위해 실제 내용물 너비 사용 (또는 최소 너비)
+                float listDragHitTestWidth = m_maxVariablesListContentWidth;
+                if (listDragHitTestWidth <= 0) { // 안전장치
+                    listDragHitTestWidth = 180.0f;
+                }
+
+                SDL_FRect varListWidgetRect = {m_variablesListWidgetX, m_variablesListWidgetY, listDragHitTestWidth, max(0.0f, totalStackHeight)};
                 if (mouseX >= varListWidgetRect.x && mouseX <= varListWidgetRect.x + varListWidgetRect.w &&
                     mouseY >= varListWidgetRect.y && mouseY <= varListWidgetRect.y + varListWidgetRect.h)
                 {
@@ -2258,7 +2436,7 @@ void Engine::processInput(const SDL_Event &event)
 
             if (windowW > 0 && windowH > 0)
             {
-                m_projectTimerWidgetX = max(0.0f, min(m_projectTimerWidgetX, static_cast<float>(windowW) - widgetFixedW));
+                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - actualListContentWidthForClamping));
                 m_projectTimerWidgetY = max(0.0f, min(m_projectTimerWidgetY, static_cast<float>(windowH) - widgetFixedH));
             }
         }
@@ -2274,20 +2452,37 @@ void Engine::processInput(const SDL_Event &event)
             if (renderer)
                 SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
 
-            // Dynamic height calculation for clamping
+            // Dynamic height calculation for clamping - should be total height of the stack
             float itemHeight = 22.0f;
             float itemPadding = 3.0f;
-            float verticalSpacing = 2.0f;
-            float totalItemsHeight = m_HUDVariables.size() * itemHeight;
-            float totalSpacingHeight = (m_HUDVariables.size() > 1) ? (m_HUDVariables.size() - 1) * verticalSpacing : 0;
-            float widgetDynamicH = 2 * itemPadding + totalItemsHeight + totalSpacingHeight;
-            float widgetFixedW = 180.0f;
+            float spacingBetweenBoxes = 2.0f; // Should match drawHUD
+            int visibleItemCount = 0;
+            for (const auto& var_item : m_HUDVariables) { // Iterate to count visible items
+                if (var_item.isVisible) {
+                    visibleItemCount++;
+                }
+            }
+
+            float totalHeightOfVariableStack = 0;
+            if (visibleItemCount > 0) {
+                float singleBoxHeight = itemHeight + 2 * itemPadding;
+                totalHeightOfVariableStack = visibleItemCount * singleBoxHeight;
+                if (visibleItemCount > 1) {
+                    totalHeightOfVariableStack += (visibleItemCount - 1) * spacingBetweenBoxes;
+                }
+            }
+            // 화면 밖으로 드래그되는 것을 방지하기 위해 실제 내용물 너비 사용
+            actualListContentWidthForClamping = m_maxVariablesListContentWidth;
+            if (actualListContentWidthForClamping <= 0) { // 안전장치
+                actualListContentWidthForClamping = 180.0f;
+            }
 
             if (windowW > 0 && windowH > 0)
             {
-                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - widgetFixedW));
-                m_variablesListWidgetY = max(0.0f, min(m_variablesListWidgetY, static_cast<float>(windowH) - widgetDynamicH));
+                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - actualListContentWidthForClamping));
+                m_variablesListWidgetY = max(0.0f, min(m_variablesListWidgetY, static_cast<float>(windowH) - totalHeightOfVariableStack));
             }
+            EngineStdOut("Dragging Variables List to: (" + to_string(m_variablesListWidgetX) + ", " + to_string(m_variablesListWidgetY) + ")", 0);
         }
     }
     else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP)
