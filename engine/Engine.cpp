@@ -38,7 +38,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
-                   m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f), m_showVariablesList(true), m_maxVariablesListContentWidth(180.0f) // Variables List UI
+                   m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f),m_maxVariablesListContentWidth(180.0f) // Variables List UI
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -288,27 +288,55 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("Variable entry at index " + to_string(i) + " is not an object. Skipping. Content: " + RapidJsonValueToString(variableJson), 3);
                 continue;
             }
-            string variableName = getSafeStringFromJson(variableJson, "name", "variable entry " + to_string(i), "", true, false);
-            if (variableName.empty())
+            HUDVariableDisplay currentVarDisplay; // Create instance upfront
+
+            currentVarDisplay.name = getSafeStringFromJson(variableJson, "name", "variable entry " + to_string(i), "", true, false);
+            if (currentVarDisplay.name.empty())
             {
                 EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 3);
                 continue;
             }
-            string variableValue = getSafeStringFromJson(variableJson, "value", "variable entry " + to_string(i), "", false, false);
-            if (variableValue.empty())
-            {
-                EngineStdOut("Variable value is empty for variable '" + variableName + "' at index " + to_string(i) + ". Skipping variable.", 3);
+             // New logic for parsing 'value'
+             if (variableJson.HasMember("value")) {
+                const auto& valNode = variableJson["value"];
+                if (valNode.IsString()) {
+                    currentVarDisplay.value = valNode.GetString();
+                } else if (valNode.IsNumber()) {
+                    currentVarDisplay.value = RapidJsonValueToString(valNode); // Convert number to string
+                } else if (valNode.IsBool()) {
+                    currentVarDisplay.value = valNode.GetBool() ? "true" : "false";
+                } else if (valNode.IsNull()) {
+                    currentVarDisplay.value = ""; // Default for null
+                    EngineStdOut("Variable '" + currentVarDisplay.name + "' has a null value. Interpreting as empty string for 'value' field.", 0);
+                } else {
+                    currentVarDisplay.value = ""; // Default for other unexpected types
+                    EngineStdOut("Variable '" + currentVarDisplay.name + "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " + RapidJsonValueToString(valNode), 1);
+                }
+            } else {
+                currentVarDisplay.value = ""; // Default if "value" field is missing
+                EngineStdOut("Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as empty string.", 1);
+            }
+
+            // If 'value' (now correctly stringified for numbers) is empty, skip the variable.
+            // This fixes numeric 0 being skipped, as "0" is not empty.
+            // It maintains skipping for actual empty strings, nulls, or missing values.
+            if (currentVarDisplay.value.empty()) {
+                EngineStdOut("Variable value is effectively empty for variable '" + currentVarDisplay.name + "' at index " + to_string(i) + ". Skipping variable.", 3);
                 continue;
             }
-            bool isvariableVisible = false;
+            // 위에서 currentVarDisplay.value가 이미 올바르게 설정되었으므로, 아래 중복 코드는 제거합니다.
+            currentVarDisplay.isVisible = false;
             if (variableJson.HasMember("visible") && variableJson["visible"].IsBool())
             {
-                isvariableVisible = variableJson["visible"].GetBool();
+                currentVarDisplay.isVisible = variableJson["visible"].GetBool();
             }
             else
             {
-                EngineStdOut("'visible' field missing or not boolean for variable '" + variableName + "'. Using default: false", 3);
+                EngineStdOut("'visible' field missing or not boolean for variable '" + currentVarDisplay.name + "'. Using default: false", 0);
             }
+            
+            currentVarDisplay.variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i), "variable", false, true);
+           
             /*
             TODO: variableType도 project.json에서 읽어오도록 수정해야 합니다. 현재는 기본값으로 "variable"을 사용합니다.
             Json 분석결과
@@ -324,16 +352,69 @@ bool Engine::loadProject(const string &projectFilePath)
             string objectId;
             if (variableJson.HasMember("object") && !variableJson["object"].IsNull())
             {
-                objectId = getSafeStringFromJson(variableJson, "object", "variable entry " + to_string(i), "", false, false);
+                currentVarDisplay.objectId = getSafeStringFromJson(variableJson, "object", "variable entry " + to_string(i), "", false, false);
             }
             else
             {
-                objectId = "";
+                currentVarDisplay.objectId = ""; // Default to empty string if null or missing
             }
-            float x = variableJson.HasMember("x") && variableJson["x"].IsNumber() ? variableJson["x"].GetFloat() : 0.0f;
-            float y = variableJson.HasMember("y") && variableJson["y"].IsNumber() ? variableJson["y"].GetFloat() : 0.0f;
-            this->m_HUDVariables.push_back({variableName, variableValue,objectId, isvariableVisible,x,y, variableType}); // HUD에 표시될 변수 목록에 추가
-            EngineStdOut("  Parsed variable: " + variableName + " = " + variableValue, 0);
+            currentVarDisplay.x = variableJson.HasMember("x") && variableJson["x"].IsNumber() ? variableJson["x"].GetFloat() : 0.0f;
+            currentVarDisplay.y = variableJson.HasMember("y") && variableJson["y"].IsNumber() ? variableJson["y"].GetFloat() : 0.0f;
+
+            /*
+            리스트 타입이 감지되면 해당데이터를 넣습니다.
+            {
+                "name": "variableName",
+                "value": "variableValue",
+                "visible": true,
+                "object": "objectId", // objectId가 없으면 이곳은 null 로 처리됨 이걸 활용해서 public 인지 private 인지 구분
+                "width": 0,
+                "height": 0,
+                "array": [
+                    {
+                        "key": "itemKey",
+                        "data": "itemData"
+                    }
+                ]
+            }
+            */
+            if (currentVarDisplay.variableType == "list")
+            {
+                //넓이 높이 둘다 float 였음.
+                if (variableJson.HasMember("width") && variableJson["width"].IsNumber())
+                {
+                    currentVarDisplay.width = variableJson["width"].GetFloat();
+                }
+                if (variableJson.HasMember("height") && variableJson["height"].IsNumber())
+                {
+                    currentVarDisplay.height = variableJson["height"].GetFloat();
+                }
+                if (variableJson.HasMember("array") && variableJson["array"].IsArray())
+                {
+                    const rapidjson::Value &arrayJson = variableJson["array"];
+                    EngineStdOut("Found " + to_string(arrayJson.Size()) + " items in the list variable '" + currentVarDisplay.name + "'. Processing...", 0);
+                    for (rapidjson::SizeType j = 0; j < arrayJson.Size(); ++j)
+                    {
+                        const auto &itemJson = arrayJson[j];
+                        if (!itemJson.IsObject())
+                        {
+                            EngineStdOut("List item entry at index " + to_string(j) + " for list '" + currentVarDisplay.name + "' is not an object. Skipping. Content: " + RapidJsonValueToString(itemJson), 1);
+                            continue;
+                        }
+                        ListItem item;
+                        item.key = getSafeStringFromJson(itemJson, "key", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true); // allowEmpty=true for key
+                        item.data = getSafeStringFromJson(itemJson, "data", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", true, false); // data is critical, not allowed to be empty by this call
+                        currentVarDisplay.array.push_back(item);
+                    }
+                }
+                else
+                {
+                    EngineStdOut("'array' field missing or not an array for variable '" + currentVarDisplay.name + "'. Using default: empty array", 1);
+                }
+            }
+            
+            this->m_HUDVariables.push_back(currentVarDisplay); // Add the fully populated display object
+            EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 0);
         }
     }
     /**
@@ -1825,7 +1906,7 @@ void Engine::drawHUD()
     }
 
     // --- 일반 변수 그리기 ---
-    if (m_showVariablesList && !m_HUDVariables.empty())
+    if (!m_HUDVariables.empty())
     {
         int windowW = 0;
         float maxObservedItemWidthThisFrame = 0.0f;
@@ -2135,7 +2216,7 @@ void Engine::processInput(const SDL_Event &event)
                 uiClicked = true;
             }
             // 3. Check Variables List Container Drag
-            if (!uiClicked && m_showVariablesList && !m_HUDVariables.empty())
+            if (!uiClicked && !m_HUDVariables.empty())
             {
                 // Calculate dynamic height for accurate click detection
                 // This needs to calculate the total height of the stack of variable boxes

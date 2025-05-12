@@ -78,7 +78,10 @@ struct ObjectInfo
     int fontSize;
     int textAlign;
 };
-
+struct ListItem{
+    string key=""; // 리스트 항목의 키
+    string data; // 리스트 항목의 데이터
+};
 // HUD에 표시될 일반 변수의 정보를 담는 구조체
 struct HUDVariableDisplay {
     string name;  // 변수 이름
@@ -88,11 +91,9 @@ struct HUDVariableDisplay {
     float x;    // HUD에서의 X 좌표
     float y;    // HUD에서의 Y 좌표
     string variableType; // 변수 유형 ("variable", "timer", "answer" 등)
-};
-// 리스트에 표시할 변수의 정보를 담는 구조체
-struct HUDVariableListItem {
-    string name;  // 변수 이름
-    string value; // 변수 값 (문자열로 표시)
+    float width=0; // HUD에서의 너비 리스트전용
+    float height=0; // HUD에서의 높이 리스트전용
+    vector<ListItem> array; // 리스트 항목 (리스트 전용)
 };
 class Engine
 {
@@ -163,7 +164,6 @@ private:
     bool m_isDraggingVariablesList = false;
     float m_variablesListDragOffsetX = 0.0f;
     float m_variablesListDragOffsetY = 0.0f;
-    bool m_showVariablesList = true; // 변수 목록 HUD 요소 전체 표시 여부
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
