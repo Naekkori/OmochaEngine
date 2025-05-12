@@ -23,7 +23,6 @@ const float Engine::MIN_ZOOM = 1.0f;
 const float Engine::MAX_ZOOM = 3.0f;
 const char *BASE_ASSETS = "assets/";
 const char *FONT_ASSETS = "font/";
-float actualListContentWidthForClamping = 0.0f;
 string PROJECT_NAME;
 string WINDOW_TITLE;
 const double PI_VALUE = acos(-1.0);
@@ -272,10 +271,11 @@ bool Engine::loadProject(const string &projectFilePath)
         this->zoomFactor = this->specialConfig.setZoomfactor;
     }
     /**
-     * @brief 변수 
-     * 
+     * @brief 변수
+     *
      */
-    if (document.HasMember("variables") && document["variables"].IsArray()){
+    if (document.HasMember("variables") && document["variables"].IsArray())
+    {
         const rapidjson::Value &variablesJson = document["variables"];
         EngineStdOut("Found " + to_string(variablesJson.Size()) + " variables. Processing...", 0);
 
@@ -295,23 +295,35 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 1);
                 continue;
             }
-             // New logic for parsing 'value'
-             if (variableJson.HasMember("value")) {
-                const auto& valNode = variableJson["value"];
-                if (valNode.IsString()) {
+            // New logic for parsing 'value'
+            if (variableJson.HasMember("value"))
+            {
+                const auto &valNode = variableJson["value"];
+                if (valNode.IsString())
+                {
                     currentVarDisplay.value = valNode.GetString();
-                } else if (valNode.IsNumber()) {
+                }
+                else if (valNode.IsNumber())
+                {
                     currentVarDisplay.value = RapidJsonValueToString(valNode); // Convert number to string
-                } else if (valNode.IsBool()) {
+                }
+                else if (valNode.IsBool())
+                {
                     currentVarDisplay.value = valNode.GetBool() ? "true" : "false";
-                } else if (valNode.IsNull()) {
+                }
+                else if (valNode.IsNull())
+                {
                     currentVarDisplay.value = ""; // Default for null
                     EngineStdOut("Variable '" + currentVarDisplay.name + "' has a null value. Interpreting as empty string for 'value' field.", 1);
-                } else {
+                }
+                else
+                {
                     currentVarDisplay.value = ""; // Default for other unexpected types
                     EngineStdOut("Variable '" + currentVarDisplay.name + "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " + RapidJsonValueToString(valNode), 1);
                 }
-            } else {
+            }
+            else
+            {
                 currentVarDisplay.value = ""; // Default if "value" field is missing
                 EngineStdOut("Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as empty string.", 1);
             }
@@ -319,7 +331,8 @@ bool Engine::loadProject(const string &projectFilePath)
             // If 'value' (now correctly stringified for numbers) is empty, skip the variable.
             // This fixes numeric 0 being skipped, as "0" is not empty.
             // It maintains skipping for actual empty strings, nulls, or missing values.
-            if (currentVarDisplay.value.empty()) {
+            if (currentVarDisplay.value.empty())
+            {
                 EngineStdOut("Variable value is effectively empty for variable '" + currentVarDisplay.name + "' at index " + to_string(i) + ". Skipping variable.", 1);
                 continue;
             }
@@ -333,9 +346,9 @@ bool Engine::loadProject(const string &projectFilePath)
             {
                 EngineStdOut("'visible' field missing or not boolean for variable '" + currentVarDisplay.name + "'. Using default: false", 2);
             }
-            
+
             currentVarDisplay.variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i), "variable", false, true);
-           
+
             /*
             TODO: variableType도 project.json에서 읽어오도록 수정해야 합니다. 현재는 기본값으로 "variable"을 사용합니다.
             Json 분석결과
@@ -379,7 +392,7 @@ bool Engine::loadProject(const string &projectFilePath)
             */
             if (currentVarDisplay.variableType == "list")
             {
-                //넓이 높이 둘다 float 였음.
+                // 넓이 높이 둘다 float 였음.
                 if (variableJson.HasMember("width") && variableJson["width"].IsNumber())
                 {
                     currentVarDisplay.width = variableJson["width"].GetFloat();
@@ -401,7 +414,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             continue;
                         }
                         ListItem item;
-                        item.key = getSafeStringFromJson(itemJson, "key", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true); // allowEmpty=true for key
+                        item.key = getSafeStringFromJson(itemJson, "key", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true);   // allowEmpty=true for key
                         item.data = getSafeStringFromJson(itemJson, "data", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", true, false); // data is critical, not allowed to be empty by this call
                         currentVarDisplay.array.push_back(item);
                     }
@@ -411,7 +424,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     EngineStdOut("'array' field missing or not an array for variable '" + currentVarDisplay.name + "'. Using default: empty array", 1);
                 }
             }
-            
+
             this->m_HUDVariables.push_back(currentVarDisplay); // Add the fully populated display object
             EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 3);
         }
@@ -1322,29 +1335,36 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     // --- Initial HUD Variable Position Clamping ---
     // project.json에서 로드된 x, y 좌표가 엔트리 좌표계 기준일 수 있으므로,
     // SDL 창 내에 있도록 초기 위치를 클램핑합니다.
-    if (renderer && !m_HUDVariables.empty()) { // 렌더러와 HUD 변수가 모두 유효할 때만 실행
+    if (renderer && !m_HUDVariables.empty())
+    { // 렌더러와 HUD 변수가 모두 유효할 때만 실행
         EngineStdOut("Performing initial HUD variable position clamping...", 0);
         int windowW = 0, windowH = 0;
         SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
 
-        if (windowW > 0 && windowH > 0) {
+        if (windowW > 0 && windowH > 0)
+        {
             float itemHeight_const = 22.0f; // drawHUD 및 processInput과 일치
             float itemPadding_const = 3.0f; // drawHUD 및 processInput과 일치
             float clampedItemHeight = itemHeight_const + 2 * itemPadding_const;
             // drawHUD/processInput의 minContainerFixedWidth와 일치시키거나 적절한 기본값 사용
-            float minContainerFixedWidth_const = 80.0f; 
+            float minContainerFixedWidth_const = 80.0f;
 
-            for (auto& var : m_HUDVariables) { // x, y를 수정해야 하므로 참조로 반복
-                if (!var.isVisible) continue;
+            for (auto &var : m_HUDVariables)
+            { // x, y를 수정해야 하므로 참조로 반복
+                if (!var.isVisible)
+                    continue;
 
                 float currentItemEstimatedWidth;
-                if (var.variableType == "list" && var.width > 0) {
+                if (var.variableType == "list" && var.width > 0)
+                {
                     // 리스트이고 project.json에 너비가 지정된 경우 해당 너비 사용
                     currentItemEstimatedWidth = max(minContainerFixedWidth_const, var.width);
-                } else {
+                }
+                else
+                {
                     // 일반 변수 또는 너비가 지정되지 않은 리스트의 경우, m_maxVariablesListContentWidth의 기본값을 사용
                     // m_maxVariablesListContentWidth는 drawHUD에서 계산되지만, 초기에는 기본값(180.0f)을 가짐
-                    currentItemEstimatedWidth = m_maxVariablesListContentWidth; 
+                    currentItemEstimatedWidth = m_maxVariablesListContentWidth;
                 }
 
                 // 추정된 너비가 창 너비보다 크지 않도록 하고, 최소 너비는 보장
@@ -1355,7 +1375,9 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
                 var.y = std::clamp(var.y, 0.0f, static_cast<float>(windowH) - clampedItemHeight);
                 EngineStdOut("Clamped initial pos for '" + var.name + "' to X=" + std::to_string(var.x) + ", Y=" + std::to_string(var.y) + " (Est. W=" + std::to_string(currentItemEstimatedWidth) + ", H=" + std::to_string(clampedItemHeight) + ")", 3);
             }
-        } else {
+        }
+        else
+        {
             EngineStdOut("Window dimensions (W:" + std::to_string(windowW) + ", H:" + std::to_string(windowH) + ") not valid for initial HUD clamping.", 1);
         }
     }
@@ -1951,7 +1973,8 @@ void Engine::drawHUD()
         int windowW = 0;
         float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
         int visibleVarsCount = 0;
-        if (renderer) SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
+        if (renderer)
+            SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
 
         // float currentWidgetYPosition = m_variablesListWidgetY; // No longer used for individual items
         // float spacingBetweenBoxes = 2.0f; // No longer used for individual items
@@ -1967,47 +1990,262 @@ void Engine::drawHUD()
             SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
             SDL_Color itemLabelTextColor = {0, 0, 0, 255};         // 변수 이름 텍스트 색상 (검정)
             SDL_Color itemValueTextColor = {255, 255, 255, 255};   // 변수 값 텍스트 색상
-            float itemHeight = 22.0f;           // 각 변수 항목의 높이
-            float itemPadding = 3.0f;           // 항목 내부 여백
+            float itemHeight = 22.0f;                              // 각 변수 항목의 높이
+            float itemPadding = 3.0f;                              // 항목 내부 여백
             float containerCornerRadius = 5.0f;
-            float containerBorderWidth = 1.0f; 
+            float containerBorderWidth = 1.0f;
 
             SDL_Color itemValueBoxBgColor;
             string valueToDisplay;
 
-            if (var.variableType == "timer") {
+            if (var.variableType == "timer")
+            {
                 itemValueBoxBgColor = {255, 150, 0, 255}; // 주황색 for timer
                 valueToDisplay = to_string(static_cast<int>(getProjectTimerValue()));
-            } else { // 일반 변수
+            }
+            else if (var.variableType == "list")
+            { // ---------- LIST VARIABLE RENDERING ----------
+                if (!hudFont)
+                    continue;
+
+                // List specific styling
+                SDL_Color listBgColor = {50, 50, 50, 200};           // Dark semi-transparent background for the list
+                SDL_Color listBorderColor = {150, 150, 150, 255};    // Light gray border
+                SDL_Color listNameTextColor = {220, 220, 220, 255};  // Light text for list name
+                SDL_Color listItemBgColor = {0, 100, 200, 255};      // Blue background for item data
+                SDL_Color listItemTextColor = {255, 255, 255, 255};  // White text for item data
+                SDL_Color listRowNumberColor = {200, 200, 200, 255}; // Light gray for row numbers
+
+                float listCornerRadius = 5.0f;
+                float listBorderWidth = 1.0f;
+                float headerHeight = 25.0f;         // Height for the list name header
+                float itemRowHeight = 20.0f;        // Height of each row in the list
+                float contentPadding = 5.0f;        // General padding inside the list container and items
+                float rowNumberColumnWidth = 30.0f; // Width allocated for row numbers column (adjust as needed)
+                float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
+
+                // 1. Draw List Container Border
+                SDL_FRect listContainerOuterRect = {var.x, var.y, var.width, var.height};
+                if (listBorderWidth > 0.0f)
+                {
+                    SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b, listBorderColor.a);
+                    Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
+                }
+
+                // 2. Draw List Container Background (inside the border)
+                SDL_FRect listContainerInnerRect = {
+                    var.x + listBorderWidth,
+                    var.y + listBorderWidth,
+                    max(0.0f, var.width - (2 * listBorderWidth)),
+                    max(0.0f, var.height - (2 * listBorderWidth))};
+                float innerRadius = max(0.0f, listCornerRadius - listBorderWidth);
+                if (listContainerInnerRect.w > 0 && listContainerInnerRect.h > 0)
+                {
+                    SDL_SetRenderDrawColor(renderer, listBgColor.r, listBgColor.g, listBgColor.b, listBgColor.a);
+                    Helper_RenderFilledRoundedRect(renderer, &listContainerInnerRect, innerRadius);
+                }
+
+                // 3. Draw List Name (Header)
+                string listDisplayName;
+                bool foundAssociatedObjectList = false;
+                if (!var.objectId.empty())
+                {
+                    const ObjectInfo *objInfoPtrList = getObjectInfoById(var.objectId);
+                    if (objInfoPtrList)
+                    {
+                        listDisplayName = objInfoPtrList->name + " : " + var.name;
+                        foundAssociatedObjectList = true;
+                    }
+                }
+                if (!foundAssociatedObjectList)
+                {
+                    listDisplayName = var.name;
+                }
+
+                SDL_Surface *nameSurfaceList = TTF_RenderText_Blended(hudFont, listDisplayName.c_str(), 0, listNameTextColor);
+                if (nameSurfaceList)
+                {
+                    SDL_Texture *nameTextureList = SDL_CreateTextureFromSurface(renderer, nameSurfaceList);
+                    if (nameTextureList)
+                    {
+                        SDL_FRect nameDestRectList = {
+                            listContainerInnerRect.x + contentPadding,
+                            listContainerInnerRect.y + (headerHeight - static_cast<float>(nameSurfaceList->h)) / 2.0f,
+                            min(static_cast<float>(nameSurfaceList->w), listContainerInnerRect.w - 2 * contentPadding),
+                            static_cast<float>(nameSurfaceList->h)};
+                        SDL_RenderTexture(renderer, nameTextureList, nullptr, &nameDestRectList);
+                        SDL_DestroyTexture(nameTextureList);
+                    }
+                    SDL_DestroySurface(nameSurfaceList);
+                }
+
+                // 4. Draw List Items
+                float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
+                float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
+                float currentItemVisualY = itemsAreaStartY + contentPadding;
+
+                float dataColumnX = listContainerInnerRect.x + contentPadding;
+                float dataColumnWidth = listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding;
+                dataColumnWidth = max(0.0f, dataColumnWidth);
+                float rowNumColumnX = dataColumnX + dataColumnWidth + contentPadding;
+
+                for (size_t i = 0; i < var.array.size(); ++i)
+                {
+                    if (currentItemVisualY + itemRowHeight > itemsAreaStartY + itemsAreaRenderableHeight)
+                    {
+                        break;
+                    }
+                    const ListItem &listItem = var.array[i];
+
+                    // Column 1: Item Data (Left - Blue BG, White Text)
+                    SDL_FRect itemDataBgRect = {dataColumnX, currentItemVisualY, dataColumnWidth, itemRowHeight};
+                    SDL_SetRenderDrawColor(renderer, listItemBgColor.r, listItemBgColor.g, listItemBgColor.b, listItemBgColor.a);
+                    SDL_RenderFillRect(renderer, &itemDataBgRect);
+
+                    if (dataColumnWidth > contentPadding * 2)
+                    { // Only render text if space for it
+                        string textToRender = listItem.data;
+                        string displayText = textToRender;
+                        float availableTextWidthInDataCol = dataColumnWidth - (2 * contentPadding);
+                        
+                        int fullTextMeasuredWidth;
+                        size_t fullTextOriginalLengthInBytes = textToRender.length();
+                        size_t fullTextMeasuredLengthInBytes; // max_width=0일 때 fullTextOriginalLengthInBytes와 같아야 함
+
+                        if (TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes, 0 /* max_width = 0 이면 전체 문자열 측정 */, &fullTextMeasuredWidth, &fullTextMeasuredLengthInBytes))
+                        {
+                            if (static_cast<float>(fullTextMeasuredWidth) > availableTextWidthInDataCol)
+                            {
+                                // 잘림 처리 필요
+                                const string ellipsis = "...";
+                                int ellipsisMeasuredWidth;
+                                size_t ellipsisOriginalLength = ellipsis.length();
+                                size_t ellipsisMeasuredLength; // ellipsis.length()와 같아야 함
+
+                                if (TTF_MeasureString(hudFont, ellipsis.c_str(), ellipsisOriginalLength, 0, &ellipsisMeasuredWidth, &ellipsisMeasuredLength))
+                                {
+                                    float widthForTextItself = availableTextWidthInDataCol - static_cast<float>(ellipsisMeasuredWidth);
+
+                                    if (widthForTextItself <= 0)
+                                    {
+                                        // 내용 + "..." 을 위한 공간 없음. "..." 만이라도 표시 가능한지 확인
+                                        if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol)
+                                        {
+                                            displayText = ellipsis;
+                                        }
+                                        else
+                                        {
+                                            // "..." 조차 표시할 공간 없음
+                                            displayText = ""; // 또는 textToRender의 첫 글자 등 (UTF-8 고려 필요)
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // "..." 앞의 원본 텍스트가 들어갈 수 있는 부분 측정
+                                        int fittingTextPortionWidth;
+                                        size_t fittingTextPortionLengthInBytes;
+                                        TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes, static_cast<int>(widthForTextItself), &fittingTextPortionWidth, &fittingTextPortionLengthInBytes);
+
+                                        if (fittingTextPortionLengthInBytes > 0)
+                                        {
+                                            displayText = textToRender.substr(0, fittingTextPortionLengthInBytes) + ellipsis;
+                                        }
+                                        else
+                                        {
+                                            // 텍스트 부분이 전혀 안 들어감. "..." 만이라도 표시 가능한지 확인
+                                            if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol) {
+                                                displayText = ellipsis;
+                                            } else {
+                                                displayText = "";
+                                            }
+                                        }
+                                    }
+                                }
+                                else { // "..." 측정 실패
+                                    EngineStdOut("Failed to measure ellipsis text for HUD list.", 2);
+                                    // 간단한 대체 처리
+                                    if (textToRender.length() > 2) displayText = textToRender.substr(0, textToRender.length() - 2) + "..";
+                                }
+                            }
+                            // else: 전체 텍스트가 공간에 맞으므로 displayText = textToRender (초기값) 사용
+                        }
+                        else { // textToRender 측정 실패
+                            EngineStdOut("Failed to measure text: " + textToRender + " for HUD list.", 2);
+                            // 오류 처리, displayText는 초기값 textToRender를 유지하거나 비워둘 수 있음
+                        }
+
+                        if (!displayText.empty())
+                        {
+                            SDL_Surface *itemTextSurface = TTF_RenderText_Blended(hudFont, displayText.c_str(), 0, listItemTextColor);
+                            if (itemTextSurface)
+                            {
+                                SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, itemTextSurface);
+                                if (tex)
+                                {
+                                    SDL_FRect r = {itemDataBgRect.x + contentPadding, itemDataBgRect.y + (itemDataBgRect.h - itemTextSurface->h) / 2.0f, (float)itemTextSurface->w, (float)itemTextSurface->h};
+                                    SDL_RenderTexture(renderer, tex, nullptr, &r);
+                                    SDL_DestroyTexture(tex);
+                                }
+                                SDL_DestroySurface(itemTextSurface);
+                            }
+                        }
+                    }
+
+                    // Column 2: Row Number (Right)
+                    string rowNumStr = to_string(i + 1);
+                    SDL_Surface *rowNumSurface = TTF_RenderText_Blended(hudFont, rowNumStr.c_str(), 0, listRowNumberColor);
+                    if (rowNumSurface)
+                    {
+                        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, rowNumSurface);
+                        if (tex)
+                        {
+                            SDL_FRect r = {rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f, currentItemVisualY + (itemRowHeight - rowNumSurface->h) / 2.0f, (float)rowNumSurface->w, (float)rowNumSurface->h};
+                            SDL_RenderTexture(renderer, tex, nullptr, &r);
+                            SDL_DestroyTexture(tex);
+                        }
+                        SDL_DestroySurface(rowNumSurface);
+                    }
+
+                    currentItemVisualY += itemRowHeight + spacingBetweenRows;
+                }
+                var.transient_render_width = var.width; // For lists, their rendered width is their defined width.
+            }
+            else
+            {                                             // 일반 변수
                 itemValueBoxBgColor = {0, 120, 255, 255}; // 파란색 for other variables
                 valueToDisplay = var.value;
             }
 
-           
             // 변수 이름 레이블
             // 변수 의 object 키에 오브젝트의 id 가 있을경우 해당오브젝트 이름을 가져온다.
             // 없을경우 그냥 변수 이름을 사용한다.
             string nameToDisplay; // HUD에 최종적으로 표시될 변수의 이름
             bool foundAssociatedObject = false;
 
-            if (!var.objectId.empty()) { 
-                const ObjectInfo* objInfoPtr = getObjectInfoById(var.objectId);
-                if (objInfoPtr) {
+            if (!var.objectId.empty())
+            {
+                const ObjectInfo *objInfoPtr = getObjectInfoById(var.objectId);
+                if (objInfoPtr)
+                {
                     nameToDisplay = objInfoPtr->name + " : " + var.name;
                     foundAssociatedObject = true;
                 }
             }
 
-            if (!foundAssociatedObject) {
+            if (!foundAssociatedObject)
+            {
                 nameToDisplay = var.name; // 변수 자체의 이름을 표시할 이름으로 사용합니다.
             }
-            
+
             SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
             SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
 
-            if (!nameSurface || !valueSurface) {
-                if(nameSurface) SDL_DestroySurface(nameSurface);
-                if(valueSurface) SDL_DestroySurface(valueSurface);
+            if (!nameSurface || !valueSurface)
+            {
+                if (nameSurface)
+                    SDL_DestroySurface(nameSurface);
+                if (valueSurface)
+                    SDL_DestroySurface(valueSurface);
                 EngineStdOut("Failed to render name or value surface for variable: " + var.name, 2);
                 continue;
             }
@@ -2029,12 +2267,13 @@ void Engine::drawHUD()
             // 컨테이너 최소/최대 너비 정의
             float minContainerFixedWidth = 80.0f; // 최소 너비
             // 최대 사용 가능 너비는 현재 변수의 x 위치를 기준으로 계산해야 합니다.
-            float maxAvailContainerWidth = static_cast<float>(windowW) - var.x - 10.0f; // 창 오른쪽 가장자리에서 10px 여유
+            float maxAvailContainerWidth = static_cast<float>(windowW) - var.x - 10.0f;   // 창 오른쪽 가장자리에서 10px 여유
             maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
 
             // 이 항목의 최종 컨테이너 너비
             float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth, maxAvailContainerWidth);
-            if (var.variableType == "list" && var.width > 0) { // 리스트 타입이고 명시적 너비가 있다면 사용
+            if (var.variableType == "list" && var.width > 0)
+            { // 리스트 타입이고 명시적 너비가 있다면 사용
                 // 참고: 리스트의 경우 var.width는 사용자가 project.json에서 명시적으로 설정한 너비를 의미할 수 있습니다.
                 currentItemContainerWidth = clamp(var.width, minContainerFixedWidth, maxAvailContainerWidth);
             }
@@ -2044,7 +2283,7 @@ void Engine::drawHUD()
 
             // 이 변수 항목 상자의 높이
             var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
-            float singleBoxHeight = itemHeight + 2 * itemPadding; 
+            float singleBoxHeight = itemHeight + 2 * itemPadding;
 
             // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
             // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
@@ -2059,22 +2298,21 @@ void Engine::drawHUD()
                 var.x + containerBorderWidth,
                 var.y + containerBorderWidth,
                 max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
-                max(0.0f, singleBoxHeight - (2 * containerBorderWidth))
-            };
+                max(0.0f, singleBoxHeight - (2 * containerBorderWidth))};
             float fillRadius = max(0.0f, containerCornerRadius - containerBorderWidth);
             if (fillContainerRect.w > 0 && fillContainerRect.h > 0)
             {
                 SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b, containerBgColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
             }
-            
+
             // 3. 각 변수 항목 그리기 (name and value)
-            float contentAreaTopY = fillContainerRect.y + itemPadding; 
+            float contentAreaTopY = fillContainerRect.y + itemPadding;
 
             SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
             SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-            SDL_DestroySurface(nameSurface); 
-            SDL_DestroySurface(valueSurface); 
+            SDL_DestroySurface(nameSurface);
+            SDL_DestroySurface(valueSurface);
 
             if (nameTexture && valueTexture)
             {
@@ -2085,30 +2323,39 @@ void Engine::drawHUD()
                 // Ideal widths for name text and the blue value background box
                 float targetNameTextWidth = nameTextActualWidth;
                 float targetValueBoxWidth = idealValueBgWidth; // Already calculated: valueTextActualWidth + (2 * itemPadding)
-                
+
                 float totalIdealInternalWidth = targetNameTextWidth + targetValueBoxWidth;
 
                 float finalNameTextWidth;
                 float finalValueBoxWidth;
 
-                if (totalIdealInternalWidth <= spaceForNameTextAndValueBox) {
+                if (totalIdealInternalWidth <= spaceForNameTextAndValueBox)
+                {
                     // Enough space for both to be drawn at their ideal widths
                     finalNameTextWidth = targetNameTextWidth;
                     finalValueBoxWidth = targetValueBoxWidth;
-                } else {
+                }
+                else
+                {
                     // Not enough space, scale them down proportionally to fit spaceForNameTextAndValueBox
-                    if (totalIdealInternalWidth > 0) {
+                    if (totalIdealInternalWidth > 0)
+                    {
                         float scaleFactor = spaceForNameTextAndValueBox / totalIdealInternalWidth;
                         finalNameTextWidth = targetNameTextWidth * scaleFactor;
                         finalValueBoxWidth = targetValueBoxWidth * scaleFactor;
-                    } else { // Both target widths are 0
+                    }
+                    else
+                    { // Both target widths are 0
                         finalNameTextWidth = 0;
                         finalValueBoxWidth = spaceForNameTextAndValueBox; // Or distribute 0/0 or space/2, space/2
-                        if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0) { // if space exists but content is zero
-                             finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
-                             finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
-                        } else {
-                             finalValueBoxWidth = 0;
+                        if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0)
+                        {                                                            // if space exists but content is zero
+                            finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
+                            finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
+                        }
+                        else
+                        {
+                            finalValueBoxWidth = 0;
                         }
                     }
                 }
@@ -2120,19 +2367,18 @@ void Engine::drawHUD()
                     fillContainerRect.x + itemPadding,
                     contentAreaTopY + (itemHeight - static_cast<float>(nameTexture->h)) / 2.0f,
                     finalNameTextWidth,
-                    static_cast<float>(nameTexture->h)
-                };
+                    static_cast<float>(nameTexture->h)};
                 SDL_FRect nameSrcRect = {0, 0, static_cast<int>(finalNameTextWidth), static_cast<int>(nameTexture->h)};
                 SDL_RenderTexture(renderer, nameTexture, &nameSrcRect, &nameDestRect);
 
                 // Draw Value Background Box and Value Text
-                if (finalValueBoxWidth > 0) {
+                if (finalValueBoxWidth > 0)
+                {
                     SDL_FRect valueBgRect = {
-                        nameDestRect.x + finalNameTextWidth + itemPadding, 
-                        contentAreaTopY, 
-                        finalValueBoxWidth, 
-                        itemHeight
-                    };
+                        nameDestRect.x + finalNameTextWidth + itemPadding,
+                        contentAreaTopY,
+                        finalValueBoxWidth,
+                        itemHeight};
                     SDL_SetRenderDrawColor(renderer, itemValueBoxBgColor.r, itemValueBoxBgColor.g, itemValueBoxBgColor.b, itemValueBoxBgColor.a);
                     SDL_RenderFillRect(renderer, &valueBgRect);
 
@@ -2144,31 +2390,36 @@ void Engine::drawHUD()
                             valueBgRect.x + itemPadding, // 파란색 상자 내에서 왼쪽 정렬
                             valueBgRect.y + (valueBgRect.h - static_cast<float>(valueTexture->h)) / 2.0f,
                             valueTextDisplayWidth,
-                            static_cast<float>(valueTexture->h)
-                        };
+                            static_cast<float>(valueTexture->h)};
                         SDL_FRect valueSrcRect = {0, 0, static_cast<int>(valueTextDisplayWidth), static_cast<int>(valueTexture->h)};
                         SDL_RenderTexture(renderer, valueTexture, &valueSrcRect, &valueDestRect);
                     }
                 }
             }
-            if(nameTexture) SDL_DestroyTexture(nameTexture);
-            if(valueTexture) SDL_DestroyTexture(valueTexture);
+            if (nameTexture)
+                SDL_DestroyTexture(nameTexture);
+            if (valueTexture)
+                SDL_DestroyTexture(valueTexture);
 
             // currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes; // 개별 위치를 사용하므로 이 줄은 제거됩니다.
         }
 
-        if (visibleVarsCount > 0) {
+        if (visibleVarsCount > 0)
+        {
             // maxObservedItemWidthThisFrame은 minContainerFixedWidth(80.0f) 이상이어야 합니다.
             // currentItemContainerWidth가 그렇게 clamp되기 때문입니다.
             m_maxVariablesListContentWidth = maxObservedItemWidthThisFrame;
-        } else {
+        }
+        else
+        {
             m_maxVariablesListContentWidth = 180.0f; // 보이는 항목이 없으면 기본 너비
         }
-    } else {
+    }
+    else
+    {
         // 목록이 아예 표시되지 않거나 비어있으면 기본 너비
         m_maxVariablesListContentWidth = 180.0f;
     }
-
 }
 bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
 {
@@ -2265,42 +2516,59 @@ void Engine::processInput(const SDL_Event &event)
                 float itemHeight = 22.0f;
                 float itemPadding = 3.0f;
                 float singleBoxHeight = itemHeight + 2 * itemPadding;
-                float containerBorderWidth = 1.0f; // Matches drawHUD
+                float containerBorderWidth = 1.0f;    // Matches drawHUD
                 float minContainerFixedWidth = 80.0f; // Matches drawHUD
                 int windowW_render = 0;
-                if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, nullptr);
+                if (renderer)
+                    SDL_GetRenderOutputSize(renderer, &windowW_render, nullptr);
 
-                for (int i = 0; i < m_HUDVariables.size(); ++i) {
-                    const auto& var_item = m_HUDVariables[i];
-                    if (!var_item.isVisible) continue;
+                for (int i = 0; i < m_HUDVariables.size(); ++i)
+                {
+                    const auto &var_item = m_HUDVariables[i];
+                    if (!var_item.isVisible)
+                        continue;
 
                     float itemActualWidth;
-                    if (var_item.variableType == "list" && var_item.width > 0) {
+                    if (var_item.variableType == "list" && var_item.width > 0)
+                    {
                         // For list type, use its defined width, clamped by available space
                         float maxAvailW = static_cast<float>(windowW_render) - var_item.x - 10.0f; // 10px margin from window edge
                         maxAvailW = max(minContainerFixedWidth, maxAvailW);
                         itemActualWidth = std::clamp(var_item.width, minContainerFixedWidth, maxAvailW);
-                    } else {
+                    }
+                    else
+                    {
                         // For other types, calculate width similar to drawHUD
                         float nameTextActualWidth_calc = 0, valueTextActualWidth_calc = 0;
-                        if (hudFont) { // Ensure hudFont is available
+                        if (hudFont)
+                        { // Ensure hudFont is available
                             string nameToDisplay_calc = var_item.name;
-                            if (!var_item.objectId.empty()) {
-                                const ObjectInfo* objInfoPtr_calc = getObjectInfoById(var_item.objectId);
-                                if (objInfoPtr_calc) nameToDisplay_calc = objInfoPtr_calc->name + " : " + var_item.name;
+                            if (!var_item.objectId.empty())
+                            {
+                                const ObjectInfo *objInfoPtr_calc = getObjectInfoById(var_item.objectId);
+                                if (objInfoPtr_calc)
+                                    nameToDisplay_calc = objInfoPtr_calc->name + " : " + var_item.name;
                             }
-                            SDL_Surface* nameSurf = TTF_RenderText_Blended(hudFont, nameToDisplay_calc.c_str(), 0, {0,0,0,255});
-                            if (nameSurf) { nameTextActualWidth_calc = static_cast<float>(nameSurf->w); SDL_DestroySurface(nameSurf); }
+                            SDL_Surface *nameSurf = TTF_RenderText_Blended(hudFont, nameToDisplay_calc.c_str(), 0, {0, 0, 0, 255});
+                            if (nameSurf)
+                            {
+                                nameTextActualWidth_calc = static_cast<float>(nameSurf->w);
+                                SDL_DestroySurface(nameSurf);
+                            }
 
                             string valueToDisplay_calc = (var_item.variableType == "timer") ? std::to_string(static_cast<int>(getProjectTimerValue())) : var_item.value;
-                            SDL_Surface* valSurf = TTF_RenderText_Blended(hudFont, valueToDisplay_calc.c_str(), 0, {255,255,255,255});
-                            if (valSurf) { valueTextActualWidth_calc = static_cast<float>(valSurf->w); SDL_DestroySurface(valSurf); }
+                            SDL_Surface *valSurf = TTF_RenderText_Blended(hudFont, valueToDisplay_calc.c_str(), 0, {255, 255, 255, 255});
+                            if (valSurf)
+                            {
+                                valueTextActualWidth_calc = static_cast<float>(valSurf->w);
+                                SDL_DestroySurface(valSurf);
+                            }
                         }
 
                         float idealValueBgWidth_calc = valueTextActualWidth_calc + (2 * itemPadding);
                         float idealFillWidth_calc = nameTextActualWidth_calc + idealValueBgWidth_calc + (3 * itemPadding); // 3 paddings: left, middle, right
                         float idealContainerFixedWidth_calc = idealFillWidth_calc + (2 * containerBorderWidth);
-                        
+
                         float maxAvailContainerWidth_calc = static_cast<float>(windowW_render) - var_item.x - 10.0f; // 10px margin
                         maxAvailContainerWidth_calc = max(minContainerFixedWidth, maxAvailContainerWidth_calc);
                         itemActualWidth = std::clamp(idealContainerFixedWidth_calc, minContainerFixedWidth, maxAvailContainerWidth_calc);
@@ -2444,8 +2712,8 @@ void Engine::processInput(const SDL_Event &event)
         // HUD 변수 드래그 중 마우스 이동 처리
         else if (m_draggedHUDVariableIndex != -1 && (event.motion.state & SDL_BUTTON_LMASK))
         {
-            HUDVariableDisplay& draggedVar = m_HUDVariables[m_draggedHUDVariableIndex]; // 참조로 가져옴
-            
+            HUDVariableDisplay &draggedVar = m_HUDVariables[m_draggedHUDVariableIndex]; // 참조로 가져옴
+
             int mouseX = event.motion.x;
             int mouseY = event.motion.y;
 
@@ -2453,27 +2721,34 @@ void Engine::processInput(const SDL_Event &event)
             float newY = static_cast<float>(mouseY) - m_draggedHUDVariableMouseOffsetY;
 
             int windowW = 0, windowH = 0;
-            if (renderer) {
+            if (renderer)
+            {
                 SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
             }
 
             // 드래그 중인 아이템의 크기 가져오기
-            float itemHeight_const = 22.0f; // drawHUD의 itemHeight
-            float itemPadding_const = 3.0f; // drawHUD의 itemPadding
+            float itemHeight_const = 22.0f;                                     // drawHUD의 itemHeight
+            float itemPadding_const = 3.0f;                                     // drawHUD의 itemPadding
             float draggedItemHeight = itemHeight_const + 2 * itemPadding_const; // drawHUD의 singleBoxHeight
 
             // 너비는 drawHUD에서 계산되어 transient_render_width에 저장된 값을 사용
             float draggedItemWidth = (draggedVar.transient_render_width > 0) ? draggedVar.transient_render_width : 180.0f; // transient_render_width가 0이면 기본 너비 사용
 
-            if (windowW > 0 && draggedItemWidth > 0) {
+            if (windowW > 0 && draggedItemWidth > 0)
+            {
                 draggedVar.x = std::clamp(newX, 0.0f, static_cast<float>(windowW) - draggedItemWidth);
-            } else {
+            }
+            else
+            {
                 draggedVar.x = newX; // 창/아이템 너비가 유효하지 않으면 클램핑 안 함
             }
 
-            if (windowH > 0 && draggedItemHeight > 0) {
+            if (windowH > 0 && draggedItemHeight > 0)
+            {
                 draggedVar.y = std::clamp(newY, 0.0f, static_cast<float>(windowH) - draggedItemHeight);
-            } else {
+            }
+            else
+            {
                 draggedVar.y = newY; // 창/아이템 높이가 유효하지 않으면 클램핑 안 함
             }
         }
@@ -2751,8 +3026,10 @@ void Engine::resetProjectTimer()
 
 void Engine::showProjectTimer(bool show)
 {
-    for (auto& var : m_HUDVariables) {
-        if (var.variableType == "timer") {
+    for (auto &var : m_HUDVariables)
+    {
+        if (var.variableType == "timer")
+        {
             var.isVisible = show;
             EngineStdOut(string("Project timer ('") + var.name + "') visibility set to: " + (show ? "Visible" : "Hidden"), 3);
             return; // Assuming only one timer variable for now
