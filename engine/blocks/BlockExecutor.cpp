@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <limits>
-
+#include <ctime>
 struct OperandValue
 {
     enum class Type
@@ -660,6 +660,34 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         // 파라미터 없음, 엔진에서 직접 타이머 값을 가져옴
         return OperandValue(engine.getProjectTimerValue());
     } // choose_project_timer_action은 Behavior 함수로 이동했으므로 여기서 제거합니다.
+    else if (BlockType == "get_date"){
+        // paramsKeyMap: { VALUE: 0 }
+        // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString()) {
+            engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2);
+            return OperandValue();
+        }
+
+        // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
+        std::string action = block.paramsJson[0].GetString();
+
+        if (action == "year") {
+            return OperandValue();
+        } else if (action == "month") {
+            return OperandValue();
+        } else if (action == "day") {
+            return OperandValue();
+        } else if (action == "hour") {
+            return OperandValue();
+        } else if (action == "minute") {
+            return OperandValue();
+        } else if (action == "second") {
+            return OperandValue();
+        } else {
+            engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
+            return OperandValue();
+        }
+    }
     return OperandValue();
 }
 

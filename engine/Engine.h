@@ -159,10 +159,18 @@ private:
     // float m_projectTimerDragOffsetX = 0.0f;
     // float m_projectTimerDragOffsetY = 0.0f;
     // --- General Variables Display UI ---
+    enum class HUDDragState { NONE, MOVING, RESIZING };
     vector<HUDVariableDisplay> m_HUDVariables;      // HUD에 표시될 변수 목록
     int m_draggedHUDVariableIndex = -1;             // 드래그 중인 HUD 변수의 인덱스, 없으면 -1
+    HUDDragState m_currentHUDDragState = HUDDragState::NONE; // 현재 HUD 드래그 상태
     float m_draggedHUDVariableMouseOffsetX = 0.0f;  // 드래그 중인 변수의 마우스 오프셋 X
     float m_draggedHUDVariableMouseOffsetY = 0.0f;  // 드래그 중인 변수의 마우스 오프셋 Y
+    // 리사이즈 관련 변수 (리사이즈 시작 시점의 마우스 위치와 HUD 크기를 저장할 수도 있으나,
+    // 여기서는 MOVING과 RESIZING 상태를 구분하고, 오프셋은 공유하되 계산 방식을 달리합니다.)
+    // float m_resizeStartMouseX = 0.0f;
+    // float m_resizeStartMouseY = 0.0f;
+    // float m_resizeStartHUDWidth = 0.0f;
+    // float m_resizeStartHUDHeight = 0.0f;
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
@@ -175,6 +183,9 @@ private:
     float zoomFactor;    // 현재 줌 배율 저장
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
+    static const float LIST_RESIZE_HANDLE_SIZE; // 리스트 리사이즈 핸들 크기
+    static const float MIN_LIST_WIDTH;          // 리스트 최소 너비
+    static const float MIN_LIST_HEIGHT;         // 리스트 최소 높이
     int mapEntryKeyToDxLibKey(const string &entryKey);
     string getSafeStringFromJson(const rapidjson::Value &parentValue,
                                  const string &fieldName,
