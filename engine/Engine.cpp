@@ -37,8 +37,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 }
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
-                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_projectTimerVisible(false), m_gameplayInputActive(false),
-                   m_projectTimerWidgetX(10.0f), m_projectTimerWidgetY(70.0f), m_isDraggingProjectTimer(false), m_projectTimerDragOffsetX(0.0f), m_projectTimerDragOffsetY(0.0f), // Project Timer UI
+                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
                    m_variablesListWidgetX(10.0f), m_variablesListWidgetY(120.0f), m_isDraggingVariablesList(false), m_variablesListDragOffsetX(0.0f), m_variablesListDragOffsetY(0.0f), m_showVariablesList(true), m_maxVariablesListContentWidth(180.0f) // Variables List UI
 {
 
@@ -311,6 +310,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("'visible' field missing or not boolean for variable '" + variableName + "'. Using default: false", 3);
             }
             /*
+            TODO: variableType도 project.json에서 읽어오도록 수정해야 합니다. 현재는 기본값으로 "variable"을 사용합니다.
             Json 분석결과
             {
                 "name": "variableName",
@@ -320,6 +320,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             TODO: x,y 좌표도 추가
             */
+            string variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i), "variable", false, true);
             string objectId;
             if (variableJson.HasMember("object") && !variableJson["object"].IsNull())
             {
@@ -329,7 +330,9 @@ bool Engine::loadProject(const string &projectFilePath)
             {
                 objectId = "";
             }
-            m_HUDVariables.push_back({variableName, variableValue,objectId, isvariableVisible}); // HUD에 표시될 변수 목록에 추가
+            float x = variableJson.HasMember("x") && variableJson["x"].IsNumber() ? variableJson["x"].GetFloat() : 0.0f;
+            float y = variableJson.HasMember("y") && variableJson["y"].IsNumber() ? variableJson["y"].GetFloat() : 0.0f;
+            this->m_HUDVariables.push_back({variableName, variableValue,objectId, isvariableVisible,x,y, variableType}); // HUD에 표시될 변수 목록에 추가
             EngineStdOut("  Parsed variable: " + variableName + " = " + variableValue, 0);
         }
     }
@@ -1820,134 +1823,6 @@ void Engine::drawHUD()
             }
         }
     }
-    // --- 엔트리 UI 그리기 ---
-    if (m_projectTimerVisible)
-    {
-        SDL_Color widgetBgColor = {255, 255, 255, 255};     // 전체 위젯 배경색 (흰색)
-        SDL_Color labelTextColor = {0, 0, 0, 255};          // "초시계" 레이블 텍스트 색상 (검정색)
-        SDL_Color valueBoxBgColor = {255, 150, 0, 255};     // 값 표시용 배경 상자 색상 (주황색)
-        SDL_Color valueTextColor = {255, 255, 255, 255};    // 값 텍스트 색상 (흰색)
-        SDL_Color widgetBorderColor = {120, 120, 120, 255}; // 얇은 테두리 색상
-        float widgetCornerRadius = 5.0f;                    // 코너 둥글기 반지름
-        float widgetBorderWidth = 1.0f;                     // 테두리 두께
-
-        string labelTextStr = "초시계";                                            // "초시계" 레이블 텍스트
-        string valueTextStr = to_string(static_cast<int>(getProjectTimerValue())); // 현재 타이머 값 사용
-
-        // 위젯의 위치와 크기를 정의합니다. HUD의 다른 요소들과 겹치지 않도록 조정하세요.
-        float widgetX = m_projectTimerWidgetX; // 드래그 가능한 위치 사용
-        float widgetY = m_projectTimerWidgetY; // 드래그 가능한 위치 사용
-        float widgetFixedW = 120.0f;           // 위젯 고정 너비
-        float widgetFixedH = 25.0f;
-        float padding = 3.0f; // 내부 여백
-
-        // 1. 전체 위젯 배경 및 테두리 그리기 (둥근 사각형)
-        SDL_FRect outerWidgetRect = {widgetX, widgetY, widgetFixedW, widgetFixedH};
-
-        // Draw border first (slightly larger rounded rect)
-        if (widgetBorderWidth > 0.0f)
-        {
-            SDL_SetRenderDrawColor(renderer, widgetBorderColor.r, widgetBorderColor.g, widgetBorderColor.b, widgetBorderColor.a);
-            Helper_RenderFilledRoundedRect(renderer, &outerWidgetRect, widgetCornerRadius);
-        }
-
-        // Draw main background fill (slightly smaller inset rounded rect)
-        SDL_FRect fillRect = {
-            widgetX + widgetBorderWidth,
-            widgetY + widgetBorderWidth,
-            widgetFixedW - 2 * widgetBorderWidth,
-            widgetFixedH - 2 * widgetBorderWidth};
-        if (fillRect.w < 0)
-            fillRect.w = 0; // Ensure positive width
-        if (fillRect.h < 0)
-            fillRect.h = 0; // Ensure positive height
-
-        float fillRadius = widgetCornerRadius - widgetBorderWidth;
-        if (fillRadius < 0.0f)
-            fillRadius = 0.0f;
-
-        if (fillRect.w > 0 && fillRect.h > 0)
-        { // Only draw if dimensions are valid
-            SDL_SetRenderDrawColor(renderer, widgetBgColor.r, widgetBgColor.g, widgetBgColor.b, widgetBgColor.a);
-            Helper_RenderFilledRoundedRect(renderer, &fillRect, fillRadius);
-        }
-
-        // 2. "초시계" 레이블 텍스트 렌더링 및 그리기
-        SDL_Surface *labelSurface = TTF_RenderText_Blended(hudFont, labelTextStr.c_str(), 0, labelTextColor);
-        if (!labelSurface)
-        {
-            EngineStdOut("Failed to render timer label text surface ", 2);
-        }
-        else
-        {
-            SDL_Texture *labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
-            if (!labelTexture)
-            {
-                EngineStdOut("Failed to create timer label texture: " + string(SDL_GetError()), 2);
-            }
-            else
-            {
-                SDL_FRect labelDestRect = {
-                    fillRect.x + padding,
-                    fillRect.y + (fillRect.h - static_cast<float>(labelSurface->h)) / 2.0f,
-                    static_cast<float>(labelSurface->w),
-                    static_cast<float>(labelSurface->h)};
-                // Ensure label text doesn't overflow the available width in fillRect for the label part
-                float maxLabelWidth = fillRect.w - 2 * padding; // Max width for label area
-                if (labelDestRect.w > maxLabelWidth)
-                    labelDestRect.w = maxLabelWidth;
-
-                SDL_RenderTexture(renderer, labelTexture, nullptr, &labelDestRect);
-
-                // 3. 값 표시용 배경 상자(주황색) 및 값 텍스트(흰색) 렌더링 및 그리기
-                SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueTextStr.c_str(), 0, valueTextColor);
-                if (!valueSurface)
-                {
-                    EngineStdOut("Failed to render timer value text surface ", 2);
-                }
-                else
-                {
-                    SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-                    if (!valueTexture)
-                    {
-                        EngineStdOut("Failed to create timer value texture: " + string(SDL_GetError()), 2);
-                    }
-                    else
-                    {
-                        // 값 배경 상자 위치 및 크기 (레이블 오른쪽, fillRect 내부)
-                        float valueBgX = labelDestRect.x + labelDestRect.w + padding;
-                        float valueBgY = fillRect.y + padding;
-                        float valueBgW = (fillRect.x + fillRect.w - padding) - valueBgX;
-                        float valueBgH = fillRect.h - 2 * padding;
-
-                        if (valueBgW < 0)
-                            valueBgW = 0; // Ensure positive width
-                        if (valueBgH < 0)
-                            valueBgH = 0; // Ensure positive height
-
-                        if (valueBgW > 0 && valueBgH > 0)
-                        {
-                            SDL_FRect valueBgRect = {valueBgX, valueBgY, valueBgW, valueBgH};
-                            SDL_SetRenderDrawColor(renderer, valueBoxBgColor.r, valueBoxBgColor.g, valueBoxBgColor.b, valueBoxBgColor.a);
-                            SDL_RenderFillRect(renderer, &valueBgRect); // Orange box is rectangular
-
-                            // 값 텍스트 위치 (주황색 배경 상자 내부 중앙 정렬)
-                            SDL_FRect valueDestRect = {
-                                valueBgRect.x + (valueBgRect.w - static_cast<float>(valueSurface->w)) / 2.0f,
-                                valueBgRect.y + (valueBgRect.h - static_cast<float>(valueSurface->h)) / 2.0f,
-                                static_cast<float>(valueSurface->w),
-                                static_cast<float>(valueSurface->h)};
-                            SDL_RenderTexture(renderer, valueTexture, nullptr, &valueDestRect);
-                        }
-                        SDL_DestroyTexture(valueTexture);
-                    }
-                    SDL_DestroySurface(valueSurface);
-                }
-                SDL_DestroyTexture(labelTexture);
-            }
-            SDL_DestroySurface(labelSurface);
-        }
-    }
 
     // --- 일반 변수 그리기 ---
     if (m_showVariablesList && !m_HUDVariables.empty())
@@ -1970,13 +1845,23 @@ void Engine::drawHUD()
             // Colors and fixed dimensions for a single item box
             SDL_Color containerBgColor = {240, 240, 240, 220};     // 컨테이너 배경색 (약간 투명한 밝은 회색)
             SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
-            SDL_Color itemLabelTextColor = {0, 0, 0, 255};         // 변수 이름 텍스트 색상
-            SDL_Color itemValueBoxBgColor = {0, 120, 255, 255};    // 변수 값 배경 상자 색상 (파란색 계열)
+            SDL_Color itemLabelTextColor = {0, 0, 0, 255};         // 변수 이름 텍스트 색상 (검정)
             SDL_Color itemValueTextColor = {255, 255, 255, 255};   // 변수 값 텍스트 색상
             float itemHeight = 22.0f;           // 각 변수 항목의 높이
             float itemPadding = 3.0f;           // 항목 내부 여백
             float containerCornerRadius = 5.0f;
             float containerBorderWidth = 1.0f; 
+
+            SDL_Color itemValueBoxBgColor;
+            string valueToDisplay;
+
+            if (var.variableType == "timer") {
+                itemValueBoxBgColor = {255, 150, 0, 255}; // 주황색 for timer
+                valueToDisplay = to_string(static_cast<int>(getProjectTimerValue()));
+            } else { // 일반 변수
+                itemValueBoxBgColor = {0, 120, 255, 255}; // 파란색 for other variables
+                valueToDisplay = var.value;
+            }
 
            
             // 변수 이름 레이블
@@ -1998,7 +1883,7 @@ void Engine::drawHUD()
             }
             
             SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
-            SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, var.value.c_str(), 0, itemValueTextColor);
+            SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
 
             if (!nameSurface || !valueSurface) {
                 if(nameSurface) SDL_DestroySurface(nameSurface);
@@ -2249,21 +2134,6 @@ void Engine::processInput(const SDL_Event &event)
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
             }
-            if (!uiClicked && m_projectTimerVisible)
-            {
-                float widgetFixedW = 120.0f; // Must match drawHUD
-                float widgetFixedH = 25.0f;  // Must match drawHUD
-                SDL_FRect timerWidgetRect = {m_projectTimerWidgetX, m_projectTimerWidgetY, widgetFixedW, widgetFixedH};
-
-                if (mouseX >= timerWidgetRect.x && mouseX <= timerWidgetRect.x + timerWidgetRect.w &&
-                    mouseY >= timerWidgetRect.y && mouseY <= timerWidgetRect.y + timerWidgetRect.h)
-                {
-                    m_isDraggingProjectTimer = true;
-                    m_projectTimerDragOffsetX = static_cast<float>(mouseX) - m_projectTimerWidgetX;
-                    m_projectTimerDragOffsetY = static_cast<float>(mouseY) - m_projectTimerWidgetY;
-                    uiClicked = true;
-                }
-            }
             // 3. Check Variables List Container Drag
             if (!uiClicked && m_showVariablesList && !m_HUDVariables.empty())
             {
@@ -2419,27 +2289,6 @@ void Engine::processInput(const SDL_Event &event)
                 this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
             }
         }
-        // Project timer drag
-        if (m_isDraggingProjectTimer && (event.motion.state & SDL_BUTTON_LMASK))
-        {
-            int mouseX = event.motion.x;
-            int mouseY = event.motion.y;
-            m_projectTimerWidgetX = static_cast<float>(mouseX) - m_projectTimerDragOffsetX;
-            m_projectTimerWidgetY = static_cast<float>(mouseY) - m_projectTimerDragOffsetY;
-
-            int windowW = 0, windowH = 0;
-            if (renderer)
-                SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
-            float widgetFixedW = 120.0f;
-            float widgetFixedH = 25.0f;
-
-            if (windowW > 0 && windowH > 0)
-            {
-                m_variablesListWidgetX = max(0.0f, min(m_variablesListWidgetX, static_cast<float>(windowW) - actualListContentWidthForClamping));
-                m_projectTimerWidgetY = max(0.0f, min(m_projectTimerWidgetY, static_cast<float>(windowH) - widgetFixedH));
-            }
-        }
         // Variables list container drag
         if (m_isDraggingVariablesList && (event.motion.state & SDL_BUTTON_LMASK))
         {
@@ -2494,11 +2343,6 @@ void Engine::processInput(const SDL_Event &event)
             {
                 // this->m_isDraggingZoomSlider = false; // 이 줄은 중복될 수 있습니다. 아래에서 이미 처리됨.
                 this->m_isDraggingZoomSlider = false;
-                uiDragReleased = true;
-            }
-            if (m_isDraggingProjectTimer)
-            {
-                m_isDraggingProjectTimer = false;
                 uiDragReleased = true;
             }
             if (m_isDraggingVariablesList)
@@ -2762,8 +2606,14 @@ void Engine::resetProjectTimer()
 
 void Engine::showProjectTimer(bool show)
 {
-    m_projectTimerVisible = show;
-    EngineStdOut(string("Project timer visibility set to: ") + (show ? "Visible" : "Hidden"), 0);
+    for (auto& var : m_HUDVariables) {
+        if (var.variableType == "timer") {
+            var.isVisible = show;
+            EngineStdOut(string("Project timer ('") + var.name + "') visibility set to: " + (show ? "Visible" : "Hidden"), 3);
+            return; // Assuming only one timer variable for now
+        }
+    }
+    EngineStdOut("showProjectTimer: No timer variable found in HUDVariables to set visibility.", 1);
 }
 
 double Engine::getProjectTimerValue() const

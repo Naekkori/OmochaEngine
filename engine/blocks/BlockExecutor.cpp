@@ -163,13 +163,20 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
     {
         const Block &block = scriptPtr->blocks[i];
         engine.EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + objectId, 0);
-
-        Behavior(block.type, engine, objectId, block);
-        Mathematical(block.type, engine, objectId, block);
-        Shape(block.type, engine, objectId, block);
-        Sound(block.type, engine, objectId, block);
-        Variable(block.type, engine, objectId, block);
-        Function(block.type, engine, objectId, block);
+        try
+        {
+            Behavior(block.type, engine, objectId, block);
+            Mathematical(block.type, engine, objectId, block);
+            Shape(block.type, engine, objectId, block);
+            Sound(block.type, engine, objectId, block);
+            Variable(block.type, engine, objectId, block);
+            Function(block.type, engine, objectId, block);
+        }
+        catch(const std::exception& e)
+        {
+            engine.showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + objectId + "\n" + e.what(), engine.msgBoxIconType.ICON_ERROR);
+            SDL_Quit();
+        }
     }
 }
 /**
@@ -446,6 +453,7 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.", 2);
+            throw "Invalid params for quotient_and_mod block";
             return OperandValue();
         }
 
@@ -456,6 +464,7 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         if (operator_op.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2);
+            throw "Invalid operator type in quotient_and_mod block";
             return OperandValue();
         }
         std::string anOperator = operator_op.string_val;

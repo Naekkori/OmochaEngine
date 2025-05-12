@@ -83,10 +83,17 @@ struct ObjectInfo
 struct HUDVariableDisplay {
     string name;  // 변수 이름
     string value; // 변수 값 (문자열로 표시)
-    string objectId; // 변수를 표시할 오브젝트 ID nullptr 이면 public 변수
+    string objectId; // 변수를 표시할 오브젝트 ID 가 null 이면 public 변수
     bool isVisible;    // HUD에 표시 여부
+    float x;    // HUD에서의 X 좌표
+    float y;    // HUD에서의 Y 좌표
+    string variableType; // 변수 유형 ("variable", "timer", "answer" 등)
 };
-
+// 리스트에 표시할 변수의 정보를 담는 구조체
+struct HUDVariableListItem {
+    string name;  // 변수 이름
+    string value; // 변수 값 (문자열로 표시)
+};
 class Engine
 {
 private:
@@ -135,7 +142,7 @@ private:
     // --- Project Timer Members ---
     double m_projectTimerValue = 0.0;
     bool m_projectTimerRunning = false;
-    bool m_projectTimerVisible = false; // 타이머 UI 표시 여부
+    // bool m_projectTimerVisible = false; // 이제 HUDVariableDisplay의 isVisible로 관리
     bool m_gameplayInputActive = false;    // Flag to indicate if gameplay-related key input is active
     Uint64 m_projectTimerStartTime = 0; // Start time of the project timer (Uint64로 변경)
     // int Soundloader(const string& soundUri);
@@ -144,11 +151,11 @@ private:
     float m_currentStageMouseY = 0.0f;
     bool m_isMouseOnStage = false; // True if the mouse is currently over the stage display area
     // --- Project Timer UI ---
-    float m_projectTimerWidgetX = 10.0f; // Default X position
-    float m_projectTimerWidgetY = 70.0f; // Default Y position
-    bool m_isDraggingProjectTimer = false;
-    float m_projectTimerDragOffsetX = 0.0f;
-    float m_projectTimerDragOffsetY = 0.0f;
+    // float m_projectTimerWidgetX = 10.0f; // 이제 HUDVariableDisplay의 x, y로 관리
+    // float m_projectTimerWidgetY = 70.0f; // 이제 HUDVariableDisplay의 x, y로 관리
+    // bool m_isDraggingProjectTimer = false; // 드래그 로직은 변수 목록 전체 드래그 제거 시 함께 제거됨
+    // float m_projectTimerDragOffsetX = 0.0f;
+    // float m_projectTimerDragOffsetY = 0.0f;
     // --- General Variables Display UI ---
     vector<HUDVariableDisplay> m_HUDVariables; // HUD에 표시될 변수 목록
     float m_variablesListWidgetX = 10.0f;
@@ -179,6 +186,8 @@ private:
 
     SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
 
+    void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
+
 public:
     struct MsgBoxIconType
     {
@@ -199,6 +208,7 @@ public:
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
+    void showProjectTimer(bool show); // 프로젝트 타이머 표시 여부 설정
     void EngineStdOut(string s, int LEVEL = 0) const;
     void processInput(const SDL_Event &event);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
@@ -225,7 +235,7 @@ public:
     void startProjectTimer();
     void stopProjectTimer();
     void resetProjectTimer();
-    void showProjectTimer(bool show);
+    void setProjectTimerVisibility(bool show); // 이름 변경 및 기능 수정
     double getProjectTimerValue() const;
     void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
     // --- Mouse State Getters ---
@@ -234,7 +244,8 @@ public:
     const ObjectInfo* getObjectInfoById(const string& id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     // HUD에 표시할 변수 목록을 설정하는 메서드
-    void setVisibleHUDVariables(const vector<HUDVariableDisplay>& variables);
+    void loadHUDVariablesFromJson(const rapidjson::Value& variablesArrayJson); // JSON에서 직접 로드하도록 변경
+    vector<HUDVariableDisplay>& getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     SimpleLogger logger;                           // public으로 이동하여 BlockExecutor 등에서 접근 가능하도록 함 (또는 getter 제공)
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };
