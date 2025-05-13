@@ -1,4 +1,5 @@
 #include "BlockExecutor.h"
+#include "util/AEhelper.h"
 #include "../Engine.h"
 #include "../Entity.h"
 #include <string>

@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 #include <rapidjson/document.h>
-
 struct Script;
 
 class Block {

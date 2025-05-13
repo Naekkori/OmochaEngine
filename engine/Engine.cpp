@@ -1163,13 +1163,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
     }
-    {
-        string errMsg = "SDL could not initialize! SDL_" + string(SDL_GetError());
-        EngineStdOut(errMsg, 2);
-        showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
-        return false;
-    }
-    EngineStdOut("SDL initialized successfully (Video and Audio).", 0);
+    EngineStdOut("SDL video subsystem initialized successfully.", 0);
 
     if (TTF_Init() == -1)
     {
