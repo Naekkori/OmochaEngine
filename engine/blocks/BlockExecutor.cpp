@@ -1453,11 +1453,11 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     }else if(BlockType == "get_user_name"){
         //네이버 클라우드 플랫폼에서 제공하는 사용자 이름을 가져오는 블록
         //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
-        return OperandValue(publicVariable.user_name);
-    }else if (BlockType == "get_user_id"){
+        return OperandValue(publicVariable.user_id);
+    }else if (BlockType == "get_nickname"){
         //네이버 클라우드 플랫폼에서 제공하는 사용자 ID를 가져오는 블록
         //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
-        return OperandValue(publicVariable.user_id);
+        return OperandValue(publicVariable.user_name);
     }
     
     return OperandValue();
