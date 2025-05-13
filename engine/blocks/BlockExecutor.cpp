@@ -493,19 +493,12 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         Entity *entity = engine.getEntityById(objectId);
         if (entity)
         {
-            // Perform the movement steps iteratively to complete the full motion.
-            // In the current synchronous C++ script execution model, this loop
-            // will execute all steps immediately.
-
             for (int i = 0; i < totalFrames; ++i)
             {
                 double newX = entity->getX() + xStep;
                 double newY = entity->getY() + yStep;
                 entity->setX(newX);
                 entity->setY(newY);
-
-                // Call updatePositionAndDraw for brush and paint if they are active and pen is down
-                // The Entity::PenState::updatePositionAndDraw method handles the isActive and isPenDown checks.
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
             }
