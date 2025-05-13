@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <cstdlib>   
 #include <stdexcept> 
+#include <fstream> // For std::ofstream
 #include <Windows.h>
 #include "engine/Engine.h"
 #include "MainProgram.h"
@@ -19,6 +20,7 @@ void setConsoleUTF8();
 
 int main(int argc, char *argv[])
 {  
+    Engine engine; 
     MainProgram mainProgram;
     
     int targetFpsFromArg = -1;     
@@ -27,23 +29,40 @@ int main(int argc, char *argv[])
         string arg = argv[i];
         if (arg == "--help" || arg == "-h")
         {
-            string engineString = string(OMOCHA_ENGINE_NAME) + " v" + 
-            string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME) + "\n";
-            engineString +="See Project page "+string(OMOCHA_ENGINE_GITHUB)+"\n";
-            engineString +="**************************\n";
-            engineString +="*         도움말         *\n";
-            engineString +="**************************\n";
-            // Print detailed usage information
-            printf(engineString.c_str());
-            printf("사용법: %s [옵션]\n\n", argv[0]);
-            printf("옵션:\n");
-            printf("  --setfps <value>   frames per second (FPS) 를 설정합니다.\n");
-            printf("                     기본값은 엔진 내부세팅 60fps 입니다.\n");
-            printf("  --useVk <0|1>      Vulkan 렌더러 사용 여부를 설정합니다. 0: 사용 안 함 (기본값), 1: 사용 시도.\n");
-            printf("  --setVsync <0|1>   수직동기화 를 설정합니다 0 은 비활성 1 은 활성입니다.\n");
-            printf("  -h, --help         도움말 을 출력하고 엔진을 종료합니다.\n\n");
-            printf("예제:\n");
-            printf("  %s --setfps 120 --setVsync 0\n", argv[0]);
+            string helpTitle = string(OMOCHA_ENGINE_NAME) + " 도움말";
+            string helpMessage = 
+                string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " by " + string(OMOCHA_DEVELOPER_NAME) + "\n" +
+                "프로젝트 페이지: " + string(OMOCHA_ENGINE_GITHUB) + "\n\n" +
+                "사용법: " + string(argv[0]) + " [옵션]\n\n" +
+                "옵션:\n" +
+                "  --setfps <값>      초당 프레임(FPS)을 설정합니다.\n" +
+                "                       (기본값: 엔진 내부 설정, 예: 60)\n" +
+                "  --useVk <0|1>      Vulkan 렌더러 사용 여부를 설정합니다.\n" +
+                "                       0: 사용 안 함 (기본값), 1: 사용 시도\n" +
+                "  --setVsync <0|1>   수직 동기화를 설정합니다.\n" +
+                "                       0: 비활성, 1: 활성 (기본값)\n" +
+                "  -h, --help         이 도움말을 표시하고 종료합니다.\n\n" +
+                "예제:\n" +
+                "  OmochaEngine.exe --setfps 120 --setVsync 0"; // 예시 실행 파일 이름
+            string tempHelpFilePath = "엔진 도움말.txt";
+            try {
+                ofstream helpFile(tempHelpFilePath);
+                if (helpFile.is_open()) {
+                    helpFile << helpMessage;
+                    helpFile.close();
+
+                    string command = "notepad.exe " + tempHelpFilePath;
+                    system(command.c_str()); 
+                } else {
+                    // 파일 생성 실패 시 메시지 박스로 대체
+                    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "도움말 파일 오류", "도움말 파일을 생성할 수 없습니다.", NULL);
+                }
+            } catch (const std::exception& e) {
+                // 예외 발생 시 메시지 박스로 대체
+                string errorMsg = "도움말 표시 중 오류 발생: ";
+                errorMsg += e.what();
+                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "도움말 오류", errorMsg.c_str(), NULL);
+            }
             return 0; // Exit after displaying help
         }
 
@@ -136,8 +155,6 @@ int main(int argc, char *argv[])
     
 
     string projectPath = "";
-
-    Engine engine; 
 
     
     if (filesystem::exists(insideprojectPath))
