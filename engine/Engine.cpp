@@ -3466,3 +3466,42 @@ void Engine::triggerWhenSceneStartScripts()
         }
     }
 }
+
+int Engine::getBlockCountForObject(const std::string& objectId) const {
+    auto it = objectScripts.find(objectId);
+    if (it == objectScripts.end()) {
+        return 0;
+    }
+    int count = 0;
+    for (const auto& script : it->second) {
+        // The first block is usually the event trigger (e.g., "when_run_button_click")
+        // and is not counted as an "executable" block in the same way.
+        if (script.blocks.size() > 1) {
+            count += static_cast<int>(script.blocks.size() - 1);
+        }
+    }
+    return count;
+}
+
+int Engine::getBlockCountForScene(const std::string& sceneId) const {
+    int totalCount = 0;
+    for (const auto& objInfo : objects_in_order) {
+        if (objInfo.sceneId == sceneId) {
+            // For each object in the specified scene, get its block count
+            totalCount += getBlockCountForObject(objInfo.id);
+        }
+    }
+    return totalCount;
+}
+
+int Engine::getTotalBlockCount() const {
+    int totalCount = 0;
+    for (const auto& pair : objectScripts) {
+        // pair.first is objectId, pair.second is vector<Script>
+        // This will sum up getBlockCountForObject for all objects that have scripts.
+        // Alternatively, iterate all objects_in_order and call getBlockCountForObject if you want to include objects with no scripts (count 0).
+        // The current approach sums counts for objects that actually have script entries.
+        totalCount += getBlockCountForObject(pair.first);
+    }
+    return totalCount;
+}

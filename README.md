@@ -73,19 +73,18 @@ setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니�
 - [x] **`get_date`**: 현재 년도/월/일/시/분/초 값
 - [x] **`distance_something`**: (마우스 포인터) 까지의 거리
 - [x] **`length_of_string`**: (엔트리)의 길이
-### 미구현 기능
-- [ ] **`reverse_of_string`**: (엔트리)을(를) 거꾸로 뒤집은 값
-- [ ] **`combine_something`**: (안녕) 와(과) (엔트리) 합치기 (문자열)
-- [ ] **`char_at`**: (안녕하세요)의 (1)번째 글자
-- [ ] **`substring`**: (안녕하세요)의 (2)번째 글자부터 (4)번째 글자까지
-- [ ] **`count_match_string`**: (엔트리봇은 엔트리 작품을 좋아해)에서 (엔트리)가 포함된 개수
-- [ ] **`index_of_string`**: (안녕하세요)에서 (하세)의 위치
-- [ ] **`replace_string`**: (안녕하세요)의 (안녕)을(를) (Hi)로 바꾸기
-- [ ] **`change_string_case`**: (Hello Entry!)을(를) (대문자/소문자)로 바꾸기
-- [ ] **`get_block_count`**: (자신)의 블록 수 (오브젝트/장면/전체 블록 수 계산)
-- [ ] **`change_rgb_to_hex`**: R (255) G (0) B (0) 값을 Hex 코드로 바꾸기
-- [ ] **`change_hex_to_rgb`**: (#ff0000) 코드의 (R) 값
-- [ ] **`get_boolean_value`**: (판단 블록) 값 (결과를 "TRUE" 또는 "FALSE" 문자열로 반환)
+- [x] **`reverse_of_string`**: (엔트리)을(를) 거꾸로 뒤집은 값
+- [x] **`combine_something`**: (안녕) 와(과) (엔트리) 합치기 (문자열)
+- [x] **`char_at`**: (안녕하세요)의 (1)번째 글자
+- [x] **`substring`**: (안녕하세요)의 (2)번째 글자부터 (4)번째 글자까지
+- [x] **`count_match_string`**: (엔트리봇은 엔트리 작품을 좋아해)에서 (엔트리)가 포함된 개수
+- [x] **`index_of_string`**: (안녕하세요)에서 (하세)의 위치
+- [x] **`replace_string`**: (안녕하세요)의 (안녕)을(를) (Hi)로 바꾸기
+- [x] **`change_string_case`**: (Hello Entry!)을(를) (대문자/소문자)로 바꾸기
+- [x] **`get_block_count`**: (자신)의 블록 수 (오브젝트/장면/전체 블록 수 계산)
+- [x] **`change_rgb_to_hex`**: R (255) G (0) B (0) 값을 Hex 코드로 바꾸기
+- [x] **`change_hex_to_rgb`**: (#ff0000) 코드의 (R) 값
+- [x] **`get_boolean_value`**: (판단 블록) 값 (결과를 "TRUE" 또는 "FALSE" 문자열로 반환)
 
 ### 구현불가
 ###### 개발자 가 서버를 구축안해서 못씁니다.

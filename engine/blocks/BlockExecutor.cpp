@@ -15,16 +15,21 @@ struct OperandValue
     {
         EMPTY,
         NUMBER,
-        STRING
+        STRING,
+        BOOLEAN,
     };
     Type type = Type::EMPTY;
-    double number_val = 0.0;
+    bool boolean_val = false;
     std::string string_val = "";
+    double number_val = 0.0;
 
     OperandValue() = default;
     OperandValue(double val) : type(Type::NUMBER), number_val(val) {}
     OperandValue(const std::string &val) : type(Type::STRING), string_val(val) {}
-
+    OperandValue(bool val) : type(Type::BOOLEAN)
+    {
+        boolean_val = val ? true : false;
+    }
     double asNumber() const
     {
         if (type == Type::NUMBER)
@@ -145,8 +150,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     return OperandValue();
 }
 
-void Behavior(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-OperandValue Mathematical(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
+void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
+OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Shape(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
@@ -167,14 +172,14 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
         engine.EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + objectId, 0);
         try
         {
-            Behavior(block.type, engine, objectId, block);
-            Mathematical(block.type, engine, objectId, block);
+            Moving(block.type, engine, objectId, block);
+            Calculator(block.type, engine, objectId, block);
             Shape(block.type, engine, objectId, block);
             Sound(block.type, engine, objectId, block);
             Variable(block.type, engine, objectId, block);
             Function(block.type, engine, objectId, block);
         }
-        catch(const std::exception& e)
+        catch (const std::exception &e)
         {
             engine.showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + objectId + "\n" + e.what(), engine.msgBoxIconType.ICON_ERROR);
             SDL_Quit();
@@ -182,70 +187,19 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
     }
 }
 /**
- * @brief 행동블럭
+ * @brief 움직이기 블럭
  *
  */
-void Behavior(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
-    if (BlockType == "choose_project_timer_action")
-    {
-        // paramsKeyMap: { ACTION: 0 }
-        // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
-        // Block.h에서 paramsJson이 rapidjson::Value 타입이고,
-        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString()) {
-            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2);
-            return;
-        }
-
-        // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
-        // getOperandValue를 사용할 수도 있지만, 여기서는 직접 사용합니다.
-        std::string action = block.paramsJson[0].GetString();
-
-        if (action == "START") {
-            engine.EngineStdOut("Project timer STARTED by object " + objectId, 0);
-            engine.startProjectTimer();
-        } else if (action == "STOP") {
-            engine.EngineStdOut("Project timer STOPPED by object " + objectId, 0);
-            engine.stopProjectTimer();
-        } else if (action == "RESET") {
-            engine.EngineStdOut("Project timer RESET by object " + objectId, 0);
-            engine.resetProjectTimer(); // resetProjectTimer는 값만 0으로 설정합니다.
-        } else {
-            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1);
-        }
-        return; // Behavior 블록은 값을 반환하지 않음
-    }else if (BlockType == "set_visible_project_timer"){
-        // paramsKeyMap: { ACTION: 0 } (가정)
-        // 드롭다운 값 ("SHOW" 또는 "HIDE")은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString()) {
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has invalid or missing action parameter.", 2);
-            return;
-        }
-
-        std::string actionValue = block.paramsJson[0].GetString();
-
-        if (actionValue == "SHOW") {
-            engine.EngineStdOut("Project timer set to VISIBLE by object " + objectId, 0);
-            engine.showProjectTimer(true);
-        } else if (actionValue == "HIDE") { // 엔트리에서는 "HIDE" 또는 다른 값을 사용할 수 있습니다. "SHOW"가 아니면 숨김으로 처리.
-            engine.EngineStdOut("Project timer set to HIDDEN by object " + objectId, 0);
-            engine.showProjectTimer(false);
-        }else{
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown action value: " + actionValue, 1);
-            // 기본적으로 숨김 처리 또는 아무것도 안 함
-            // engine.showProjectTimer(false); 
-        }
-        return;
-    }
     // 여기에 다른 Behavior 블록 타입에 대한 처리를 추가할 수 있습니다.
     // 예: if (BlockType == "move_direction") { ... }
 }
 /**
- * @brief 수학블럭
+ * @brief 계산 블록
  *
  */
-OperandValue Mathematical(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
     if (BlockType == "calc_basic")
     {
@@ -279,7 +233,8 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
     {
         // paramsKeyMap: { VALUE: 1 }
         // 드롭다운 값 ("x" 또는 "y")은 paramsJson[1]에 있습니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() <= 1) { // 인덱스 1은 크기가 최소 2여야 함
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() <= 1)
+        { // 인덱스 1은 크기가 최소 2여야 함
             engine.EngineStdOut("coordinate_mouse block for " + objectId + " has invalid params structure. Expected param at index 1 for VALUE.", 2);
             return OperandValue(0.0);
         }
@@ -287,14 +242,18 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         OperandValue coordTypeOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         std::string coord_type_str;
 
-        if (coordTypeOp.type == OperandValue::Type::STRING) {
+        if (coordTypeOp.type == OperandValue::Type::STRING)
+        {
             coord_type_str = coordTypeOp.asString();
-        } else {
+        }
+        else
+        {
             engine.EngineStdOut("coordinate_mouse block for " + objectId + ": VALUE parameter (index 1) is not a string.", 2);
             return OperandValue(0.0);
         }
 
-        if (coord_type_str.empty()) { // getOperandValue가 빈 문자열을 반환했거나, 원래 문자열이 비어있는 경우
+        if (coord_type_str.empty())
+        { // getOperandValue가 빈 문자열을 반환했거나, 원래 문자열이 비어있는 경우
             engine.EngineStdOut("coordinate_mouse block for object " + objectId + " has an empty coordinate type string for VALUE parameter.", 2);
             return OperandValue(0.0);
         }
@@ -429,7 +388,8 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
                 }
             }
 
-            if (found) {
+            if (found)
+            {
                 if (coordinateTypeStr == "picture_index")
                 {
                     return OperandValue(static_cast<double>(found_idx + 1));
@@ -438,10 +398,14 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
                 {
                     return OperandValue(targetObjInfo->costumes[found_idx].name);
                 }
-            } else {
+            }
+            else
+            {
                 engine.EngineStdOut("coordinate_object - Selected costume ID '" + selectedCostumeId + "' not found in costume list for entity '" + targetEntity->getId() + "'.", 1);
-                if (coordinateTypeStr == "picture_index") return OperandValue(0.0); // Not found, return 0 for index
-                else return OperandValue(""); // Not found, return empty for name
+                if (coordinateTypeStr == "picture_index")
+                    return OperandValue(0.0); // Not found, return 0 for index
+                else
+                    return OperandValue(""); // Not found, return empty for name
             }
         }
         else
@@ -494,35 +458,61 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
             }
             return OperandValue(left_val - right_val * std::floor(left_val / right_val));
         }
-    }else if (BlockType == "calc_operation")
+    }
+    else if (BlockType == "calc_operation")
     { // EntryJS: get_value_of_operator
         // switch 문에서 사용할 수학 연산 열거형
-        enum class MathOperationType {
-            ABS, FLOOR, CEIL, ROUND, SQRT,
-            SIN, COS, TAN,
-            ASIN, ACOS, ATAN,
-            LOG, LN, // LOG는 밑이 10인 로그, LN은 자연로그
+        enum class MathOperationType
+        {
+            ABS,
+            FLOOR,
+            CEIL,
+            ROUND,
+            SQRT,
+            SIN,
+            COS,
+            TAN,
+            ASIN,
+            ACOS,
+            ATAN,
+            LOG,
+            LN, // LOG는 밑이 10인 로그, LN은 자연로그
             UNKNOWN
         };
         // 연산자 문자열을 열거형으로 변환하는 헬퍼 함수
-        auto stringToMathOperation = [](const std::string& opStr) -> MathOperationType {
-            if (opStr == "abs") return MathOperationType::ABS;
-            if (opStr == "floor") return MathOperationType::FLOOR;
-            if (opStr == "ceil") return MathOperationType::CEIL;
-            if (opStr == "round") return MathOperationType::ROUND;
-            if (opStr == "sqrt") return MathOperationType::SQRT;
-            if (opStr == "sin") return MathOperationType::SIN;
-            if (opStr == "cos") return MathOperationType::COS;
-            if (opStr == "tan") return MathOperationType::TAN;
-            if (opStr == "asin") return MathOperationType::ASIN;
-            if (opStr == "acos") return MathOperationType::ACOS;
-            if (opStr == "atan") return MathOperationType::ATAN;
-            if (opStr == "log") return MathOperationType::LOG;
-            if (opStr == "ln") return MathOperationType::LN;
+        auto stringToMathOperation = [](const std::string &opStr) -> MathOperationType
+        {
+            if (opStr == "abs")
+                return MathOperationType::ABS;
+            if (opStr == "floor")
+                return MathOperationType::FLOOR;
+            if (opStr == "ceil")
+                return MathOperationType::CEIL;
+            if (opStr == "round")
+                return MathOperationType::ROUND;
+            if (opStr == "sqrt")
+                return MathOperationType::SQRT;
+            if (opStr == "sin")
+                return MathOperationType::SIN;
+            if (opStr == "cos")
+                return MathOperationType::COS;
+            if (opStr == "tan")
+                return MathOperationType::TAN;
+            if (opStr == "asin")
+                return MathOperationType::ASIN;
+            if (opStr == "acos")
+                return MathOperationType::ACOS;
+            if (opStr == "atan")
+                return MathOperationType::ATAN;
+            if (opStr == "log")
+                return MathOperationType::LOG;
+            if (opStr == "ln")
+                return MathOperationType::LN;
             return MathOperationType::UNKNOWN;
         };
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2) {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
             engine.EngineStdOut("calc_operation block for " + objectId + " has invalid params. Expected 2 params (LEFTHAND, OPERATOR).", 2);
             return OperandValue(std::nan(""));
         }
@@ -530,7 +520,8 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue opVal = getOperandValue(engine, objectId, block.paramsJson[1]);
 
-        if (leftOp.type != OperandValue::Type::NUMBER) {
+        if (leftOp.type != OperandValue::Type::NUMBER)
+        {
             engine.EngineStdOut("calc_operation block for " + objectId + " has non-numeric left operand.", 2);
             return OperandValue(std::nan(""));
         }
@@ -549,24 +540,28 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         // 이 조건은 indexOf('_') 결과가 0이 아닐 때 (즉, > 0 또는 -1일 때) 참입니다.
         // indexOf('_') 결과가 0이면 거짓입니다.
         size_t underscore_pos = anOperator.find('_');
-        if (underscore_pos != 0) { // 찾지 못했거나(npos) 0보다 큰 인덱스에서 찾았을 경우 참
-            if (underscore_pos != std::string::npos) { // 찾았고, 0번 위치가 아닐 경우
+        if (underscore_pos != 0)
+        { // 찾지 못했거나(npos) 0보다 큰 인덱스에서 찾았을 경우 참
+            if (underscore_pos != std::string::npos)
+            { // 찾았고, 0번 위치가 아닐 경우
                 anOperator = anOperator.substr(0, underscore_pos);
             }
             // 찾지 못했을 경우 (underscore_pos == std::string::npos), anOperator는 originalOperator로 유지됩니다.
         }
-        // underscore_pos == 0 인 경우, anOperator는 originalOperator로 유지됩니다.
+// underscore_pos == 0 인 경우, anOperator는 originalOperator로 유지됩니다.
 
-        // 입력이 각도(degree)인 특정 원본 연산자에 대해 각도-라디안 변환
-        // M_PI가 <cmath>에 정의되어 있지 않다면 정의 (예: MSVC에서 _USE_MATH_DEFINES 사용)
-        #ifndef M_PI
-            #define M_PI 3.14159265358979323846
-        #endif
+// 입력이 각도(degree)인 특정 원본 연산자에 대해 각도-라디안 변환
+// M_PI가 <cmath>에 정의되어 있지 않다면 정의 (예: MSVC에서 _USE_MATH_DEFINES 사용)
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
         const double PI_CONST = M_PI;
 
         bool inputWasDegrees = false;
-        if (originalOperator.length() > 7 && originalOperator.substr(originalOperator.length() - 7) == "_degree") {
-            if (anOperator == "sin" || anOperator == "cos" || anOperator == "tan") {
+        if (originalOperator.length() > 7 && originalOperator.substr(originalOperator.length() - 7) == "_degree")
+        {
+            if (anOperator == "sin" || anOperator == "cos" || anOperator == "tan")
+            {
                 leftNum = leftNum * PI_CONST / 180.0;
                 inputWasDegrees = true; // 입력이 변환되었음을 표시
             }
@@ -578,81 +573,112 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
 
         MathOperationType opType = stringToMathOperation(anOperator);
 
-        switch (opType) {
-            case MathOperationType::ABS:
-                result = std::fabs(leftNum);
-                break;
-            case MathOperationType::FLOOR:
-                result = std::floor(leftNum);
-                break;
-            case MathOperationType::CEIL:
-                result = std::ceil(leftNum);
-                break;
-            case MathOperationType::ROUND:
-                result = std::round(leftNum);
-                break;
-            case MathOperationType::SQRT:
-                if (leftNum < 0) {
-                    errorOccurred = true; errorMsg = "sqrt of negative number"; result = std::nan("");
-                } else {
-                    result = std::sqrt(leftNum);
-                }
-                break;
-            case MathOperationType::SIN:
-                result = std::sin(leftNum); // leftNum이 라디안이라고 가정
-                break;
-            case MathOperationType::COS:
-                result = std::cos(leftNum); // leftNum이 라디안이라고 가정
-                break;
-            case MathOperationType::TAN:
-                result = std::tan(leftNum); // leftNum이 라디안이라고 가정
-                break;
-            case MathOperationType::ASIN:
-                if (leftNum < -1.0 || leftNum > 1.0) {
-                    errorOccurred = true; errorMsg = "asin input out of range [-1, 1]"; result = std::nan("");
-                } else {
-                    result = std::asin(leftNum); // 라디안 값 반환
-                }
-                break;
-            case MathOperationType::ACOS:
-                if (leftNum < -1.0 || leftNum > 1.0) {
-                    errorOccurred = true; errorMsg = "acos input out of range [-1, 1]"; result = std::nan("");
-                } else {
-                    result = std::acos(leftNum); // 라디안 값 반환
-                }
-                break;
-            case MathOperationType::ATAN:
-                result = std::atan(leftNum); // 라디안 값 반환
-                break;
-            case MathOperationType::LOG: // 밑이 10인 로그
-                if (leftNum <= 0) {
-                    errorOccurred = true; errorMsg = "log of non-positive number"; result = std::nan("");
-                } else {
-                    result = std::log10(leftNum);
-                }
-                break;
-            case MathOperationType::LN: // 자연로그
-                if (leftNum <= 0) {
-                    errorOccurred = true; errorMsg = "ln of non-positive number"; result = std::nan("");
-                } else {
-                    result = std::log(leftNum);
-                }
-                break;
-            case MathOperationType::UNKNOWN:
-            default:
-                errorOccurred = true; errorMsg = "Unknown operator in calc_operation: " + originalOperator; result = std::nan("");
-                break;
+        switch (opType)
+        {
+        case MathOperationType::ABS:
+            result = std::fabs(leftNum);
+            break;
+        case MathOperationType::FLOOR:
+            result = std::floor(leftNum);
+            break;
+        case MathOperationType::CEIL:
+            result = std::ceil(leftNum);
+            break;
+        case MathOperationType::ROUND:
+            result = std::round(leftNum);
+            break;
+        case MathOperationType::SQRT:
+            if (leftNum < 0)
+            {
+                errorOccurred = true;
+                errorMsg = "sqrt of negative number";
+                result = std::nan("");
+            }
+            else
+            {
+                result = std::sqrt(leftNum);
+            }
+            break;
+        case MathOperationType::SIN:
+            result = std::sin(leftNum); // leftNum이 라디안이라고 가정
+            break;
+        case MathOperationType::COS:
+            result = std::cos(leftNum); // leftNum이 라디안이라고 가정
+            break;
+        case MathOperationType::TAN:
+            result = std::tan(leftNum); // leftNum이 라디안이라고 가정
+            break;
+        case MathOperationType::ASIN:
+            if (leftNum < -1.0 || leftNum > 1.0)
+            {
+                errorOccurred = true;
+                errorMsg = "asin input out of range [-1, 1]";
+                result = std::nan("");
+            }
+            else
+            {
+                result = std::asin(leftNum); // 라디안 값 반환
+            }
+            break;
+        case MathOperationType::ACOS:
+            if (leftNum < -1.0 || leftNum > 1.0)
+            {
+                errorOccurred = true;
+                errorMsg = "acos input out of range [-1, 1]";
+                result = std::nan("");
+            }
+            else
+            {
+                result = std::acos(leftNum); // 라디안 값 반환
+            }
+            break;
+        case MathOperationType::ATAN:
+            result = std::atan(leftNum); // 라디안 값 반환
+            break;
+        case MathOperationType::LOG: // 밑이 10인 로그
+            if (leftNum <= 0)
+            {
+                errorOccurred = true;
+                errorMsg = "log of non-positive number";
+                result = std::nan("");
+            }
+            else
+            {
+                result = std::log10(leftNum);
+            }
+            break;
+        case MathOperationType::LN: // 자연로그
+            if (leftNum <= 0)
+            {
+                errorOccurred = true;
+                errorMsg = "ln of non-positive number";
+                result = std::nan("");
+            }
+            else
+            {
+                result = std::log(leftNum);
+            }
+            break;
+        case MathOperationType::UNKNOWN:
+        default:
+            errorOccurred = true;
+            errorMsg = "Unknown operator in calc_operation: " + originalOperator;
+            result = std::nan("");
+            break;
         }
 
-        if (errorOccurred) {
+        if (errorOccurred)
+        {
             engine.EngineStdOut("calc_operation block for " + objectId + ": " + errorMsg, 2);
             return OperandValue(result); // NaN 반환
         }
 
         // 원본 연산자가 결과가 각도여야 함을 나타내는 경우 (예: "asin_degree")
-        if (originalOperator.length() > 7 && originalOperator.substr(originalOperator.length() - 7) == "_degree") {
-            if (anOperator == "asin" || anOperator == "acos" || anOperator == "atan") {
-                 result = result * 180.0 / PI_CONST;
+        if (originalOperator.length() > 7 && originalOperator.substr(originalOperator.length() - 7) == "_degree")
+        {
+            if (anOperator == "asin" || anOperator == "acos" || anOperator == "atan")
+            {
+                result = result * 180.0 / PI_CONST;
             }
         }
         return OperandValue(result);
@@ -662,56 +688,80 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         // 파라미터 없음, 엔진에서 직접 타이머 값을 가져옴
         return OperandValue(engine.getProjectTimerValue());
     } // choose_project_timer_action은 Behavior 함수로 이동했으므로 여기서 제거합니다.
-    else if (BlockType == "get_date"){
+    else if (BlockType == "get_date")
+    {
         time_t now = time(nullptr);
         // paramsKeyMap: { VALUE: 0 }
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString()) {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
+        {
             engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2);
             return OperandValue();
         }
-        
+
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         std::string action = block.paramsJson[0].GetString();
         struct tm timeinfo_s; // localtime_s 및 localtime_r을 위한 구조체
-        struct tm* timeinfo_ptr = nullptr;
-        #ifdef _WIN32
-            localtime_s(&timeinfo_s, &now);
-            timeinfo_ptr = &timeinfo_s;
-        #elif defined(__linux__) || defined(__APPLE__)
-            localtime_r(&now, &timeinfo_s);
-            timeinfo_ptr = &timeinfo_s;
-        #endif
-        if (action == "year") {
+        struct tm *timeinfo_ptr = nullptr;
+#ifdef _WIN32
+        localtime_s(&timeinfo_s, &now);
+        timeinfo_ptr = &timeinfo_s;
+#elif defined(__linux__) || defined(__APPLE__)
+        localtime_r(&now, &timeinfo_s);
+        timeinfo_ptr = &timeinfo_s;
+#endif
+        if (action == "year")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_year + 1900));
-        } else if (action == "month") {
+        }
+        else if (action == "month")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_mon + 1));
-        } else if (action == "day") {
+        }
+        else if (action == "day")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday));
-        } else if (action == "hour") {
+        }
+        else if (action == "hour")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_hour));
-        } else if (action == "minute") {
+        }
+        else if (action == "minute")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_min));
-        } else if (action == "second") {
+        }
+        else if (action == "second")
+        {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_sec));
-        } else {
+        }
+        else
+        {
             engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
             return OperandValue();
         }
-    }else if (BlockType == "distance_something"){
+    }
+    else if (BlockType == "distance_something")
+    {
         string targetId = block.paramsJson[0].GetString();
-        if (targetId == "mouse"){
-            if (engine.isMouseCurrentlyOnStage()){
+        if (targetId == "mouse")
+        {
+            if (engine.isMouseCurrentlyOnStage())
+            {
                 double mouseX = engine.getCurrentStageMouseX();
                 double mouseY = engine.getCurrentStageMouseY();
                 return OperandValue(std::sqrt(mouseX * mouseX + mouseY * mouseY));
-            }else{
+            }
+            else
+            {
                 engine.EngineStdOut("distance_something block for " + objectId + ": mouse is not on stage.", 1);
                 return OperandValue(0.0);
             }
-        }else{
+        }
+        else
+        {
             Entity *targetEntity = engine.getEntityById(targetId);
-            if (!targetEntity){
+            if (!targetEntity)
+            {
                 engine.EngineStdOut("distance_something block for " + objectId + ": target entity '" + targetId + "' not found.", 2);
                 return OperandValue(0.0);
             }
@@ -719,17 +769,390 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
             double dy = targetEntity->getY() - engine.getCurrentStageMouseY();
             return OperandValue(std::sqrt(dx * dx + dy * dy));
         }
-    }else if (BlockType == "length_of_string"){
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1){
+    }
+    else if (BlockType == "length_of_string")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        {
             engine.EngineStdOut("length_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
-        if (strOp.type != OperandValue::Type::STRING){
+        if (strOp.type != OperandValue::Type::STRING)
+        {
             engine.EngineStdOut("length_of_string block for " + objectId + " has non-string parameter.", 2);
             return OperandValue();
         }
         return OperandValue(static_cast<double>(strOp.string_val.length()));
+    }
+    else if (BlockType == "reverse_of_string")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        {
+            engine.EngineStdOut("reverse_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (strOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("reverse_of_string block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string reversedStr = strOp.string_val;
+        std::reverse(reversedStr.begin(), reversedStr.end());
+        return OperandValue(reversedStr);
+    }
+    else if (BlockType == "combie_something")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("combie_something block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp1 = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue strOp2 = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (strOp1.type != OperandValue::Type::STRING || strOp2.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("combie_something block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string combinedStr = strOp1.string_val + strOp2.string_val;
+        return OperandValue(combinedStr);
+    }
+    else if (BlockType == "char_at")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("char_at block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (strOp.type != OperandValue::Type::STRING || indexOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("char_at block for " + objectId + " has non-string or non-number parameter.", 2);
+            return OperandValue();
+        }
+        int index = static_cast<int>(indexOp.number_val);
+        if (index < 0 || index >= static_cast<int>(strOp.string_val.length()))
+        {
+            engine.EngineStdOut("char_at block for " + objectId + " has index out of range.", 2);
+            return OperandValue();
+        }
+        return OperandValue(std::string(1, strOp.string_val[index]));
+    }
+    else if (BlockType == "substring")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        {
+            engine.EngineStdOut("substring block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue startOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue endOp = getOperandValue(engine, objectId, block.paramsJson[2]);
+        if (strOp.type != OperandValue::Type::STRING || startOp.type != OperandValue::Type::NUMBER || endOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("substring block for " + objectId + " has non-string or non-number parameter.", 2);
+            return OperandValue();
+        }
+        int startIndex = static_cast<int>(startOp.number_val);
+        int endIndex = static_cast<int>(endOp.number_val);
+        if (startIndex < 0 || endIndex > static_cast<int>(strOp.string_val.length()) || startIndex > endIndex)
+        {
+            engine.EngineStdOut("substring block for " + objectId + " has index out of range.", 2);
+            return OperandValue();
+        }
+        return OperandValue(strOp.string_val.substr(startIndex, endIndex - startIndex));
+    }
+    else if (BlockType == "count_match_string")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("count_match_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue subStrOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (strOp.type != OperandValue::Type::STRING || subStrOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("count_match_string block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string str = strOp.string_val;
+        std::string subStr = subStrOp.string_val;
+        size_t count = 0;
+        size_t pos = str.find(subStr);
+        while (pos != std::string::npos)
+        {
+            count++;
+            pos = str.find(subStr, pos + subStr.length());
+        }
+        return OperandValue(static_cast<double>(count));
+    }
+    else if (BlockType == "index_of_string")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("index_of_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue subStrOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (strOp.type != OperandValue::Type::STRING || subStrOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("index_of_string block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string str = strOp.string_val;
+        std::string subStr = subStrOp.string_val;
+        size_t pos = str.find(subStr);
+        if (pos != std::string::npos)
+        {
+            return OperandValue(static_cast<double>(pos));
+        }
+        else
+        {
+            return OperandValue(-1.0); // Not found
+        }
+    }
+    else if (BlockType == "replace_string")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        {
+            engine.EngineStdOut("replace_string block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue oldStrOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue newStrOp = getOperandValue(engine, objectId, block.paramsJson[2]);
+        if (strOp.type != OperandValue::Type::STRING || oldStrOp.type != OperandValue::Type::STRING || newStrOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("replace_string block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string str = strOp.string_val;
+        std::string oldStr = oldStrOp.string_val;
+        std::string newStr = newStrOp.string_val;
+        size_t pos = str.find(oldStr);
+        if (pos != std::string::npos)
+        {
+            str.replace(pos, oldStr.length(), newStr);
+            return OperandValue(str);
+        }
+        else
+        {
+            return OperandValue(str); // Not found, return original string
+        }
+    }
+    else if (BlockType == "change_string_case")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("change_string_case block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue caseOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (strOp.type != OperandValue::Type::STRING || caseOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_string_case block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string str = strOp.string_val;
+        std::string caseType = caseOp.string_val;
+        if (caseType == "upper")
+        {
+            std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+        }
+        else if (caseType == "lower")
+        {
+            std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        }
+        else
+        {
+            engine.EngineStdOut("change_string_case block for " + objectId + " has unknown case type: " + caseType, 2);
+            return OperandValue();
+        }
+        return OperandValue(str);
+    }
+    else if (BlockType == "get_block_count")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        {
+            engine.EngineStdOut("get_block_count block for " + objectId + " has invalid params structure. Expected 1 param (OBJECT).", 2);
+            return OperandValue(0.0);
+        }
+        OperandValue objectKeyOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (objectKeyOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("get_block_count block for " + objectId + " OBJECT parameter did not resolve to a string.", 2);
+            return OperandValue(0.0);
+        }
+        std::string objectKey = objectKeyOp.string_val;
+
+        if (objectKey.empty())
+        {
+            engine.EngineStdOut("get_block_count block for " + objectId + " received an empty OBJECT key.", 1);
+            return OperandValue(0.0);
+        }
+
+        int count = 0;
+        if (objectKey.rfind("scene-", 0) == 0)
+        { // Starts with "scene-"
+            std::string sceneIdToQuery = objectKey.substr(6);
+            count = engine.getBlockCountForScene(sceneIdToQuery);
+        }
+        else if (objectKey == "all")
+        {
+            count = engine.getTotalBlockCount();
+        }
+        else if (objectKey == "self")
+        {
+            // 'objectId' is the ID of the object whose script is currently executing
+            count = engine.getBlockCountForObject(objectId);
+        }
+        else if (objectKey.rfind("object-", 0) == 0)
+        { // Starts with "object-"
+            std::string targetObjId = objectKey.substr(7);
+            count = engine.getBlockCountForObject(targetObjId);
+        }
+        else
+        {
+            engine.EngineStdOut("get_block_count block for " + objectId + " has unknown OBJECT key: " + objectKey, 1);
+            return OperandValue(0.0); // Default to 0 for unknown keys
+        }
+        return OperandValue(static_cast<double>(count));
+    }
+    else if (BlockType == "change_rgb_to_hex")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        {
+            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            return OperandValue();
+        }
+        OperandValue redOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue greenOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue blueOp = getOperandValue(engine, objectId, block.paramsJson[2]);
+        if (redOp.type != OperandValue::Type::NUMBER || greenOp.type != OperandValue::Type::NUMBER || blueOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has non-number parameter.", 2);
+            return OperandValue();
+        }
+        int red = static_cast<int>(redOp.number_val);
+        int green = static_cast<int>(greenOp.number_val);
+        int blue = static_cast<int>(blueOp.number_val);
+        std::stringstream hexStream;
+        hexStream << std::hex << std::setw(2) << std::setfill('0') << red
+                  << std::setw(2) << std::setfill('0') << green
+                  << std::setw(2) << std::setfill('0') << blue;
+        return OperandValue("#" + hexStream.str());
+    }
+    else if (BlockType == "change_hex_to_rgb")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        {
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            return OperandValue();
+        }
+        OperandValue hexOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (hexOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        std::string hexStr = hexOp.string_val;
+        if (hexStr.length() != 7 || hexStr[0] != '#')
+        {
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid hex string: " + hexStr, 2);
+            return OperandValue();
+        }
+        int red = std::stoi(hexStr.substr(1, 2), nullptr, 16);
+        int green = std::stoi(hexStr.substr(3, 2), nullptr, 16);
+        int blue = std::stoi(hexStr.substr(5, 2), nullptr, 16);
+        return OperandValue(static_cast<double>(red) + static_cast<double>(green) / 256.0 + static_cast<double>(blue) / (256.0 * 256.0));
+    }
+    else if (BlockType == "get_boolean_value")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        {
+            engine.EngineStdOut("get_boolean_value block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            return OperandValue();
+        }
+        OperandValue boolOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (boolOp.type != OperandValue::Type::BOOLEAN)
+        {
+            engine.EngineStdOut("get_boolean_value block for " + objectId + " has non-boolean parameter.", 2);
+            return OperandValue();
+        }
+        return OperandValue(boolOp.boolean_val);
+    }
+    else if (BlockType == "choose_project_timer_action")
+    {
+        // paramsKeyMap: { ACTION: 0 }
+        // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
+        // Block.h에서 paramsJson이 rapidjson::Value 타입이고,
+        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
+        {
+            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2);
+            return;
+        }
+
+        // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
+        // getOperandValue를 사용할 수도 있지만, 여기서는 직접 사용합니다.
+        std::string action = block.paramsJson[0].GetString();
+
+        if (action == "START")
+        {
+            engine.EngineStdOut("Project timer STARTED by object " + objectId, 0);
+            engine.startProjectTimer();
+        }
+        else if (action == "STOP")
+        {
+            engine.EngineStdOut("Project timer STOPPED by object " + objectId, 0);
+            engine.stopProjectTimer();
+        }
+        else if (action == "RESET")
+        {
+            engine.EngineStdOut("Project timer RESET by object " + objectId, 0);
+            engine.resetProjectTimer(); // resetProjectTimer는 값만 0으로 설정합니다.
+        }
+        else
+        {
+            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1);
+        }
+        return; // Behavior 블록은 값을 반환하지 않음
+    }
+    else if (BlockType == "set_visible_project_timer")
+    {
+        // paramsKeyMap: { ACTION: 0 } (가정)
+        // 드롭다운 값 ("SHOW" 또는 "HIDE")은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
+        {
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has invalid or missing action parameter.", 2);
+            return;
+        }
+
+        std::string actionValue = block.paramsJson[0].GetString();
+
+        if (actionValue == "SHOW")
+        {
+            engine.EngineStdOut("Project timer set to VISIBLE by object " + objectId, 0);
+            engine.showProjectTimer(true);
+        }
+        else if (actionValue == "HIDE")
+        { // 엔트리에서는 "HIDE" 또는 다른 값을 사용할 수 있습니다. "SHOW"가 아니면 숨김으로 처리.
+            engine.EngineStdOut("Project timer set to HIDDEN by object " + objectId, 0);
+            engine.showProjectTimer(false);
+        }
+        else
+        {
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown action value: " + actionValue, 1);
+            // 기본적으로 숨김 처리 또는 아무것도 안 함
+            // engine.showProjectTimer(false);
+        }
+        return;
     }
     return OperandValue();
 }

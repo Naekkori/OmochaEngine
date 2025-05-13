@@ -256,6 +256,9 @@ public:
     // HUD에 표시할 변수 목록을 설정하는 메서드
     void loadHUDVariablesFromJson(const rapidjson::Value& variablesArrayJson); // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay>& getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
+    int getBlockCountForObject(const std::string& objectId) const;
+    int getBlockCountForScene(const std::string& sceneId) const;
+    int getTotalBlockCount() const;
     SimpleLogger logger; // 로거 인스턴스
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };
