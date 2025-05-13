@@ -673,19 +673,27 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         std::string action = block.paramsJson[0].GetString();
-        tm *now_tm = localtime(&now);
+        struct tm timeinfo_s; // localtime_s 및 localtime_r을 위한 구조체
+        struct tm* timeinfo_ptr = nullptr;
+        #ifdef _WIN32
+            localtime_s(&timeinfo_s, &now);
+            timeinfo_ptr = &timeinfo_s;
+        #elif defined(__linux__) || defined(__APPLE__)
+            localtime_r(&now, &timeinfo_s);
+            timeinfo_ptr = &timeinfo_s;
+        #endif
         if (action == "year") {
-            return OperandValue(static_cast<double>(now_tm->tm_year + 1900));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_year + 1900));
         } else if (action == "month") {
-            return OperandValue(static_cast<double>(now_tm->tm_mon + 1));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mon + 1));
         } else if (action == "day") {
-            return OperandValue(static_cast<double>(now_tm->tm_mday));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday));
         } else if (action == "hour") {
-            return OperandValue(static_cast<double>(now_tm->tm_hour));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_hour));
         } else if (action == "minute") {
-            return OperandValue(static_cast<double>(now_tm->tm_min));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_min));
         } else if (action == "second") {
-            return OperandValue(static_cast<double>(now_tm->tm_sec));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_sec));
         } else {
             engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
             return OperandValue();
