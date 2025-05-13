@@ -766,6 +766,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 bool initial_visible = entityJson.HasMember("visible") && entityJson["visible"].IsBool() ? entityJson["visible"].GetBool() : true;
                 Entity::RotationMethod currentRotationMethod = Entity::RotationMethod::FREE;
                 if (objectJson.HasMember("rotationMethod") && objectJson["rotationMethod"].IsString())
+
                 {
                     // 이정도 있는것으로 예상됨 하지만 발견 못한것 도 있을수 있음
                     string rotationMethodStr = getSafeStringFromJson(objectJson, "rotationMethod", "object " + objInfo.name, "free", false, true);
@@ -796,12 +797,16 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 
                 Entity *newEntity = new Entity(
+                    this, // Pass the engine instance
                     objectId,
                     objInfo.name,
                     initial_x, initial_y, initial_regX, initial_regY,
                     initial_scaleX, initial_scaleY, initial_rotation, initial_direction,
                     initial_width, initial_height, initial_visible,currentRotationMethod);
 
+                // Initialize pen positions
+                newEntity->brush.reset(initial_x, initial_y);
+                newEntity->paint.reset(initial_x, initial_y);
                 entities[objectId] = newEntity;
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
@@ -3003,10 +3008,13 @@ void Engine::runStartButtonScripts()
 {
     if (startButtonScripts.empty())
     {
+        IsScriptStart = false;
         EngineStdOut("No 'Start Button Clicked' scripts found to run.", 1);
         return;
+    }else{
+        IsScriptStart = true;
+        EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
     }
-    EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
 
     for (const auto &scriptPair : startButtonScripts)
     {
@@ -3522,6 +3530,37 @@ int Engine::getBlockCountForScene(const std::string& sceneId) const {
         }
     }
     return totalCount;
+}
+
+void Engine::engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness) {
+    // p1_stage_entry is {lastX_entry, lastY_entry}
+    // p2_stage_entry_modified_y is {currentX_entry, currentY_entry * -1.0f}
+    // Both points' components are in Entry's stage coordinate system (center 0,0, Y-up for .x and original .y)
+
+    if (!renderer || !tempScreenTexture) {
+        EngineStdOut("engineDrawLineOnStage: Renderer or tempScreenTexture not available.", 2);
+        return;
+    }
+
+    SDL_Texture* prevRenderTarget = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, tempScreenTexture); // Ensure drawing occurs on the stage texture
+
+    // Convert p1 (standard Entry stage coords) to SDL texture coords (top-left 0,0, Y-down)
+    float sdlP1X = p1_stage_entry.x + PROJECT_STAGE_WIDTH / 2.0f;
+    float sdlP1Y = PROJECT_STAGE_HEIGHT / 2.0f - p1_stage_entry.y;
+
+    // Convert p2 (where p2.y has been pre-modified as currentY_entry * -1.0f)
+    // to SDL texture coords.
+    float sdlP2X = p2_stage_entry_modified_y.x + PROJECT_STAGE_WIDTH / 2.0f;
+    float sdlP2Y = PROJECT_STAGE_HEIGHT / 2.0f - p2_stage_entry_modified_y.y; 
+    // Example: If original entity Y was 20, p2_stage_entry_modified_y.y is -20.
+    // sdlP2Y = (270/2) - (-20) = 135 + 20 = 155. This correctly maps the inverted Y.
+
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    // Note: SDL_RenderLine uses int coords. For float, SDL_RenderLineFloat (SDL3) or custom line drawing is needed for thickness.
+    SDL_RenderLine(renderer, static_cast<int>(sdlP1X), static_cast<int>(sdlP1Y), static_cast<int>(sdlP2X), static_cast<int>(sdlP2Y));
+
+    SDL_SetRenderTarget(renderer, prevRenderTarget); // Restore previous render target
 }
 
 int Engine::getTotalBlockCount() const {

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+// Forward declaration
 class Engine;
 class Entity
 {
@@ -26,6 +27,23 @@ public:
         LEFT,
         RIGHT
     };
+
+    struct PenState {
+        Engine* pEngine = nullptr; 
+        bool isActive = true;      
+        bool isPenDown = false;    
+        SDL_FPoint lastStagePosition = {0.0f, 0.0f}; 
+        SDL_Color color = {0, 0, 0, 255}; 
+        // float thickness = 1.0f; // For future
+
+        PenState(Engine* enginePtr);
+
+        void setPenDown(bool down, float currentStageX, float currentStageY);
+        void updatePositionAndDraw(float newStageX, float newStageY);
+        void setActive(bool active) { isActive = active; }
+        void setColor(const SDL_Color& c) { color = c; }
+        void reset(float currentStageX, float currentStageY); // To set initial position
+    };
 private:
     std::string id;
     std::string name;
@@ -43,9 +61,12 @@ private:
     RotationMethod rotateMethod;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
+public: // Made brush and paint public for now for easier access from blocks
+    PenState brush;
+    PenState paint;
 
 public:
-    Entity(const std::string &entityId, const std::string &entityName,
+    Entity(Engine* engine, const std::string &entityId, const std::string &entityName,
            double initial_x, double initial_y, double initial_regX, double initial_regY,
            double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
            double initial_width, double initial_height, bool initial_visible, RotationMethod rotationMethod);

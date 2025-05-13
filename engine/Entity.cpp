@@ -5,15 +5,45 @@
 #include <cmath> // For std::cos, std::sin, std::acos
 #include <stdexcept>
 
+// Forward declare or include Engine.h if engineDrawLineOnStage is called directly from here
+// For now, PenState takes Engine* and calls a public Engine method.
+#include "Engine.h"
 
-Entity::Entity(const std::string& entityId, const std::string& entityName,
+Entity::PenState::PenState(Engine* enginePtr) : pEngine(enginePtr) {
+    // Initialize lastStagePosition if necessary, or ensure reset is called.
+}
+
+void Entity::PenState::setPenDown(bool down, float currentStageX, float currentStageY) {
+    isPenDown = down;
+    if (isPenDown) {
+        lastStagePosition = {currentStageX, currentStageY};
+    }
+}
+
+void Entity::PenState::updatePositionAndDraw(float newStageX, float newStageY) {
+    if (isActive && isPenDown && pEngine) {
+        // Target Y for lineTo is inverted from current stage Y, as per JS: sprite.getY() * -1
+        SDL_FPoint targetStagePosJSStyle = {newStageX, newStageY * -1.0f};
+        pEngine->engineDrawLineOnStage(lastStagePosition, targetStagePosJSStyle, color, 1.0f);
+    }
+    // Always update last position for the next potential draw segment
+    lastStagePosition = {newStageX, newStageY};
+}
+
+void Entity::PenState::reset(float currentStageX, float currentStageY) {
+    lastStagePosition = {currentStageX, currentStageY};
+    // isPenDown and isActive remain as they are, reset only affects position tracking for new lines.
+}
+
+Entity::Entity(Engine* engine, const std::string& entityId, const std::string& entityName,
     double initial_x, double initial_y, double initial_regX, double initial_regY,
     double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
     double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
     : id(entityId), name(entityName),
     x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
     scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
-    width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod)
+    width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
+    brush(engine), paint(engine) // Initialize PenState members
 {
 }
 

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <thread>
 #include <cmath>
 #include <limits>
 #include <ctime>
@@ -419,6 +420,96 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             entity->setDirection(fmod(entity->getDirection(), 360.0) + 360.0);
         else
             entity->setDirection(fmod(entity->getDirection(), 360.0));
+    }
+    else if (BlockType == "move_x")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("move_x block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return;
+        }
+        OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (distance.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("move_x block for object " + objectId + " has non-numeric params.", 2);
+            return;
+        }
+        double dist = distance.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            double newX = entity->getX() + dist;
+            entity->setX(newX);
+        }
+    }
+    else if (BlockType == "move_y")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("move_y block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return;
+        }
+        OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (distance.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("move_y block for object " + objectId + " has non-numeric params.", 2);
+            return;
+        }
+        double dist = distance.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            double newY = entity->getY() + dist;
+            entity->setY(newY);
+        }
+    }
+    else if (BlockType == "move_xy_time")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        {
+            engine.EngineStdOut("move_xy_time block for object " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            return;
+        }
+        OperandValue time = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue x = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue y = getOperandValue(engine, objectId, block.paramsJson[2]);
+        const int EntryFPS = engine.specialConfig.TARGET_FPS;
+        int totalFrames = 0;
+        if (time.type != OperandValue::Type::NUMBER || x.type != OperandValue::Type::NUMBER || y.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("move_xy_time block for object " + objectId + " has non-numeric params.", 2);
+            return;
+        }
+
+        double timeValue = time.number_val;
+        double xValue = x.number_val;
+        double yValue = y.number_val;
+
+        totalFrames = max(static_cast<int>(floor(timeValue * EntryFPS)), 1);
+        
+        double xStep = xValue / totalFrames;
+        double yStep = yValue / totalFrames;
+
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            // Perform the movement steps iteratively to complete the full motion.
+            // In the current synchronous C++ script execution model, this loop
+            // will execute all steps immediately.
+
+            for (int i = 0; i < totalFrames; ++i)
+            {
+                double newX = entity->getX() + xStep;
+                double newY = entity->getY() + yStep;
+                entity->setX(newX);
+                entity->setY(newY);
+
+                // Call updatePositionAndDraw for brush and paint if they are active and pen is down
+                // The Entity::PenState::updatePositionAndDraw method handles the isActive and isPenDown checks.
+                entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+            }
+        }
     }
 }
 /**
