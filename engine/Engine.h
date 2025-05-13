@@ -2,6 +2,7 @@
 #include "version_config.h"
 #include <string>
 #include <map>
+#include <Windows.h>
 #include <vector>
 #include <rapidjson/rapidjson.h> // Added for RapidJSON forward declaration if needed, or full include
 #include <rapidjson/document.h>

@@ -255,7 +255,8 @@ int main(int argc, char *argv[])
                 {
                     if (event.type == SDL_EVENT_QUIT)
                     {
-                        string notice = "Quit?";
+                        string notice = PROJECT_NAME+" 을(를) 종료하시겠습니까?";
+                        
                         if(engine.showMessageBox(notice,engine.msgBoxIconType.ICON_INFORMATION,true)){
                             quit = true;
                         }else{

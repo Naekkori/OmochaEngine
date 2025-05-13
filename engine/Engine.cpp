@@ -39,7 +39,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
-                  // m_draggedHUDVariableIndex, m_currentHUDDragState 등은 헤더에서 기본값으로 초기화됨
+// m_draggedHUDVariableIndex, m_currentHUDDragState 등은 헤더에서 기본값으로 초기화됨
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -147,7 +147,7 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
         return defaultValue;
     }
 
-    string s_val = fieldValue.GetString();
+    string s_val = fieldValue.GetString(); // 문자열 값 가져오기
     if (s_val.empty() && !allowEmpty)
     {
         if (isCritical)
@@ -165,9 +165,8 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
 }
 /**
  * @brief 프로젝트 로드
- *
- * @param projectFilePath 프로젝트 경로
- * @return true 성공하면
+ * @param projectFilePath 프로젝트 파일 경로
+ * @return true 성공 시
  * @return false 실패하면
  */
 bool Engine::loadProject(const string &projectFilePath)
@@ -222,9 +221,7 @@ bool Engine::loadProject(const string &projectFilePath)
         EngineStdOut("'speed' field missing or not numeric in project.json. Using default TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
     }
     /**
-     * @brief 특수 설정
-     * 브랜드 이름 (로딩중)
-     * 프로젝트 이름 표시 (로딩중)
+     * @brief 특수 설정 (specialConfig) 로드
      */
     if (document.HasMember("specialConfig"))
     {
@@ -274,8 +271,7 @@ bool Engine::loadProject(const string &projectFilePath)
         this->zoomFactor = this->specialConfig.setZoomfactor;
     }
     /**
-     * @brief 변수
-     *
+     * @brief 전역 변수 (variables) 로드
      */
     if (document.HasMember("variables") && document["variables"].IsArray())
     {
@@ -298,7 +294,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.", 1);
                 continue;
             }
-            // New logic for parsing 'value'
+            // 'value' 파싱을 위한 새 로직
             if (variableJson.HasMember("value"))
             {
                 const auto &valNode = variableJson["value"];
@@ -308,7 +304,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 else if (valNode.IsNumber())
                 {
-                    currentVarDisplay.value = RapidJsonValueToString(valNode); // Convert number to string
+                    currentVarDisplay.value = RapidJsonValueToString(valNode); // 숫자를 문자열로 변환
                 }
                 else if (valNode.IsBool())
                 {
@@ -316,18 +312,18 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 else if (valNode.IsNull())
                 {
-                    currentVarDisplay.value = ""; // Default for null
+                    currentVarDisplay.value = ""; // null일 경우 기본값
                     EngineStdOut("Variable '" + currentVarDisplay.name + "' has a null value. Interpreting as empty string for 'value' field.", 1);
                 }
                 else
                 {
-                    currentVarDisplay.value = ""; // Default for other unexpected types
+                    currentVarDisplay.value = ""; // 예상치 못한 다른 타입일 경우 기본값
                     EngineStdOut("Variable '" + currentVarDisplay.name + "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " + RapidJsonValueToString(valNode), 1);
                 }
             }
             else
             {
-                currentVarDisplay.value = ""; // Default if "value" field is missing
+                currentVarDisplay.value = ""; // "value" 필드가 없을 경우 기본값
                 EngineStdOut("Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as empty string.", 1);
             }
 
@@ -359,7 +355,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 "name": "variableName",
                 "value": "variableValue",
                 "visible": true,
-                "object": "objectId" // objectId가 없으면 이곳은 null 로 처리됨 이걸 활용해서 public 인지 private 인지 구분
+                "object": "objectId" // objectId가 없으면 null로 처리됨. 이를 활용해 public/private 구분 가능
             }
             TODO: x,y 좌표도 추가
             */
@@ -371,7 +367,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                currentVarDisplay.objectId = ""; // Default to empty string if null or missing
+                currentVarDisplay.objectId = ""; // null이거나 없으면 빈 문자열로 기본값 설정
             }
             currentVarDisplay.x = variableJson.HasMember("x") && variableJson["x"].IsNumber() ? variableJson["x"].GetFloat() : 0.0f;
             currentVarDisplay.y = variableJson.HasMember("y") && variableJson["y"].IsNumber() ? variableJson["y"].GetFloat() : 0.0f;
@@ -382,7 +378,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 "name": "variableName",
                 "value": "variableValue",
                 "visible": true,
-                "object": "objectId", // objectId가 없으면 이곳은 null 로 처리됨 이걸 활용해서 public 인지 private 인지 구분
+                "object": "objectId", // objectId가 없으면 null로 처리됨. 이를 활용해 public/private 구분 가능
                 "width": 0,
                 "height": 0,
                 "array": [
@@ -395,7 +391,7 @@ bool Engine::loadProject(const string &projectFilePath)
             */
             if (currentVarDisplay.variableType == "list")
             {
-                // 넓이 높이 둘다 float 였음.
+                // 너비와 높이 모두 float 타입
                 if (variableJson.HasMember("width") && variableJson["width"].IsNumber())
                 {
                     currentVarDisplay.width = variableJson["width"].GetFloat();
@@ -417,8 +413,8 @@ bool Engine::loadProject(const string &projectFilePath)
                             continue;
                         }
                         ListItem item;
-                        item.key = getSafeStringFromJson(itemJson, "key", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true);   // allowEmpty=true for key
-                        item.data = getSafeStringFromJson(itemJson, "data", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", true, false); // data is critical, not allowed to be empty by this call
+                        item.key = getSafeStringFromJson(itemJson, "key", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true);   // key는 빈 문자열 허용
+                        item.data = getSafeStringFromJson(itemJson, "data", "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", true, false); // data는 중요하며, 이 호출에서 빈 문자열 비허용
                         currentVarDisplay.array.push_back(item);
                     }
                 }
@@ -428,13 +424,12 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
             }
 
-            this->m_HUDVariables.push_back(currentVarDisplay); // Add the fully populated display object
+            this->m_HUDVariables.push_back(currentVarDisplay); // 완전히 채워진 표시 객체 추가
             EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 3);
         }
     }
     /**
-     * @brief 오브젝트 블럭
-     *
+     * @brief 오브젝트 (objects) 및 관련 데이터(모양, 소리, 스크립트) 로드
      */
     if (document.HasMember("objects") && document["objects"].IsArray())
     {
@@ -777,11 +772,12 @@ bool Engine::loadProject(const string &projectFilePath)
                     else if (rotationMethodStr == "none")
                     {
                         currentRotationMethod = Entity::RotationMethod::NONE;
-                    }else if(rotationMethodStr == "vertical")
+                    }
+                    else if (rotationMethodStr == "vertical")
                     {
                         currentRotationMethod = Entity::RotationMethod::VERTICAL;
                     }
-                    else if(rotationMethodStr == "horizontal")
+                    else if (rotationMethodStr == "horizontal")
                     {
                         currentRotationMethod = Entity::RotationMethod::HORIZONTAL;
                     }
@@ -795,14 +791,14 @@ bool Engine::loadProject(const string &projectFilePath)
                 {
                     EngineStdOut("Missing or invalid 'rotationMethod' for object '" + objInfo.name + "'. Using default 'free'.", 1);
                 }
-                
+
                 Entity *newEntity = new Entity(
                     this, // Pass the engine instance
                     objectId,
                     objInfo.name,
                     initial_x, initial_y, initial_regX, initial_regY,
                     initial_scaleX, initial_scaleY, initial_rotation, initial_direction,
-                    initial_width, initial_height, initial_visible,currentRotationMethod);
+                    initial_width, initial_height, initial_visible, currentRotationMethod);
 
                 // Initialize pen positions
                 newEntity->brush.reset(initial_x, initial_y);
@@ -937,8 +933,7 @@ bool Engine::loadProject(const string &projectFilePath)
     scenes.clear();
 
     /**
-     * @brief 엔트리 씬
-     *
+     * @brief 씬 (scenes) 정보 로드
      */
     if (document.HasMember("scenes") && document["scenes"].IsArray())
     {
@@ -1028,8 +1023,7 @@ bool Engine::loadProject(const string &projectFilePath)
     }
 
     /**
-     * @brief 이벤트 블럭들
-     *
+     * @brief 특정 이벤트에 연결될 스크립트 식별 (예: 시작 버튼 클릭, 키 입력, 메시지 수신 등)
      */
     EngineStdOut("Identifying 'Start Button Clicked' scripts...", 0);
     startButtonScripts.clear();
@@ -1192,8 +1186,8 @@ const ObjectInfo *Engine::getObjectInfoById(const string &id) const
 bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
 {
     EngineStdOut("Initializing SDL...", 0);
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) //오디오 부분 은 Audio.h 에서 초기화
-    {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) // 오디오 부분은 Audio.h에서 초기화
+    {                                 // SDL 비디오 서브시스템 초기화
         EngineStdOut("SDL could not initialize! SDL_" + string(SDL_GetError()), 2);
         showMessageBox("Failed to initialize SDL: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
@@ -1201,7 +1195,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     EngineStdOut("SDL video subsystem initialized successfully.", 0);
 
     if (TTF_Init() == -1)
-    {
+    { // SDL_ttf (폰트 렌더링 라이브러리) 초기화
         string errMsg = "SDL_ttf could not initialize!";
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to initialize", msgBoxIconType.ICON_ERROR);
@@ -1212,7 +1206,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     EngineStdOut("SDL_ttf initialized successfully.", 0);
 
     this->window = SDL_CreateWindow(WINDOW_TITLE.c_str(), WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-    if (this->window == nullptr)
+    if (this->window == nullptr) // SDL 윈도우 생성
     {
         string errMsg = "Window could not be created! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
@@ -1225,7 +1219,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     EngineStdOut("SDL Window created successfully.", 0);
     if (attemptVulkan)
     {
-        EngineStdOut("Attempting to create Vulkan renderer as requested by command line argument...", 0);
+        EngineStdOut("Attempting to create Vulkan renderer as requested by command line argument...", 0); // Vulkan 렌더러 생성 시도
 
         int numRenderDrivers = SDL_GetNumRenderDrivers();
         if (numRenderDrivers < 0)
@@ -1267,6 +1261,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
             else
             {
                 EngineStdOut("Failed to create Vulkan renderer even though driver was found: " + string(SDL_GetError()) + ". Falling back to default.", 1);
+                showMessageBox("Failed to create Vulkan renderer: " + string(SDL_GetError()) + ". Falling back to default.", msgBoxIconType.ICON_WARNING);
                 this->renderer = SDL_CreateRenderer(this->window, nullptr);
             }
         }
@@ -1279,12 +1274,12 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     }
     else
     {
-
+        // 기본 SDL 렌더러 생성
         this->renderer = SDL_CreateRenderer(this->window, nullptr);
     }
     if (this->renderer == nullptr)
     {
-        string errMsg = "Renderer could not be created! SDL_" + string(SDL_GetError());
+        string errMsg = "Renderer could not be created! SDL_" + string(SDL_GetError()); // 렌더러 생성 실패
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create renderer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         SDL_DestroyWindow(this->window);
@@ -1295,7 +1290,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     }
     EngineStdOut("SDL Renderer created successfully.", 0);
     if (SDL_SetRenderVSync(this->renderer, vsyncEnabled ? SDL_RENDERER_VSYNC_ADAPTIVE : SDL_RENDERER_VSYNC_DISABLED) != 0)
-    {
+    { // VSync 설정
         EngineStdOut("Failed to set VSync mode. SDL_" + string(SDL_GetError()), 1);
     }
     else
@@ -1303,12 +1298,12 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         EngineStdOut("VSync mode set to: " + string(vsyncEnabled ? "Adaptive" : "Disabled"), 0);
     }
 
-    string defaultFontPath = "font/nanum_gothic.ttf";
+    string defaultFontPath = "font/nanum_gothic.ttf"; // 기본 폰트 경로
     hudFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
     loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 30);
 
     if (!hudFont)
-    {
+    { // HUD 폰트 로드 실패
         string errMsg = "Failed to load HUD font! Font path: " + defaultFontPath;
         EngineStdOut(errMsg, 2);
 
@@ -1328,7 +1323,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     EngineStdOut("HUD font loaded successfully.", 0);
 
     if (!loadingScreenFont)
-    {
+    { // 로딩 화면 폰트 로드 실패
         string errMsg = "Failed to load loading screen font! Font path: " + defaultFontPath;
         EngineStdOut(errMsg, 2);
 
@@ -1348,10 +1343,10 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
 
     SDL_SetRenderDrawColor(this->renderer, 255, 255, 255, 255);
 
-    initFps();
+    initFps(); // FPS 카운터 초기화
 
     if (!createTemporaryScreen())
-    {
+    { // 임시 화면 텍스처 생성 실패
         EngineStdOut("Failed to create temporary screen texture during initGE.", 2);
 
         if (hudFont)
@@ -1371,7 +1366,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
 
     // --- Initial HUD Variable Position Clamping ---
     // project.json에서 로드된 x, y 좌표가 엔트리 좌표계 기준일 수 있으므로,
-    // SDL 창 내에 있도록 초기 위치를 클램핑합니다.
+    // SDL 창 내에 있도록 초기 위치를 제한(clamp)합니다.
     if (renderer && !m_HUDVariables.empty())
     { // 렌더러와 HUD 변수가 모두 유효할 때만 실행
         EngineStdOut("Performing initial HUD variable position clamping...", 0);
@@ -1381,10 +1376,10 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         if (windowW > 0 && windowH > 0)
         {
             float itemHeight_const = 22.0f; // drawHUD 및 processInput과 일치
-            float itemPadding_const = 3.0f; // drawHUD 및 processInput과 일치
+            float itemPadding_const = 3.0f; // drawHUD 및 processInput과 일치하는 아이템 패딩
             float clampedItemHeight = itemHeight_const + 2 * itemPadding_const;
             // drawHUD/processInput의 minContainerFixedWidth와 일치시키거나 적절한 기본값 사용
-            float minContainerFixedWidth_const = 80.0f;
+            float minContainerFixedWidth_const = 80.0f; // 컨테이너 최소 고정 너비
 
             for (auto &var : m_HUDVariables)
             { // x, y를 수정해야 하므로 참조로 반복
@@ -1404,7 +1399,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
                     currentItemEstimatedWidth = m_maxVariablesListContentWidth;
                 }
 
-                // 추정된 너비가 창 너비보다 크지 않도록 하고, 최소 너비는 보장
+                // 추정된 너비가 창 너비보다 크지 않도록 하고, 최소 너비는 보장합니다.
                 currentItemEstimatedWidth = min(currentItemEstimatedWidth, static_cast<float>(windowW) - 10.0f); // 창 오른쪽 10px 여유
                 currentItemEstimatedWidth = max(minContainerFixedWidth_const, currentItemEstimatedWidth);
 
@@ -1425,7 +1420,7 @@ bool Engine::createTemporaryScreen()
 {
     if (this->renderer == nullptr)
     {
-        EngineStdOut("Renderer not initialized. Cannot create temporary screen texture.", 2);
+        EngineStdOut("Renderer not initialized. Cannot create temporary screen texture.", 2); // 렌더러가 초기화되지 않음
         showMessageBox("Internal Renderer not available for offscreen buffer.", msgBoxIconType.ICON_ERROR);
         return false;
     }
@@ -1433,7 +1428,7 @@ bool Engine::createTemporaryScreen()
     this->tempScreenTexture = SDL_CreateTexture(this->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT);
     if (this->tempScreenTexture == nullptr)
     {
-        string errMsg = "Failed to create temporary screen texture! SDL_" + string(SDL_GetError());
+        string errMsg = "Failed to create temporary screen texture! SDL_" + string(SDL_GetError()); // 임시 화면 텍스처 생성 실패
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create offscreen buffer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
@@ -1444,7 +1439,7 @@ bool Engine::createTemporaryScreen()
 
 void Engine::destroyTemporaryScreen()
 {
-    if (this->tempScreenTexture != nullptr)
+    if (this->tempScreenTexture != nullptr) // 임시 화면 텍스처 파괴
     {
         SDL_DestroyTexture(this->tempScreenTexture);
         this->tempScreenTexture = nullptr;
@@ -1454,7 +1449,7 @@ void Engine::destroyTemporaryScreen()
 
 void Engine::terminateGE()
 {
-    EngineStdOut("Terminating SDL and engine resources...", 0);
+    EngineStdOut("Terminating SDL and engine resources...", 0); // SDL 및 엔진 리소스 종료
 
     destroyTemporaryScreen();
 
@@ -1495,7 +1490,7 @@ void Engine::terminateGE()
 
 void Engine::handleRenderDeviceReset()
 {
-    EngineStdOut("Render device was reset. All GPU resources will be recreated.", 1);
+    EngineStdOut("Render device was reset. All GPU resources will be recreated.", 1); // 렌더 장치 리셋됨. GPU 리소스 재생성
 
     destroyTemporaryScreen();
 
@@ -1519,7 +1514,7 @@ void Engine::handleRenderDeviceReset()
 
 bool Engine::loadImages()
 {
-    EngineStdOut("Starting image loading...", 0);
+    EngineStdOut("Starting image loading...", 0); // 이미지 로딩 시작
     totalItemsToLoad = 0;
     loadedItemCount = 0;
 
@@ -1549,7 +1544,7 @@ bool Engine::loadImages()
 
     if (totalItemsToLoad == 0)
     {
-        EngineStdOut("No image items to load.", 0);
+        EngineStdOut("No image items to load.", 0); // 로드할 이미지 항목 없음
         return true;
     }
 
@@ -1574,12 +1569,12 @@ bool Engine::loadImages()
 
                 if (!this->renderer)
                 {
-                    EngineStdOut("CRITICAL Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
+                    EngineStdOut("CRITICAL: Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
                 }
                 SDL_ClearError();
 
                 costume.imageHandle = IMG_LoadTexture(this->renderer, imagePath.c_str());
-                if (!costume.imageHandle)
+                if (!costume.imageHandle) // 텍스처 로드 실패 시 렌더러 포인터 값 로깅
                 {
                     EngineStdOut("Renderer pointer value at IMG_LoadTexture failure: " + to_string(reinterpret_cast<uintptr_t>(this->renderer)), 3);
                 }
@@ -1605,7 +1600,7 @@ bool Engine::loadImages()
                     {
                         if (e.type == SDL_EVENT_QUIT)
                         {
-                            EngineStdOut("Image loading cancelled by user.", 1);
+                            EngineStdOut("Image loading cancelled by user.", 1); // 사용자에 의해 이미지 로딩 취소됨
                             return false;
                         }
                     }
@@ -1618,12 +1613,12 @@ bool Engine::loadImages()
 
     if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0)
     {
-        EngineStdOut("All images failed to load. Cannot continue.", 2);
+        EngineStdOut("All images failed to load. Cannot continue.", 2); // 모든 이미지 로드 실패
         showMessageBox("Fatal No images could be loaded. Check asset paths and file integrity.", msgBoxIconType.ICON_ERROR);
         return false;
     }
     else if (failedCount > 0)
-    {
+    { // 일부 이미지 로드 실패
         EngineStdOut("Some images failed to load, processing with available resources.", 1);
     }
     return true;
@@ -1636,21 +1631,21 @@ bool Engine::recreateAssetsIfNeeded()
         return true;
     }
 
-    EngineStdOut("Recreating GPU assets due to device reset...", 0);
+    EngineStdOut("Recreating GPU assets due to device reset...", 0); // 장치 리셋으로 인한 GPU 에셋 재생성
 
     if (!createTemporaryScreen())
     {
-        EngineStdOut("Failed to recreate temporary screen texture after device reset.", 2);
+        EngineStdOut("Failed to recreate temporary screen texture after device reset.", 2); // 임시 화면 텍스처 재생성 실패
         return false;
     }
 
     if (!loadImages())
     {
-        EngineStdOut("Failed to reload images after device reset.", 2);
+        EngineStdOut("Failed to reload images after device reset.", 2); // 이미지 리로드 실패
         return false;
     }
 
-    m_needsTextureRecreation = false;
+    m_needsTextureRecreation = false; // 텍스처 재생성 필요 플래그 리셋
     EngineStdOut("GPU assets recreated successfully.", 0);
     return true;
 }
@@ -1660,19 +1655,19 @@ void Engine::drawAllEntities()
     getProjectTimerValue();
     if (!renderer || !tempScreenTexture)
     {
-        EngineStdOut("drawAllEntities: Renderer or temporary screen texture not available.", 1);
+        EngineStdOut("drawAllEntities: Renderer or temporary screen texture not available.", 1); // 렌더러 또는 임시 화면 텍스처 사용 불가
         return;
     }
 
     SDL_SetRenderTarget(renderer, tempScreenTexture);
 
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 배경색 흰색으로 설정
     SDL_RenderClear(renderer);
 
     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
     {
         const ObjectInfo &objInfo = objects_in_order[i];
-
+        // 현재 씬에 속하거나 전역 오브젝트인 경우에만 그림
         bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
         bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
 
@@ -1683,19 +1678,19 @@ void Engine::drawAllEntities()
 
         auto it_entity = entities.find(objInfo.id);
         if (it_entity == entities.end())
-        {
+        { // 해당 ID의 엔티티가 없으면 건너뜀
 
             continue;
         }
         const Entity *entityPtr = it_entity->second;
 
         if (!entityPtr->isVisible())
-        {
+        { // 엔티티가 보이지 않으면 건너뜀
             continue;
         }
 
         if (objInfo.objectType == "sprite")
-        {
+        { // 스프라이트 타입 오브젝트 그리기
 
             const Costume *selectedCostume = nullptr;
 
@@ -1708,7 +1703,7 @@ void Engine::drawAllEntities()
                 }
             }
 
-            if (selectedCostume && selectedCostume->imageHandle != nullptr)
+            if (selectedCostume && selectedCostume->imageHandle != nullptr) // 선택된 모양이 있고 이미지 핸들이 유효한 경우
             {
                 double entryX = entityPtr->getX();
                 double entryY = entityPtr->getY();
@@ -1719,7 +1714,7 @@ void Engine::drawAllEntities()
                 float texW = 0, texH = 0;
                 if (!selectedCostume->imageHandle)
                 {
-                    EngineStdOut("Texture handle is null for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Cannot get texture size.", 2);
+                    EngineStdOut("Texture handle is null for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Cannot get texture size.", 2); // 텍스처 핸들 null 오류
                     continue;
                 }
 
@@ -1734,7 +1729,7 @@ void Engine::drawAllEntities()
 
                     ostringstream oss;
                     oss << selectedCostume->imageHandle;
-                    string texturePtrStr = oss.str();
+                    string texturePtrStr = oss.str(); // 텍스처 포인터 주소 로깅
                     EngineStdOut("Failed to get texture size for costume '" + selectedCostume->name + "' of object '" + objInfo.name + "'. Texture Ptr: " + texturePtrStr + ". SDL_" + errorDetail, 2);
                     SDL_ClearError();
                     continue;
@@ -1744,19 +1739,19 @@ void Engine::drawAllEntities()
 
                 dstRect.w = static_cast<float>(texW * entityPtr->getScaleX());
                 dstRect.h = static_cast<float>(texH * entityPtr->getScaleY());
-                SDL_FPoint center;
+                SDL_FPoint center; // 회전 중심점
                 center.x = static_cast<float>(entityPtr->getRegX());
                 center.y = static_cast<float>(entityPtr->getRegY());
                 dstRect.x = sdlX - static_cast<float>(entityPtr->getRegX() * entityPtr->getScaleX());
                 dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY());
 
-                double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0);
+                double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0); // SDL 렌더링 각도 계산
 
                 SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
             }
         }
         else if (objInfo.objectType == "textBox")
-        {
+        { // 텍스트 상자 타입 오브젝트 그리기
 
             if (!objInfo.textContent.empty())
             {
@@ -1767,7 +1762,7 @@ void Engine::drawAllEntities()
                 string fontfamily = objInfo.fontName;
                 string fontAsset = string(FONT_ASSETS);
                 int fontSize = objInfo.fontSize;
-                SDL_Color textColor = objInfo.textColor;
+                SDL_Color textColor = objInfo.textColor; // 텍스트 색상
                 FontName fontLoadEnum = getFontNameFromString(fontfamily);
                 TTF_Font *Usefont = nullptr;
                 int currentFontSize = objInfo.fontSize;
@@ -1809,12 +1804,12 @@ void Engine::drawAllEntities()
                 }
                 else
                 {
-                    Usefont = hudFont;
+                    Usefont = hudFont; // 폰트 로드 실패 시 HUD 기본 폰트 사용
                 }
 
                 SDL_Surface *textSurface = TTF_RenderText_Blended(Usefont, objInfo.textContent.c_str(), objInfo.textContent.size(), objInfo.textColor);
                 if (textSurface)
-                {
+                { // 텍스트 표면 렌더링 성공
 
                     SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
                     if (textTexture)
@@ -1831,7 +1826,7 @@ void Engine::drawAllEntities()
                         float scaledHeight = textHeight * entityPtr->getScaleY();
                         SDL_FRect dstRect;
                         dstRect.w = scaledWidth;
-                        dstRect.h = scaledHeight;
+                        dstRect.h = scaledHeight; // 텍스트 정렬 처리
                         // showMessageBox("textAlign:"+to_string(objInfo.textAlign),msgBoxIconType.ICON_INFORMATION);
                         switch (objInfo.textAlign)
                         {
@@ -1856,13 +1851,13 @@ void Engine::drawAllEntities()
                     }
                     else
                     {
-                        EngineStdOut("Failed to create text texture for textBox '" + objInfo.name + "'. SDL_" + SDL_GetError(), 2);
+                        EngineStdOut("Failed to create text texture for textBox '" + objInfo.name + "'. SDL_" + SDL_GetError(), 2); // 텍스트 텍스처 생성 실패
                     }
 
                     SDL_DestroySurface(textSurface);
                 }
                 else
-                {
+                { // 텍스트 표면 렌더링 실패
                     EngineStdOut("Failed to render text surface for textBox '" + objInfo.name, 2);
                 }
             }
@@ -1870,10 +1865,10 @@ void Engine::drawAllEntities()
     }
 
     SDL_SetRenderTarget(renderer, nullptr);
-
+    // 화면 지우기 (검은색)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-
+    // 윈도우 렌더링 크기 가져오기
     int windowRenderW = 0, windowRenderH = 0;
     SDL_GetRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
 
@@ -1882,7 +1877,7 @@ void Engine::drawAllEntities()
         EngineStdOut("drawAllEntities: Window render dimensions are zero or negative.", 1);
         return;
     }
-
+    // 줌 계수 적용된 소스 뷰 영역 계산
     float srcViewWidth = static_cast<float>(PROJECT_STAGE_WIDTH) / zoomFactor;
     float srcViewHeight = static_cast<float>(PROJECT_STAGE_HEIGHT) / zoomFactor;
     float srcViewX = (static_cast<float>(PROJECT_STAGE_WIDTH) - srcViewWidth) / 2.0f;
@@ -1890,13 +1885,13 @@ void Engine::drawAllEntities()
     SDL_FRect currentSrcFRect = {srcViewX, srcViewY, srcViewWidth, srcViewHeight};
 
     float stageContentAspectRatio = static_cast<float>(PROJECT_STAGE_WIDTH) / static_cast<float>(PROJECT_STAGE_HEIGHT);
-
+    // 최종 화면에 표시될 목적지 사각형 계산 (화면 비율 유지)
     SDL_FRect finalDisplayDstRect;
     float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
 
     if (windowAspectRatio >= stageContentAspectRatio)
     {
-
+        // 윈도우가 스테이지보다 넓거나 같은 비율: 높이 기준, 너비 조정 (레터박스 좌우)
         finalDisplayDstRect.h = static_cast<float>(windowRenderH);
         finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
         finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
@@ -1904,7 +1899,7 @@ void Engine::drawAllEntities()
     }
     else
     {
-
+        // 윈도우가 스테이지보다 좁은 비율: 너비 기준, 높이 조정 (레터박스 상하)
         finalDisplayDstRect.w = static_cast<float>(windowRenderW);
         finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
         finalDisplayDstRect.x = 0.0f;
@@ -1918,19 +1913,19 @@ void Engine::drawHUD()
 {
 
     if (!this->renderer)
-    {
+    { // 렌더러 사용 불가
         EngineStdOut("drawHUD: Renderer not available.", 1);
         return;
     }
 
     int windowW = 0, windowH = 0;
     SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
+    // FPS 표시
     if (this->hudFont && this->specialConfig.showFPS)
     {
 
         string fpsText = "FPS: " + to_string(static_cast<int>(currentFps));
-        SDL_Color textColor = {255, 150, 0, 255};
+        SDL_Color textColor = {255, 150, 0, 255}; // 주황색
 
         SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, fpsText.c_str(), 0, textColor);
         if (textSurface)
@@ -1948,22 +1943,22 @@ void Engine::drawHUD()
             }
             else
             {
-                EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2);
+                EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2); // FPS 텍스트 텍스처 생성 실패
             }
 
             SDL_DestroySurface(textSurface);
         }
         else
         {
-            EngineStdOut("Failed to render FPS text surface ", 2);
+            EngineStdOut("Failed to render FPS text surface ", 2); // FPS 텍스트 표면 렌더링 실패
         }
     }
-
+    // 줌 슬라이더 UI 표시
     if (this->specialConfig.showZoomSlider)
     {
 
         SDL_FRect sliderBgRect = {static_cast<float>(SLIDER_X), static_cast<float>(SLIDER_Y), static_cast<float>(SLIDER_WIDTH), static_cast<float>(SLIDER_HEIGHT)};
-        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // 슬라이더 배경색
         SDL_RenderFillRect(renderer, &sliderBgRect);
 
         float handleX_float = SLIDER_X + ((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH;
@@ -1971,14 +1966,14 @@ void Engine::drawHUD()
 
         SDL_FRect sliderHandleRect = {handleX_float - handleWidth_float / 2.0f, static_cast<float>(SLIDER_Y - 2), handleWidth_float, static_cast<float>(SLIDER_HEIGHT + 4)};
         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-        SDL_RenderFillRect(renderer, &sliderHandleRect);
+        SDL_RenderFillRect(renderer, &sliderHandleRect); // 슬라이더 핸들
 
         if (this->hudFont)
         {
             ostringstream zoomStream;
             zoomStream << fixed << setprecision(2) << zoomFactor;
             string zoomText = "Zoom: " + zoomStream.str();
-            SDL_Color textColor = {220, 220, 220, 255};
+            SDL_Color textColor = {220, 220, 220, 255}; // 줌 텍스트 색상
 
             SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, zoomText.c_str(), 0, textColor);
             if (textSurface)
@@ -1993,23 +1988,23 @@ void Engine::drawHUD()
                 }
                 else
                 {
-                    EngineStdOut("Failed to create Zoom text texture: " + string(SDL_GetError()), 2);
+                    EngineStdOut("Failed to create Zoom text texture: " + string(SDL_GetError()), 2); // 줌 텍스트 텍스처 생성 실패
                 }
                 SDL_DestroySurface(textSurface);
             }
             else
             {
-                EngineStdOut("Failed to render Zoom text surface ", 2);
+                EngineStdOut("Failed to render Zoom text surface ", 2); // 줌 텍스트 표면 렌더링 실패
             }
         }
     }
 
-    // --- 일반 변수 그리기 ---
+    // --- HUD 변수 그리기 (일반 변수 및 리스트) ---
     if (!m_HUDVariables.empty())
     {
         int windowW = 0;
         float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
-        int visibleVarsCount = 0;
+        int visibleVarsCount = 0;                   // 보이는 변수 개수
         if (renderer)
             SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
 
@@ -2019,7 +2014,7 @@ void Engine::drawHUD()
         {
             if (!var.isVisible)
             {
-                continue; // 변수 가 보이지 않으면 건너뜁니다.
+                continue; // 변수가 보이지 않으면 건너뜁니다.
             }
 
             // Colors and fixed dimensions for a single item box
@@ -2037,16 +2032,16 @@ void Engine::drawHUD()
 
             if (var.variableType == "timer")
             {
-                itemValueBoxBgColor = {255, 150, 0, 255}; // 주황색 for timer
+                itemValueBoxBgColor = {255, 150, 0, 255}; // 타이머는 주황색 배경
                 valueToDisplay = to_string(static_cast<int>(getProjectTimerValue()));
             }
             else if (var.variableType == "list")
-            { // ---------- LIST VARIABLE RENDERING ----------
-                if (!hudFont)
+            {                 // ---------- LIST VARIABLE RENDERING ----------
+                if (!hudFont) // HUD 폰트 없으면 리스트 렌더링 불가
                     continue;
 
                 // List specific styling
-                SDL_Color listBgColor = {240, 240, 240, 220};           // Dark semi-transparent background for the list
+                SDL_Color listBgColor = {240, 240, 240, 220};        // Dark semi-transparent background for the list
                 SDL_Color listBorderColor = {150, 150, 150, 255};    // Light gray border
                 SDL_Color listNameTextColor = {255, 255, 255, 255};  // Light text for list name
                 SDL_Color listItemBgColor = {0, 120, 255, 255};      // Blue background for item data
@@ -2060,10 +2055,10 @@ void Engine::drawHUD()
                 float contentPadding = 5.0f;        // General padding inside the list container and items
                 float rowNumberColumnWidth = 30.0f; // Width allocated for row numbers column (adjust as needed)
                 float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
-
+                // 1. 리스트 컨테이너 테두리 그리기
                 // 1. Draw List Container Border
                 SDL_FRect listContainerOuterRect = {var.x, var.y, var.width, var.height};
-                if (listBorderWidth > 0.0f)
+                if (listBorderWidth > 0.0f) // 테두리 두께가 0보다 클 때만 그림
                 {
                     SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b, listBorderColor.a);
                     Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
@@ -2075,14 +2070,14 @@ void Engine::drawHUD()
                     var.y + listBorderWidth,
                     max(0.0f, var.width - (2 * listBorderWidth)),
                     max(0.0f, var.height - (2 * listBorderWidth))};
-                float innerRadius = max(0.0f, listCornerRadius - listBorderWidth);
+                float innerRadius = max(0.0f, listCornerRadius - listBorderWidth); // 내부 둥근 모서리 반지름
                 if (listContainerInnerRect.w > 0 && listContainerInnerRect.h > 0)
                 {
                     SDL_SetRenderDrawColor(renderer, listBgColor.r, listBgColor.g, listBgColor.b, listBgColor.a);
                     Helper_RenderFilledRoundedRect(renderer, &listContainerInnerRect, innerRadius);
                 }
 
-                // 3. Draw List Name (Header)
+                // 3. 리스트 이름 (헤더) 그리기
                 string listDisplayName;
                 bool foundAssociatedObjectList = false;
                 if (!var.objectId.empty())
@@ -2116,35 +2111,52 @@ void Engine::drawHUD()
                     SDL_DestroySurface(nameSurfaceList);
                 }
 
-                // 4. Draw List Items
+                // 4. 리스트 아이템 그리기
                 float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
                 float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
                 float currentItemVisualY = itemsAreaStartY + contentPadding;
-
-                float dataColumnX = listContainerInnerRect.x + contentPadding;
-                float dataColumnWidth = listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding;
+                // 컬럼 위치 계산 (행 번호 왼쪽, 데이터 오른쪽)
+                // 수정: 행 번호 컬럼을 먼저 계산하고 왼쪽에 배치
+                float rowNumColumnX = listContainerInnerRect.x + contentPadding;
+                // 수정: 데이터 컬럼은 행 번호 컬럼 오른쪽에 위치
+                float dataColumnX = rowNumColumnX + rowNumberColumnWidth + contentPadding;
+                float dataColumnWidth = listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding; // 기존 계산 유지, 위치만 변경
                 dataColumnWidth = max(0.0f, dataColumnWidth);
-                float rowNumColumnX = dataColumnX + dataColumnWidth + contentPadding;
 
                 for (size_t i = 0; i < var.array.size(); ++i)
                 {
                     if (currentItemVisualY + itemRowHeight > itemsAreaStartY + itemsAreaRenderableHeight)
-                    {
+                    { // 그릴 공간이 없으면 중단
                         break;
                     }
                     const ListItem &listItem = var.array[i];
 
-                    // Column 1: Item Data (Left - Blue BG, White Text)
+                    // 컬럼 1: 행 번호 (왼쪽)
+                    string rowNumStr = to_string(i + 1);
+                    SDL_Surface *rowNumSurface = TTF_RenderText_Blended(hudFont, rowNumStr.c_str(), 0, listRowNumberColor);
+                    if (rowNumSurface)
+                    {
+                        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, rowNumSurface);
+                        if (tex)
+                        {
+                            SDL_FRect r = {rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f, currentItemVisualY + (itemRowHeight - rowNumSurface->h) / 2.0f, (float)rowNumSurface->w, (float)rowNumSurface->h};
+                            SDL_RenderTexture(renderer, tex, nullptr, &r);
+                            SDL_DestroyTexture(tex);
+                        }
+                        SDL_DestroySurface(rowNumSurface);
+                    }
+
+                    // 컬럼 2: 아이템 데이터 (오른쪽 - 파란 배경, 흰색 텍스트)
                     SDL_FRect itemDataBgRect = {dataColumnX, currentItemVisualY, dataColumnWidth, itemRowHeight};
                     SDL_SetRenderDrawColor(renderer, listItemBgColor.r, listItemBgColor.g, listItemBgColor.b, listItemBgColor.a);
                     SDL_RenderFillRect(renderer, &itemDataBgRect);
 
                     if (dataColumnWidth > contentPadding * 2)
-                    { // Only render text if space for it
+                    { // 텍스트를 그릴 공간이 있을 때만
                         string textToRender = listItem.data;
                         string displayText = textToRender;
                         float availableTextWidthInDataCol = dataColumnWidth - (2 * contentPadding);
-                        
+
                         int fullTextMeasuredWidth;
                         size_t fullTextOriginalLengthInBytes = textToRender.length();
                         size_t fullTextMeasuredLengthInBytes; // max_width=0일 때 fullTextOriginalLengthInBytes와 같아야 함
@@ -2152,7 +2164,7 @@ void Engine::drawHUD()
                         if (TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes, 0 /* max_width = 0 이면 전체 문자열 측정 */, &fullTextMeasuredWidth, &fullTextMeasuredLengthInBytes))
                         {
                             if (static_cast<float>(fullTextMeasuredWidth) > availableTextWidthInDataCol)
-                            {
+                            { // 텍스트가 너무 길면 잘림 처리 (...)
                                 // 잘림 처리 필요
                                 const string ellipsis = "...";
                                 int ellipsisMeasuredWidth;
@@ -2190,23 +2202,29 @@ void Engine::drawHUD()
                                         else
                                         {
                                             // 텍스트 부분이 전혀 안 들어감. "..." 만이라도 표시 가능한지 확인
-                                            if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol) {
+                                            if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol)
+                                            {
                                                 displayText = ellipsis;
-                                            } else {
+                                            }
+                                            else
+                                            {
                                                 displayText = "";
                                             }
                                         }
                                     }
                                 }
-                                else { // "..." 측정 실패
+                                else
+                                { // "..." 측정 실패
                                     EngineStdOut("Failed to measure ellipsis text for HUD list.", 2);
                                     // 간단한 대체 처리
-                                    if (textToRender.length() > 2) displayText = textToRender.substr(0, textToRender.length() - 2) + "..";
+                                    if (textToRender.length() > 2)
+                                        displayText = textToRender.substr(0, textToRender.length() - 2) + "..";
                                 }
                             }
                             // else: 전체 텍스트가 공간에 맞으므로 displayText = textToRender (초기값) 사용
                         }
-                        else { // textToRender 측정 실패
+                        else
+                        { // textToRender 측정 실패
                             EngineStdOut("Failed to measure text: " + textToRender + " for HUD list.", 2);
                             // 오류 처리, displayText는 초기값 textToRender를 유지하거나 비워둘 수 있음
                         }
@@ -2228,45 +2246,30 @@ void Engine::drawHUD()
                         }
                     }
 
-                    // Column 2: Row Number (Right)
-                    string rowNumStr = to_string(i + 1);
-                    SDL_Surface *rowNumSurface = TTF_RenderText_Blended(hudFont, rowNumStr.c_str(), 0, listRowNumberColor);
-                    if (rowNumSurface)
-                    {
-                        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, rowNumSurface);
-                        if (tex)
-                        {
-                            SDL_FRect r = {rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f, currentItemVisualY + (itemRowHeight - rowNumSurface->h) / 2.0f, (float)rowNumSurface->w, (float)rowNumSurface->h};
-                            SDL_RenderTexture(renderer, tex, nullptr, &r);
-                            SDL_DestroyTexture(tex);
-                        }
-                        SDL_DestroySurface(rowNumSurface);
-                    }
-
                     currentItemVisualY += itemRowHeight + spacingBetweenRows;
                 }
 
-                // 5. Draw Resize Handle for List (우측 하단)
-                if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT) { // 핸들을 그릴 충분한 공간이 있는지 확인
+                // 5. 리스트 크기 조절 핸들 그리기 (오른쪽 하단)
+                if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT)
+                { // 핸들을 그릴 충분한 공간이 있는지 확인
                     SDL_FRect resizeHandleRect = {
                         var.x + var.width - LIST_RESIZE_HANDLE_SIZE,
                         var.y + var.height - LIST_RESIZE_HANDLE_SIZE,
                         LIST_RESIZE_HANDLE_SIZE,
-                        LIST_RESIZE_HANDLE_SIZE
-                    };
-                    SDL_SetRenderDrawColor(renderer, listRowNumberColor.r, listRowNumberColor.g, listRowNumberColor.b, 255);// 핸들 색상
+                        LIST_RESIZE_HANDLE_SIZE};
+                    SDL_SetRenderDrawColor(renderer, listRowNumberColor.r, listRowNumberColor.g, listRowNumberColor.b, 255); // 핸들 색상
                     SDL_RenderFillRect(renderer, &resizeHandleRect);
                 }
-                var.transient_render_width = var.width; // For lists, their rendered width is their defined width.
+                var.transient_render_width = var.width; // 리스트의 경우, 렌더링된 너비는 정의된 너비와 동일
             }
             else
             {                                             // 일반 변수
-                itemValueBoxBgColor = {0, 120, 255, 255}; // 파란색 for other variables
+                itemValueBoxBgColor = {0, 120, 255, 255}; // 다른 변수는 파란색 배경
                 valueToDisplay = var.value;
             }
 
             // 변수 이름 레이블
-            // 변수 의 object 키에 오브젝트의 id 가 있을경우 해당오브젝트 이름을 가져온다.
+            // 변수의 object 키에 오브젝트 ID가 있을 경우 해당 오브젝트 이름을 가져온다.
             // 없을경우 그냥 변수 이름을 사용한다.
             string nameToDisplay; // HUD에 최종적으로 표시될 변수의 이름
             bool foundAssociatedObject = false;
@@ -2296,7 +2299,7 @@ void Engine::drawHUD()
                 if (valueSurface)
                     SDL_DestroySurface(valueSurface);
                 EngineStdOut("Failed to render name or value surface for variable: " + var.name, 2);
-                continue;
+                continue; // 이름 또는 값 표면 렌더링 실패
             }
 
             float nameTextActualWidth = static_cast<float>(nameSurface->w);
@@ -2316,13 +2319,13 @@ void Engine::drawHUD()
             // 컨테이너 최소/최대 너비 정의
             float minContainerFixedWidth = 80.0f; // 최소 너비
             // 최대 사용 가능 너비는 현재 변수의 x 위치를 기준으로 계산해야 합니다.
-            float maxAvailContainerWidth = static_cast<float>(windowW) - var.x - 10.0f;   // 창 오른쪽 가장자리에서 10px 여유
+            float maxAvailContainerWidth = static_cast<float>(windowW) - var.x - 10.0f;   // 창 오른쪽 가장자리에서 10px 여유 확보
             maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
 
             // 이 항목의 최종 컨테이너 너비
             float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth, maxAvailContainerWidth);
             if (var.variableType == "list" && var.width > 0)
-            { // 리스트 타입이고 명시적 너비가 있다면 사용
+            { // 리스트 타입이고 명시적 너비가 있다면 해당 너비 사용
                 // 참고: 리스트의 경우 var.width는 사용자가 project.json에서 명시적으로 설정한 너비를 의미할 수 있습니다.
                 currentItemContainerWidth = clamp(var.width, minContainerFixedWidth, maxAvailContainerWidth);
             }
@@ -2338,13 +2341,13 @@ void Engine::drawHUD()
             // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
             SDL_FRect outerContainerRect = {var.x, var.y, currentItemContainerWidth, singleBoxHeight};
             if (containerBorderWidth > 0.0f)
-            {
+            { // 테두리 그리기
                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
             }
             // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
             SDL_FRect fillContainerRect = {
-                var.x + containerBorderWidth,
+                var.x + containerBorderWidth, // 테두리 두께만큼 안쪽으로
                 var.y + containerBorderWidth,
                 max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
                 max(0.0f, singleBoxHeight - (2 * containerBorderWidth))};
@@ -2355,7 +2358,7 @@ void Engine::drawHUD()
                 Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
             }
 
-            // 3. 각 변수 항목 그리기 (name and value)
+            // 3. 각 변수 항목 그리기 (이름과 값)
             float contentAreaTopY = fillContainerRect.y + itemPadding;
 
             SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
@@ -2367,7 +2370,7 @@ void Engine::drawHUD()
             {
                 // Determine available width for (NameText + ValueBox) within fillContainerRect,
                 // accounting for 3 itemPaddings (left, middle, right).
-                float spaceForNameTextAndValueBox = max(0.0f, fillContainerRect.w - (3 * itemPadding));
+                float spaceForNameTextAndValueBox = max(0.0f, fillContainerRect.w - (3 * itemPadding)); // 이름 텍스트와 값 상자를 위한 공간
 
                 // Ideal widths for name text and the blue value background box
                 float targetNameTextWidth = nameTextActualWidth;
@@ -2380,13 +2383,13 @@ void Engine::drawHUD()
 
                 if (totalIdealInternalWidth <= spaceForNameTextAndValueBox)
                 {
-                    // Enough space for both to be drawn at their ideal widths
+                    // 이상적인 너비로 둘 다 그릴 충분한 공간이 있음
                     finalNameTextWidth = targetNameTextWidth;
                     finalValueBoxWidth = targetValueBoxWidth;
                 }
                 else
                 {
-                    // Not enough space, scale them down proportionally to fit spaceForNameTextAndValueBox
+                    // 공간 부족, spaceForNameTextAndValueBox에 맞게 비례적으로 축소
                     if (totalIdealInternalWidth > 0)
                     {
                         float scaleFactor = spaceForNameTextAndValueBox / totalIdealInternalWidth;
@@ -2394,11 +2397,11 @@ void Engine::drawHUD()
                         finalValueBoxWidth = targetValueBoxWidth * scaleFactor;
                     }
                     else
-                    { // Both target widths are 0
+                    { // 두 대상 너비가 모두 0인 경우
                         finalNameTextWidth = 0;
                         finalValueBoxWidth = spaceForNameTextAndValueBox; // Or distribute 0/0 or space/2, space/2
                         if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0)
-                        {                                                            // if space exists but content is zero
+                        {                                                            // 공간은 있지만 내용이 없는 경우
                             finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
                             finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
                         }
@@ -2411,7 +2414,7 @@ void Engine::drawHUD()
                 finalNameTextWidth = max(0.0f, finalNameTextWidth);
                 finalValueBoxWidth = max(0.0f, finalValueBoxWidth);
 
-                // Draw Name
+                // 이름 그리기
                 SDL_FRect nameDestRect = {
                     fillContainerRect.x + itemPadding,
                     contentAreaTopY + (itemHeight - static_cast<float>(nameTexture->h)) / 2.0f,
@@ -2420,7 +2423,7 @@ void Engine::drawHUD()
                 SDL_FRect nameSrcRect = {0, 0, static_cast<int>(finalNameTextWidth), static_cast<int>(nameTexture->h)};
                 SDL_RenderTexture(renderer, nameTexture, &nameSrcRect, &nameDestRect);
 
-                // Draw Value Background Box and Value Text
+                // 값 배경 상자 및 값 텍스트 그리기
                 if (finalValueBoxWidth > 0)
                 {
                     SDL_FRect valueBgRect = {
@@ -2456,7 +2459,7 @@ void Engine::drawHUD()
         if (visibleVarsCount > 0)
         {
             // maxObservedItemWidthThisFrame은 minContainerFixedWidth(80.0f) 이상이어야 합니다.
-            // currentItemContainerWidth가 그렇게 clamp되기 때문입니다.
+            // currentItemContainerWidth가 그렇게 제한(clamp)되기 때문입니다.
             m_maxVariablesListContentWidth = maxObservedItemWidthThisFrame;
         }
         else
@@ -2477,14 +2480,14 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
     {
         SDL_GetRenderOutputSize(this->renderer, &windowRenderW, &windowRenderH);
     }
-    else
+    else // 렌더러 사용 불가
     {
         EngineStdOut("mapWindowToStageCoordinates: Renderer not available.", 2);
         return false;
     }
 
     if (windowRenderW <= 0 || windowRenderH <= 0)
-    {
+    { // 렌더링 크기 유효하지 않음
         EngineStdOut("mapWindowToStageCoordinates: Render dimensions are zero or negative.", 2);
         return false;
     }
@@ -2492,17 +2495,17 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
     float fullStageWidthTex = static_cast<float>(PROJECT_STAGE_WIDTH);
     float fullStageHeightTex = static_cast<float>(PROJECT_STAGE_HEIGHT);
 
-    float currentSrcViewWidth = fullStageWidthTex / this->zoomFactor;
+    float currentSrcViewWidth = fullStageWidthTex / this->zoomFactor; // 현재 줌 계수 적용된 소스 뷰 너비
     float currentSrcViewHeight = fullStageHeightTex / this->zoomFactor;
     float currentSrcViewX = (fullStageWidthTex - currentSrcViewWidth) / 2.0f;
     float currentSrcViewY = (fullStageHeightTex - currentSrcViewHeight) / 2.0f;
 
     float stageContentAspectRatio = fullStageWidthTex / fullStageHeightTex;
-    SDL_FRect finalDisplayDstRect;
+    SDL_FRect finalDisplayDstRect; // 최종 화면 표시 영역
     float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
 
     if (windowAspectRatio >= stageContentAspectRatio)
-    {
+    { // 윈도우가 스테이지보다 넓거나 같은 비율
         finalDisplayDstRect.h = static_cast<float>(windowRenderH);
         finalDisplayDstRect.w = finalDisplayDstRect.h * stageContentAspectRatio;
         finalDisplayDstRect.x = (static_cast<float>(windowRenderW) - finalDisplayDstRect.w) / 2.0f;
@@ -2510,7 +2513,7 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
     }
     else
     {
-        finalDisplayDstRect.w = static_cast<float>(windowRenderW);
+        finalDisplayDstRect.w = static_cast<float>(windowRenderW); // 윈도우가 스테이지보다 좁은 비율
         finalDisplayDstRect.h = finalDisplayDstRect.w / stageContentAspectRatio;
         finalDisplayDstRect.x = 0.0f;
         finalDisplayDstRect.y = (static_cast<float>(windowRenderH) - finalDisplayDstRect.h) / 2.0f;
@@ -2518,21 +2521,21 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 
     if (finalDisplayDstRect.w <= 0.0f || finalDisplayDstRect.h <= 0.0f)
     {
-        EngineStdOut("mapWindowToStageCoordinates: Calculated final display rect has zero or negative dimension.", 2);
+        EngineStdOut("mapWindowToStageCoordinates: Calculated final display rect has zero or negative dimension.", 2); // 계산된 표시 영역 크기 오류
         return false;
     }
 
     if (static_cast<float>(windowMouseX) < finalDisplayDstRect.x || static_cast<float>(windowMouseX) >= finalDisplayDstRect.x + finalDisplayDstRect.w ||
         static_cast<float>(windowMouseY) < finalDisplayDstRect.y || static_cast<float>(windowMouseY) >= finalDisplayDstRect.y + finalDisplayDstRect.h)
-    {
+    { // 마우스가 스테이지 표시 영역 밖에 있음
         return false;
     }
-    float normX_on_displayed_stage = (static_cast<float>(windowMouseX) - finalDisplayDstRect.x) / finalDisplayDstRect.w;
+    float normX_on_displayed_stage = (static_cast<float>(windowMouseX) - finalDisplayDstRect.x) / finalDisplayDstRect.w; // 표시된 스테이지 내 정규화된 X 좌표
     float normY_on_displayed_stage = (static_cast<float>(windowMouseY) - finalDisplayDstRect.y) / finalDisplayDstRect.h;
 
-    float texture_coord_x_abs = currentSrcViewX + (normX_on_displayed_stage * currentSrcViewWidth);
+    float texture_coord_x_abs = currentSrcViewX + (normX_on_displayed_stage * currentSrcViewWidth); // 텍스처 내 절대 X 좌표
     float texture_coord_y_abs = currentSrcViewY + (normY_on_displayed_stage * currentSrcViewHeight);
-
+    // 스테이지 좌표계로 변환 (중앙 0,0, Y 위쪽)
     stageX = texture_coord_x_abs - (fullStageWidthTex / 2.0f);
     stageY = (fullStageHeightTex / 2.0f) - texture_coord_y_abs;
 
@@ -2543,13 +2546,13 @@ void Engine::processInput(const SDL_Event &event)
 {
 
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
-    {
+    { // 마우스 버튼 누름 이벤트
         if (event.button.button == SDL_BUTTON_LEFT)
         {
-            bool uiClicked = false;
+            bool uiClicked = false; // UI 요소 클릭 여부
             int mouseX = event.button.x;
             int mouseY = event.button.y;
-            if (this->specialConfig.showZoomSlider &&
+            if (this->specialConfig.showZoomSlider && // 줌 슬라이더 클릭 확인
                 mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH &&
                 mouseY >= SLIDER_Y - 5 && mouseY <= SLIDER_Y + SLIDER_HEIGHT + 5)
             {
@@ -2559,13 +2562,13 @@ void Engine::processInput(const SDL_Event &event)
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
             }
-            // 3. Check Individual HUD Variable Drag
+            // 개별 HUD 변수 드래그 확인
             if (!uiClicked && !m_HUDVariables.empty())
             {
                 float itemHeight = 22.0f;
                 float itemPadding = 3.0f;
                 float singleBoxHeight = itemHeight + 2 * itemPadding;
-                float containerBorderWidth = 1.0f;    // Matches drawHUD
+                float containerBorderWidth = 1.0f;    // drawHUD와 일치
                 float minContainerFixedWidth = 80.0f; // Matches drawHUD
                 int windowW_render = 0;
                 if (renderer)
@@ -2576,10 +2579,10 @@ void Engine::processInput(const SDL_Event &event)
                     const auto &var_item = m_HUDVariables[i];
                     if (!var_item.isVisible)
                         continue;
-                    
+
                     SDL_FRect varRect;
                     float itemActualWidthForHitTest;
-                    float itemActualHeightForHitTest;
+                    float itemActualHeightForHitTest; // 충돌 검사를 위한 실제 아이템 너비/높이
 
                     if (var_item.variableType == "list" && var_item.width > 0)
                     {
@@ -2592,8 +2595,7 @@ void Engine::processInput(const SDL_Event &event)
                             var_item.x + var_item.width - LIST_RESIZE_HANDLE_SIZE,
                             var_item.y + var_item.height - LIST_RESIZE_HANDLE_SIZE,
                             LIST_RESIZE_HANDLE_SIZE,
-                            LIST_RESIZE_HANDLE_SIZE
-                        };
+                            LIST_RESIZE_HANDLE_SIZE};
 
                         if (static_cast<float>(mouseX) >= resizeHandleRect.x && static_cast<float>(mouseX) <= resizeHandleRect.x + resizeHandleRect.w &&
                             static_cast<float>(mouseY) >= resizeHandleRect.y && static_cast<float>(mouseY) <= resizeHandleRect.y + resizeHandleRect.h)
@@ -2604,8 +2606,8 @@ void Engine::processInput(const SDL_Event &event)
                             m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - (var_item.x + var_item.width);
                             m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - (var_item.y + var_item.height);
                             uiClicked = true;
-                            EngineStdOut("Started resizing HUD list: " + var_item.name, 0);
-                            break; 
+                            EngineStdOut("Started resizing HUD list: " + var_item.name, 0); // HUD 리스트 크기 조절 시작
+                            break;
                         }
                     }
                     else
@@ -2613,8 +2615,9 @@ void Engine::processInput(const SDL_Event &event)
                         // For other types, calculate width similar to drawHUD
                         // For non-list items, use transient_render_width if available and seems reasonable.
                         itemActualWidthForHitTest = var_item.transient_render_width;
-                        if (itemActualWidthForHitTest <= 0) { // Fallback if not rendered yet
-                             itemActualWidthForHitTest = minContainerFixedWidth;
+                        if (itemActualWidthForHitTest <= 0)
+                        { // 아직 렌더링되지 않았다면 대체값 사용
+                            itemActualWidthForHitTest = minContainerFixedWidth;
                         }
                         itemActualHeightForHitTest = singleBoxHeight;
                         varRect = {var_item.x, var_item.y, itemActualWidthForHitTest, itemActualHeightForHitTest};
@@ -2630,13 +2633,13 @@ void Engine::processInput(const SDL_Event &event)
                         m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - var_item.x;
                         m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - var_item.y;
                         uiClicked = true;
-                        EngineStdOut("Started dragging HUD variable: " + var_item.name + " (Type: " + var_item.variableType + ")", 0);
-                        break; 
+                        EngineStdOut("Started dragging HUD variable: " + var_item.name + " (Type: " + var_item.variableType + ")", 0); // HUD 변수 드래그 시작
+                        break;
                     }
                 }
             }
             if (!uiClicked && m_gameplayInputActive)
-            {
+            { // UI 클릭이 아니고 게임플레이 입력이 활성화된 경우
 
                 if (!m_mouseClickedScripts.empty())
                 {
@@ -2647,8 +2650,10 @@ void Engine::processInput(const SDL_Event &event)
                         Entity *currentEntity = getEntityById(objectId);
 
                         // Entity의 멤버 함수로 executeScript를 호출하도록 변경
-                        if (currentEntity) {
-                            if (currentEntity->isVisible()) {
+                        if (currentEntity)
+                        {
+                            if (currentEntity->isVisible())
+                            {
                                 // ... (기존 씬 체크 로직) ...
                                 // executeScript(*this, objectId, scriptPtr); // 기존 호출
                                 currentEntity->executeScript(scriptPtr); // 새 호출
@@ -2683,7 +2688,7 @@ void Engine::processInput(const SDL_Event &event)
                 }
 
                 float stageMouseX = 0.0f, stageMouseY = 0.0f;
-                if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY))
+                if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY)) // 윈도우 좌표를 스테이지 좌표로 변환
                 {
 
                     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
@@ -2691,7 +2696,7 @@ void Engine::processInput(const SDL_Event &event)
                         const ObjectInfo &objInfo = objects_in_order[i];
                         const string &objectId = objInfo.id;
 
-                        bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+                        bool isInCurrentScene = (objInfo.sceneId == currentSceneId); // 현재 씬에 있는지 확인
                         bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
                         if (!isInCurrentScene && !isGlobal)
                         {
@@ -2699,13 +2704,13 @@ void Engine::processInput(const SDL_Event &event)
                         }
 
                         Entity *entity = getEntityById(objectId);
-                        if (!entity || !entity->isVisible())
+                        if (!entity || !entity->isVisible()) // 엔티티가 없거나 보이지 않으면 건너뜀
                         {
                             continue;
                         }
 
                         if (entity->isPointInside(stageMouseX, stageMouseY))
-                        {
+                        { // 마우스가 엔티티 내부에 있으면
                             m_pressedObjectId = objectId;
 
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
@@ -2723,7 +2728,7 @@ void Engine::processInput(const SDL_Event &event)
                 }
                 else
                 {
-                    EngineStdOut("Warning: Could not map window to stage coordinates for object click.", 1);
+                    EngineStdOut("Warning: Could not map window to stage coordinates for object click.", 1); // 오브젝트 클릭을 위한 좌표 변환 실패
                 }
             }
             else if (uiClicked)
@@ -2734,7 +2739,7 @@ void Engine::processInput(const SDL_Event &event)
     }
     else if (event.type == SDL_EVENT_KEY_DOWN)
     {
-        if (m_gameplayInputActive)
+        if (m_gameplayInputActive) // 키 누름 이벤트
         {
             SDL_Scancode scancode = event.key.scancode;
             auto it = keyPressedScripts.find(scancode);
@@ -2747,10 +2752,13 @@ void Engine::processInput(const SDL_Event &event)
                     const Script *scriptPtr = scriptPair.second;
                     EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
                     // executeScript(*this, objectId, scriptPtr); // 기존 호출
-                    Entity* targetEntity = getEntityById(objectId);
-                    if (targetEntity) {
+                    Entity *targetEntity = getEntityById(objectId);
+                    if (targetEntity)
+                    {
                         targetEntity->executeScript(scriptPtr); // 새 호출
-                    } else {
+                    }
+                    else
+                    {
                         EngineStdOut(" -> Entity " + objectId + " not found for key press script.", 1);
                     }
                 }
@@ -2759,10 +2767,10 @@ void Engine::processInput(const SDL_Event &event)
     }
     else if (event.type == SDL_EVENT_MOUSE_MOTION)
     {
-        if (this->m_isDraggingZoomSlider && (event.motion.state & SDL_BUTTON_LMASK))
+        if (this->m_isDraggingZoomSlider && (event.motion.state & SDL_BUTTON_LMASK)) // 줌 슬라이더 드래그 중
         {
             int mouseX = event.motion.x;
-
+            // 슬라이더 범위 내에서 줌 계수 업데이트
             if (mouseX >= SLIDER_X && mouseX <= SLIDER_X + SLIDER_WIDTH)
             {
                 float ratio = static_cast<float>(mouseX - SLIDER_X) / SLIDER_WIDTH;
@@ -2771,46 +2779,61 @@ void Engine::processInput(const SDL_Event &event)
             }
         }
         // HUD 변수 드래그 중 마우스 이동 처리
-        else if (m_draggedHUDVariableIndex != -1 && (event.motion.state & SDL_BUTTON_LMASK))
+        else if (m_draggedHUDVariableIndex != -1 && (event.motion.state & SDL_BUTTON_LMASK)) // HUD 변수 드래그 중
         {
-            HUDVariableDisplay &draggedVar = m_HUDVariables[m_draggedHUDVariableIndex]; 
+            HUDVariableDisplay &draggedVar = m_HUDVariables[m_draggedHUDVariableIndex];
 
             int mouseX = event.motion.x;
             int mouseY = event.motion.y;
             int windowW = 0, windowH = 0;
-            if (renderer) SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+            if (renderer)
+                SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
 
-            if (m_currentHUDDragState == HUDDragState::MOVING) {
+            if (m_currentHUDDragState == HUDDragState::MOVING)
+            { // 이동 상태
                 float newX = static_cast<float>(mouseX) - m_draggedHUDVariableMouseOffsetX;
                 float newY = static_cast<float>(mouseY) - m_draggedHUDVariableMouseOffsetY;
 
                 float draggedItemWidth = 0.0f;
                 float draggedItemHeight = 0.0f;
 
-                if (draggedVar.variableType == "list") {
-                    draggedItemWidth = draggedVar.width; 
-                    draggedItemHeight = draggedVar.height; 
-                } else {
-                    draggedItemWidth = (draggedVar.transient_render_width > 0) ? draggedVar.transient_render_width : 180.0f; 
-                    float itemHeight_const_motion = 22.0f; 
-                    float itemPadding_const_motion = 3.0f; 
+                if (draggedVar.variableType == "list")
+                {
+                    draggedItemWidth = draggedVar.width;   // 리스트 너비
+                    draggedItemHeight = draggedVar.height; // 리스트 높이
+                }
+                else
+                {
+                    draggedItemWidth = (draggedVar.transient_render_width > 0) ? draggedVar.transient_render_width : 180.0f; // 렌더링된 너비 또는 기본값
+                    float itemHeight_const_motion = 22.0f;                                                                   // 아이템 높이 상수
+                    float itemPadding_const_motion = 3.0f;
                     draggedItemHeight = itemHeight_const_motion + 2 * itemPadding_const_motion;
                 }
-                
-                if (draggedItemWidth <= 0) draggedItemWidth = 180.0f; 
-                if (draggedItemHeight <= 0) draggedItemHeight = 28.0f; 
 
-                if (windowW > 0 && draggedItemWidth > 0) {
+                if (draggedItemWidth <= 0)
+                    draggedItemWidth = 180.0f;
+                if (draggedItemHeight <= 0)
+                    draggedItemHeight = 28.0f;
+
+                if (windowW > 0 && draggedItemWidth > 0)
+                { // 창 경계 내로 위치 제한
                     draggedVar.x = clamp(newX, 0.0f, static_cast<float>(windowW) - draggedItemWidth);
-                } else {
-                    draggedVar.x = newX; 
                 }
-                if (windowH > 0 && draggedItemHeight > 0) {
+                else
+                {
+                    draggedVar.x = newX;
+                }
+                if (windowH > 0 && draggedItemHeight > 0)
+                {
                     draggedVar.y = clamp(newY, 0.0f, static_cast<float>(windowH) - draggedItemHeight);
-                } else {
-                    draggedVar.y = newY; 
                 }
-            } else if (m_currentHUDDragState == HUDDragState::RESIZING && draggedVar.variableType == "list") {
+                else
+                {
+                    draggedVar.y = newY;
+                }
+            }
+            else if (m_currentHUDDragState == HUDDragState::RESIZING && draggedVar.variableType == "list")
+            { // 크기 조절 상태 (리스트만 해당)
                 // 리사이즈 로직: m_draggedHUDVariableMouseOffset은 (마우스 - 우하단 모서리)의 오프셋
                 float newWidth = static_cast<float>(mouseX) - draggedVar.x - m_draggedHUDVariableMouseOffsetX;
                 float newHeight = static_cast<float>(mouseY) - draggedVar.y - m_draggedHUDVariableMouseOffsetY;
@@ -2819,10 +2842,12 @@ void Engine::processInput(const SDL_Event &event)
                 draggedVar.height = max(MIN_LIST_HEIGHT, newHeight);
 
                 // 창 경계를 넘어가지 않도록 추가 클램핑
-                if (windowW > 0) {
+                if (windowW > 0)
+                {
                     draggedVar.width = min(draggedVar.width, static_cast<float>(windowW) - draggedVar.x);
                 }
-                if (windowH > 0) {
+                if (windowH > 0)
+                {
                     draggedVar.height = min(draggedVar.height, static_cast<float>(windowH) - draggedVar.y);
                 }
             }
@@ -2830,28 +2855,31 @@ void Engine::processInput(const SDL_Event &event)
     }
     else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP)
     {
-        if (event.button.button == SDL_BUTTON_LEFT)
+        if (event.button.button == SDL_BUTTON_LEFT) // 마우스 왼쪽 버튼 뗌 이벤트
         {
-            bool uiInteractionReleased = false; // UI 드래그 또는 리사이즈가 해제되었는지 여부
+            bool uiInteractionReleased = false; // UI 상호작용 (드래그/리사이즈) 해제 여부
             if (this->m_isDraggingZoomSlider)
             {
                 this->m_isDraggingZoomSlider = false;
                 uiInteractionReleased = true;
             }
-            if (m_draggedHUDVariableIndex != -1) 
+            if (m_draggedHUDVariableIndex != -1)
             {
-                if (m_currentHUDDragState == HUDDragState::MOVING) {
-                    EngineStdOut("Stopped dragging HUD variable: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0);
-                } else if (m_currentHUDDragState == HUDDragState::RESIZING) {
-                    EngineStdOut("Stopped resizing HUD list: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0);
+                if (m_currentHUDDragState == HUDDragState::MOVING)
+                {
+                    EngineStdOut("Stopped dragging HUD variable: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0); // HUD 변수 드래그 중지
                 }
-                m_draggedHUDVariableIndex = -1; 
+                else if (m_currentHUDDragState == HUDDragState::RESIZING)
+                {
+                    EngineStdOut("Stopped resizing HUD list: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0); // HUD 리스트 크기 조절 중지
+                }
+                m_draggedHUDVariableIndex = -1;
                 m_currentHUDDragState = HUDDragState::NONE;
                 uiInteractionReleased = true;
             }
 
-            if (m_gameplayInputActive && !uiInteractionReleased) 
-            {
+            if (m_gameplayInputActive && !uiInteractionReleased)
+            { // 게임플레이 입력 활성화 상태이고 UI 상호작용이 해제되지 않은 경우
 
                 if (!m_mouseClickCanceledScripts.empty())
                 {
@@ -2885,14 +2913,15 @@ void Engine::processInput(const SDL_Event &event)
                         {
                             EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
                         } // Entity의 멤버 함수로 executeScript를 호출하도록 변경
-                        if (currentEntity) {
-                             // ... (기존 씬 체크 로직) ...
+                        if (currentEntity)
+                        {
+                            // ... (기존 씬 체크 로직) ...
                             // executeScript(*this, objectId, scriptPtr); // 기존 호출
                             currentEntity->executeScript(scriptPtr); // 새 호출
                         }
                     }
                 }
-
+                // 눌렸던 오브젝트에 대한 클릭 취소 스크립트 실행
                 if (!m_pressedObjectId.empty())
                 {
                     const string &canceledObjectId = m_pressedObjectId;
@@ -2905,17 +2934,20 @@ void Engine::processInput(const SDL_Event &event)
 
                             EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
                             // executeScript(*this, canceledObjectId, scriptPtr); // 기존 호출
-                            Entity* targetEntity = getEntityById(canceledObjectId);
-                            if (targetEntity) {
+                            Entity *targetEntity = getEntityById(canceledObjectId);
+                            if (targetEntity)
+                            {
                                 targetEntity->executeScript(scriptPtr); // 새 호출
-                            } else {
+                            }
+                            else
+                            {
                                 EngineStdOut(" -> Entity " + canceledObjectId + " not found for click cancel script.", 1);
                             }
                         }
                     }
                 }
             }
-            m_pressedObjectId = "";
+            m_pressedObjectId = ""; // 눌린 오브젝트 ID 초기화
         }
     }
 }
@@ -2929,70 +2961,70 @@ void Engine::setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables)
 SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
 {
 
-    static const map<string, SDL_Scancode> jsKeyCodeMap = {
-        {"8", SDL_SCANCODE_BACKSPACE},
-        {"9", SDL_SCANCODE_TAB},
-        {"13", SDL_SCANCODE_RETURN},
+    static const map<string, SDL_Scancode> jsKeyCodeMap = {// JavaScript 키 코드와 SDL_Scancode 매핑
+                                                           {"8", SDL_SCANCODE_BACKSPACE},
+                                                           {"9", SDL_SCANCODE_TAB},
+                                                           {"13", SDL_SCANCODE_RETURN},
 
-        {"16", SDL_SCANCODE_LSHIFT},
-        {"17", SDL_SCANCODE_LCTRL},
-        {"18", SDL_SCANCODE_LALT},
-        {"27", SDL_SCANCODE_ESCAPE},
-        {"32", SDL_SCANCODE_SPACE},
-        {"37", SDL_SCANCODE_LEFT},
-        {"38", SDL_SCANCODE_UP},
-        {"39", SDL_SCANCODE_RIGHT},
-        {"40", SDL_SCANCODE_DOWN},
+                                                           {"16", SDL_SCANCODE_LSHIFT},
+                                                           {"17", SDL_SCANCODE_LCTRL},
+                                                           {"18", SDL_SCANCODE_LALT},
+                                                           {"27", SDL_SCANCODE_ESCAPE},
+                                                           {"32", SDL_SCANCODE_SPACE},
+                                                           {"37", SDL_SCANCODE_LEFT},
+                                                           {"38", SDL_SCANCODE_UP},
+                                                           {"39", SDL_SCANCODE_RIGHT},
+                                                           {"40", SDL_SCANCODE_DOWN},
 
-        {"48", SDL_SCANCODE_0},
-        {"49", SDL_SCANCODE_1},
-        {"50", SDL_SCANCODE_2},
-        {"51", SDL_SCANCODE_3},
-        {"52", SDL_SCANCODE_4},
-        {"53", SDL_SCANCODE_5},
-        {"54", SDL_SCANCODE_6},
-        {"55", SDL_SCANCODE_7},
-        {"56", SDL_SCANCODE_8},
-        {"57", SDL_SCANCODE_9},
+                                                           {"48", SDL_SCANCODE_0},
+                                                           {"49", SDL_SCANCODE_1},
+                                                           {"50", SDL_SCANCODE_2},
+                                                           {"51", SDL_SCANCODE_3},
+                                                           {"52", SDL_SCANCODE_4},
+                                                           {"53", SDL_SCANCODE_5},
+                                                           {"54", SDL_SCANCODE_6},
+                                                           {"55", SDL_SCANCODE_7},
+                                                           {"56", SDL_SCANCODE_8},
+                                                           {"57", SDL_SCANCODE_9},
 
-        {"65", SDL_SCANCODE_A},
-        {"66", SDL_SCANCODE_B},
-        {"67", SDL_SCANCODE_C},
-        {"68", SDL_SCANCODE_D},
-        {"69", SDL_SCANCODE_E},
-        {"70", SDL_SCANCODE_F},
-        {"71", SDL_SCANCODE_G},
-        {"72", SDL_SCANCODE_H},
-        {"73", SDL_SCANCODE_I},
-        {"74", SDL_SCANCODE_J},
-        {"75", SDL_SCANCODE_K},
-        {"76", SDL_SCANCODE_L},
-        {"77", SDL_SCANCODE_M},
-        {"78", SDL_SCANCODE_N},
-        {"79", SDL_SCANCODE_O},
-        {"80", SDL_SCANCODE_P},
-        {"81", SDL_SCANCODE_Q},
-        {"82", SDL_SCANCODE_R},
-        {"83", SDL_SCANCODE_S},
-        {"84", SDL_SCANCODE_T},
-        {"85", SDL_SCANCODE_U},
-        {"86", SDL_SCANCODE_V},
-        {"87", SDL_SCANCODE_W},
-        {"88", SDL_SCANCODE_X},
-        {"89", SDL_SCANCODE_Y},
-        {"90", SDL_SCANCODE_Z},
+                                                           {"65", SDL_SCANCODE_A},
+                                                           {"66", SDL_SCANCODE_B},
+                                                           {"67", SDL_SCANCODE_C},
+                                                           {"68", SDL_SCANCODE_D},
+                                                           {"69", SDL_SCANCODE_E},
+                                                           {"70", SDL_SCANCODE_F},
+                                                           {"71", SDL_SCANCODE_G},
+                                                           {"72", SDL_SCANCODE_H},
+                                                           {"73", SDL_SCANCODE_I},
+                                                           {"74", SDL_SCANCODE_J},
+                                                           {"75", SDL_SCANCODE_K},
+                                                           {"76", SDL_SCANCODE_L},
+                                                           {"77", SDL_SCANCODE_M},
+                                                           {"78", SDL_SCANCODE_N},
+                                                           {"79", SDL_SCANCODE_O},
+                                                           {"80", SDL_SCANCODE_P},
+                                                           {"81", SDL_SCANCODE_Q},
+                                                           {"82", SDL_SCANCODE_R},
+                                                           {"83", SDL_SCANCODE_S},
+                                                           {"84", SDL_SCANCODE_T},
+                                                           {"85", SDL_SCANCODE_U},
+                                                           {"86", SDL_SCANCODE_V},
+                                                           {"87", SDL_SCANCODE_W},
+                                                           {"88", SDL_SCANCODE_X},
+                                                           {"89", SDL_SCANCODE_Y},
+                                                           {"90", SDL_SCANCODE_Z},
 
-        {"186", SDL_SCANCODE_SEMICOLON},
-        {"187", SDL_SCANCODE_EQUALS},
-        {"188", SDL_SCANCODE_COMMA},
-        {"189", SDL_SCANCODE_MINUS},
-        {"190", SDL_SCANCODE_PERIOD},
-        {"191", SDL_SCANCODE_SLASH},
-        {"192", SDL_SCANCODE_GRAVE},
-        {"219", SDL_SCANCODE_LEFTBRACKET},
-        {"220", SDL_SCANCODE_BACKSLASH},
-        {"221", SDL_SCANCODE_RIGHTBRACKET},
-        {"222", SDL_SCANCODE_APOSTROPHE}};
+                                                           {"186", SDL_SCANCODE_SEMICOLON},
+                                                           {"187", SDL_SCANCODE_EQUALS},
+                                                           {"188", SDL_SCANCODE_COMMA},
+                                                           {"189", SDL_SCANCODE_MINUS},
+                                                           {"190", SDL_SCANCODE_PERIOD},
+                                                           {"191", SDL_SCANCODE_SLASH},
+                                                           {"192", SDL_SCANCODE_GRAVE},
+                                                           {"219", SDL_SCANCODE_LEFTBRACKET},
+                                                           {"220", SDL_SCANCODE_BACKSLASH},
+                                                           {"221", SDL_SCANCODE_RIGHTBRACKET},
+                                                           {"222", SDL_SCANCODE_APOSTROPHE}};
 
     auto it = jsKeyCodeMap.find(keyIdentifier);
     if (it != jsKeyCodeMap.end())
@@ -3000,12 +3032,12 @@ SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
         return it->second;
     }
 
-    SDL_Scancode sc = SDL_GetScancodeFromName(keyIdentifier.c_str());
+    SDL_Scancode sc = SDL_GetScancodeFromName(keyIdentifier.c_str()); // 이름으로 Scancode 검색
     if (sc != SDL_SCANCODE_UNKNOWN)
     {
         return sc;
     }
-
+    // 단일 소문자 알파벳인 경우 대문자로 변환하여 다시 시도
     if (keyIdentifier.length() == 1)
     {
         char c = keyIdentifier[0];
@@ -3022,12 +3054,14 @@ SDL_Scancode Engine::mapStringToSDLScancode(const string &keyIdentifier) const
 
 void Engine::runStartButtonScripts()
 {
-    if (startButtonScripts.empty())
+    if (startButtonScripts.empty()) // 시작 버튼 클릭 스크립트가 없으면
     {
         IsScriptStart = false;
         EngineStdOut("No 'Start Button Clicked' scripts found to run.", 1);
         return;
-    }else{
+    }
+    else
+    {
         IsScriptStart = true;
         EngineStdOut("Running 'Start Button Clicked' scripts...", 0);
     }
@@ -3039,10 +3073,13 @@ void Engine::runStartButtonScripts()
 
         EngineStdOut(" -> Running script for object: " + objectId, 3);
         // executeScript(*this, objectId, scriptPtr); // 기존 호출
-        Entity* targetEntity = getEntityById(objectId);
-        if (targetEntity) {
+        Entity *targetEntity = getEntityById(objectId);
+        if (targetEntity)
+        {
             targetEntity->executeScript(scriptPtr); // 새 호출
-        } else {
+        }
+        else
+        {
             EngineStdOut(" -> Entity " + objectId + " not found for start button script.", 1);
         }
         m_gameplayInputActive = true;
@@ -3053,7 +3090,7 @@ void Engine::runStartButtonScripts()
 
 void Engine::initFps()
 {
-    lastfpstime = SDL_GetTicks();
+    lastfpstime = SDL_GetTicks(); // 마지막 FPS 측정 시간
     framecount = 0;
     currentFps = 0.0f;
     EngineStdOut("FPS counter initialized.", 0);
@@ -3062,7 +3099,7 @@ void Engine::initFps()
 void Engine::setfps(int fps)
 {
     if (fps > 0)
-    {
+    { // 유효한 FPS 값인 경우에만 설정
         this->specialConfig.TARGET_FPS = fps;
         EngineStdOut("Target FPS set to: " + to_string(this->specialConfig.TARGET_FPS), 0);
     }
@@ -3075,11 +3112,11 @@ void Engine::setfps(int fps)
 void Engine::updateFps()
 {
     framecount++;
-    Uint64 now = SDL_GetTicks();
+    Uint64 now = SDL_GetTicks(); // 현재 시간
     Uint64 delta = now - lastfpstime;
 
     if (delta >= 1000)
-    {
+    { // 1초 이상 경과 시 FPS 업데이트
         currentFps = static_cast<float>(framecount * 1000.0) / delta;
         lastfpstime = now;
         framecount = 0;
@@ -3087,25 +3124,25 @@ void Engine::updateFps()
 }
 void Engine::startProjectTimer()
 {
-    m_projectTimerRunning = true;
+    m_projectTimerRunning = true; // 프로젝트 타이머 시작
     EngineStdOut("Project timer started.", 0);
 }
 
 void Engine::stopProjectTimer()
 {
-    m_projectTimerRunning = false;
+    m_projectTimerRunning = false; // 프로젝트 타이머 중지
     EngineStdOut("Project timer stopped.", 0);
 }
 
 void Engine::resetProjectTimer()
 {
-    m_projectTimerValue = 0.0;
+    m_projectTimerValue = 0.0; // 프로젝트 타이머 리셋
     EngineStdOut("Project timer reset.", 0);
 }
 
 void Engine::showProjectTimer(bool show)
 {
-    for (auto &var : m_HUDVariables)
+    for (auto &var : m_HUDVariables) // HUD 변수 중 타이머 타입의 가시성 설정
     {
         if (var.variableType == "timer")
         {
@@ -3119,7 +3156,7 @@ void Engine::showProjectTimer(bool show)
 
 double Engine::getProjectTimerValue() const
 {
-    if (m_projectTimerRunning)
+    if (m_projectTimerRunning) // 타이머가 실행 중이면 현재 경과 시간 반환
     {
         Uint64 now = SDL_GetTicks();
         Uint64 delta = now - lastfpstime;
@@ -3129,7 +3166,7 @@ double Engine::getProjectTimerValue() const
 }
 Entity *Engine::getEntityById(const string &id)
 {
-    auto it = entities.find(id);
+    auto it = entities.find(id); // ID로 엔티티 검색
     if (it != entities.end())
     {
         return it->second;
@@ -3143,33 +3180,33 @@ void Engine::renderLoadingScreen()
 
     if (!this->renderer)
     {
-        EngineStdOut("renderLoadingScreen: Renderer not available.", 1);
+        EngineStdOut("renderLoadingScreen: Renderer not available.", 1); // 렌더러 사용 불가
         return;
     }
 
     SDL_SetRenderDrawColor(this->renderer, 30, 30, 30, 255);
-    SDL_RenderClear(this->renderer);
+    SDL_RenderClear(this->renderer); // 배경색 어두운 회색으로 지우기
 
     int windowW = 0, windowH = 0;
     SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-
+    // 로딩 바 위치 및 크기
     int barWidth = 400;
     int barHeight = 30;
     int barX = (windowW - barWidth) / 2;
     int barY = (windowH - barHeight) / 2;
 
     SDL_FRect bgRect = {static_cast<float>(barX), static_cast<float>(barY), static_cast<float>(barWidth), static_cast<float>(barHeight)};
-    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255); // 로딩 바 배경
     SDL_RenderFillRect(renderer, &bgRect);
 
     SDL_FRect innerBgRect = {static_cast<float>(barX + 2), static_cast<float>(barY + 2), static_cast<float>(barWidth - 4), static_cast<float>(barHeight - 4)};
-    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // 로딩 바 내부 배경
     SDL_RenderFillRect(renderer, &innerBgRect);
 
     float progressPercent = 0.0f;
     if (totalItemsToLoad > 0)
     {
-        progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad;
+        progressPercent = static_cast<float>(loadedItemCount) / totalItemsToLoad; // 진행률 계산
     }
     progressPercent = min(1.0f, max(0.0f, progressPercent));
 
@@ -3180,12 +3217,12 @@ void Engine::renderLoadingScreen()
 
     if (loadingScreenFont)
     {
-        SDL_Color textColor = {220, 220, 220, 255};
+        SDL_Color textColor = {220, 220, 220, 255}; // 텍스트 색상
 
         ostringstream percentStream;
         percentStream << fixed << setprecision(0) << (progressPercent * 100.0f) << "%";
         string percentText = percentStream.str();
-
+        // 진행률 텍스트 렌더링
         SDL_Surface *surfPercent = TTF_RenderText_Blended(loadingScreenFont, percentText.c_str(), percentText.size(), textColor);
         if (surfPercent)
         {
@@ -3211,7 +3248,7 @@ void Engine::renderLoadingScreen()
         {
             EngineStdOut("Failed to render loading percent text surface ", 2);
         }
-
+        // 브랜드 이름 렌더링 (설정된 경우)
         if (!specialConfig.BRAND_NAME.empty())
         {
             SDL_Surface *surfBrand = TTF_RenderText_Blended(loadingScreenFont, specialConfig.BRAND_NAME.c_str(), specialConfig.BRAND_NAME.size(), textColor);
@@ -3236,7 +3273,7 @@ void Engine::renderLoadingScreen()
                 EngineStdOut("Failed to render brand name text surface ", 2);
             }
         }
-
+        // 프로젝트 이름 렌더링 (설정된 경우)
         if (specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty())
         {
             SDL_Surface *surfProject = TTF_RenderText_Blended(loadingScreenFont, PROJECT_NAME.c_str(), PROJECT_NAME.size(), textColor);
@@ -3264,12 +3301,12 @@ void Engine::renderLoadingScreen()
     }
     else
     {
-        EngineStdOut("renderLoadingScreen: Loading screen font not available. Cannot draw text.", 1);
+        EngineStdOut("renderLoadingScreen: Loading screen font not available. Cannot draw text.", 1); // 로딩 화면 폰트 사용 불가
     }
 
-    SDL_RenderPresent(this->renderer);
+    SDL_RenderPresent(this->renderer); // 화면에 렌더링된 내용 표시
 }
-
+// 현재 씬 ID 반환
 const string &Engine::getCurrentSceneId() const
 {
     return currentSceneId;
@@ -3279,7 +3316,7 @@ const string &Engine::getCurrentSceneId() const
  * @brief 메시지 박스 표시
  *
  * @param message 메시지 내용
- * @param IconType 아이콘 종류
+ * @param IconType 아이콘 종류 (SDL_MESSAGEBOX_ERROR, SDL_MESSAGEBOX_WARNING, SDL_MESSAGEBOX_INFORMATION)
  * @param showYesNo 예 / 아니오
  */
 bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo) const
@@ -3290,19 +3327,28 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     switch (IconType)
     {
     case SDL_MESSAGEBOX_ERROR:
-        flags = SDL_MESSAGEBOX_ERROR;
+#ifdef _WIN32
+            MessageBeep(MB_ICONERROR);
+#endif
+        flags = SDL_MESSAGEBOX_ERROR; // 오류 아이콘
         title = "Omocha is Broken";
         break;
     case SDL_MESSAGEBOX_WARNING:
-        flags = SDL_MESSAGEBOX_WARNING;
+#ifdef _WIN32
+            MessageBeep(MB_ICONWARNING);
+#endif
+        flags = SDL_MESSAGEBOX_WARNING; // 경고 아이콘
         title = PROJECT_NAME.c_str();
         break;
     case SDL_MESSAGEBOX_INFORMATION:
-        flags = SDL_MESSAGEBOX_INFORMATION;
+#ifdef _WIN32
+            MessageBeep(MB_ICONINFORMATION);
+#endif
+        flags = SDL_MESSAGEBOX_INFORMATION; // 정보 아이콘
         title = PROJECT_NAME.c_str();
         break;
     default:
-
+        // 알 수 없는 아이콘 타입일 경우 기본 정보 아이콘 사용
         EngineStdOut("Unknown IconType passed to showMessageBox: " + to_string(IconType) + ". Using default INFORMATION.", 1);
         flags = SDL_MESSAGEBOX_INFORMATION;
         title = "Message";
@@ -3310,8 +3356,8 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     }
 
     const SDL_MessageBoxButtonData buttons[]{
-        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Yes"},
-        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "No"}};
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "예"},      // "Yes" 버튼
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 1, "아니오"}}; // "No" 버튼
     const SDL_MessageBoxData messageboxData{
         flags,
         window,
@@ -3321,7 +3367,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         buttons,
         nullptr};
     if (showYesNo)
-    {
+    { // 예/아니오 버튼 표시
         int buttonid_press = -1;
         if (SDL_ShowMessageBox(&messageboxData, &buttonid_press) < 0)
         {
@@ -3330,7 +3376,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         else
         {
             if (buttonid_press == 0)
-            {
+            { // "예" 버튼 클릭
                 return true;
             }
             else
@@ -3341,7 +3387,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     }
     else
     {
-        SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window);
+        SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window); // 단순 메시지 박스 (OK 버튼만)
         return true;
     }
 }
@@ -3350,7 +3396,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
  * @brief 엔진 로그출력
  *
  * @param s 출력할내용
- * @param LEVEL 수준 예) 0->정보 1->경고 2->오류 3->디버그 4->특수
+ * @param LEVEL 수준 예) 0:정보, 1:경고, 2:오류, 3:디버그, 4:특수
  */
 void Engine::EngineStdOut(string s, int LEVEL) const
 {
@@ -3385,9 +3431,9 @@ void Engine::EngineStdOut(string s, int LEVEL) const
         break;
     }
 
-    printf("%s%s %s%s\n", color_code.c_str(), prefix.c_str(), s.c_str(), ANSI_COLOR_RESET.c_str());
+    printf("%s%s %s%s\n", color_code.c_str(), prefix.c_str(), s.c_str(), ANSI_COLOR_RESET.c_str()); // 콘솔에 색상 적용하여 출력
 
-    string logMessage = format("{} {}", prefix, s);
+    string logMessage = format("{} {}", prefix, s); // 파일 로그용 메시지
     logger.log(logMessage);
 }
 
@@ -3395,7 +3441,7 @@ void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMous
 {
     float stageX_calc, stageY_calc;
     if (mapWindowToStageCoordinates(windowMouseX, windowMouseY, stageX_calc, stageY_calc))
-    {
+    { // 윈도우 좌표를 스테이지 좌표로 변환 성공 시
         this->m_currentStageMouseX = stageX_calc;
         this->m_currentStageMouseY = stageY_calc;
         this->m_isMouseOnStage = true;
@@ -3403,7 +3449,7 @@ void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMous
     else
     {
         this->m_isMouseOnStage = false;
-        // 마우스가 스테이지 밖에 있을 때의 처리:
+        // 마우스가 스테이지 밖에 있을 때의 처리
         // 엔트리는 마지막 유효 좌표를 유지하거나 0을 반환할 수 있습니다.
         // 현재는 m_isMouseOnStage 플래그로 구분하고, BlockExecutor에서 이 플래그를 확인하여 처리합니다.
         // 필요하다면 여기서 m_currentStageMouseX/Y를 특정 값(예: 0)으로 리셋할 수 있습니다.
@@ -3413,11 +3459,11 @@ void Engine::updateCurrentMouseStageCoordinates(int windowMouseX, int windowMous
 }
 void Engine::goToScene(const string &sceneId)
 {
-    if (scenes.count(sceneId))
+    if (scenes.count(sceneId)) // 요청된 씬 ID가 존재하는 경우
     {
         if (currentSceneId == sceneId)
         {
-            EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0);
+            EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0); // 이미 해당 씬임
 
             return;
         }
@@ -3427,7 +3473,7 @@ void Engine::goToScene(const string &sceneId)
     }
     else
     {
-        EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2);
+        EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2); // 씬 ID 찾을 수 없음
     }
 }
 
@@ -3435,12 +3481,12 @@ void Engine::goToNextScene()
 {
     if (m_sceneOrder.empty())
     {
-        EngineStdOut("Cannot go to next scene: Scene order is not defined or no scenes loaded.", 1);
+        EngineStdOut("Cannot go to next scene: Scene order is not defined or no scenes loaded.", 1); // 씬 순서 정의 안됨
         return;
     }
     if (currentSceneId.empty())
     {
-        EngineStdOut("Cannot go to next scene: Current scene ID is empty.", 1);
+        EngineStdOut("Cannot go to next scene: Current scene ID is empty.", 1); // 현재 씬 ID 없음
         return;
     }
 
@@ -3449,16 +3495,16 @@ void Engine::goToNextScene()
     {
         size_t currentIndex = distance(m_sceneOrder.begin(), it);
         if (currentIndex + 1 < m_sceneOrder.size())
-        {
+        { // 다음 씬으로 이동
             goToScene(m_sceneOrder[currentIndex + 1]);
         }
         else
         {
-            EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+            EngineStdOut("Already at the last scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0); // 이미 마지막 씬임
         }
     }
     else
-    {
+    { // 현재 씬 ID를 씬 순서에서 찾을 수 없음
         EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine next scene.", 2);
     }
 }
@@ -3467,12 +3513,12 @@ void Engine::goToPreviousScene()
 {
     if (m_sceneOrder.empty())
     {
-        EngineStdOut("Cannot go to previous scene: Scene order is not defined or no scenes loaded.", 1);
+        EngineStdOut("Cannot go to previous scene: Scene order is not defined or no scenes loaded.", 1); // 씬 순서 정의 안됨
         return;
     }
     if (currentSceneId.empty())
     {
-        EngineStdOut("Cannot go to previous scene: Current scene ID is empty.", 1);
+        EngineStdOut("Cannot go to previous scene: Current scene ID is empty.", 1); // 현재 씬 ID 없음
         return;
     }
 
@@ -3481,16 +3527,16 @@ void Engine::goToPreviousScene()
     {
         size_t currentIndex = distance(m_sceneOrder.begin(), it);
         if (currentIndex > 0)
-        {
+        { // 이전 씬으로 이동
             goToScene(m_sceneOrder[currentIndex - 1]);
         }
         else
         {
-            EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+            EngineStdOut("Already at the first scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0); // 이미 첫 번째 씬임
         }
     }
     else
-    {
+    { // 현재 씬 ID를 씬 순서에서 찾을 수 없음
         EngineStdOut("Error: Current scene ID '" + currentSceneId + "' not found in defined scene order. Cannot determine previous scene.", 2);
     }
 }
@@ -3499,16 +3545,16 @@ void Engine::triggerWhenSceneStartScripts()
 {
     if (currentSceneId.empty())
     {
-        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
+        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1); // 현재 씬 ID 없음
         return;
     }
     EngineStdOut("Triggering 'when_scene_start' scripts for scene: " + currentSceneId, 0);
     for (const auto &scriptPair : m_whenStartSceneLoadedScripts)
-    {
+    { // 씬 시작 시 실행될 스크립트들 순회
         const string &objectId = scriptPair.first;
         const Script *scriptPtr = scriptPair.second;
 
-        bool executeForScene = false;
+        bool executeForScene = false; // 해당 오브젝트가 현재 씬에서 실행되어야 하는지 확인
         for (const auto &objInfo : objects_in_order)
         {
             if (objInfo.id == objectId && (objInfo.sceneId == currentSceneId || objInfo.sceneId == "global" || objInfo.sceneId.empty()))
@@ -3522,81 +3568,91 @@ void Engine::triggerWhenSceneStartScripts()
         {
             EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
             // executeScript(*this, objectId, scriptPtr); // 기존 호출
-            Entity* targetEntity = getEntityById(objectId);
-            if (targetEntity) {
+            Entity *targetEntity = getEntityById(objectId);
+            if (targetEntity)
+            {
                 targetEntity->executeScript(scriptPtr); // 새 호출
-            } else {
+            }
+            else
+            {
                 EngineStdOut("  -> Entity " + objectId + " not found for scene start script.", 1);
             }
         }
     }
 }
 
-int Engine::getBlockCountForObject(const std::string& objectId) const {
+int Engine::getBlockCountForObject(const std::string &objectId) const
+{
     auto it = objectScripts.find(objectId);
-    if (it == objectScripts.end()) {
+    if (it == objectScripts.end())
+    {
         return 0;
     }
     int count = 0;
-    for (const auto& script : it->second) {
-        // The first block is usually the event trigger (e.g., "when_run_button_click")
-        // and is not counted as an "executable" block in the same way.
-        if (script.blocks.size() > 1) {
+    for (const auto &script : it->second)
+    {
+        // 첫 번째 블록은 이벤트 트리거이므로 제외
+        if (script.blocks.size() > 1)
+        { // 실행 가능한 블록 수 계산
             count += static_cast<int>(script.blocks.size() - 1);
         }
     }
     return count;
 }
 
-int Engine::getBlockCountForScene(const std::string& sceneId) const {
+int Engine::getBlockCountForScene(const std::string &sceneId) const
+{
     int totalCount = 0;
-    for (const auto& objInfo : objects_in_order) {
-        if (objInfo.sceneId == sceneId) {
-            // For each object in the specified scene, get its block count
+    for (const auto &objInfo : objects_in_order)
+    {
+        if (objInfo.sceneId == sceneId)
+        {
+            // 지정된 씬의 각 오브젝트에 대해 블록 수 가져오기
             totalCount += getBlockCountForObject(objInfo.id);
         }
     }
     return totalCount;
 }
 
-void Engine::engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness) {
+void Engine::engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness)
+{
     // p1_stage_entry is {lastX_entry, lastY_entry}
     // p2_stage_entry_modified_y is {currentX_entry, currentY_entry * -1.0f}
-    // Both points' components are in Entry's stage coordinate system (center 0,0, Y-up for .x and original .y)
+    // 두 점의 구성 요소는 엔트리 스테이지 좌표계 기준 (중앙 0,0, Y축 위쪽은 .x 및 원래 .y)
 
-    if (!renderer || !tempScreenTexture) {
+    if (!renderer || !tempScreenTexture)
+    {
         EngineStdOut("engineDrawLineOnStage: Renderer or tempScreenTexture not available.", 2);
         return;
     }
 
-    SDL_Texture* prevRenderTarget = SDL_GetRenderTarget(renderer);
-    SDL_SetRenderTarget(renderer, tempScreenTexture); // Ensure drawing occurs on the stage texture
+    SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, tempScreenTexture); // 스테이지 텍스처에 그리도록 설정
 
-    // Convert p1 (standard Entry stage coords) to SDL texture coords (top-left 0,0, Y-down)
+    // p1 (표준 엔트리 스테이지 좌표)을 SDL 텍스처 좌표 (좌상단 0,0, Y축 아래쪽)로 변환
     float sdlP1X = p1_stage_entry.x + PROJECT_STAGE_WIDTH / 2.0f;
     float sdlP1Y = PROJECT_STAGE_HEIGHT / 2.0f - p1_stage_entry.y;
 
-    // Convert p2 (where p2.y has been pre-modified as currentY_entry * -1.0f)
-    // to SDL texture coords.
+    // p2 (p2.y가 currentY_entry * -1.0f로 미리 수정된 상태)를 SDL 텍스처 좌표로 변환
     float sdlP2X = p2_stage_entry_modified_y.x + PROJECT_STAGE_WIDTH / 2.0f;
-    float sdlP2Y = PROJECT_STAGE_HEIGHT / 2.0f - p2_stage_entry_modified_y.y; 
-    // Example: If original entity Y was 20, p2_stage_entry_modified_y.y is -20.
+    float sdlP2Y = PROJECT_STAGE_HEIGHT / 2.0f - p2_stage_entry_modified_y.y;
+    // 예시: 원래 엔티티 Y가 20이면, p2_stage_entry_modified_y.y는 -20.
     // sdlP2Y = (270/2) - (-20) = 135 + 20 = 155. This correctly maps the inverted Y.
 
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    // Note: SDL_RenderLine uses int coords. For float, SDL_RenderLineFloat (SDL3) or custom line drawing is needed for thickness.
+    // 참고: SDL_RenderLine은 int 좌표를 사용합니다. float 좌표 및 두께를 위해서는 SDL_RenderLineFloat (SDL3) 또는 사용자 정의 선 그리기가 필요합니다.
     SDL_RenderLine(renderer, static_cast<int>(sdlP1X), static_cast<int>(sdlP1Y), static_cast<int>(sdlP2X), static_cast<int>(sdlP2Y));
 
-    SDL_SetRenderTarget(renderer, prevRenderTarget); // Restore previous render target
+    SDL_SetRenderTarget(renderer, prevRenderTarget); // 이전 렌더 타겟 복원
 }
 
-int Engine::getTotalBlockCount() const {
+int Engine::getTotalBlockCount() const
+{
     int totalCount = 0;
-    for (const auto& pair : objectScripts) {
-        // pair.first is objectId, pair.second is vector<Script>
-        // This will sum up getBlockCountForObject for all objects that have scripts.
-        // Alternatively, iterate all objects_in_order and call getBlockCountForObject if you want to include objects with no scripts (count 0).
-        // The current approach sums counts for objects that actually have script entries.
+    for (const auto &pair : objectScripts)
+    {
+        // 또는, 스크립트가 없는 오브젝트(개수 0)를 포함하려면 모든 objects_in_order를 반복하고 getBlockCountForObject를 호출합니다.
+        // 현재 방식은 실제로 스크립트 항목이 있는 오브젝트의 개수를 합산합니다.
         totalCount += getBlockCountForObject(pair.first);
     }
     return totalCount;
