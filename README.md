@@ -37,8 +37,7 @@ javascript 기반 엔진보다 속도가 빠릅니다
  //... 그외 기타 요소들
 }
 ```
-설명
-<br>
+### 설명
 brandName  브랜드네임 여기에 자기가 적고싶은 문구를 적습니다.
 <br>
 showProjectNameUI 프로젝트 제목을 출력합니다.
@@ -48,6 +47,9 @@ showZoomSliderUI 뷰포트를 확대/축소 하는 슬라이더 를 표시합니
 showFPS fps 를 표시합니다
 <br>
 setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니다. 최대 3배율)
+
+### 런타임 도움말
+실행 파일 이 있는곳 에서 `OmochaEngine.exe -h` 를 입력하시면 사용 가능한 옵션을 볼수 있습니다.
 
 # 사용 라이브러리
 | Name       | URL                                     |

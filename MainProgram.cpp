@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
                 "  -h, --help         이 도움말을 표시하고 종료합니다.\n\n" +
                 "예제:\n" +
                 "  OmochaEngine.exe --setfps 120 --setVsync 0"; // 예시 실행 파일 이름
-            string tempHelpFilePath = "엔진 도움말.txt";
+            string tempHelpFilePath = "런타임 도움말.txt";
             try {
                 ofstream helpFile(tempHelpFilePath);
                 if (helpFile.is_open()) {
