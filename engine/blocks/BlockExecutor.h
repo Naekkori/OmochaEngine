@@ -9,7 +9,7 @@
 class Engine;
 class PublicVariable{
  public:
-  std::string user_name="ミケ恋団";
+  std::string user_name="ミケ愛団";
   std::string user_id="mikeaidan351";
 };
 // OperandValue 구조체 선언
