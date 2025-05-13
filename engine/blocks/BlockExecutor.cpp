@@ -663,28 +663,29 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
         return OperandValue(engine.getProjectTimerValue());
     } // choose_project_timer_action은 Behavior 함수로 이동했으므로 여기서 제거합니다.
     else if (BlockType == "get_date"){
+        time_t now = time(nullptr);
         // paramsKeyMap: { VALUE: 0 }
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString()) {
             engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2);
             return OperandValue();
         }
-
+        
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         std::string action = block.paramsJson[0].GetString();
-
+        tm *now_tm = localtime(&now);
         if (action == "year") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_year + 1900));
         } else if (action == "month") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_mon + 1));
         } else if (action == "day") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_mday));
         } else if (action == "hour") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_hour));
         } else if (action == "minute") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_min));
         } else if (action == "second") {
-            return OperandValue();
+            return OperandValue(static_cast<double>(now_tm->tm_sec));
         } else {
             engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
             return OperandValue();
