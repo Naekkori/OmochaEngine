@@ -50,6 +50,26 @@ setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니�
 
 ### 런타임 도움말
 실행 파일 이 있는곳 에서 `OmochaEngine.exe -h` 를 입력하시면 사용 가능한 옵션을 볼수 있습니다.
+<br>
+이 명령어를 입력하면 메모장이 열리며 아래의 내용이 나옵니다.
+```
+OmochaEngine v1.0.0 by Maiteil
+프로젝트 페이지: https://github.com/maiteil/OmochaEngine
+
+사용법: OmochaEngine.exe [옵션]
+
+옵션:
+  --setfps <값>      초당 프레임(FPS)을 설정합니다.
+                       (기본값: 엔진 내부 설정, 예: 60)
+  --useVk <0|1>      Vulkan 렌더러 사용 여부를 설정합니다.
+                       0: 사용 안 함 (기본값), 1: 사용 시도
+  --setVsync <0|1>   수직 동기화를 설정합니다.
+                       0: 비활성, 1: 활성 (기본값)
+  -h, --help         이 도움말을 표시하고 종료합니다.
+
+예제:
+  OmochaEngine.exe --setfps 120 --setVsync 0
+```
 
 # 사용 라이브러리
 | Name       | URL                                     |
