@@ -764,13 +764,43 @@ bool Engine::loadProject(const string &projectFilePath)
                 double initial_width = entityJson.HasMember("width") && entityJson["width"].IsNumber() ? entityJson["width"].GetDouble() : 100.0;
                 double initial_height = entityJson.HasMember("height") && entityJson["height"].IsNumber() ? entityJson["height"].GetDouble() : 100.0;
                 bool initial_visible = entityJson.HasMember("visible") && entityJson["visible"].IsBool() ? entityJson["visible"].GetBool() : true;
-
+                Entity::RotationMethod currentRotationMethod = Entity::RotationMethod::FREE;
+                if (objectJson.HasMember("rotationMethod") && objectJson["rotationMethod"].IsString())
+                {
+                    // 이정도 있는것으로 예상됨 하지만 발견 못한것 도 있을수 있음
+                    string rotationMethodStr = getSafeStringFromJson(objectJson, "rotationMethod", "object " + objInfo.name, "free", false, true);
+                    if (rotationMethodStr == "free")
+                    {
+                        currentRotationMethod = Entity::RotationMethod::FREE;
+                    }
+                    else if (rotationMethodStr == "none")
+                    {
+                        currentRotationMethod = Entity::RotationMethod::NONE;
+                    }else if(rotationMethodStr == "vertical")
+                    {
+                        currentRotationMethod = Entity::RotationMethod::VERTICAL;
+                    }
+                    else if(rotationMethodStr == "horizontal")
+                    {
+                        currentRotationMethod = Entity::RotationMethod::HORIZONTAL;
+                    }
+                    else
+                    {
+                        EngineStdOut("Invalid rotation method '" + rotationMethodStr + "' for object '" + objInfo.name + "'. Using default 'free'.", 1);
+                        currentRotationMethod = Entity::RotationMethod::FREE;
+                    }
+                }
+                else
+                {
+                    EngineStdOut("Missing or invalid 'rotationMethod' for object '" + objInfo.name + "'. Using default 'free'.", 1);
+                }
+                
                 Entity *newEntity = new Entity(
                     objectId,
                     objInfo.name,
                     initial_x, initial_y, initial_regX, initial_regY,
                     initial_scaleX, initial_scaleY, initial_rotation, initial_direction,
-                    initial_width, initial_height, initial_visible);
+                    initial_width, initial_height, initial_visible,currentRotationMethod);
 
                 entities[objectId] = newEntity;
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);

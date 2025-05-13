@@ -192,8 +192,234 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
  */
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
-    // 여기에 다른 Behavior 블록 타입에 대한 처리를 추가할 수 있습니다.
-    // 예: if (BlockType == "move_direction") { ... }
+    if (BlockType == "move_direction")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        {
+            engine.EngineStdOut("move_direction block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            return;
+        }
+        OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue direction = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (distance.type != OperandValue::Type::NUMBER || direction.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("move_direction block for object " + objectId + " has non-numeric params.", 2);
+            return;
+        }
+        double dist = distance.number_val;
+        double dir = direction.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
+            double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
+            entity->setX(newX);
+            entity->setY(newY);
+        }
+        else
+        {
+            engine.EngineStdOut("move_direction block for object " + objectId + " - entity not found.", 2);
+        }
+    }
+    else if (BlockType == "bounce_wall")
+    {
+        Entity *entity = engine.getEntityById(objectId);
+        if (!entity)
+        {
+            engine.EngineStdOut("bounce_wall block for object " + objectId + " - entity not found.", 2);
+            return;
+        }
+
+        // Javascript의 threshold와 유사한 값 (픽셀 충돌이 아니므로 의미가 다를 수 있음)
+        // const float collisionThreshold = 0.0f; // 경계 상자 충돌에서는 크게 의미 없을 수 있음
+
+        Entity::RotationMethod method = entity->getRotateMethod();
+        double currentRotation = entity->getRotation();
+        double currentDirection = entity->getDirection();
+        double angle = 0;
+
+        if (method == Entity::RotationMethod::FREE)
+        {
+            angle = fmod(currentRotation + currentDirection, 360.0);
+            if (angle < 0)
+                angle += 360.0; // fmod 결과가 음수일 수 있으므로 양수로 조정
+        }
+        else
+        {
+            angle = fmod(currentDirection, 360.0);
+            if (angle < 0)
+                angle += 360.0;
+        }
+
+        // 엔티티의 현재 위치와 크기
+        double entityX = entity->getX();
+        double entityY = entity->getY();
+        // 엔티티의 실제 화면상 경계를 계산해야 함 (회전 및 등록점 고려)
+        // 여기서는 단순화를 위해 엔티티의 x, y를 중심으로 판단
+        // 실제로는 entity->getWidth(), entity->getHeight(), entity->getScaleX/Y() 등을 사용한
+        // 정확한 경계 상자 계산이 필요합니다.
+
+        // 스테이지 경계 (엔트리 좌표계 기준)
+        const double stageLeft = -PROJECT_STAGE_WIDTH / 2.0;
+        const double stageRight = PROJECT_STAGE_WIDTH / 2.0;
+        const double stageTop = PROJECT_STAGE_HEIGHT / 2.0; // 엔트리는 Y가 위로 갈수록 증가
+        const double stageBottom = -PROJECT_STAGE_HEIGHT / 2.0;
+
+        Entity::CollisionSide lastCollision = entity->getLastCollisionSide();
+        bool collidedThisFrame = false;
+
+        // 상하 벽 충돌 (Y축)
+        // 엔티티가 위쪽으로 움직이는 경향 (angle: 0~90 또는 270~360)
+        if ((angle < 90.0 && angle >= 0.0) || (angle < 360.0 && angle >= 270.0))
+        {
+            // 위쪽 벽 충돌 검사
+            if (entityY + (entity->getHeight() * entity->getScaleY() / 2.0) > stageTop && lastCollision != Entity::CollisionSide::UP)
+            { // 단순화된 경계
+                if (method == Entity::RotationMethod::FREE)
+                {
+                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
+                }
+                else
+                {
+                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
+                }
+                entity->setLastCollisionSide(Entity::CollisionSide::UP);
+                collidedThisFrame = true;
+                // 엔티티를 벽 안으로 밀어넣는 로직 추가 가능
+                // entity->setY(stageTop - (entity->getHeight() * entity->getScaleY() / 2.0));
+            }
+            // 아래쪽 벽 충돌 검사 (위로 가려다 아래로 튕길 수도 있으므로)
+            else if (!collidedThisFrame && entityY - (entity->getHeight() * entity->getScaleY() / 2.0) < stageBottom && lastCollision != Entity::CollisionSide::DOWN)
+            {
+                if (method == Entity::RotationMethod::FREE)
+                {
+                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
+                }
+                else
+                {
+                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
+                }
+                entity->setLastCollisionSide(Entity::CollisionSide::DOWN);
+                collidedThisFrame = true;
+            }
+        }
+        // 엔티티가 아래쪽으로 움직이는 경향 (angle: 90~270)
+        else if (angle < 270.0 && angle >= 90.0)
+        {
+            // 아래쪽 벽 충돌 검사
+            if (entityY - (entity->getHeight() * entity->getScaleY() / 2.0) < stageBottom && lastCollision != Entity::CollisionSide::DOWN)
+            {
+                if (method == Entity::RotationMethod::FREE)
+                {
+                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
+                }
+                else
+                {
+                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
+                }
+                entity->setLastCollisionSide(Entity::CollisionSide::DOWN);
+                collidedThisFrame = true;
+            }
+            // 위쪽 벽 충돌 검사
+            else if (!collidedThisFrame && entityY + (entity->getHeight() * entity->getScaleY() / 2.0) > stageTop && lastCollision != Entity::CollisionSide::UP)
+            {
+                if (method == Entity::RotationMethod::FREE)
+                {
+                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
+                }
+                else
+                {
+                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
+                }
+                entity->setLastCollisionSide(Entity::CollisionSide::UP);
+                collidedThisFrame = true;
+            }
+        }
+
+        // 좌우 벽 충돌 (X축) - 상하 벽 충돌이 없었을 경우에만 검사 (또는 동시에 검사 후 우선순위 결정)
+        if (!collidedThisFrame)
+        {
+            // 엔티티가 왼쪽으로 움직이는 경향 (angle: 180~360)
+            if (angle < 360.0 && angle >= 180.0)
+            {
+                // 왼쪽 벽 충돌 검사
+                if (entityX - (entity->getWidth() * entity->getScaleX() / 2.0) < stageLeft && lastCollision != Entity::CollisionSide::LEFT)
+                {
+                    if (method == Entity::RotationMethod::FREE)
+                    {
+                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
+                    }
+                    else
+                    {
+                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0)); // JS는 +360, fmod로 처리
+                    }
+                    entity->setLastCollisionSide(Entity::CollisionSide::LEFT);
+                    collidedThisFrame = true;
+                }
+                // 오른쪽 벽 충돌 검사
+                else if (!collidedThisFrame && entityX + (entity->getWidth() * entity->getScaleX() / 2.0) > stageRight && lastCollision != Entity::CollisionSide::RIGHT)
+                {
+                    if (method == Entity::RotationMethod::FREE)
+                    {
+                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
+                    }
+                    else
+                    {
+                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
+                    }
+                    entity->setLastCollisionSide(Entity::CollisionSide::RIGHT);
+                    collidedThisFrame = true;
+                }
+            }
+            // 엔티티가 오른쪽으로 움직이는 경향 (angle: 0~180)
+            else if (angle < 180.0 && angle >= 0.0)
+            {
+                // 오른쪽 벽 충돌 검사
+                if (entityX + (entity->getWidth() * entity->getScaleX() / 2.0) > stageRight && lastCollision != Entity::CollisionSide::RIGHT)
+                {
+                    if (method == Entity::RotationMethod::FREE)
+                    {
+                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
+                    }
+                    else
+                    {
+                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
+                    }
+                    entity->setLastCollisionSide(Entity::CollisionSide::RIGHT);
+                    collidedThisFrame = true;
+                }
+                // 왼쪽 벽 충돌 검사
+                else if (!collidedThisFrame && entityX - (entity->getWidth() * entity->getScaleX() / 2.0) < stageLeft && lastCollision != Entity::CollisionSide::LEFT)
+                {
+                    if (method == Entity::RotationMethod::FREE)
+                    {
+                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
+                    }
+                    else
+                    {
+                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
+                    }
+                    entity->setLastCollisionSide(Entity::CollisionSide::LEFT);
+                    collidedThisFrame = true;
+                }
+            }
+        }
+
+        if (!collidedThisFrame)
+        { // 이번 프레임에 어떤 벽과도 충돌하지 않았다면, 이전 충돌 상태를 리셋
+            entity->setLastCollisionSide(Entity::CollisionSide::NONE);
+        }
+        // 각도 정규화 (0~360)
+        if (entity->getRotation() < 0)
+            entity->setRotation(fmod(entity->getRotation(), 360.0) + 360.0);
+        else
+            entity->setRotation(fmod(entity->getRotation(), 360.0));
+
+        if (entity->getDirection() < 0)
+            entity->setDirection(fmod(entity->getDirection(), 360.0) + 360.0);
+        else
+            entity->setDirection(fmod(entity->getDirection(), 360.0));
+    }
 }
 /**
  * @brief 계산 블록

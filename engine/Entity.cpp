@@ -9,11 +9,11 @@
 Entity::Entity(const std::string& entityId, const std::string& entityName,
     double initial_x, double initial_y, double initial_regX, double initial_regY,
     double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
-    double initial_width, double initial_height, bool initial_visible)
+    double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
     : id(entityId), name(entityName),
     x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
     scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
-    width(initial_width), height(initial_height), visible(initial_visible)
+    width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod)
 {
 }
 
@@ -47,7 +47,13 @@ void Entity::setDirection(double newDirection) { direction = newDirection; }
 void Entity::setWidth(double newWidth) { width = newWidth; }
 void Entity::setHeight(double newHeight) { height = newHeight; }
 void Entity::setVisible(bool newVisible) { visible = newVisible; }
+Entity::RotationMethod Entity::getRotateMethod() const {
+    return rotateMethod;
+}
 
+void Entity::setRotateMethod(RotationMethod method) {
+    rotateMethod = method;
+}
 bool Entity::isPointInside(double pX, double pY) const {
     // pX, pY는 스테이지 좌표 (중앙 (0,0), Y축 위쪽)
     // this->x, this->y는 엔티티의 등록점의 스테이지 좌표
