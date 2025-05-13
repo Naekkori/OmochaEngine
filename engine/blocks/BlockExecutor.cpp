@@ -698,6 +698,38 @@ OperandValue Mathematical(std::string BlockType, Engine &engine, const std::stri
             engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
             return OperandValue();
         }
+    }else if (BlockType == "distance_something"){
+        string targetId = block.paramsJson[0].GetString();
+        if (targetId == "mouse"){
+            if (engine.isMouseCurrentlyOnStage()){
+                double mouseX = engine.getCurrentStageMouseX();
+                double mouseY = engine.getCurrentStageMouseY();
+                return OperandValue(std::sqrt(mouseX * mouseX + mouseY * mouseY));
+            }else{
+                engine.EngineStdOut("distance_something block for " + objectId + ": mouse is not on stage.", 1);
+                return OperandValue(0.0);
+            }
+        }else{
+            Entity *targetEntity = engine.getEntityById(targetId);
+            if (!targetEntity){
+                engine.EngineStdOut("distance_something block for " + objectId + ": target entity '" + targetId + "' not found.", 2);
+                return OperandValue(0.0);
+            }
+            double dx = targetEntity->getX() - engine.getCurrentStageMouseX();
+            double dy = targetEntity->getY() - engine.getCurrentStageMouseY();
+            return OperandValue(std::sqrt(dx * dx + dy * dy));
+        }
+    }else if (BlockType == "length_of_string"){
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1){
+            engine.EngineStdOut("length_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            return OperandValue();
+        }
+        OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (strOp.type != OperandValue::Type::STRING){
+            engine.EngineStdOut("length_of_string block for " + objectId + " has non-string parameter.", 2);
+            return OperandValue();
+        }
+        return OperandValue(static_cast<double>(strOp.string_val.length()));
     }
     return OperandValue();
 }

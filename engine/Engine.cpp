@@ -3134,7 +3134,11 @@ void Engine::renderLoadingScreen()
             if (texPercent)
             {
 
-                SDL_FRect dstRect = {barX + barWidth + 10.0f, barY + (barHeight - static_cast<float>(surfPercent->h)) / 2.0f, static_cast<float>(surfPercent->w), static_cast<float>(surfPercent->h)};
+                SDL_FRect dstRect = {
+                    barX + (barWidth - static_cast<float>(surfPercent->w)) / 2.0f,
+                    barY + (barHeight - static_cast<float>(surfPercent->h)) / 2.0f,
+                    static_cast<float>(surfPercent->w),
+                    static_cast<float>(surfPercent->h)};
                 SDL_RenderTexture(renderer, texPercent, nullptr, &dstRect);
                 SDL_DestroyTexture(texPercent);
             }
@@ -3182,7 +3186,8 @@ void Engine::renderLoadingScreen()
                 SDL_Texture *texProject = SDL_CreateTextureFromSurface(renderer, surfProject);
                 if (texProject)
                 {
-                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfProject->w)) / 2.0f, barY + static_cast<float>(surfProject->h) + 20.0f, static_cast<float>(surfProject->w), static_cast<float>(surfProject->h)};
+                    // 프로젝트 이름은 상단으로
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfProject->w)) / 2.0f, barY + static_cast<float>(surfProject->h) - 130.5f, static_cast<float>(surfProject->w), static_cast<float>(surfProject->h)};
                     SDL_RenderTexture(renderer, texProject, nullptr, &dstRect);
                     SDL_DestroyTexture(texProject);
                 }

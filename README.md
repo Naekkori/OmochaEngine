@@ -56,3 +56,38 @@ setZoomfactor 확대할 배율 설정합니다. (소수점 으로 조절합니�
 | SDL        | https://github.com/libsdl-org/SDL       |
 | SDL_image  | https://github.com/libsdl-org/SDL_image |
 | SDL_ttf    | https://github.com/libsdl-org/SDL_ttf   |
+| miniAudio  | http://miniaud.io/                      |
+
+## 계산 블록 구현 현황
+
+### 완료된 기능
+- [x] **`calc_basic`**: 10 + 10 (사칙연산: 덧셈, 뺄셈, 곱셈, 나눗셈)
+- [x] **`calc_rand`**: 0 부터 10 사이의 무작위 수
+- [x] **`coordinate_mouse`**: 마우스 포인터의 X 좌표 값 / Y 좌표 값
+- [x] **`coordinate_object`**: (오브젝트)의 X좌표/Y좌표/회전각/이동방향/크기/모양번호/모양이름
+- [x] **`quotient_and_mod`**: 10 을(를) 3 (으)로 나눈 몫 / 나머지
+- [x] **`get_project_timer_value`**: 타이머 값
+- [x] **`choose_project_timer_action`**: 타이머 시작하기 / 멈추기 / 초기화
+- [x] **`set_visible_project_timer`**: 타이머 보이기 / 숨기기
+- [x] **`calc_operation`**: 10 의 (제곱/제곱근/sin/cos 등)
+- [x] **`get_date`**: 현재 년도/월/일/시/분/초 값
+- [x] **`distance_something`**: (마우스 포인터) 까지의 거리
+- [x] **`length_of_string`**: (엔트리)의 길이
+### 미구현 기능
+- [ ] **`reverse_of_string`**: (엔트리)을(를) 거꾸로 뒤집은 값
+- [ ] **`combine_something`**: (안녕) 와(과) (엔트리) 합치기 (문자열)
+- [ ] **`char_at`**: (안녕하세요)의 (1)번째 글자
+- [ ] **`substring`**: (안녕하세요)의 (2)번째 글자부터 (4)번째 글자까지
+- [ ] **`count_match_string`**: (엔트리봇은 엔트리 작품을 좋아해)에서 (엔트리)가 포함된 개수
+- [ ] **`index_of_string`**: (안녕하세요)에서 (하세)의 위치
+- [ ] **`replace_string`**: (안녕하세요)의 (안녕)을(를) (Hi)로 바꾸기
+- [ ] **`change_string_case`**: (Hello Entry!)을(를) (대문자/소문자)로 바꾸기
+- [ ] **`get_block_count`**: (자신)의 블록 수 (오브젝트/장면/전체 블록 수 계산)
+- [ ] **`change_rgb_to_hex`**: R (255) G (0) B (0) 값을 Hex 코드로 바꾸기
+- [ ] **`change_hex_to_rgb`**: (#ff0000) 코드의 (R) 값
+- [ ] **`get_boolean_value`**: (판단 블록) 값 (결과를 "TRUE" 또는 "FALSE" 문자열로 반환)
+
+### 구현불가
+###### 개발자 가 서버를 구축안해서 못씁니다.
+- [ ] **`get_user_name`**: 사용자 아이디 (이것은 네이버 서버 전용 기능입니다)
+- [ ] **`get_nickname`**: 사용자 닉네임 (이것은 네이버 서버 전용 기능입니다)
