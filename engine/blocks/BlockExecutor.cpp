@@ -499,8 +499,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 double newY = entity->getY() + yStep;
                 entity->setX(newX);
                 entity->setY(newY);
-                entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+                entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
             }
         }
     }

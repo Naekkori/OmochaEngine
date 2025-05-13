@@ -30,7 +30,7 @@ public:
 
     struct PenState {
         Engine* pEngine = nullptr; 
-        bool isActive = true;      
+        bool stop = false; // true이면 그리기가 중지된 상태, false이면 활성화. JS의 stop과 동일.
         bool isPenDown = false;    
         SDL_FPoint lastStagePosition = {0.0f, 0.0f}; 
         SDL_Color color = {0, 0, 0, 255}; 
@@ -40,7 +40,8 @@ public:
 
         void setPenDown(bool down, float currentStageX, float currentStageY);
         void updatePositionAndDraw(float newStageX, float newStageY);
-        void setActive(bool active) { isActive = active; }
+        void setStop(bool shouldStop) { stop = shouldStop; } // isActive 대신 stop 상태를 설정
+        bool isStopped() const { return stop; }              // 현재 중지 상태인지 확인
         void setColor(const SDL_Color& c) { color = c; }
         void reset(float currentStageX, float currentStageY); // To set initial position
     };

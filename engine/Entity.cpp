@@ -1,16 +1,15 @@
 #include "Entity.h"
-
 #include <iostream>
 #include <string>
-#include <cmath> // For std::cos, std::sin, std::acos
+#include <cmath>
 #include <stdexcept>
-
-// Forward declare or include Engine.h if engineDrawLineOnStage is called directly from here
-// For now, PenState takes Engine* and calls a public Engine method.
 #include "Engine.h"
 
 Entity::PenState::PenState(Engine* enginePtr) : pEngine(enginePtr) {
-    // Initialize lastStagePosition if necessary, or ensure reset is called.
+    stop = false; // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
+    isPenDown = false; // Default to pen up
+    lastStagePosition = {0.0f, 0.0f}; // Initial position
+    color = {0, 0, 0, 255}; // Default color (black)
 }
 
 void Entity::PenState::setPenDown(bool down, float currentStageX, float currentStageY) {
@@ -21,7 +20,7 @@ void Entity::PenState::setPenDown(bool down, float currentStageX, float currentS
 }
 
 void Entity::PenState::updatePositionAndDraw(float newStageX, float newStageY) {
-    if (isActive && isPenDown && pEngine) {
+    if (!stop && isPenDown && pEngine) { // 그리기 조건: 중지되지 않았고(!stop) 펜이 내려져 있을 때
         // Target Y for lineTo is inverted from current stage Y, as per JS: sprite.getY() * -1
         SDL_FPoint targetStagePosJSStyle = {newStageX, newStageY * -1.0f};
         pEngine->engineDrawLineOnStage(lastStagePosition, targetStagePosJSStyle, color, 1.0f);
@@ -32,7 +31,7 @@ void Entity::PenState::updatePositionAndDraw(float newStageX, float newStageY) {
 
 void Entity::PenState::reset(float currentStageX, float currentStageY) {
     lastStagePosition = {currentStageX, currentStageY};
-    // isPenDown and isActive remain as they are, reset only affects position tracking for new lines.
+    // isPenDown and stop 상태는 그대로 유지, reset은 새 선 그리기를 위한 위치 추적만 재설정합니다.
 }
 
 Entity::Entity(Engine* engine, const std::string& entityId, const std::string& entityName,
