@@ -7,7 +7,11 @@
 
 // 전방 선언 (순환 참조 방지)
 class Engine;
-
+class PublicVariable{
+ public:
+  std::string user_name="ミケ恋団";
+  std::string user_id="mikekoidan351";
+};
 // OperandValue 구조체 선언
 struct OperandValue
 {

@@ -16,7 +16,7 @@ OperandValue::OperandValue() : type(Type::EMPTY), boolean_val(false), number_val
 OperandValue::OperandValue(double val) : type(Type::NUMBER), number_val(val), boolean_val(false) {}
 OperandValue::OperandValue(const std::string &val) : type(Type::STRING), string_val(val), boolean_val(false), number_val(0.0) {}
 OperandValue::OperandValue(bool val) : type(Type::BOOLEAN), boolean_val(val), number_val(0.0) {}
-
+PublicVariable publicVariable; // 전역 PublicVariable 인스턴스
 double OperandValue::asNumber() const
 {
     if (type == Type::NUMBER)
@@ -1450,7 +1450,16 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             // engine.showProjectTimer(false);
         }
         return OperandValue();
+    }else if(BlockType == "get_user_name"){
+        //네이버 클라우드 플랫폼에서 제공하는 사용자 이름을 가져오는 블록
+        //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
+        return OperandValue(publicVariable.user_name);
+    }else if (BlockType == "get_user_id"){
+        //네이버 클라우드 플랫폼에서 제공하는 사용자 ID를 가져오는 블록
+        //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
+        return OperandValue(publicVariable.user_id);
     }
+    
     return OperandValue();
 }
 
