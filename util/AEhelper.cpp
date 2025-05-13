@@ -99,7 +99,7 @@ unsigned int AudioEngineHelper::getPlayingsoundEntity() const
             playingCount--;
         } 
     }
-    if (ma_sound_is_looping(&soundEffect)) {
+    if (ma_sound_is_playing(&backgroundMusic)) {
         playingCount++;
     }else{
         if (playingCount>0)
@@ -116,4 +116,19 @@ void AudioEngineHelper::aeStdOut(const std::string &message)
     string lm = TAG + message;
     printf(lm.c_str());
     logger.log(lm);
+}
+void AudioEngineHelper::setVolume(float volume)
+{
+    // Set volume for sound effect
+    ma_sound_set_volume(&soundEffect, volume);
+    // Set volume for background music
+    ma_sound_set_volume(&backgroundMusic, volume);
+}
+float AudioEngineHelper::getVolume() const
+{
+    // Get volume for sound effect
+    float soundEffectVolume = ma_sound_get_volume(&soundEffect);
+    // Get volume for background music
+    float backgroundMusicVolume = ma_sound_get_volume(&backgroundMusic);
+    return (soundEffectVolume + backgroundMusicVolume) / 2.0f; // Return average volume
 }

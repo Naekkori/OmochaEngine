@@ -14,6 +14,6 @@ public:
     void stopSoundEffect();
     void playBackgroundMusic(const string& filePath);
     void stopBackgroundMusic();
-    void setBackgroundVolume(float volume);
-    float getBackgroundVolume() const;
+    void setVolume(float volume);
+    float getVolume() const;
 };
