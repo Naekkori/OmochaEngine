@@ -255,7 +255,7 @@ bool AudioEngineHelper::isBackgroundMusicPlaying() const {
 
 
 void AudioEngineHelper::aeStdOut(const std::string &message) const {
-    std::string TAG = "[HIBIKI] "; // std::string으로 변경
+    std::string TAG = "[Hibiki] "; // std::string으로 변경
     std::string lm = TAG + message; // std::string으로 변경
     printf(lm.c_str());
     printf("\n"); // printf는 자동 줄바꿈 안 함

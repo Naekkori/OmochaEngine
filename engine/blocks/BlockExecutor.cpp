@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <ctime>
+AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
 struct OperandValue
 {
     enum class Type
