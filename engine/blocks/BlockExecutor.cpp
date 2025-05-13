@@ -1406,7 +1406,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
         {
             engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2);
-            return;
+            return OperandValue();
         }
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
@@ -1432,7 +1432,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1);
         }
-        return; // Behavior 블록은 값을 반환하지 않음
+        return OperandValue();
     }
     else if (BlockType == "set_visible_project_timer")
     {
@@ -1441,7 +1441,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
         {
             engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has invalid or missing action parameter.", 2);
-            return;
+            return OperandValue();
         }
 
         std::string actionValue = block.paramsJson[0].GetString();
@@ -1462,7 +1462,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             // 기본적으로 숨김 처리 또는 아무것도 안 함
             // engine.showProjectTimer(false);
         }
-        return;
+        return OperandValue();
     }
     return OperandValue();
 }

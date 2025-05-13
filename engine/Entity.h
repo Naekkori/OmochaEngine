@@ -2,6 +2,9 @@
 
 #include <string>
 #include <vector>
+#include "SDL3/SDL_pixels.h" // For SDL_Color
+#include "SDL3/SDL_rect.h"   // For SDL_FPoint (SDL3) or define if using SDL2
+                             // Alternatively, just #include "SDL3/SDL.h"
 
 // Forward declaration
 class Engine;
@@ -31,9 +34,9 @@ public:
     struct PenState {
         Engine* pEngine = nullptr; 
         bool stop = false; // true이면 그리기가 중지된 상태, false이면 활성화. JS의 stop과 동일.
-        bool isPenDown = false;    
-        SDL_FPoint lastStagePosition = {0.0f, 0.0f}; 
-        SDL_Color color = {0, 0, 0, 255}; 
+        bool isPenDown = false;
+        SDL_FPoint lastStagePosition; 
+        SDL_Color color;
         // float thickness = 1.0f; // For future
 
         PenState(Engine* enginePtr);

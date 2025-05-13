@@ -5,11 +5,13 @@
 #include <stdexcept>
 #include "Engine.h"
 
-Entity::PenState::PenState(Engine* enginePtr) : pEngine(enginePtr) {
-    stop = false; // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
-    isPenDown = false; // Default to pen up
-    lastStagePosition = {0.0f, 0.0f}; // Initial position
-    color = {0, 0, 0, 255}; // Default color (black)
+Entity::PenState::PenState(Engine* enginePtr) 
+    : pEngine(enginePtr), 
+      stop(false),      // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
+      isPenDown(false), // Default to pen up
+      lastStagePosition{0.0f, 0.0f}, // Initial position using initializer list
+      color{0, 0, 0, 255}          // Default color (black) using initializer list
+{
 }
 
 void Entity::PenState::setPenDown(bool down, float currentStageX, float currentStageY) {
@@ -122,4 +124,11 @@ bool Entity::isPointInside(double pX, double pY) const {
     }
 
     return false;
+}
+Entity::CollisionSide Entity::getLastCollisionSide() const {
+    return lastCollisionSide;
+}
+
+void Entity::setLastCollisionSide(CollisionSide side) {
+    lastCollisionSide = side;
 }
