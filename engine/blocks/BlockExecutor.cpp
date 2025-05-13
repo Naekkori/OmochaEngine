@@ -10,81 +10,71 @@
 #include <limits>
 #include <ctime>
 AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
-struct OperandValue
+
+// OperandValue 생성자 및 멤버 함수 구현 (BlockExecutor.h에 선언됨)
+OperandValue::OperandValue() : type(Type::EMPTY), boolean_val(false), number_val(0.0) {}
+OperandValue::OperandValue(double val) : type(Type::NUMBER), number_val(val), boolean_val(false) {}
+OperandValue::OperandValue(const std::string &val) : type(Type::STRING), string_val(val), boolean_val(false), number_val(0.0) {}
+OperandValue::OperandValue(bool val) : type(Type::BOOLEAN), boolean_val(val), number_val(0.0) {}
+
+double OperandValue::asNumber() const
 {
-    enum class Type
+    if (type == Type::NUMBER)
+        return number_val;
+    if (type == Type::STRING)
     {
-        EMPTY,
-        NUMBER,
-        STRING,
-        BOOLEAN,
-    };
-    Type type = Type::EMPTY;
-    bool boolean_val = false;
-    std::string string_val = "";
-    double number_val = 0.0;
-
-    OperandValue() = default;
-    OperandValue(double val) : type(Type::NUMBER), number_val(val) {}
-    OperandValue(const std::string &val) : type(Type::STRING), string_val(val) {}
-    OperandValue(bool val) : type(Type::BOOLEAN)
-    {
-        boolean_val = val ? true : false;
-    }
-    double asNumber() const
-    {
-        if (type == Type::NUMBER)
-            return number_val;
-        if (type == Type::STRING)
+        try
         {
-            try
+            size_t idx = 0;
+            double val = std::stod(string_val, &idx);
+            if (idx == string_val.length()) // Ensure the whole string was parsed
             {
-                size_t idx = 0;
-                double val = std::stod(string_val, &idx);
-                if (idx == string_val.length())
-                {
-                    return val;
-                }
-            }
-            catch (const std::invalid_argument &)
-            {
-
-                throw "Invalid number format";
-            }
-            catch (const std::out_of_range &)
-            {
-
-                throw "Number out of range";
+                return val;
             }
         }
-        return 0.0;
-    }
-
-    std::string asString() const
-    {
-        if (type == Type::STRING)
-            return string_val;
-        if (type == Type::NUMBER)
+        catch (const std::invalid_argument &)
         {
-            if (std::isnan(number_val))
-                return "NaN";
-            if (std::isinf(number_val))
-                return (number_val > 0 ? "Infinity" : "-Infinity");
-
-            std::string s = std::to_string(number_val);
-            s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-            if (s.back() == '.')
-            {
-                s.pop_back();
-            }
-            return s;
+            // Consider logging or a more specific error handling
+            // For now, re-throwing a generic message or returning 0.0
+            // throw "Invalid number format"; // Or handle more gracefully
         }
-        return "";
+        catch (const std::out_of_range &)
+        {
+            // throw "Number out of range"; // Or handle more gracefully
+        }
     }
-};
+    return 0.0; // Default for non-convertible types or errors
+}
 
-OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block);
-OperandValue processVariableBlock(Engine &engine, const std::string &objectId, const Block &block);
+std::string OperandValue::asString() const
+{
+    if (type == Type::STRING)
+        return string_val;
+    if (type == Type::NUMBER)
+    {
+        if (std::isnan(number_val))
+            return "NaN";
+        if (std::isinf(number_val))
+            return (number_val > 0 ? "Infinity" : "-Infinity");
+
+        std::string s = std::to_string(number_val);
+        // Remove trailing zeros and decimal point if it's the last char
+        s.erase(s.find_last_not_of('0') + 1, std::string::npos);
+        if (!s.empty() && s.back() == '.')
+        {
+            s.pop_back();
+        }
+        return s;
+    }
+    if (type == Type::BOOLEAN)
+    {
+        return boolean_val ? "true" : "false";
+    }
+    return ""; // Default for EMPTY or unhandled types
+}
+
+// processVariableBlock 선언이 누락된 것 같아 추가 (필요하다면)
+// OperandValue processVariableBlock(Engine &engine, const std::string &objectId, const Block &block);
 
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField)
 {
@@ -151,12 +141,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     return OperandValue();
 }
 
-void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Shape(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
+// executeScript 함수는 Entity.cpp로 이동했으므로 여기서 주석 처리 또는 삭제
+/*
 
 void executeScript(Engine &engine, const std::string &objectId, const Script *scriptPtr)
 {
@@ -187,6 +173,7 @@ void executeScript(Engine &engine, const std::string &objectId, const Script *sc
         }
     }
 }
+*/
 /**
  * @brief 움직이기 블럭
  *

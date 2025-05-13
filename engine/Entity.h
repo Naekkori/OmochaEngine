@@ -8,6 +8,9 @@
 
 // Forward declaration
 class Engine;
+struct Script; // Forward declaration for Script
+class Block;   // Forward declaration for Block
+
 class Entity
 {
 public:
@@ -66,6 +69,7 @@ private:
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
 public: // Made brush and paint public for now for easier access from blocks
+    Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
     PenState paint;
 
@@ -77,6 +81,9 @@ public:
 
     ~Entity();
     CollisionSide getLastCollisionSide() const;
+    // 스크립트 실행 함수
+    void executeScript(const Script* scriptPtr);
+
     void setLastCollisionSide(CollisionSide side);
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "Engine.h"
+#include "blocks/BlockExecutor.h" // OperandValue 및 Moving, Calculator 등 블록 처리 함수 선언 포함
 
 Entity::PenState::PenState(Engine* enginePtr) 
     : pEngine(enginePtr), 
@@ -40,7 +41,7 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
     double initial_x, double initial_y, double initial_regX, double initial_regY,
     double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
     double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
-    : id(entityId), name(entityName),
+    : pEngineInstance(engine), id(entityId), name(entityName),
     x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
     scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
     width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
@@ -49,6 +50,45 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
 }
 
 Entity::~Entity() {
+}
+
+// OperandValue 구조체 및 블록 처리 함수들은 BlockExecutor.h에 선언되어 있고,
+// BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
+
+void Entity::executeScript(const Script* scriptPtr)
+{
+    if (!pEngineInstance) {
+        // EngineStdOut은 Engine의 멤버이므로 직접 호출 불가. 로깅 방식 변경 필요
+        std::cerr << "ERROR: Entity " << id << " has no valid Engine instance for script execution." << std::endl;
+        return;
+    }
+    if (!scriptPtr) {
+        pEngineInstance->EngineStdOut("executeScript called with null script pointer for object: " + id, 2);
+        return;
+    }
+
+    pEngineInstance->EngineStdOut("Executing script for object: " + id, 0);
+    for (size_t i = 1; i < scriptPtr->blocks.size(); ++i) // 첫 번째 블록은 이벤트 트리거이므로 1부터 시작
+    {
+        const Block& block = scriptPtr->blocks[i];
+        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 0);
+        try
+        {   
+            // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
+            Moving(block.type, *pEngineInstance, this->id, block);
+            Calculator(block.type, *pEngineInstance, this->id, block); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정
+            Shape(block.type, *pEngineInstance, this->id, block);
+            Sound(block.type, *pEngineInstance, this->id, block);
+            Variable(block.type, *pEngineInstance, this->id, block);
+            Function(block.type, *pEngineInstance, this->id, block);
+        }
+        catch (const std::exception& e)
+        {
+            pEngineInstance->showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + id + "\n" + e.what(), pEngineInstance->msgBoxIconType.ICON_ERROR);
+            // SDL_Quit(); // 여기서 직접 SDL_Quit()을 호출하는 것은 위험할 수 있습니다. 예외를 다시 던지거나 엔진에 알리는 것이 좋습니다.
+            throw; // 또는 에러 플래그 설정
+        }
+    }
 }
 
 
@@ -132,3 +172,7 @@ Entity::CollisionSide Entity::getLastCollisionSide() const {
 void Entity::setLastCollisionSide(CollisionSide side) {
     lastCollisionSide = side;
 }
+
+// processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
+// 간결성을 위해 전체 구현은 생략합니다. BlockExecutor.cpp의 내용을 참고하세요.
+// -> 이 주석은 이제 유효하지 않습니다. 해당 함수들은 BlockExecutor.cpp에 있습니다.

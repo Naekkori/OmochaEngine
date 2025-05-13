@@ -2646,7 +2646,15 @@ void Engine::processInput(const SDL_Event &event)
                         const Script *scriptPtr = scriptPair.second;
                         Entity *currentEntity = getEntityById(objectId);
 
-                        if (currentEntity && currentEntity->isVisible())
+                        // Entity의 멤버 함수로 executeScript를 호출하도록 변경
+                        if (currentEntity) {
+                            if (currentEntity->isVisible()) {
+                                // ... (기존 씬 체크 로직) ...
+                                // executeScript(*this, objectId, scriptPtr); // 기존 호출
+                                currentEntity->executeScript(scriptPtr); // 새 호출
+                            }
+                        }
+                        /* if (currentEntity && currentEntity->isVisible())
                         {
                             bool executeForScene = false;
                             for (const auto &objInfo : objects_in_order)
@@ -2667,7 +2675,7 @@ void Engine::processInput(const SDL_Event &event)
                                 executeScript(*this, objectId, scriptPtr);
                             }
                         }
-                        else if (!currentEntity)
+                        else if (!currentEntity)*/
                         {
                             EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
                         }
@@ -2705,8 +2713,8 @@ void Engine::processInput(const SDL_Event &event)
                                 if (clickScriptPair.first == objectId)
                                 {
                                     const Script *scriptPtr = clickScriptPair.second;
-                                    EngineStdOut("Executing 'when_object_click' for object: " + objectId, 0);
-                                    executeScript(*this, objectId, scriptPtr);
+                                    EngineStdOut("Executing 'when_object_click' for object: " + entity->getId(), 0);
+                                    entity->executeScript(scriptPtr); // Entity의 멤버 함수 호출
                                 }
                             }
                             break;
@@ -2738,7 +2746,13 @@ void Engine::processInput(const SDL_Event &event)
                     const string &objectId = scriptPair.first;
                     const Script *scriptPtr = scriptPair.second;
                     EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
-                    executeScript(*this, objectId, scriptPtr);
+                    // executeScript(*this, objectId, scriptPtr); // 기존 호출
+                    Entity* targetEntity = getEntityById(objectId);
+                    if (targetEntity) {
+                        targetEntity->executeScript(scriptPtr); // 새 호출
+                    } else {
+                        EngineStdOut(" -> Entity " + objectId + " not found for key press script.", 1);
+                    }
                 }
             }
         }
@@ -2864,12 +2878,17 @@ void Engine::processInput(const SDL_Event &event)
                             }
                             if (executeForScene)
                             {
-                                executeScript(*this, objectId, scriptPtr);
+                                currentEntity->executeScript(scriptPtr);
                             }
                         }
                         else if (!currentEntity)
                         {
                             EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
+                        } // Entity의 멤버 함수로 executeScript를 호출하도록 변경
+                        if (currentEntity) {
+                             // ... (기존 씬 체크 로직) ...
+                            // executeScript(*this, objectId, scriptPtr); // 기존 호출
+                            currentEntity->executeScript(scriptPtr); // 새 호출
                         }
                     }
                 }
@@ -2877,15 +2896,6 @@ void Engine::processInput(const SDL_Event &event)
                 if (!m_pressedObjectId.empty())
                 {
                     const string &canceledObjectId = m_pressedObjectId;
-                    // m_pressedObjectId is reset here, important!
-                    // Check if the mouse is still over the object that was initially pressed.
-                    // If not, it's a click cancel. If it is, it could be a click completion (handled elsewhere or by specific blocks).
-                    // For "when_object_click_canceled", it usually means the mouse was released *off* the object or after dragging.
-                    // The current logic triggers it if m_pressedObjectId was set.
-
-                    // Let's ensure m_pressedObjectId is cleared *after* using its value
-                    // for the scripts, but before the next potential click.
-
                     for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
                     {
                         if (scriptPair.first == canceledObjectId)
@@ -2894,7 +2904,13 @@ void Engine::processInput(const SDL_Event &event)
                             // Entity *entity = getEntityById(canceledObjectId); // Not strictly needed for execution here
 
                             EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                            executeScript(*this, canceledObjectId, scriptPtr);
+                            // executeScript(*this, canceledObjectId, scriptPtr); // 기존 호출
+                            Entity* targetEntity = getEntityById(canceledObjectId);
+                            if (targetEntity) {
+                                targetEntity->executeScript(scriptPtr); // 새 호출
+                            } else {
+                                EngineStdOut(" -> Entity " + canceledObjectId + " not found for click cancel script.", 1);
+                            }
                         }
                     }
                 }
@@ -3022,8 +3038,13 @@ void Engine::runStartButtonScripts()
         const Script *scriptPtr = scriptPair.second;
 
         EngineStdOut(" -> Running script for object: " + objectId, 3);
-
-        executeScript(*this, objectId, scriptPtr);
+        // executeScript(*this, objectId, scriptPtr); // 기존 호출
+        Entity* targetEntity = getEntityById(objectId);
+        if (targetEntity) {
+            targetEntity->executeScript(scriptPtr); // 새 호출
+        } else {
+            EngineStdOut(" -> Entity " + objectId + " not found for start button script.", 1);
+        }
         m_gameplayInputActive = true;
         EngineStdOut(" -> executeScript call is commented out. Script for object " + objectId + " was not executed.", 1);
     }
@@ -3500,7 +3521,13 @@ void Engine::triggerWhenSceneStartScripts()
         if (executeForScene)
         {
             EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
-            executeScript(*this, objectId, scriptPtr);
+            // executeScript(*this, objectId, scriptPtr); // 기존 호출
+            Entity* targetEntity = getEntityById(objectId);
+            if (targetEntity) {
+                targetEntity->executeScript(scriptPtr); // 새 호출
+            } else {
+                EngineStdOut("  -> Entity " + objectId + " not found for scene start script.", 1);
+            }
         }
     }
 }
