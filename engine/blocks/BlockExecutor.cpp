@@ -419,42 +419,86 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     }
     else if (BlockType == "move_xy_time")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
-        {
-            engine.EngineStdOut("move_xy_time block for object " + objectId + " has invalid params structure. Expected 3 params.", 2);
-            return;
-        }
-        OperandValue time = getOperandValue(engine, objectId, block.paramsJson[1]);
-        OperandValue x = getOperandValue(engine, objectId, block.paramsJson[0]);
-        OperandValue y = getOperandValue(engine, objectId, block.paramsJson[2]);
-        const int EntryFPS = engine.specialConfig.TARGET_FPS;
-        int totalFrames = 0;
-        if (time.type != OperandValue::Type::NUMBER || x.type != OperandValue::Type::NUMBER || y.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut("move_xy_time block for object " + objectId + " has non-numeric params.", 2);
-            return;
-        }
-
-        double timeValue = time.number_val;
-        double xValue = x.number_val;
-        double yValue = y.number_val;
-
-        totalFrames = max(static_cast<int>(floor(timeValue * EntryFPS)), 1);
-        
-        double xStep = xValue / totalFrames;
-        double yStep = yValue / totalFrames;
-
         Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            for (int i = 0; i < totalFrames; ++i)
-            {
-                double newX = entity->getX() + xStep;
-                double newY = entity->getY() + yStep;
-                entity->setX(newX);
-                entity->setY(newY);
+        if (!entity) {
+            engine.EngineStdOut("move_xy_time: Entity " + objectId + " not found.", 2);
+            return;
+        }
+
+        Entity::TimedMoveState& state = entity->timedMoveState;
+
+        if (!state.isActive) { // 블록 처음 실행 시 초기화
+            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3) {
+                engine.EngineStdOut("move_xy_time block for " + objectId + " is missing parameters. Expected TIME, X, Y.", 2);
+                state.isActive = false; // Ensure it's not accidentally active
+                return;
+            }
+
+            OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+            OperandValue xOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+            OperandValue yOp = getOperandValue(engine, objectId, block.paramsJson[2]);
+
+            if (timeOp.type != OperandValue::Type::NUMBER ||
+                xOp.type != OperandValue::Type::NUMBER ||
+                yOp.type != OperandValue::Type::NUMBER) {
+                engine.EngineStdOut("move_xy_time block for " + objectId + " has non-number parameters. Time: " + timeOp.asString() + ", X: " + xOp.asString() + ", Y: " + yOp.asString(), 2);
+                state.isActive = false;
+                return;
+            }
+
+            double timeValue = timeOp.asNumber();
+            state.targetX = xOp.asNumber();
+            state.targetY = yOp.asNumber();
+
+            const double fps = static_cast<double>(engine.getTargetFps()); // 실제 FPS 사용
+            state.totalFrames = max(1.0, floor(timeValue * fps));
+            state.remainingFrames = state.totalFrames;
+            state.isActive = true;
+            // state.startX = entity->getX(); // 필요시 초기 위치 저장
+            // state.startY = entity->getY();
+
+            engine.EngineStdOut("move_xy_time: " + objectId + " starting. Target: (" +
+                                std::to_string(state.targetX) + ", " + std::to_string(state.targetY) +
+                                ") over " + std::to_string(state.totalFrames) + " frames (Time: " + std::to_string(timeValue) +"s).", 0);
+
+            // 1 프레임 이동이면 즉시 처리
+            if (state.remainingFrames <= 1.0 && state.totalFrames <=1.0) { // totalFrames도 확인
+                entity->setX(state.targetX);
+                entity->setY(state.targetY);
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
+                                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")", 0);
+                state.isActive = false; // 완료
+                return; // 이 블록 실행 완료
+            }
+        }
+
+        // 매 프레임 실행 로직 (state.isActive가 true일 때)
+        if (state.isActive && state.remainingFrames > 0) {
+            double currentX = entity->getX();
+            double currentY = entity->getY();
+
+            double dX_total = state.targetX - currentX;
+            double dY_total = state.targetY - currentY;
+
+            double dX_step = dX_total / state.remainingFrames;
+            double dY_step = dY_total / state.remainingFrames;
+
+            entity->setX(currentX + dX_step);
+            entity->setY(currentY + dY_step);
+
+            entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+            entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+
+            state.remainingFrames--;
+
+            if (state.remainingFrames <= 0) {
+                entity->setX(state.targetX); // 최종 위치로 정확히 이동
+                entity->setY(state.targetY);
+                state.isActive = false; // 이동 완료
+                engine.EngineStdOut("move_xy_time: " + objectId + " completed. Final Pos: (" +
+                                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")", 0);
             }
         }
     }else if (BlockType == "locate_x"){
@@ -480,6 +524,40 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         if (entity){
             double y = valueY.number_val;
             entity->setY(y);
+        }
+    }else if (BlockType=="locate_xy"){
+        OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER){
+            engine.EngineStdOut("locate_xy block for object "+objectId+" is not a number.", 2);
+            return;
+        }
+        double x = valueX.number_val;
+        double y = valueY.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity){
+            entity->setX(x);
+            entity->setY(y);
+        }
+    }else if (BlockType == "locate_xy_time"){
+        //이것은 프레임단위 로 움직이는것이 아님
+        OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue valueTime = getOperandValue(engine, objectId, block.paramsJson[2]);
+        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER || valueTime.type != OperandValue::Type::NUMBER){
+            engine.EngineStdOut("locate_xy_time block for object "+objectId+" is not a number.", 2);
+            return;
+        }
+        double x = valueX.number_val;
+        double y = valueY.number_val;
+        double time = valueTime.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity){
+            entity->setX(x);
+            entity->setY(y);
+            entity->paint.updatePositionAndDraw(x, y);
+            entity->brush.updatePositionAndDraw(x, y);
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(time*1000)));
         }
     }
 }

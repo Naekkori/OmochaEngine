@@ -123,9 +123,9 @@ OmochaEngine v1.0.0 by Maiteil
 -   [x] **`move_xy_time`**: (시간)초 동안 x, y 만큼 움직이기
 -   [x] **`locate_x`**: x좌표를 (숫자)(으)로 정하기
 -   [x] **`locate_y`**: y좌표를 (숫자)(으)로 정하기
+-   [x] **`locate_xy_time`**: (시간)초 동안 x: (숫자) y: (숫자) 위치로 이동하기
 ### 미구현
 -   [ ] **`locate_xy`**: x: (숫자) y: (숫자) 위치로 이동하기
--   [ ] **`locate_xy_time`**: (시간)초 동안 x: (숫자) y: (숫자) 위치로 이동하기
 -   [ ] **`locate`**: (오브젝트 또는 마우스 포인터) 위치로 이동하기
 -   [ ] **`locate_object_time`**: (시간)초 동안 (오브젝트 또는 마우스 포인터) 위치로 이동하기
 -   [ ] **`rotate_relative`**: (각도) 만큼 회전하기

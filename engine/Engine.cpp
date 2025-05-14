@@ -1373,6 +1373,9 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
         int windowW = 0, windowH = 0;
         SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
 
+        float screenCenterX = static_cast<float>(windowW) / 2.0f;
+        float screenCenterY = static_cast<float>(windowH) / 2.0f;
+
         if (windowW > 0 && windowH > 0)
         {
             float itemHeight_const = 22.0f; // drawHUD 및 processInput과 일치
@@ -1403,9 +1406,17 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
                 currentItemEstimatedWidth = min(currentItemEstimatedWidth, static_cast<float>(windowW) - 10.0f); // 창 오른쪽 10px 여유
                 currentItemEstimatedWidth = max(minContainerFixedWidth_const, currentItemEstimatedWidth);
 
-                var.x = clamp(var.x, 0.0f, static_cast<float>(windowW) - currentItemEstimatedWidth);
-                var.y = clamp(var.y, 0.0f, static_cast<float>(windowH) - clampedItemHeight);
-                EngineStdOut("Clamped initial pos for '" + var.name + "' to X=" + to_string(var.x) + ", Y=" + to_string(var.y) + " (Est. W=" + to_string(currentItemEstimatedWidth) + ", H=" + to_string(clampedItemHeight) + ")", 3);
+                // 엔트리 좌표를 스크린 좌표로 변환
+                float currentItemScreenX = screenCenterX + var.x;
+                float currentItemScreenY = screenCenterY - var.y; // var.y는 요소의 상단 Y좌표 (엔트리 기준)
+
+                // 스크린 좌표에서 클램핑
+                float clampedScreenX = clamp(currentItemScreenX, 0.0f, static_cast<float>(windowW) - currentItemEstimatedWidth);
+                float clampedScreenY = clamp(currentItemScreenY, 0.0f, static_cast<float>(windowH) - clampedItemHeight);
+                // 클램핑된 스크린 좌표를 다시 엔트리 좌표로 변환하여 저장
+                var.x = clampedScreenX - screenCenterX;
+                var.y = screenCenterY - clampedScreenY;
+                EngineStdOut("Clamped initial Entry pos for '" + var.name + "' to X=" + to_string(var.x) + ", Y=" + to_string(var.y) + " (Screen TL: " + to_string(clampedScreenX) + "," + to_string(clampedScreenY) + ", Est. W=" + to_string(currentItemEstimatedWidth) + ", H=" + to_string(clampedItemHeight) + ")", 3);
             }
         }
         else
@@ -2007,6 +2018,9 @@ void Engine::drawHUD()
         int visibleVarsCount = 0;                   // 보이는 변수 개수
         if (renderer)
             SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
+        
+        float screenCenterX = static_cast<float>(windowW) / 2.0f;
+        float screenCenterY = static_cast<float>(windowH) / 2.0f;
 
         // float currentWidgetYPosition = m_variablesListWidgetY; // No longer used for individual items
         // float spacingBetweenBoxes = 2.0f; // No longer used for individual items
@@ -2016,6 +2030,10 @@ void Engine::drawHUD()
             {
                 continue; // 변수가 보이지 않으면 건너뜁니다.
             }
+
+            // 엔트리 좌표(var.x, var.y)를 스크린 렌더링 좌표로 변환
+            float renderX = screenCenterX + var.x;
+            float renderY = screenCenterY - var.y; // var.y는 요소의 상단 Y (엔트리 기준)
 
             // Colors and fixed dimensions for a single item box
             SDL_Color containerBgColor = {240, 240, 240, 220};     // 컨테이너 배경색 (약간 투명한 밝은 회색)
@@ -2057,17 +2075,17 @@ void Engine::drawHUD()
                 float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
                 // 1. 리스트 컨테이너 테두리 그리기
                 // 1. Draw List Container Border
-                SDL_FRect listContainerOuterRect = {var.x, var.y, var.width, var.height};
+                SDL_FRect listContainerOuterRect = {renderX, renderY, var.width, var.height};
                 if (listBorderWidth > 0.0f) // 테두리 두께가 0보다 클 때만 그림
                 {
                     SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b, listBorderColor.a);
                     Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
                 }
-
+                
                 // 2. Draw List Container Background (inside the border)
                 SDL_FRect listContainerInnerRect = {
-                    var.x + listBorderWidth,
-                    var.y + listBorderWidth,
+                    renderX + listBorderWidth,
+                    renderY + listBorderWidth,
                     max(0.0f, var.width - (2 * listBorderWidth)),
                     max(0.0f, var.height - (2 * listBorderWidth))};
                 float innerRadius = max(0.0f, listCornerRadius - listBorderWidth); // 내부 둥근 모서리 반지름
@@ -2253,8 +2271,8 @@ void Engine::drawHUD()
                 if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT)
                 { // 핸들을 그릴 충분한 공간이 있는지 확인
                     SDL_FRect resizeHandleRect = {
-                        var.x + var.width - LIST_RESIZE_HANDLE_SIZE,
-                        var.y + var.height - LIST_RESIZE_HANDLE_SIZE,
+                        renderX + var.width - LIST_RESIZE_HANDLE_SIZE, // renderX 기준
+                        renderY + var.height - LIST_RESIZE_HANDLE_SIZE, // renderY 기준
                         LIST_RESIZE_HANDLE_SIZE,
                         LIST_RESIZE_HANDLE_SIZE};
                     SDL_SetRenderDrawColor(renderer, listRowNumberColor.r, listRowNumberColor.g, listRowNumberColor.b, 255); // 핸들 색상
@@ -2336,19 +2354,19 @@ void Engine::drawHUD()
             // 이 변수 항목 상자의 높이
             var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
             float singleBoxHeight = itemHeight + 2 * itemPadding;
-
+            
             // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
             // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
-            SDL_FRect outerContainerRect = {var.x, var.y, currentItemContainerWidth, singleBoxHeight};
+            SDL_FRect outerContainerRect = {renderX, renderY, currentItemContainerWidth, singleBoxHeight};
             if (containerBorderWidth > 0.0f)
-            { // 테두리 그리기
+            { 
                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
             }
             // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
             SDL_FRect fillContainerRect = {
-                var.x + containerBorderWidth, // 테두리 두께만큼 안쪽으로
-                var.y + containerBorderWidth,
+                renderX + containerBorderWidth, // 테두리 두께만큼 안쪽으로
+                renderY + containerBorderWidth,
                 max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
                 max(0.0f, singleBoxHeight - (2 * containerBorderWidth))};
             float fillRadius = max(0.0f, containerCornerRadius - containerBorderWidth);
@@ -2570,9 +2588,12 @@ void Engine::processInput(const SDL_Event &event)
                 float singleBoxHeight = itemHeight + 2 * itemPadding;
                 float containerBorderWidth = 1.0f;    // drawHUD와 일치
                 float minContainerFixedWidth = 80.0f; // Matches drawHUD
-                int windowW_render = 0;
-                if (renderer)
-                    SDL_GetRenderOutputSize(renderer, &windowW_render, nullptr);
+                int windowW_render = 0, windowH_render = 0;
+                if (renderer) {
+                    SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+                }
+                float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
+                float screenCenterY = static_cast<float>(windowH_render) / 2.0f;
 
                 for (int i = 0; i < m_HUDVariables.size(); ++i)
                 {
@@ -2584,16 +2605,20 @@ void Engine::processInput(const SDL_Event &event)
                     float itemActualWidthForHitTest;
                     float itemActualHeightForHitTest; // 충돌 검사를 위한 실제 아이템 너비/높이
 
+                    // 엔트리 좌표를 스크린 좌표로 변환
+                    float itemScreenX = screenCenterX + var_item.x;
+                    float itemScreenY = screenCenterY - var_item.y;
+
                     if (var_item.variableType == "list" && var_item.width > 0)
                     {
                         itemActualWidthForHitTest = var_item.width;
                         itemActualHeightForHitTest = var_item.height;
-                        varRect = {var_item.x, var_item.y, itemActualWidthForHitTest, itemActualHeightForHitTest};
+                        varRect = {itemScreenX, itemScreenY, itemActualWidthForHitTest, itemActualHeightForHitTest};
 
                         // 리스트의 리사이즈 핸들 클릭 확인
                         SDL_FRect resizeHandleRect = {
-                            var_item.x + var_item.width - LIST_RESIZE_HANDLE_SIZE,
-                            var_item.y + var_item.height - LIST_RESIZE_HANDLE_SIZE,
+                            itemScreenX + var_item.width - LIST_RESIZE_HANDLE_SIZE,
+                            itemScreenY + var_item.height - LIST_RESIZE_HANDLE_SIZE,
                             LIST_RESIZE_HANDLE_SIZE,
                             LIST_RESIZE_HANDLE_SIZE};
 
@@ -2602,9 +2627,9 @@ void Engine::processInput(const SDL_Event &event)
                         {
                             m_draggedHUDVariableIndex = i;
                             m_currentHUDDragState = HUDDragState::RESIZING;
-                            // 리사이즈 시 오프셋은 현재 마우스 위치에서 HUD의 우하단 모서리까지의 거리로 설정
-                            m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - (var_item.x + var_item.width);
-                            m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - (var_item.y + var_item.height);
+                            // 오프셋: 마우스 스크린 위치 - (아이템 스크린 우하단 모서리)
+                            m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - (itemScreenX + var_item.width);
+                            m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - (itemScreenY + var_item.height);
                             uiClicked = true;
                             EngineStdOut("Started resizing HUD list: " + var_item.name, 0); // HUD 리스트 크기 조절 시작
                             break;
@@ -2620,7 +2645,7 @@ void Engine::processInput(const SDL_Event &event)
                             itemActualWidthForHitTest = minContainerFixedWidth;
                         }
                         itemActualHeightForHitTest = singleBoxHeight;
-                        varRect = {var_item.x, var_item.y, itemActualWidthForHitTest, itemActualHeightForHitTest};
+                        varRect = {itemScreenX, itemScreenY, itemActualWidthForHitTest, itemActualHeightForHitTest};
                     }
 
                     // 일반 이동을 위한 클릭 확인 (리사이즈 핸들이 아닐 경우)
@@ -2630,8 +2655,8 @@ void Engine::processInput(const SDL_Event &event)
                     {
                         m_draggedHUDVariableIndex = i;
                         m_currentHUDDragState = HUDDragState::MOVING;
-                        m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - var_item.x;
-                        m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - var_item.y;
+                        m_draggedHUDVariableMouseOffsetX = static_cast<float>(mouseX) - itemScreenX; // 마우스 스크린 위치 - 아이템 스크린 좌상단 X
+                        m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - itemScreenY; // 마우스 스크린 위치 - 아이템 스크린 좌상단 Y
                         uiClicked = true;
                         EngineStdOut("Started dragging HUD variable: " + var_item.name + " (Type: " + var_item.variableType + ")", 0); // HUD 변수 드래그 시작
                         break;
@@ -2786,14 +2811,19 @@ void Engine::processInput(const SDL_Event &event)
             int mouseX = event.motion.x;
             int mouseY = event.motion.y;
             int windowW = 0, windowH = 0;
-            if (renderer)
+            if (renderer) {
                 SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+            }
+            float screenCenterX = static_cast<float>(windowW) / 2.0f;
+            float screenCenterY = static_cast<float>(windowH) / 2.0f;
 
             if (m_currentHUDDragState == HUDDragState::MOVING)
             { // 이동 상태
-                float newX = static_cast<float>(mouseX) - m_draggedHUDVariableMouseOffsetX;
-                float newY = static_cast<float>(mouseY) - m_draggedHUDVariableMouseOffsetY;
+                // 새 스크린 좌표 계산
+                float newScreenX = static_cast<float>(mouseX) - m_draggedHUDVariableMouseOffsetX;
+                float newScreenY = static_cast<float>(mouseY) - m_draggedHUDVariableMouseOffsetY;
 
+                // 아이템 크기 가져오기 (클램핑용)
                 float draggedItemWidth = 0.0f;
                 float draggedItemHeight = 0.0f;
 
@@ -2815,40 +2845,46 @@ void Engine::processInput(const SDL_Event &event)
                 if (draggedItemHeight <= 0)
                     draggedItemHeight = 28.0f;
 
+                // 스크린 좌표계에서 클램핑
+                float clampedNewScreenX = newScreenX;
+                float clampedNewScreenY = newScreenY;
                 if (windowW > 0 && draggedItemWidth > 0)
                 { // 창 경계 내로 위치 제한
-                    draggedVar.x = clamp(newX, 0.0f, static_cast<float>(windowW) - draggedItemWidth);
-                }
-                else
-                {
-                    draggedVar.x = newX;
+                    clampedNewScreenX = clamp(newScreenX, 0.0f, static_cast<float>(windowW) - draggedItemWidth);
                 }
                 if (windowH > 0 && draggedItemHeight > 0)
                 {
-                    draggedVar.y = clamp(newY, 0.0f, static_cast<float>(windowH) - draggedItemHeight);
+                    clampedNewScreenY = clamp(newScreenY, 0.0f, static_cast<float>(windowH) - draggedItemHeight);
                 }
-                else
-                {
-                    draggedVar.y = newY;
-                }
+
+                // 클램핑된 스크린 좌표를 엔트리 좌표로 변환하여 저장
+                draggedVar.x = clampedNewScreenX - screenCenterX;
+                draggedVar.y = screenCenterY - clampedNewScreenY;
             }
             else if (m_currentHUDDragState == HUDDragState::RESIZING && draggedVar.variableType == "list")
             { // 크기 조절 상태 (리스트만 해당)
-                // 리사이즈 로직: m_draggedHUDVariableMouseOffset은 (마우스 - 우하단 모서리)의 오프셋
-                float newWidth = static_cast<float>(mouseX) - draggedVar.x - m_draggedHUDVariableMouseOffsetX;
-                float newHeight = static_cast<float>(mouseY) - draggedVar.y - m_draggedHUDVariableMouseOffsetY;
+                // draggedVar.x, draggedVar.y는 엔트리 좌표. 이를 스크린 좌상단 좌표로 변환.
+                float itemScreenX = screenCenterX + draggedVar.x;
+                float itemScreenY = screenCenterY - draggedVar.y;
+
+                // m_draggedHUDVariableMouseOffset은 (마우스 스크린 위치 - 아이템 스크린 우하단 모서리)의 오프셋
+                // 새 너비/높이는 (현재 마우스 스크린 위치 - 아이템 스크린 좌상단 위치 - 오프셋)
+                float newWidth = static_cast<float>(mouseX) - itemScreenX - m_draggedHUDVariableMouseOffsetX;
+                float newHeight = static_cast<float>(mouseY) - itemScreenY - m_draggedHUDVariableMouseOffsetY;
 
                 draggedVar.width = max(MIN_LIST_WIDTH, newWidth);
                 draggedVar.height = max(MIN_LIST_HEIGHT, newHeight);
 
                 // 창 경계를 넘어가지 않도록 추가 클램핑
+                // 너비는 (창 너비 - 아이템의 스크린 X 시작 위치)를 넘을 수 없음
                 if (windowW > 0)
                 {
-                    draggedVar.width = min(draggedVar.width, static_cast<float>(windowW) - draggedVar.x);
+                    draggedVar.width = min(draggedVar.width, static_cast<float>(windowW) - itemScreenX);
                 }
+                // 높이는 (창 높이 - 아이템의 스크린 Y 시작 위치)를 넘을 수 없음
                 if (windowH > 0)
                 {
-                    draggedVar.height = min(draggedVar.height, static_cast<float>(windowH) - draggedVar.y);
+                    draggedVar.height = min(draggedVar.height, static_cast<float>(windowH) - itemScreenY);
                 }
             }
         }

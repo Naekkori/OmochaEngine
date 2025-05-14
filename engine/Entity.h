@@ -34,6 +34,17 @@ public:
         RIGHT
     };
 
+    // move_xy_time 블록과 같이 시간이 걸리는 이동을 위한 상태 저장 구조체
+    struct TimedMoveState {
+        bool isActive = false;      // 현재 이 timed move가 활성 상태인지 여부
+        double targetX = 0.0;       // 목표 X 좌표
+        double targetY = 0.0;       // 목표 Y 좌표
+        double totalFrames = 0.0;   // 총 이동에 필요한 프레임 수
+        double remainingFrames = 0.0; // 남은 프레임 수
+        // 초기 위치 (dX, dY 계산 시 매 프레임 현재 위치 대신 사용 가능) - 선택 사항
+        // double startX = 0.0;
+        // double startY = 0.0;
+    };
     struct PenState {
         Engine* pEngine = nullptr; 
         bool stop = false; // true이면 그리기가 중지된 상태, false이면 활성화. JS의 stop과 동일.
@@ -71,6 +82,7 @@ private:
 public: // Made brush and paint public for now for easier access from blocks
     Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
+    TimedMoveState timedMoveState; // timed move 상태 변수 추가
     PenState paint;
 
 public:
