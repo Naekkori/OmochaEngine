@@ -140,40 +140,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     engine.EngineStdOut("Parameter field is not a string or object for " + objectId, 1);
     return OperandValue();
 }
-
-// executeScript 함수는 Entity.cpp로 이동했으므로 여기서 주석 처리 또는 삭제
-/*
-
-void executeScript(Engine &engine, const std::string &objectId, const Script *scriptPtr)
-{
-    if (!scriptPtr)
-    {
-        engine.EngineStdOut("executeScript called with null script pointer for object: " + objectId, 2);
-        return;
-    }
-
-    engine.EngineStdOut("Executing script for object: " + objectId, 0);
-    for (size_t i = 1; i < scriptPtr->blocks.size(); ++i)
-    {
-        const Block &block = scriptPtr->blocks[i];
-        engine.EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + objectId, 0);
-        try
-        {
-            Moving(block.type, engine, objectId, block);
-            Calculator(block.type, engine, objectId, block);
-            Shape(block.type, engine, objectId, block);
-            Sound(block.type, engine, objectId, block);
-            Variable(block.type, engine, objectId, block);
-            Function(block.type, engine, objectId, block);
-        }
-        catch (const std::exception &e)
-        {
-            engine.showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + objectId + "\n" + e.what(), engine.msgBoxIconType.ICON_ERROR);
-            SDL_Quit();
-        }
-    }
-}
-*/
+/* 여기에 있던 excuteBlock 함수는 Entity.cpp 로 이동*/
 /**
  * @brief 움직이기 블럭
  *
@@ -489,6 +456,30 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
             }
+        }
+    }else if (BlockType == "locate_x"){
+        OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (valueX.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("locate_x block for object "+objectId+" is not a number.", 2);
+            return;
+        }
+        double x = valueX.number_val;
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity){
+            entity->setX(x);
+        }
+    }else if(BlockType == "locate_y"){
+        OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (valueY.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("locate_y block for object "+objectId+" is not a number.", 2);
+            return;
+        }
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity){
+            double y = valueY.number_val;
+            entity->setY(y);
         }
     }
 }
