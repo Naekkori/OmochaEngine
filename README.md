@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/maiteil/OmochaEngine/refs/heads/main/app.png" aligh="left" width="50px" height="50px"> OmochaEngine
+# <img src="https://github.com/user-attachments/assets/47b89211-d6d8-4f2b-9732-16a5f95d749c" aligh="left" width="50px" height="50px"> OmochaEngine
 the entryjs cpp porting
 <br>
 [entryjs](https://github.com/entrylabs/entryjs)
