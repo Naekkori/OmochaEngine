@@ -417,7 +417,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             entity->setY(newY);
         }
     }
-    else if (BlockType == "move_xy_time")
+    else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") // 이둘 똑같이 동작하는걸 확인함 왜 이걸 따로뒀는지 이해안감
     {
         Entity *entity = engine.getEntityById(objectId);
         if (!entity) {
@@ -454,8 +454,6 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             state.totalFrames = max(1.0, floor(timeValue * fps));
             state.remainingFrames = state.totalFrames;
             state.isActive = true;
-            // state.startX = entity->getX(); // 필요시 초기 위치 저장
-            // state.startY = entity->getY();
 
             engine.EngineStdOut("move_xy_time: " + objectId + " starting. Target: (" +
                                 std::to_string(state.targetX) + ", " + std::to_string(state.targetY) +
@@ -538,26 +536,6 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         if (entity){
             entity->setX(x);
             entity->setY(y);
-        }
-    }else if (BlockType == "locate_xy_time"){
-        //이것은 프레임단위 로 움직이는것이 아님
-        OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
-        OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[1]);
-        OperandValue valueTime = getOperandValue(engine, objectId, block.paramsJson[2]);
-        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER || valueTime.type != OperandValue::Type::NUMBER){
-            engine.EngineStdOut("locate_xy_time block for object "+objectId+" is not a number.", 2);
-            return;
-        }
-        double x = valueX.number_val;
-        double y = valueY.number_val;
-        double time = valueTime.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity){
-            entity->setX(x);
-            entity->setY(y);
-            entity->paint.updatePositionAndDraw(x, y);
-            entity->brush.updatePositionAndDraw(x, y);
-            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(time*1000)));
         }
     }
 }

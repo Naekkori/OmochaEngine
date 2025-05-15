@@ -114,7 +114,26 @@ void Entity::setRegY(double newRegY) { regY = newRegY; }
 void Entity::setScaleX(double newScaleX) { scaleX = newScaleX; }
 void Entity::setScaleY(double newScaleY) { scaleY = newScaleY; }
 void Entity::setRotation(double newRotation) { rotation = newRotation; }
-void Entity::setDirection(double newDirection) { direction = newDirection; }
+void Entity::setDirection(double newDirection) {
+    // 방향 업데이트
+    direction = newDirection;
+
+    // 회전 방식에 따른 스프라이트 반전 처리
+    if (rotateMethod == RotationMethod::HORIZONTAL) {
+        // direction이 0~180 (오른쪽)이면 scaleX를 양수로, 180~360 (왼쪽)이면 음수로 설정
+        scaleX = (direction < 180) ? std::abs(scaleX) : -std::abs(scaleX);
+    } else if (rotateMethod == RotationMethod::VERTICAL || rotateMethod == RotationMethod::FREE) {
+        // direction이 90~270 (아래쪽)이면 scaleY를 음수로, 그 외 (위쪽)이면 양수로 설정
+        // 0도: 위쪽, 90도: 오른쪽, 180도: 아래쪽, 270도: 왼쪽
+        if (direction >= 90 && direction < 270) {
+            scaleY = -std::abs(scaleY);
+        } else {
+            scaleY = std::abs(scaleY);
+        }
+    }
+    // RotationMethod::FREE 또는 NONE의 경우는 여기서 처리하지 않음
+    // (FREE는 회전각으로 처리, NONE은 반전 없음)
+}
 void Entity::setWidth(double newWidth) { width = newWidth; }
 void Entity::setHeight(double newHeight) { height = newHeight; }
 void Entity::setVisible(bool newVisible) { visible = newVisible; }
