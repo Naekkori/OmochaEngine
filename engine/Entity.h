@@ -33,7 +33,16 @@ public:
         LEFT,
         RIGHT
     };
-
+    struct TimedMoveToObjectState {
+        bool isActive = false;
+        std::string targetObjectId; // 이동 목표 Entity ID
+        double totalFrames = 0;
+        double remainingFrames = 0;
+        // 시작 위치는 매 프레임 계산하므로 저장하지 않음
+        // 목표 위치는 매 프레임 얻어오므로 저장하지 않음
+        // (이전 TimedMoveState와 달리 대상이 동적으로 움직일 수 있음)
+    };
+    
     // move_xy_time 블록과 같이 시간이 걸리는 이동을 위한 상태 저장 구조체
     struct TimedMoveState {
         bool isActive = false;      // 현재 이 timed move가 활성 상태인지 여부
@@ -83,6 +92,7 @@ public: // Made brush and paint public for now for easier access from blocks
     Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
     TimedMoveState timedMoveState; // timed move 상태 변수 추가
+    TimedMoveToObjectState timedMoveObjState;
     PenState paint;
 
 public:

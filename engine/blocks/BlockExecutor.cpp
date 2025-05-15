@@ -455,10 +455,6 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             state.remainingFrames = state.totalFrames;
             state.isActive = true;
 
-            engine.EngineStdOut("move_xy_time: " + objectId + " starting. Target: (" +
-                                std::to_string(state.targetX) + ", " + std::to_string(state.targetY) +
-                                ") over " + std::to_string(state.totalFrames) + " frames (Time: " + std::to_string(timeValue) +"s).", 0);
-
             // 1 프레임 이동이면 즉시 처리
             if (state.remainingFrames <= 1.0 && state.totalFrames <=1.0) { // totalFrames도 확인
                 entity->setX(state.targetX);
@@ -495,8 +491,6 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->setX(state.targetX); // 최종 위치로 정확히 이동
                 entity->setY(state.targetY);
                 state.isActive = false; // 이동 완료
-                engine.EngineStdOut("move_xy_time: " + objectId + " completed. Final Pos: (" +
-                                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")", 0);
             }
         }
     }else if (BlockType == "locate_x"){
@@ -537,6 +531,161 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             entity->setX(x);
             entity->setY(y);
         }
+    }else if (BlockType == "locate"){
+        //이것은 마우스커서 나 오브젝트를 따라갑니다.
+        OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (target.type != OperandValue::Type::STRING)
+        {
+           engine.EngineStdOut("locate block for object "+objectId+" is not a string.", 2);
+            return;
+        }
+        if(target.string_val=="mouse"){
+            if(engine.isMouseCurrentlyOnStage()){
+                Entity *entity = engine.getEntityById(objectId);
+                if(entity){
+                    entity->setX(static_cast<double>(engine.getCurrentStageMouseX()));
+                    entity->setY(static_cast<double>(engine.getCurrentStageMouseY()));
+                }
+            }
+        }else{
+            Entity *targetEntity = engine.getEntityById(target.string_val);
+            Entity *entity = engine.getEntityById(objectId);
+            if(targetEntity){
+                entity->setX(engine.getEntityById(target.string_val)->getX());
+                entity->setY(engine.getEntityById(target.string_val)->getY());
+            }
+        }
+    }else if (BlockType=="locate_object_time"){
+        // locate_object_time 구현
+        Entity *entity = engine.getEntityById(objectId);
+        if (!entity) {
+            engine.EngineStdOut("locate_object_time: Entity " + objectId + " not found.", 2);
+            return;
+        }
+
+        Entity::TimedMoveToObjectState& state = entity->timedMoveObjState;
+
+        if (!state.isActive) { // 블록 처음 실행 시 초기화
+            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // time, target 필요
+                engine.EngineStdOut("locate_object_time block for " + objectId + " is missing parameters. Expected TIME, TARGET_OBJECT_ID.", 2);
+                // state.isActive는 false로 유지됩니다.
+                return;
+            }
+
+            OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+            OperandValue targetOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+
+            if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING) {
+                engine.EngineStdOut("locate_object_time block for " + objectId + " has invalid parameters. Time should be number, target should be string.", 2);
+                // state.isActive는 false로 유지됩니다.
+                return;
+            }
+
+            double timeValue = timeOp.asNumber();
+            state.targetObjectId = targetOp.asString();
+            // 목표 엔티티 유효성 검사는 매 프레임 진행
+
+            const double fps = static_cast<double>(engine.getTargetFps());
+            state.totalFrames = max(1.0, floor(timeValue * fps));
+            state.remainingFrames = state.totalFrames;
+            state.isActive = true;
+
+            // 시간이 0 또는 1프레임 이동이면 즉시 이동하고 완료합니다.
+            if (state.totalFrames <= 1.0) {
+                Entity* targetEntity = engine.getEntityById(state.targetObjectId);
+                if (targetEntity) {
+                    entity->setX(targetEntity->getX());
+                    entity->setY(targetEntity->getY());
+                    if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+                    if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                } else {
+                    engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " not found for " + objectId + ".", 2);
+                }
+                state.isActive = false; // 이동 완료, 이 틱에서 블록 실행 완료.
+                return;
+            }
+        }
+
+        // state.isActive가 true (이동 진행 중)이고 남은 프레임이 있을 경우 매 프레임 실행됩니다.
+        if (state.isActive && state.remainingFrames > 0) {
+            Entity* targetEntity = engine.getEntityById(state.targetObjectId);
+            if (!targetEntity) {
+                engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " disappeared mid-move for " + objectId + ".", 2);
+                state.isActive = false;
+                return;
+            }
+
+            // 목표 위치를 매 프레임 얻어옵니다.
+            double targetX = targetEntity->getX();
+            double targetY = targetEntity->getY();
+
+            double currentX = entity->getX();
+            double currentY = entity->getY();
+
+            // 남은 프레임 동안의 이동 거리를 균등하게 분배하여 이동합니다.
+            double dX = (targetX - currentX) / state.remainingFrames;
+            double dY = (targetY - currentY) / state.remainingFrames;
+
+            double newX = currentX + dX;
+            double newY = currentY + dY;
+
+            entity->setX(newX);
+            entity->setY(newY);
+
+            if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+            if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+
+            state.remainingFrames--;
+
+            if (state.remainingFrames <= 0) {
+                // 목표 위치로 정확히 이동시키고, 이동을 완료합니다.
+                entity->setX(targetX);
+                entity->setY(targetY);
+                if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+                if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                state.isActive = false;
+            }
+        }
+    }
+    else if (BlockType == "locate"){
+        //이것은 마우스커서 나 오브젝트를 따라갑니다.
+        OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (target.type != OperandValue::Type::STRING)
+        {
+           engine.EngineStdOut("locate block for object "+objectId+" is not a string.", 2);
+            return;
+        }
+        if(target.string_val=="mouse"){
+            if(engine.isMouseCurrentlyOnStage()){
+                Entity *entity = engine.getEntityById(objectId);
+                if(entity){
+                    entity->setX(static_cast<double>(engine.getCurrentStageMouseX()));
+                    entity->setY(static_cast<double>(engine.getCurrentStageMouseY()));
+                }
+            }
+        }else{
+            Entity *targetEntity = engine.getEntityById(target.string_val);
+            Entity *entity = engine.getEntityById(objectId);
+            if(targetEntity){
+                entity->setX(engine.getEntityById(target.string_val)->getX());
+                entity->setY(engine.getEntityById(target.string_val)->getY());
+            }
+        }
+    }else if (BlockType=="locate_object_time"){
+        OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        Entity::TimedMoveState state;
+        double timeValue = timeOp.asNumber();
+        if (!state.isActive)
+        {
+            if (timeOp.type != OperandValue::Type::NUMBER)
+            {
+                engine.EngineStdOut("locate_object_time block for object " + objectId + " has non-number parameters. Time: " + timeOp.asString(), 2);
+                state.isActive=false;
+                return;
+            }
+            
+        }
+        
     }
 }
 /**

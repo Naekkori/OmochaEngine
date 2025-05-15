@@ -45,7 +45,7 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
     x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
     scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
     width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
-    brush(engine), paint(engine) // Initialize PenState members
+    brush(engine), paint(engine),timedMoveObjState() // Initialize PenState members
 {
 }
 
@@ -191,7 +191,6 @@ Entity::CollisionSide Entity::getLastCollisionSide() const {
 void Entity::setLastCollisionSide(CollisionSide side) {
     lastCollisionSide = side;
 }
-
 // processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
 // 간결성을 위해 전체 구현은 생략합니다. BlockExecutor.cpp의 내용을 참고하세요.
 // -> 이 주석은 이제 유효하지 않습니다. 해당 함수들은 BlockExecutor.cpp에 있습니다.
