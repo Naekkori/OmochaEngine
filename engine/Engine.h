@@ -259,6 +259,8 @@ public:
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
+    double getAngle(double x1, double y1, double x2, double y2) const; // 두 점 사이의 각도 계산
+    double getCurrentStageMouseAngle(double entityX, double entityY) const; // Angle to mouse from entity
     const ObjectInfo *getObjectInfoById(const string &id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     // HUD에 표시할 변수 목록을 설정하는 메서드

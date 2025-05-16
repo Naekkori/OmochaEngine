@@ -647,31 +647,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             }
         }
     }
-    else if (BlockType == "locate"){
-        //이것은 마우스커서 나 오브젝트를 따라갑니다.
-        OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0]);
-        if (target.type != OperandValue::Type::STRING)
-        {
-           engine.EngineStdOut("locate block for object "+objectId+" is not a string.", 2);
-            return;
-        }
-        if(target.string_val=="mouse"){
-            if(engine.isMouseCurrentlyOnStage()){
-                Entity *entity = engine.getEntityById(objectId);
-                if(entity){
-                    entity->setX(static_cast<double>(engine.getCurrentStageMouseX()));
-                    entity->setY(static_cast<double>(engine.getCurrentStageMouseY()));
-                }
-            }
-        }else{
-            Entity *targetEntity = engine.getEntityById(target.string_val);
-            Entity *entity = engine.getEntityById(objectId);
-            if(targetEntity){
-                entity->setX(engine.getEntityById(target.string_val)->getX());
-                entity->setY(engine.getEntityById(target.string_val)->getY());
-            }
-        }
-    }else if (BlockType == "rotate_relative"||BlockType == "direction_relative")
+    else if (BlockType == "rotate_relative"||BlockType == "direction_relative")
     {
         OperandValue value = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (value.type != OperandValue::Type::NUMBER)
@@ -745,6 +721,44 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         {
             entity->setDirection(angle.number_val);
         }
+    }else if (BlockType == "see_angle_object"){
+        OperandValue hasmouse = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (hasmouse.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("see_angle_object block for object "+ objectId + "is not a string.",2);
+            return;
+        }
+        if(hasmouse.string_val=="mouse"){
+            if(engine.isMouseCurrentlyOnStage()){
+                Entity *entity = engine.getEntityById(objectId);
+                if(entity){
+                    entity->setRotation(engine.getCurrentStageMouseAngle(entity->getX(), entity->getY()));
+                }
+            }
+         }else{
+            Entity *targetEntity = engine.getEntityById(hasmouse.string_val);
+            Entity *entity = engine.getEntityById(objectId);
+            if(targetEntity){
+                entity->setRotation(engine.getAngle(entity->getX(), entity->getY(), targetEntity->getX(), targetEntity->getY()));
+            }
+         }
+    }else if (BlockType == "move_to_angle"){
+        OperandValue setAngle = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue setDesnitance = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (setAngle.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("move_to_angle block for object "+ objectId + "is not a number.",2);
+            return;
+        }
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            double angle = setAngle.number_val;
+            double distance = setDesnitance.number_val;
+            entity->setX(entity->getX() + distance * cos(angle * SDL_PI_D / 180.0));
+            entity->setY(entity->getY() + distance * sin(angle * SDL_PI_D / 180.0));
+        }
+
     }
     
 }

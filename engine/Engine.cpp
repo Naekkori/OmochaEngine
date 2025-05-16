@@ -3024,6 +3024,67 @@ void Engine::processInput(const SDL_Event &event)
     }
 }
 
+/**
+ * @brief 두 점 (x1, y1)에서 (x2, y2)를 바라보는 각도를 계산합니다.
+ * 각도는 EntryJS/Scratch 좌표계 (0도는 위, 90도는 오른쪽)를 따릅니다.
+ * @param x1 시작점의 X 좌표
+ * @param y1 시작점의 Y 좌표
+ * @param x2 목표점의 X 좌표
+ * @param y2 목표점의 Y 좌표
+ * @return 0-360 범위의 각도 (도)
+ */
+double Engine::getAngle(double x1, double y1, double x2, double y2) const
+{
+    double deltaX = x2 - x1;
+    double deltaY = y2 - y1; // Y축이 위로 향하는 좌표계이므로 그대로 사용
+
+    double angleRad = atan2(deltaY, deltaX);           // 표준 수학 각도 (라디안, 0도는 오른쪽)
+    double angleDegMath = angleRad * 180.0 / PI_VALUE; // 표준 수학 각도 (도)
+
+    // EntryJS/Scratch 각도로 변환 (0도는 위쪽, 90도는 오른쪽)
+    double angleDegEntry = 90.0 - angleDegMath;
+
+    // 0-360 범위로 정규화
+    angleDegEntry = fmod(angleDegEntry, 360.0);
+    if (angleDegEntry < 0)
+    {
+        angleDegEntry += 360.0;
+    }
+    return angleDegEntry;
+}
+/**
+ * @brief Calculates the angle in degrees from a given point (entityX, entityY) to the current stage mouse position.
+ * The angle is compatible with EntryJS/Scratch coordinate system (0 degrees is up, 90 degrees is right).
+ * @param entityX The X coordinate of the entity (origin point).
+ * @param entityY The Y coordinate of the entity (origin point).
+ * @return The angle in degrees (0-360). Returns 0 if the mouse is not on stage.
+ */
+double Engine::getCurrentStageMouseAngle(double entityX, double entityY) const
+{
+    if (!m_isMouseOnStage)
+    {
+        // Or return a specific value indicating mouse is not on stage,
+        // but current usage in BlockExecutor already checks m_isMouseOnStage.
+        // Returning 0 or current entity rotation might be alternatives if needed elsewhere.
+        return 0.0; // Default if mouse is not on stage
+    }
+
+    double deltaX = m_currentStageMouseX - entityX;
+    double deltaY = m_currentStageMouseY - entityY; // Y-up system, so this is correct
+
+    double angleRad = atan2(deltaY, deltaX);
+    double angleDegMath = angleRad * 180.0 / PI_VALUE; // 0 is right, 90 is up
+    double angleDegEntry = 90.0 - angleDegMath;        // Convert to 0 is up, 90 is right
+
+    // Normalize to 0-360 range
+    angleDegEntry = fmod(angleDegEntry, 360.0);
+    if (angleDegEntry < 0)
+    {
+        angleDegEntry += 360.0;
+    }
+    return angleDegEntry;
+}
+
 void Engine::setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables)
 {
     m_HUDVariables = variables;
