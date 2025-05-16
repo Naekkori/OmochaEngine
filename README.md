@@ -129,10 +129,10 @@ OmochaEngine v1.0.0 by Maiteil
 -   [x] **`locate_xy`**: x: (숫자) y: (숫자) 위치로 이동하기
 -   [x] **`locate`**: (오브젝트 또는 마우스 포인터) 위치로 이동하기
 -   [x] **`locate_object_time`**: (시간)초 동안 (오브젝트 또는 마우스 포인터) 위치로 이동하기
+-   [x] **`rotate_relative`**: (각도) 만큼 회전하기
+-   [x] **`direction_relative`**: 이동 방향을 (각도) 만큼 회전하기 (같은코드)
+-   [x] **`rotate_by_time`**: (시간)초 동안 (각도) 만큼 회전하기
 ### 미구현
--   [ ] **`rotate_relative`**: (각도) 만큼 회전하기
--   [ ] **`direction_relative`**: 이동 방향을 (각도) 만큼 회전하기
--   [ ] **`rotate_by_time`**: (시간)초 동안 (각도) 만큼 회전하기
 -   [ ] **`direction_relative_duration`**: (시간)초 동안 이동 방향을 (각도) 만큼 회전하기
 -   [ ] **`rotate_absolute`**: 회전 각도를 (각도)(으)로 정하기
 -   [ ] **`direction_absolute`**: 이동 방향을 (각도)(으)로 정하기

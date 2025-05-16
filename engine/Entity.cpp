@@ -4,14 +4,14 @@
 #include <cmath>
 #include <stdexcept>
 #include "Engine.h"
-#include "blocks/BlockExecutor.h" // OperandValue 및 Moving, Calculator 등 블록 처리 함수 선언 포함
+#include "blocks/BlockExecutor.h"
 
 Entity::PenState::PenState(Engine* enginePtr) 
     : pEngine(enginePtr), 
       stop(false),      // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
-      isPenDown(false), // Default to pen up
-      lastStagePosition{0.0f, 0.0f}, // Initial position using initializer list
-      color{0, 0, 0, 255}          // Default color (black) using initializer list
+      isPenDown(false),
+      lastStagePosition{0.0f, 0.0f},
+      color{0, 0, 0, 255}
 {
 }
 
@@ -24,17 +24,14 @@ void Entity::PenState::setPenDown(bool down, float currentStageX, float currentS
 
 void Entity::PenState::updatePositionAndDraw(float newStageX, float newStageY) {
     if (!stop && isPenDown && pEngine) { // 그리기 조건: 중지되지 않았고(!stop) 펜이 내려져 있을 때
-        // Target Y for lineTo is inverted from current stage Y, as per JS: sprite.getY() * -1
         SDL_FPoint targetStagePosJSStyle = {newStageX, newStageY * -1.0f};
         pEngine->engineDrawLineOnStage(lastStagePosition, targetStagePosJSStyle, color, 1.0f);
     }
-    // Always update last position for the next potential draw segment
     lastStagePosition = {newStageX, newStageY};
 }
 
 void Entity::PenState::reset(float currentStageX, float currentStageY) {
     lastStagePosition = {currentStageX, currentStageY};
-    // isPenDown and stop 상태는 그대로 유지, reset은 새 선 그리기를 위한 위치 추적만 재설정합니다.
 }
 
 Entity::Entity(Engine* engine, const std::string& entityId, const std::string& entityName,
@@ -43,9 +40,9 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
     double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
     : pEngineInstance(engine), id(entityId), name(entityName),
     x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
-    scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
+    scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction), // timedRotationState 추가
     width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
-    brush(engine), paint(engine),timedMoveObjState() // Initialize PenState members
+    brush(engine), paint(engine),timedMoveObjState(), timedRotationState() // Initialize PenState members
 {
 }
 

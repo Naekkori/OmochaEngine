@@ -3,7 +3,10 @@
 
 #include <string>
 #include "Block.h"
-#include <rapidjson/document.h> // For rapidjson::Value
+#include <rapidjson/document.h> 
+#include <rapidjson/stringbuffer.h> 
+#include <rapidjson/writer.h> 
+
 
 // 전방 선언 (순환 참조 방지)
 class Engine;

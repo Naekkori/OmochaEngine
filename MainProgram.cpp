@@ -251,9 +251,8 @@ int main(int argc, char *argv[])
                 engine.EngineStdOut("Image loading process completed successfully.", 0);
             }
             engine.renderLoadingScreen();
-
             engine.EngineStdOut("Entering game loop.", 0);
-
+            engine.runStartButtonScripts();
             bool quit = false;
             SDL_Event event;
             Uint64 loopStartTime = 0;

@@ -80,10 +80,10 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
 {
     if (paramField.IsString())
     {
-        return OperandValue(paramField.GetString());
-    }
-
-    if (paramField.IsObject())
+        std::string str_val_for_op = paramField.GetString();
+        OperandValue temp_op_val(str_val_for_op);
+        return temp_op_val;
+    }else if (paramField.IsObject())
     {
         if (!paramField.HasMember("type") || !paramField["type"].IsString())
         {
@@ -671,22 +671,58 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->setY(engine.getEntityById(target.string_val)->getY());
             }
         }
-    }else if (BlockType=="locate_object_time"){
-        OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
-        Entity::TimedMoveState state;
-        double timeValue = timeOp.asNumber();
-        if (!state.isActive)
+    }else if (BlockType == "rotate_relative"||BlockType == "direction_relative")
+    {
+        OperandValue value = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (value.type != OperandValue::Type::NUMBER)
         {
-            if (timeOp.type != OperandValue::Type::NUMBER)
-            {
-                engine.EngineStdOut("locate_object_time block for object " + objectId + " has non-number parameters. Time: " + timeOp.asString(), 2);
-                state.isActive=false;
-                return;
-            }
-            
+            engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2);
+            return;
         }
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            entity->setDirection(value.number_val + entity->getDirection());
+        }
+    }else if (BlockType == "rotate_by_time")
+    {
+        OperandValue timeValue = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (timeValue.type != OperandValue::Type::NUMBER || angleValue.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("rotate_by_time block for object " + objectId + " has non-number parameters.", 2);
+            return;
+        }
+        double time = timeValue.number_val;
+        double angle = angleValue.number_val;
         
+        Entity *entity = engine.getEntityById(objectId);
+        if (!entity) {
+            engine.EngineStdOut("rotate_by_time: Entity " + objectId + " not found.", 2);
+            return;
+        }
+
+        Entity::TimedRotationState& state = entity->timedRotationState;
+
+        if (!state.isActive) {
+            const double fps = static_cast<double>(engine.getTargetFps());
+            state.totalFrames = max(1.0, floor(time * fps)); 
+            state.remainingFrames = state.totalFrames;
+            state.dAngle = angle / state.totalFrames; 
+            state.isActive = true;
+        }
+
+        if (state.isActive && state.remainingFrames > 0) {
+            entity->setRotation(entity->getRotation() + state.dAngle);
+            state.remainingFrames--;
+
+            if (state.remainingFrames <= 0) {
+                state.isActive = false;
+            }
+        }
+
     }
+    
 }
 /**
  * @brief 계산 블록
@@ -1619,31 +1655,32 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     }
     else if (BlockType == "set_visible_project_timer")
     {
-        // paramsKeyMap: { ACTION: 0 } (가정)
-        // 드롭다운 값 ("SHOW" 또는 "HIDE")은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
-        {
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has invalid or missing action parameter.", 2);
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0) {
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has missing or invalid params array. Defaulting to HIDE.", 2);
+            engine.showProjectTimer(false); // Default action
             return OperandValue();
         }
+        OperandValue actionValue = getOperandValue(engine, objectId, block.paramsJson[0]);
 
-        std::string actionValue = block.paramsJson[0].GetString();
+        if (actionValue.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("set_visible_project_timer parameter for object " + objectId + " did not resolve to a string. Interpreted as: '" + actionValue.string_val + "'", 1);
+        }
 
-        if (actionValue == "SHOW")
+        if (actionValue.string_val == "SHOW")
         {
             engine.EngineStdOut("Project timer set to VISIBLE by object " + objectId, 0);
             engine.showProjectTimer(true);
         }
-        else if (actionValue == "HIDE")
-        { // 엔트리에서는 "HIDE" 또는 다른 값을 사용할 수 있습니다. "SHOW"가 아니면 숨김으로 처리.
+        else if (actionValue.string_val == "HIDE")
+        {
             engine.EngineStdOut("Project timer set to HIDDEN by object " + objectId, 0);
             engine.showProjectTimer(false);
         }
         else
         {
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown action value: " + actionValue, 1);
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown or non-string action value: '" + actionValue.string_val + "'. Defaulting to HIDE.", 1);
             // 기본적으로 숨김 처리 또는 아무것도 안 함
-            // engine.showProjectTimer(false);
         }
         return OperandValue();
     }else if(BlockType == "get_user_name"){

@@ -876,7 +876,15 @@ bool Engine::loadProject(const string &projectFilePath)
                                             {
                                                 EngineStdOut("WARN: Script " + blockContext + " (id: " + blockId + ", type: " + blockType + ") has 'params' but it's not an array. Params will be empty. Value: " + RapidJsonValueToString(blockJson["params"]), 1);
                                             }
-
+                                            block.FilterNullsInParamsJsonArray();
+                                            // DEBUG LOG: FilterNullsInParamsJsonArray 호출 후 paramsJson 상태 확인
+                                            if (block.id == "nbjb") { // 특정 블록 ID에 대해서만 로그 출력 (디버깅용)
+                                                rapidjson::StringBuffer buffer;
+                                                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                                                block.paramsJson.Accept(writer);
+                                                EngineStdOut("DEBUG: paramsJson for block " + block.id + " after FilterNulls: " + std::string(buffer.GetString()), 3);
+                                            }
+                                            // END DEBUG LOG
                                             currentScript.blocks.push_back(block);
                                             EngineStdOut("    Parsed block: id='" + block.id + "', type='" + block.type + "'", 0);
                                         }
@@ -3119,7 +3127,6 @@ void Engine::runStartButtonScripts()
             EngineStdOut(" -> Entity " + objectId + " not found for start button script.", 1);
         }
         m_gameplayInputActive = true;
-        EngineStdOut(" -> executeScript call is commented out. Script for object " + objectId + " was not executed.", 1);
     }
     EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
 }

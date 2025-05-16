@@ -33,6 +33,12 @@ public:
         LEFT,
         RIGHT
     };
+    struct TimedRotationState {
+        bool isActive = false;
+        double totalFrames = 0;
+        double remainingFrames = 0;
+        double dAngle = 0.0; // Delta angle per frame
+    };
     struct TimedMoveToObjectState {
         bool isActive = false;
         std::string targetObjectId; // 이동 목표 Entity ID
@@ -93,6 +99,7 @@ public: // Made brush and paint public for now for easier access from blocks
     PenState brush;
     TimedMoveState timedMoveState; // timed move 상태 변수 추가
     TimedMoveToObjectState timedMoveObjState;
+    TimedRotationState timedRotationState;
     PenState paint;
 
 public:

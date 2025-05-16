@@ -17,13 +17,18 @@ public:
 
     // 복사 생성자
     Block(const Block& other) : id(other.id), type(other.type), statementScripts(other.statementScripts) {
-        // other.paramsJson (Document)이 Null이 아니면, this.paramsJson (Document)으로 복사합니다.
-        // this.paramsJson.GetAllocator()를 사용하여 자체 할당자로 복사합니다.
         if (!other.paramsJson.IsNull()) {
-            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
-        } else {
-            // paramsJson은 기본적으로 Null 상태이므로 별도 처리가 필요 없을 수 있습니다.
-            // 명시적으로 Null로 설정하려면 paramsJson.SetNull();
+            if (other.paramsJson.IsArray()) {
+                paramsJson.SetArray(); 
+                for (const auto& item : other.paramsJson.GetArray()) {
+                    if (!item.IsNull()) { // null이 아닌 항목만 복사
+                        rapidjson::Value itemCopy(item, paramsJson.GetAllocator());
+                        paramsJson.PushBack(itemCopy, paramsJson.GetAllocator());
+                    }
+                }
+            } else {
+                paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
+            }
         }
     }
 
@@ -41,7 +46,15 @@ public:
         type = other.type;
         statementScripts = other.statementScripts;
         if (!other.paramsJson.IsNull()) {
-            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
+            if (other.paramsJson.IsArray()) {
+                paramsJson.SetArray(); // this->paramsJson을 빈 배열로 초기화 (기존 내용 삭제)
+                for (const auto& item : other.paramsJson.GetArray()) {
+                        rapidjson::Value itemCopy(item, paramsJson.GetAllocator());
+                        paramsJson.PushBack(itemCopy, paramsJson.GetAllocator());
+                }
+            } else {
+                paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
+            }
         } else {
             paramsJson.SetNull(); // 원본이 Null이면 대상도 Null로 설정
         }
@@ -58,6 +71,26 @@ public:
     }
 
     void printInfo(int indent = 0) const;
+
+    // paramsJson 배열 내의 null 값을 제거하는 메서드
+    void FilterNullsInParamsJsonArray() {
+        if (paramsJson.IsArray() && !paramsJson.Empty()) {
+            rapidjson::Document filteredDoc;
+            filteredDoc.SetArray();
+            rapidjson::Document::AllocatorType& allocator = filteredDoc.GetAllocator();
+
+            for (const auto& item : paramsJson.GetArray()) {
+                if (!item.IsNull()) {
+                    // null이 아닌 요소만 새 Document에 깊은 복사합니다.
+                    rapidjson::Value itemCopy(item, allocator);
+                    filteredDoc.PushBack(itemCopy, allocator);
+                }
+            }
+            // 기존 paramsJson을 필터링된 Document로 교체합니다.
+            // rapidjson::Document는 MoveAssignable하므로 std::move를 사용합니다.
+            paramsJson = std::move(filteredDoc);
+        }
+    }
 };
 
 struct Script {
