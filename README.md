@@ -132,10 +132,10 @@ OmochaEngine v1.0.0 by Maiteil
 -   [x] **`rotate_relative`**: (각도) 만큼 회전하기
 -   [x] **`direction_relative`**: 이동 방향을 (각도) 만큼 회전하기 (같은코드)
 -   [x] **`rotate_by_time`**: (시간)초 동안 (각도) 만큼 회전하기
+-   [X] **`direction_relative_duration`**: (시간)초 동안 이동 방향을 (각도) 만큼 회전하기 (같은코드)
+-   [x] **`rotate_absolute`**: 회전 각도를 (각도)(으)로 정하기
+-   [x] **`direction_absolute`**: 이동 방향을 (각도)(으)로 정하기
 ### 미구현
--   [ ] **`direction_relative_duration`**: (시간)초 동안 이동 방향을 (각도) 만큼 회전하기
--   [ ] **`rotate_absolute`**: 회전 각도를 (각도)(으)로 정하기
--   [ ] **`direction_absolute`**: 이동 방향을 (각도)(으)로 정하기
 -   [ ] **`see_angle_object`**: (오브젝트 또는 마우스 포인터) 쪽 바라보기
 -   [ ] **`move_to_angle`**: (각도) 방향으로 (숫자) 만큼 이동하기
 

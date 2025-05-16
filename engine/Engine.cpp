@@ -267,9 +267,37 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.showFPS = false;
                 EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
+            if(specialConfigJson.HasMember("maxEntity") && specialConfigJson["maxEntity"].IsNumber())
+            {
+                this->specialConfig.MAX_ENTITY = specialConfigJson["maxEntity"].GetInt();
+            }
+            else
+            {
+                this->specialConfig.MAX_ENTITY = 100;
+            }
         }
         this->zoomFactor = this->specialConfig.setZoomfactor;
     }
+    /**
+     * @brief Helper to get a boolean value from JSON or return a default
+     */
+    auto getJsonBool = [&](const rapidjson::Value& parentValue, const char* fieldName, bool defaultValue, const std::string& contextForLog) {
+        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsBool()) {
+            return parentValue[fieldName].GetBool();
+        }
+        this->EngineStdOut("'" + contextForLog + "." + fieldName + "' field missing or not boolean. Using default: " + (defaultValue ? "true" : "false"), 1);
+        return defaultValue;
+    };
+    /**
+     * @brief Helper to get a double value from JSON, clamp it, or return a default
+     */
+    auto getJsonDoubleClamped = [&](const rapidjson::Value& parentValue, const char* fieldName, double defaultValue, double minVal, double maxVal, const std::string& contextForLog) {
+        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsNumber()) {
+            return std::clamp(parentValue[fieldName].GetDouble(), minVal, maxVal);
+        }
+        this->EngineStdOut("'" + contextForLog + "." + fieldName + "' field missing or not numeric. Using default: " + std::to_string(defaultValue), 1);
+        return defaultValue;
+    };
     /**
      * @brief 전역 변수 (variables) 로드
      */

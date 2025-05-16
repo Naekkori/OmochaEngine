@@ -202,8 +202,7 @@ public:
         bool showZoomSlider = false;    // 줌 슬라이더 UI 표시 여부
         bool showFPS = false;           // FPS 표시 여부
         int TARGET_FPS = 60;
-        //-- Experimal
-        bool useSqlite = false; // 클라우드 변수를 sqlite 에 저장 (네이버 서버에 연결할수 없으니 로컬 db에 저장 false 면 project.json 에 키 저장)
+        int MAX_ENTITY = 100;
         float setZoomfactor = 1.0f;
     };
     SPECIAL_ENGINE_CONFIG specialConfig; // 엔진의 특별 설정을 저장하는 멤버 변수

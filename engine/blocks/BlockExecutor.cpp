@@ -684,7 +684,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         {
             entity->setDirection(value.number_val + entity->getDirection());
         }
-    }else if (BlockType == "rotate_by_time")
+    }else if (BlockType == "rotate_by_time" || BlockType == "direction_relative_duration")
     {
         OperandValue timeValue = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1]);
@@ -721,6 +721,30 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             }
         }
 
+    }else if (BlockType == "rotate_absolute"){
+        OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (angle.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("rotate_absolute block for object " + objectId + " is not a number.", 2);
+            return;
+        }
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            entity->setRotation(angle.number_val);
+        }
+    }else if (BlockType == "direction_absolute"){
+        OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (angle.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("direction_absolute block for object "+ objectId + "is not a number.",2);
+            return;
+        }
+        Entity *entity = engine.getEntityById(objectId);
+        if (entity)
+        {
+            entity->setDirection(angle.number_val);
+        }
     }
     
 }
