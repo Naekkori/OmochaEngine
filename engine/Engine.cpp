@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <memory>
 #include <format>
-#include "Commands.h"
+#include <boost/asio/thread_pool.hpp> // 추가
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
@@ -41,7 +41,7 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
 {
-
+    
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
 }
@@ -103,14 +103,14 @@ Engine::~Engine()
 
     // 1. Stop all entity logic threads first
     EngineStdOut("Stopping all entity logic threads...", 0);
-    for (auto& pair : entities) { // Use reference to access Entity methods
-        if (pair.second) {
-            pair.second->stopLogicThread(); // Ensure this joins the thread
-        }
-    }
+    // for (auto& pair : entities) { // Use reference to access Entity methods
+    //     if (pair.second) {
+    //         pair.second->stopLogicThread(); // Ensure this joins the thread
+    //     }
+    // }
     EngineStdOut("All entity logic threads stopped.", 0);
 
-    // 2. Terminate SDL and other engine systems
+    // 2. Terminate SDL and other engine systems 
     terminateGE(); // Now it's safer to terminate SDL and other resources
 
     // 3. Delete entity objects
@@ -849,8 +849,8 @@ bool Engine::loadProject(const string &projectFilePath)
                 newEntity->paint.reset(initial_x, initial_y);
                 lock_guard<mutex> lock(m_engineDataMutex);
                 entities[objectId] = newEntity;
-                newEntity->startLogicThread();
-                EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
+                // newEntity->startLogicThread();
+                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
             else
             {
@@ -2776,7 +2776,7 @@ void Engine::processInput(const SDL_Event &event)
                                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                     if (isInCurrentScene || isGlobal)
                                     {
-                                        currentEntity->requestScriptExecution(scriptPtr); // 조건 만족 시 스크립트 실행 요청
+                                        currentEntity->executeScript(scriptPtr); // 조건 만족 시 스크립트 실행 요청
                                     }
                                 }
                                 else
@@ -2820,7 +2820,7 @@ void Engine::processInput(const SDL_Event &event)
                                 {
                                     const Script *scriptPtr = clickScriptPair.second;
                                     EngineStdOut("Requesting 'when_object_click' for object: " + entity->getId(), 0);
-                                    entity->requestScriptExecution(scriptPtr);
+                                    entity->executeScript(scriptPtr);
                                 }
                             }
                             break;
@@ -2856,7 +2856,7 @@ void Engine::processInput(const SDL_Event &event)
                     Entity *targetEntity = getEntityById(objectId);
                     if (targetEntity)
                     {
-                        targetEntity->requestScriptExecution(scriptPtr);
+                        targetEntity->executeScript(scriptPtr);
                     }
                     else
                     {
@@ -3011,7 +3011,7 @@ void Engine::processInput(const SDL_Event &event)
                                 bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                 if (isInCurrentScene || isGlobal)
                                 {
-                                    currentEntity->requestScriptExecution(scriptPtr); // 조건 만족 시 스크립트 실행 요청
+                                    currentEntity->executeScript(scriptPtr); // 조건 만족 시 스크립트 실행 요청
                                 }
                             }
                             else
@@ -3019,7 +3019,7 @@ void Engine::processInput(const SDL_Event &event)
                                 EngineStdOut("Warning: ObjectInfo not found for entity ID '" + objectId + "' during mouse_click_canceled event processing. Script not run.", 1);
                             }
                         } else if (!currentEntity) {
-                            currentEntity->requestScriptExecution(scriptPtr);
+                            currentEntity->executeScript(scriptPtr);
                         }
                     }
                 }
@@ -3037,7 +3037,7 @@ void Engine::processInput(const SDL_Event &event)
                             Entity *targetEntity = getEntityById(canceledObjectId);
                             if (targetEntity)
                             {
-                                targetEntity->requestScriptExecution(scriptPtr);
+                                targetEntity->executeScript(scriptPtr);
                             }
                             else
                             {
