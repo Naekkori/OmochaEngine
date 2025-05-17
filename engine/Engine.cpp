@@ -1566,6 +1566,7 @@ void Engine::handleRenderDeviceReset()
 
 bool Engine::loadImages()
 {
+    chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now(); // 이미지 로딩 시작 시간
     EngineStdOut("Starting image loading...", 0); // 이미지 로딩 시작
     totalItemsToLoad = 0;
     loadedItemCount = 0;
@@ -1662,7 +1663,8 @@ bool Engine::loadImages()
     }
 
     EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount), 0);
-
+    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double>>(chrono::steady_clock::now() - startTime);
+    EngineStdOut("Time to load entire image : " + to_string(loadingDuration.count()) + " seconds");
     if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0)
     {
         EngineStdOut("All images failed to load. Cannot continue.", 2); // 모든 이미지 로드 실패
