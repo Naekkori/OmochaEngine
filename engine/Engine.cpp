@@ -264,7 +264,6 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                this->specialConfig.showFPS = false;
                 EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
             if (specialConfigJson.HasMember("maxEntity") && specialConfigJson["maxEntity"].IsNumber())
