@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include "Engine.h"
 #include "blocks/BlockExecutor.h"
-
+#include "blocks/blockTypes.h"
 Entity::PenState::PenState(Engine* enginePtr) 
     : pEngine(enginePtr), 
       stop(false),      // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
@@ -96,9 +96,12 @@ void Entity::executeScript(const Script* scriptPtr)
         }
         catch (const std::exception& e)
         {
-            pEngineInstance->showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + id + "\n" + e.what(), pEngineInstance->msgBoxIconType.ICON_ERROR);
-            // SDL_Quit(); // 여기서 직접 SDL_Quit()을 호출하는 것은 위험할 수 있습니다. 예외를 다시 던지거나 엔진에 알리는 것이 좋습니다.
-            throw; // 또는 에러 플래그 설정
+            
+            //런타임 에러로 대체
+            //pEngineInstance->showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + id + "\n" + e.what(), pEngineInstance->msgBoxIconType.ICON_ERROR);
+            Omocha::BlockTypeEnum blockType = Omocha::stringToBlockTypeEnum(block.type);
+            throw runtime_error("블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ block.id + " 의 타입 " + Omocha::blockTypeEnumToKoreanString(blockType)+ " 에서 사용 하는 객체 " + id + "\n" + e.what());
+            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + Omocha::blockTypeEnumToEnglishString(blockType) + " for object: " + id + "\n" + e.what(),2);
         }
     }
 }
