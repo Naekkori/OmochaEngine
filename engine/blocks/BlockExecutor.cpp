@@ -1716,12 +1716,10 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (actionValue.string_val == "SHOW")
         {
-            engine.EngineStdOut("Project timer set to VISIBLE by object " + objectId, 0);
             engine.showProjectTimer(true);
         }
         else if (actionValue.string_val == "HIDE")
         {
-            engine.EngineStdOut("Project timer set to HIDDEN by object " + objectId, 0);
             engine.showProjectTimer(false);
         }
         else

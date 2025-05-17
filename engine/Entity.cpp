@@ -54,18 +54,22 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
     double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
     double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
     : pEngineInstance(engine), id(entityId), name(entityName),
-    x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
-    scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction), // timedRotationState 추가
-    width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
-    brush(engine), paint(engine),timedMoveObjState(), timedRotationState() // Initialize PenState members
+      x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
+      scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
+      width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
+      brush(engine), paint(engine), timedMoveObjState(), timedRotationState(), m_logicRunning(false) // Initialize PenState members and m_logicRunning
 {
+    // 주의: 생성자에서 startLogicThread()를 호출하면 아직 완전히 생성되지 않은 Engine 객체에 접근할 수 있으므로
+    // Engine에서 Entity 생성 후 별도로 startLogicThread()를 호출하는 것이 안전합니다.
 }
 
 Entity::~Entity() {
+    stopLogicThread(); // Ensure thread is stopped and joined
 }
 
 // OperandValue 구조체 및 블록 처리 함수들은 BlockExecutor.h에 선언되어 있고,
 // BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
+
 
 void Entity::executeScript(const Script* scriptPtr)
 {
@@ -79,11 +83,11 @@ void Entity::executeScript(const Script* scriptPtr)
         return;
     }
 
-    pEngineInstance->EngineStdOut("Executing script for object: " + id, 0);
+    pEngineInstance->EngineStdOut("Executing script for object: " + id, 3);
     for (size_t i = 1; i < scriptPtr->blocks.size(); ++i) // 첫 번째 블록은 이벤트 트리거이므로 1부터 시작
     {
         const Block& block = scriptPtr->blocks[i];
-        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 0);
+        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3);
         try
         {   
             // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
@@ -108,30 +112,137 @@ void Entity::executeScript(const Script* scriptPtr)
     }
 }
 
+void Entity::startLogicThread() {
+    if (m_logicRunning.load()) return; // 이미 실행 중이면 반환
+    m_logicRunning = true;
+    m_logicThread = std::thread(&Entity::logicLoop, this);
+    if (pEngineInstance) {
+        pEngineInstance->EngineStdOut("Logic thread started for entity: " + id, 0);
+    }
+}
+
+void Entity::stopLogicThread() {
+    if (!m_logicRunning.load()) return; // 이미 중지되었거나 시작되지 않았으면 반환
+
+    m_logicRunning = false;
+    m_scriptQueueCV.notify_all(); // 모든 대기 중인 스레드 깨우기 (혹시 여러 조건에 대기 중일 수 있으므로)
+    if (m_logicThread.joinable()) {
+        m_logicThread.join();
+    }
+    if (pEngineInstance) {
+         pEngineInstance->EngineStdOut("Logic thread stopped for entity: " + id, 0);
+    }
+}
+
+void Entity::requestScriptExecution(const Script* scriptPtr) {
+    if (!scriptPtr) return;
+    {
+        std::lock_guard<std::mutex> lock(m_scriptQueueMutex);
+        m_scriptQueue.push(scriptPtr);
+    }
+    m_scriptQueueCV.notify_one();
+}
+
+void Entity::logicLoop() {
+    if (!pEngineInstance) {
+        std::cerr << "Entity " << id << " logicLoop: pEngineInstance is null. Thread cannot run." << std::endl;
+        m_logicRunning = false; // 스레드 실행 중단
+        return;
+    }
+    pEngineInstance->EngineStdOut("Entity " + id + " logicLoop started.", 0);
+
+    while (m_logicRunning.load()) {
+        const Script* scriptToRun = nullptr;
+        {
+            std::unique_lock<std::mutex> lock(m_scriptQueueMutex);
+            // 스크립트 큐가 비어있고 스레드가 계속 실행 중이어야 하면 대기
+            m_scriptQueueCV.wait(lock, [this] { return !m_scriptQueue.empty() || !m_logicRunning.load(); });
+
+            if (!m_logicRunning.load() && m_scriptQueue.empty()) { // 스레드 종료 조건
+                break;
+            }
+
+            if (!m_scriptQueue.empty()) {
+                scriptToRun = m_scriptQueue.front();
+                m_scriptQueue.pop();
+            }
+        }
+        if (!m_logicRunning.load()) {
+            break;
+        }
+        if (scriptToRun) {
+            pEngineInstance->EngineStdOut("Entity " + id + " thread will attempt to execute a script. THIS IS LIKELY UNSAFE.", 1);
+            try {
+                this->executeScript(scriptToRun);
+            } catch (const std::exception& e) {
+                if (pEngineInstance && m_logicRunning.load()) { // Check if engine instance is valid and thread should be running
+                    pEngineInstance->EngineStdOut("Exception in entity " + id + " logic thread during script execution: " + e.what(), 2);
+                } else {
+                    std::cerr << "Exception in entity " << id << " logic thread (engine unavailable or stopping): " << e.what() << std::endl;
+                }
+            } catch (...) {
+                if (pEngineInstance && m_logicRunning.load()) { // Check if engine instance is valid and thread should be running
+                    pEngineInstance->EngineStdOut("Unknown exception in entity " + id + " logic thread during script execution.", 2);
+                } else {
+                    std::cerr << "Unknown exception in entity " << id << " logic thread (engine unavailable or stopping)." << std::endl;
+                }
+            }
+        }else{
+            std::lock_guard<std::mutex> stateLock(m_stateMutex); // 엔티티 내부 상태 변경 보호
+
+            if (timedMoveState.isActive && timedMoveState.remainingFrames > 0) {
+                 double currentX_unsafe = x; // 락 내부에서 직접 접근
+                 double currentY_unsafe = y;
+                 double dX_total = timedMoveState.targetX - currentX_unsafe;
+                 double dY_total = timedMoveState.targetY - currentY_unsafe;
+                 double dX_step = (timedMoveState.remainingFrames > 0) ? dX_total / timedMoveState.remainingFrames : 0;
+                 double dY_step = (timedMoveState.remainingFrames > 0) ? dY_total / timedMoveState.remainingFrames : 0;
+                 x += dX_step;
+                 y += dY_step;
+                 paint.updatePositionAndDraw(x, y); // 이 함수도 스레드 안전성 검토 필요
+                 brush.updatePositionAndDraw(x, y); // 이 함수도 스레드 안전성 검토 필요
+                 timedMoveState.remainingFrames--;
+                 if (timedMoveState.remainingFrames <= 0) {
+                    x = timedMoveState.targetX;
+                    y = timedMoveState.targetY;
+                    timedMoveState.isActive = false;
+                 }
+            }
+            // timedMoveObjState, timedRotationState 관련 로직도 유사하게 m_stateMutex 보호 하에 처리
+        }
+
+        // 루프 지연 (CPU 사용량 조절 및 다른 스레드에게 기회 제공)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 매우 짧은 지연
+    }
+    pEngineInstance->EngineStdOut("Entity " + id + " logicLoop finished.", 0);
+}
+
 
 const std::string& Entity::getId() const { return id; }
 const std::string& Entity::getName() const { return name; }
-double Entity::getX() const { return x; }
-double Entity::getY() const { return y; }
-double Entity::getRegX() const { return regX; }
-double Entity::getRegY() const { return regY; }
-double Entity::getScaleX() const { return scaleX; }
-double Entity::getScaleY() const { return scaleY; }
-double Entity::getRotation() const { return rotation; }
-double Entity::getDirection() const { return direction; }
-double Entity::getWidth() const { return width; }
-double Entity::getHeight() const { return height; }
-bool Entity::isVisible() const { return visible; }
+
+double Entity::getX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return x; }
+double Entity::getY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return y; }
+double Entity::getRegX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return regX; }
+double Entity::getRegY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return regY; }
+double Entity::getScaleX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return scaleX; }
+double Entity::getScaleY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return scaleY; }
+double Entity::getRotation() const { std::lock_guard<std::mutex> lock(m_stateMutex); return rotation; }
+double Entity::getDirection() const { std::lock_guard<std::mutex> lock(m_stateMutex); return direction; }
+double Entity::getWidth() const { std::lock_guard<std::mutex> lock(m_stateMutex); return width; }
+double Entity::getHeight() const { std::lock_guard<std::mutex> lock(m_stateMutex); return height; }
+bool Entity::isVisible() const { std::lock_guard<std::mutex> lock(m_stateMutex); return visible; }
 
 
-void Entity::setX(double newX) { x = newX; }
-void Entity::setY(double newY) { y = newY; }
-void Entity::setRegX(double newRegX) { regX = newRegX; }
-void Entity::setRegY(double newRegY) { regY = newRegY; }
-void Entity::setScaleX(double newScaleX) { scaleX = newScaleX; }
-void Entity::setScaleY(double newScaleY) { scaleY = newScaleY; }
-void Entity::setRotation(double newRotation) { rotation = newRotation; }
+void Entity::setX(double newX) { std::lock_guard<std::mutex> lock(m_stateMutex); x = newX; }
+void Entity::setY(double newY) { std::lock_guard<std::mutex> lock(m_stateMutex); y = newY; }
+void Entity::setRegX(double newRegX) { std::lock_guard<std::mutex> lock(m_stateMutex); regX = newRegX; }
+void Entity::setRegY(double newRegY) { std::lock_guard<std::mutex> lock(m_stateMutex); regY = newRegY; }
+void Entity::setScaleX(double newScaleX) { std::lock_guard<std::mutex> lock(m_stateMutex); scaleX = newScaleX; }
+void Entity::setScaleY(double newScaleY) { std::lock_guard<std::mutex> lock(m_stateMutex); scaleY = newScaleY; }
+void Entity::setRotation(double newRotation) { std::lock_guard<std::mutex> lock(m_stateMutex); rotation = newRotation; }
 void Entity::setDirection(double newDirection) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     // 방향 업데이트
     direction = newDirection;
 
@@ -151,20 +262,24 @@ void Entity::setDirection(double newDirection) {
     // RotationMethod::FREE 또는 NONE의 경우는 여기서 처리하지 않음
     // (FREE는 회전각으로 처리, NONE은 반전 없음)
 }
-void Entity::setWidth(double newWidth) { width = newWidth; }
-void Entity::setHeight(double newHeight) { height = newHeight; }
-void Entity::setVisible(bool newVisible) { visible = newVisible; }
+void Entity::setWidth(double newWidth) { std::lock_guard<std::mutex> lock(m_stateMutex); width = newWidth; }
+void Entity::setHeight(double newHeight) { std::lock_guard<std::mutex> lock(m_stateMutex); height = newHeight; }
+void Entity::setVisible(bool newVisible) { std::lock_guard<std::mutex> lock(m_stateMutex); visible = newVisible; }
+
 Entity::RotationMethod Entity::getRotateMethod() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     return rotateMethod;
 }
 
 void Entity::setRotateMethod(RotationMethod method) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     rotateMethod = method;
 }
+
 bool Entity::isPointInside(double pX, double pY) const {
     // pX, pY는 스테이지 좌표 (중앙 (0,0), Y축 위쪽)
     // this->x, this->y는 엔티티의 등록점의 스테이지 좌표
-
+    std::lock_guard<std::mutex> lock(m_stateMutex); // 상태 변수 읽기 보호
     // 1. 점을 엔티티의 로컬 좌표계로 변환 (등록점을 원점으로)
     double localPX = pX - this->x;
     double localPY = pY - this->y;
@@ -202,10 +317,12 @@ bool Entity::isPointInside(double pX, double pY) const {
     return false;
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     return lastCollisionSide;
 }
 
 void Entity::setLastCollisionSide(CollisionSide side) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     lastCollisionSide = side;
 }
 // processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
@@ -213,6 +330,7 @@ void Entity::setLastCollisionSide(CollisionSide side) {
 // -> 이 주석은 이제 유효하지 않습니다. 해당 함수들은 BlockExecutor.cpp에 있습니다.
 
 void Entity::showDialog(const std::string& message, const std::string& dialogType, Uint64 duration) {
+    std::lock_guard<std::mutex> lock(m_stateMutex); // m_currentDialog 접근 보호
     m_currentDialog.clear(); 
 
     m_currentDialog.text = message.empty() ? "    " : message;

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <memory>
 #include <format>
+#include "Commands.h"
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
@@ -39,7 +40,6 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
-// m_draggedHUDVariableIndex, m_currentHUDDragState 등은 헤더에서 기본값으로 초기화됨
 {
 
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -99,14 +99,26 @@ static void Helper_RenderFilledRoundedRect(SDL_Renderer *renderer, const SDL_FRe
 }
 Engine::~Engine()
 {
-    terminateGE();
+    EngineStdOut("Engine shutting down...", 0);
 
+    // 1. Stop all entity logic threads first
+    EngineStdOut("Stopping all entity logic threads...", 0);
+    for (auto& pair : entities) { // Use reference to access Entity methods
+        if (pair.second) {
+            pair.second->stopLogicThread(); // Ensure this joins the thread
+        }
+    }
+    EngineStdOut("All entity logic threads stopped.", 0);
+
+    // 2. Terminate SDL and other engine systems
+    terminateGE(); // Now it's safer to terminate SDL and other resources
+
+    // 3. Delete entity objects
     for (auto const &pair : entities)
     {
         delete pair.second;
     }
     entities.clear();
-
     objects_in_order.clear();
     objectScripts.clear();
 }
@@ -834,7 +846,9 @@ bool Engine::loadProject(const string &projectFilePath)
                 // Initialize pen positions
                 newEntity->brush.reset(initial_x, initial_y);
                 newEntity->paint.reset(initial_x, initial_y);
+                lock_guard<mutex> lock(m_engineDataMutex);
                 entities[objectId] = newEntity;
+                newEntity->startLogicThread();
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
             else
@@ -1983,32 +1997,53 @@ void Engine::drawHUD()
 
     int windowW = 0, windowH = 0;
     SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-    // FPS 표시
     if (this->hudFont && this->specialConfig.showFPS)
     {
-
         string fpsText = "FPS: " + to_string(static_cast<int>(currentFps));
         SDL_Color textColor = {255, 150, 0, 255}; // 주황색
 
         SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, fpsText.c_str(), 0, textColor);
         if (textSurface)
         {
+            // 배경 사각형 설정
+            float bgPadding = 5.0f; // 텍스트 주변 여백
+            SDL_FRect bgRect = {
+                10.0f - bgPadding,                                         // FPS 텍스트 x 위치에서 여백만큼 왼쪽으로
+                10.0f - bgPadding,                                         // FPS 텍스트 y 위치에서 여백만큼 위로
+                static_cast<float>(textSurface->w) + 2 * bgPadding, // 텍스트 너비 + 양쪽 여백
+                static_cast<float>(textSurface->h) + 2 * bgPadding  // 텍스트 높이 + 양쪽 여백
+            };
+
+            // 반투명한 어두운 배경색 설정
+            SDL_Color bgColor = {30, 30, 30, 150}; // 어두운 회색, 약 70% 불투명도
+
+            // 현재 블렌드 모드 저장 및 블렌딩 활성화
+            SDL_BlendMode originalBlendMode;
+            SDL_GetRenderDrawBlendMode(renderer, &originalBlendMode);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+            Helper_RenderFilledRoundedRect(renderer, &bgRect, 5.0f); // 둥근 모서리 배경 그리기
+
+            // 원래 블렌드 모드로 복원 (다른 HUD 요소에 영향 주지 않도록)
+            SDL_SetRenderDrawBlendMode(renderer, originalBlendMode);
+
+            // FPS 텍스트 렌더링 (배경 위에)
+            TTF_FontStyleFlags original_style = TTF_GetFontStyle(hudFont);
+            TTF_SetFontStyle(hudFont, TTF_STYLE_BOLD);
 
             SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
             if (textTexture)
             {
-
                 SDL_FRect dstRect = {10.0f, 10.0f, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)};
-
                 SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
-
                 SDL_DestroyTexture(textTexture);
             }
             else
             {
                 EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2); // FPS 텍스트 텍스처 생성 실패
             }
-
+            TTF_SetFontStyle(hudFont, original_style); // 원래 폰트 스타일로 복원
             SDL_DestroySurface(textSurface);
         }
         else
@@ -2730,37 +2765,24 @@ void Engine::processInput(const SDL_Event &event)
                         // Entity의 멤버 함수로 executeScript를 호출하도록 변경
                         if (currentEntity)
                         {
-                            if (currentEntity->isVisible())
+                            if (currentEntity->isVisible()) // 엔티티가 보이는지 확인
                             {
-                                // ... (기존 씬 체크 로직) ...
-                                // executeScript(*this, objectId, scriptPtr); // 기존 호출
-                                currentEntity->executeScript(scriptPtr); // 새 호출
-                            }
-                        }
-                        /* if (currentEntity && currentEntity->isVisible())
-                        {
-                            bool executeForScene = false;
-                            for (const auto &objInfo : objects_in_order)
-                            {
-                                if (objInfo.id == objectId)
+                                // 현재 씬에 속하거나 전역 오브젝트인지 확인
+                                const ObjectInfo* objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
+                                if (objInfoPtr)
                                 {
-                                    bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                    bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+                                    bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
+                                    bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                     if (isInCurrentScene || isGlobal)
                                     {
-                                        executeForScene = true;
+                                        currentEntity->requestScriptExecution(scriptPtr); // 조건 만족 시 스크립트 실행 요청
                                     }
-                                    break;
+                                }
+                                else
+                                {
+                                    EngineStdOut("Warning: ObjectInfo not found for entity ID '" + objectId + "' during mouse_clicked event processing. Script not run.", 1);
                                 }
                             }
-                            if (executeForScene)
-                            {
-                                executeScript(*this, objectId, scriptPtr);
-                            }
-                        }
-                        else if (!currentEntity)*/
-                        {
-                            EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_clicked event. Script not run.", 1);
                         }
                     }
                 }
@@ -2796,8 +2818,8 @@ void Engine::processInput(const SDL_Event &event)
                                 if (clickScriptPair.first == objectId)
                                 {
                                     const Script *scriptPtr = clickScriptPair.second;
-                                    EngineStdOut("Executing 'when_object_click' for object: " + entity->getId(), 0);
-                                    entity->executeScript(scriptPtr); // Entity의 멤버 함수 호출
+                                    EngineStdOut("Requesting 'when_object_click' for object: " + entity->getId(), 0);
+                                    entity->requestScriptExecution(scriptPtr);
                                 }
                             }
                             break;
@@ -2833,7 +2855,7 @@ void Engine::processInput(const SDL_Event &event)
                     Entity *targetEntity = getEntityById(objectId);
                     if (targetEntity)
                     {
-                        targetEntity->executeScript(scriptPtr); // 새 호출
+                        targetEntity->requestScriptExecution(scriptPtr);
                     }
                     else
                     {
@@ -2979,35 +3001,24 @@ void Engine::processInput(const SDL_Event &event)
                         const Script *scriptPtr = scriptPair.second;
                         Entity *currentEntity = getEntityById(objectId);
                         if (currentEntity && currentEntity->isVisible())
-                        {
-                            bool executeForScene = false;
-                            for (const auto &objInfo : objects_in_order)
+                        { // 엔티티가 존재하고 보이는 경우
+                            // 현재 씬에 속하거나 전역 오브젝트인지 확인
+                            const ObjectInfo* objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
+                            if (objInfoPtr)
                             {
-                                if (objInfo.id == objectId)
+                                bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
+                                bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
+                                if (isInCurrentScene || isGlobal)
                                 {
-                                    bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
-                                    bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
-                                    if (isInCurrentScene || isGlobal)
-                                    {
-                                        executeForScene = true;
-                                    }
-                                    break;
+                                    currentEntity->requestScriptExecution(scriptPtr); // 조건 만족 시 스크립트 실행 요청
                                 }
                             }
-                            if (executeForScene)
+                            else
                             {
-                                currentEntity->executeScript(scriptPtr);
+                                EngineStdOut("Warning: ObjectInfo not found for entity ID '" + objectId + "' during mouse_click_canceled event processing. Script not run.", 1);
                             }
-                        }
-                        else if (!currentEntity)
-                        {
-                            EngineStdOut("Warning: Entity with ID '" + objectId + "' not found for mouse_click_canceled event. Script not run.", 1);
-                        } // Entity의 멤버 함수로 executeScript를 호출하도록 변경
-                        if (currentEntity)
-                        {
-                            // ... (기존 씬 체크 로직) ...
-                            // executeScript(*this, objectId, scriptPtr); // 기존 호출
-                            currentEntity->executeScript(scriptPtr); // 새 호출
+                        } else if (!currentEntity) {
+                            currentEntity->requestScriptExecution(scriptPtr);
                         }
                     }
                 }
@@ -3020,14 +3031,12 @@ void Engine::processInput(const SDL_Event &event)
                         if (scriptPair.first == canceledObjectId)
                         {
                             const Script *scriptPtr = scriptPair.second;
-                            // Entity *entity = getEntityById(canceledObjectId); // Not strictly needed for execution here
 
-                            EngineStdOut("Executing 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                            // executeScript(*this, canceledObjectId, scriptPtr); // 기존 호출
+                            EngineStdOut("Requesting 'when_object_click_canceled' for object: " + canceledObjectId, 0);
                             Entity *targetEntity = getEntityById(canceledObjectId);
                             if (targetEntity)
                             {
-                                targetEntity->executeScript(scriptPtr); // 새 호출
+                                targetEntity->requestScriptExecution(scriptPtr);
                             }
                             else
                             {
