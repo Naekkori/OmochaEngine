@@ -4,12 +4,10 @@
 #include "../Entity.h"
 #include <string>
 #include <vector>
-#include <stdexcept>
 #include <thread>
 #include <cmath>
 #include <limits>
 #include <ctime>
-#include <engine/Commands.h>
 AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
 
 // OperandValue 생성자 및 멤버 함수 구현 (BlockExecutor.h에 선언됨)
@@ -1866,11 +1864,9 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
     if (BlockType == "show")
     {
-        auto command = std::make_unique<SetVisibilityCommand>(objectId);
-        command->visible=true;
+        entity->setVisible(true);
     }else if (BlockType == "hide"){
-        auto command = std::make_unique<SetVisibilityCommand>(objectId);
-        command->visible=false;
+        entity->setVisible(false);
     }else if (BlockType == "dialog_time"){
         // params: VALUE (message), SECOND, OPTION (speak/think)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3) { // 인디케이터 포함하면 4개일 수 있음
@@ -1893,10 +1889,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         std::string message = messageOp.asString();
         Uint64 durationMs = static_cast<Uint64>(timeOp.asNumber() * 1000.0);
         std::string dialogType = optionOp.asString(); 
-        auto commands = std::make_unique<ShowDialogCommand>(objectId);
-        commands->message=message;
-        commands->durationMs=durationMs;
-        commands->dialogType=dialogType;
+        entity->showDialog(message, dialogType, durationMs);
 
     } else if (BlockType == "dialog") {
         // params: VALUE (message), OPTION (speak/think)
@@ -1914,19 +1907,16 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         std::string message = messageOp.asString();
         std::string dialogType = optionOp.asString();
-        auto commands = std::make_unique<ShowDialogCommand>(objectId);
-        commands->message=message;
-        commands->message=dialogType;
+        entity->showDialog(message, dialogType,0);
     }
     else if (BlockType == "remove_dialog")
     {
-        auto commands = std::make_unique<RemoveDialogCommand>(objectId);
+        entity->removeDialog();
     }else if (BlockType == "change_to_some_shape"){
         //이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
         OperandValue imageDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
         // getOperandValue는 get_pictures 블록의 params[0] (모양 ID 문자열)을 반환해야 합니다.
         // getOperandValue 내부에서 get_pictures 타입 처리가 필요합니다.
-        auto commands = std::make_unique<ChangeCostumeCommand>();
         if (imageDropdown.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)) ,2);
