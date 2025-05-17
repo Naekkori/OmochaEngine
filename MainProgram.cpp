@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
                 "                       0: 사용 안 함 (기본값), 1: 사용 시도\n" +
                 "  --setVsync <0|1>   수직 동기화를 설정합니다.\n" +
                 "                       0: 비활성, 1: 활성 (기본값)\n" +
+                "  --showfps <0|1>    FPS를 표시할지 여부를 설정합니다.\n" +
+                "                       0: 비활성 (기본값), 1: 활성\n" +
                 "  -h, --help         이 도움말을 표시하고 종료합니다.\n\n" +
                 "예제:\n" +
                 "  OmochaEngine.exe --setfps 120 --setVsync 0"; // 예시 실행 파일 이름
@@ -73,19 +75,16 @@ int main(int argc, char *argv[])
                 targetFpsFromArg = stoi(argv[i + 1]);
                 if (targetFpsFromArg <= 0)
                 {
-                    cerr << "Warning: Invalid FPS value provided for --setfps. Using default." << endl;
                     targetFpsFromArg = -1;
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
             catch (const invalid_argument &e)
             {
-                cerr << "Warning: Invalid argument for --setfps. Expected a number." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
             }
             catch (const out_of_range &e)
             {
-                cerr << "Warning: FPS value for --setfps out of range." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
             }
         }
@@ -100,19 +99,16 @@ int main(int argc, char *argv[])
                 } else if (vsyncValue == 1) {
                     mainProgram.mainProgramValue.setVsync = true;
                 } else {
-                     cerr << "Warning: Invalid value for --setVsync. Expected 0 or 1. Using default (1)." << endl;
                      mainProgram.mainProgramValue.setVsync = true; // Default to true on invalid value
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
             catch (const invalid_argument &e)
             {
-                cerr << "Warning: Invalid argument for --setVsync. Expected a number (0 or 1). Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
              catch (const out_of_range &e)
             {
-                cerr << "Warning: Value for --setVsync out of range. Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
         }
@@ -127,21 +123,41 @@ int main(int argc, char *argv[])
                 } else if (vkValue == 1) {
                     mainProgram.mainProgramValue.useVulkan = true;
                 } else {
-                    cerr << "Warning: Invalid value for --useVk. Expected 0 or 1. Using default (0)." << endl;
                     mainProgram.mainProgramValue.useVulkan = false; // Default to false
                 }
                 i++; 
             }
             catch (const invalid_argument &e)
             {
-                cerr << "Warning: Invalid argument for --useVk. Expected a number (0 or 1). Using default (0)." << endl;
                 mainProgram.mainProgramValue.useVulkan = false; // Default to false
             }
             catch (const out_of_range &e) {
-                cerr << "Warning: Value for --useVk out of range. Using default (0)." << endl;
                 mainProgram.mainProgramValue.useVulkan = false; // Default to false
             }
+        }else if (arg == "--showfps" && i + 1 < argc)
+        {
+            try
+            {
+                bool enableShowfps = stoi(argv[i + 1]);
+                if (enableShowfps == 0)
+                {
+                    engine.specialConfig.showFPS = false;
+                }else if (enableShowfps == 1)
+                {
+                    engine.specialConfig.showFPS = true;
+                }else{
+                    engine.specialConfig.showFPS = false;
+                }
+                i++;
+            }
+            catch (const invalid_argument &e)
+            {
+                engine.specialConfig.showFPS = false;
+            }catch (const out_of_range &e){
+                engine.specialConfig.showFPS = false;
+            }
         }
+        
     }
     
 
