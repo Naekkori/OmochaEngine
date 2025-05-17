@@ -3,15 +3,6 @@
 #include <string>
 #include <vector>
 #include "SDL3/SDL_pixels.h" // For SDL_Color
-#include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
-#include "SDL3/SDL_rect.h"   // For SDL_FPoint (SDL3) or define if using SDL2
-#include <thread>
-#include <atomic>
-#include <vector>
-#include <mutex>
-#include <condition_variable>
-#include <queue>
-
 
 // Forward declaration
 class Engine;
@@ -131,15 +122,7 @@ private:
 public: // Made brush and paint public for now for easier access from blocks
     Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
-    std::thread m_logicThread;
-    std::atomic<bool> m_logicRunning;
-    void logicLoop();
 
-    std::queue<const Script*> m_scriptQueue;
-    std::mutex m_scriptQueueMutex;
-    std::condition_variable m_scriptQueueCV;
-
-    mutable std::mutex m_stateMutex; // 엔티티 상태 변수 보호용 (getX 등 const 함수에서도 사용 위해 mutable)
     TimedMoveState timedMoveState; // timed move 상태 변수 추가
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
@@ -156,9 +139,6 @@ public:
     CollisionSide getLastCollisionSide() const;
     // 스크립트 실행 함수
     void executeScript(const Script* scriptPtr);
-    void startLogicThread();
-    void stopLogicThread();
-    void requestScriptExecution(const Script* scriptPtr); // 스크립트 실행 요청
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();
