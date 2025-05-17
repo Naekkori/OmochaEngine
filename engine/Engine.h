@@ -264,6 +264,7 @@ public:
     const ObjectInfo *getObjectInfoById(const string &id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     // HUD에 표시할 변수 목록을 설정하는 메서드
+    map<string, Entity*>& getEntities_Modifiable() { return entities; }
     void loadHUDVariablesFromJson(const rapidjson::Value &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
@@ -272,6 +273,10 @@ public:
     int getBlockCountForObject(const std::string &objectId) const;
     int getBlockCountForScene(const std::string &sceneId) const;
     int getTotalBlockCount() const;
+    TTF_Font *getDialogFont();
+    void drawDialogs();
+    bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
+    bool setEntitychangeToNextCostume(const string& entityId,const string& asOption);
     SimpleLogger logger;                           // 로거 인스턴스
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };

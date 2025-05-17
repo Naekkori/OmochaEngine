@@ -266,6 +266,14 @@ int main(int argc, char *argv[])
                 float windowMouseX_main, windowMouseY_main;
                 SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main); 
                 engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main);
+                
+                Uint64 currentTimeMs = SDL_GetTicks(); 
+
+                for (auto& pair : engine.getEntities_Modifiable()) { 
+                    if (pair.second) {
+                        pair.second->updateDialog(currentTimeMs);
+                    }
+                }
 
                 while (SDL_PollEvent(&event))
                 {
@@ -292,6 +300,7 @@ int main(int argc, char *argv[])
                     continue;
                 }
                 engine.drawAllEntities(); 
+                engine.drawDialogs(); 
                 engine.drawHUD();
                 SDL_RenderPresent(engine.getRenderer()); // SDL: 화면에 최종 프레임 표시
                 engine.updateFps();

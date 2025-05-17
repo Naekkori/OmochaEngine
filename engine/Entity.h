@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "SDL3/SDL_pixels.h" // For SDL_Color
+#include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
 #include "SDL3/SDL_rect.h"   // For SDL_FPoint (SDL3) or define if using SDL2
                              // Alternatively, just #include "SDL3/SDL.h"
 
@@ -60,6 +61,33 @@ public:
         // double startX = 0.0;
         // double startY = 0.0;
     };
+    struct DialogState {
+        bool isActive = false;
+        std::string text;
+        std::string type; // "speak" or "think"
+        SDL_Texture *textTexture = nullptr;
+        SDL_FRect textRect; 
+        SDL_FRect bubbleScreenRect; 
+        SDL_Vertex tailVertices[3]; // SDL_Vertex 타입의 배열로 수정
+        bool needsRedraw = true; 
+
+        Uint64 startTimeMs = 0;
+        Uint64 durationMs = 0;
+
+        DialogState() = default;
+
+        ~DialogState() {
+            if (textTexture) {
+                SDL_DestroyTexture(textTexture);
+                textTexture = nullptr;
+            }
+        }
+
+        void clear();
+    };
+
+
+
     struct PenState {
         Engine* pEngine = nullptr; 
         bool stop = false; // true이면 그리기가 중지된 상태, false이면 활성화. JS의 stop과 동일.
@@ -101,6 +129,7 @@ public: // Made brush and paint public for now for easier access from blocks
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
     PenState paint;
+    DialogState m_currentDialog;
 
 public:
     Entity(Engine* engine, const std::string &entityId, const std::string &entityName,
@@ -114,6 +143,10 @@ public:
     void executeScript(const Script* scriptPtr);
 
     void setLastCollisionSide(CollisionSide side);
+    void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
+    void removeDialog();
+    void updateDialog(Uint64 currentTimeMs);
+    bool hasActiveDialog() const { return m_currentDialog.isActive; }
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;
     const std::string &getName() const;

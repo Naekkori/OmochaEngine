@@ -267,7 +267,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 this->specialConfig.showFPS = false;
                 EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
             }
-            if(specialConfigJson.HasMember("maxEntity") && specialConfigJson["maxEntity"].IsNumber())
+            if (specialConfigJson.HasMember("maxEntity") && specialConfigJson["maxEntity"].IsNumber())
             {
                 this->specialConfig.MAX_ENTITY = specialConfigJson["maxEntity"].GetInt();
             }
@@ -281,8 +281,10 @@ bool Engine::loadProject(const string &projectFilePath)
     /**
      * @brief Helper to get a boolean value from JSON or return a default
      */
-    auto getJsonBool = [&](const rapidjson::Value& parentValue, const char* fieldName, bool defaultValue, const std::string& contextForLog) {
-        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsBool()) {
+    auto getJsonBool = [&](const rapidjson::Value &parentValue, const char *fieldName, bool defaultValue, const std::string &contextForLog)
+    {
+        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsBool())
+        {
             return parentValue[fieldName].GetBool();
         }
         this->EngineStdOut("'" + contextForLog + "." + fieldName + "' field missing or not boolean. Using default: " + (defaultValue ? "true" : "false"), 1);
@@ -291,8 +293,10 @@ bool Engine::loadProject(const string &projectFilePath)
     /**
      * @brief Helper to get a double value from JSON, clamp it, or return a default
      */
-    auto getJsonDoubleClamped = [&](const rapidjson::Value& parentValue, const char* fieldName, double defaultValue, double minVal, double maxVal, const std::string& contextForLog) {
-        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsNumber()) {
+    auto getJsonDoubleClamped = [&](const rapidjson::Value &parentValue, const char *fieldName, double defaultValue, double minVal, double maxVal, const std::string &contextForLog)
+    {
+        if (parentValue.HasMember(fieldName) && parentValue[fieldName].IsNumber())
+        {
             return std::clamp(parentValue[fieldName].GetDouble(), minVal, maxVal);
         }
         this->EngineStdOut("'" + contextForLog + "." + fieldName + "' field missing or not numeric. Using default: " + std::to_string(defaultValue), 1);
@@ -906,7 +910,8 @@ bool Engine::loadProject(const string &projectFilePath)
                                             }
                                             block.FilterNullsInParamsJsonArray();
                                             // DEBUG LOG: FilterNullsInParamsJsonArray 호출 후 paramsJson 상태 확인
-                                            if (block.id == "nbjb") { // 특정 블록 ID에 대해서만 로그 출력 (디버깅용)
+                                            if (block.id == "nbjb")
+                                            { // 특정 블록 ID에 대해서만 로그 출력 (디버깅용)
                                                 rapidjson::StringBuffer buffer;
                                                 rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
                                                 block.paramsJson.Accept(writer);
@@ -2054,7 +2059,7 @@ void Engine::drawHUD()
         int visibleVarsCount = 0;                   // 보이는 변수 개수
         if (renderer)
             SDL_GetRenderOutputSize(renderer, &windowW, nullptr);
-        
+
         float screenCenterX = static_cast<float>(windowW) / 2.0f;
         float screenCenterY = static_cast<float>(windowH) / 2.0f;
 
@@ -2117,7 +2122,7 @@ void Engine::drawHUD()
                     SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b, listBorderColor.a);
                     Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
                 }
-                
+
                 // 2. Draw List Container Background (inside the border)
                 SDL_FRect listContainerInnerRect = {
                     renderX + listBorderWidth,
@@ -2307,7 +2312,7 @@ void Engine::drawHUD()
                 if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT)
                 { // 핸들을 그릴 충분한 공간이 있는지 확인
                     SDL_FRect resizeHandleRect = {
-                        renderX + var.width - LIST_RESIZE_HANDLE_SIZE, // renderX 기준
+                        renderX + var.width - LIST_RESIZE_HANDLE_SIZE,  // renderX 기준
                         renderY + var.height - LIST_RESIZE_HANDLE_SIZE, // renderY 기준
                         LIST_RESIZE_HANDLE_SIZE,
                         LIST_RESIZE_HANDLE_SIZE};
@@ -2390,12 +2395,12 @@ void Engine::drawHUD()
             // 이 변수 항목 상자의 높이
             var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
             float singleBoxHeight = itemHeight + 2 * itemPadding;
-            
+
             // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
             // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
             SDL_FRect outerContainerRect = {renderX, renderY, currentItemContainerWidth, singleBoxHeight};
             if (containerBorderWidth > 0.0f)
-            { 
+            {
                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b, containerBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
             }
@@ -2625,7 +2630,8 @@ void Engine::processInput(const SDL_Event &event)
                 float containerBorderWidth = 1.0f;    // drawHUD와 일치
                 float minContainerFixedWidth = 80.0f; // Matches drawHUD
                 int windowW_render = 0, windowH_render = 0;
-                if (renderer) {
+                if (renderer)
+                {
                     SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
                 }
                 float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
@@ -2847,7 +2853,8 @@ void Engine::processInput(const SDL_Event &event)
             int mouseX = event.motion.x;
             int mouseY = event.motion.y;
             int windowW = 0, windowH = 0;
-            if (renderer) {
+            if (renderer)
+            {
                 SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
             }
             float screenCenterX = static_cast<float>(windowW) / 2.0f;
@@ -3460,21 +3467,21 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     {
     case SDL_MESSAGEBOX_ERROR:
 #ifdef _WIN32
-            MessageBeep(MB_ICONERROR);
+        MessageBeep(MB_ICONERROR);
 #endif
         flags = SDL_MESSAGEBOX_ERROR; // 오류 아이콘
         title = "Omocha is Broken";
         break;
     case SDL_MESSAGEBOX_WARNING:
 #ifdef _WIN32
-            MessageBeep(MB_ICONWARNING);
+        MessageBeep(MB_ICONWARNING);
 #endif
         flags = SDL_MESSAGEBOX_WARNING; // 경고 아이콘
         title = PROJECT_NAME.c_str();
         break;
     case SDL_MESSAGEBOX_INFORMATION:
 #ifdef _WIN32
-            MessageBeep(MB_ICONINFORMATION);
+        MessageBeep(MB_ICONINFORMATION);
 #endif
         flags = SDL_MESSAGEBOX_INFORMATION; // 정보 아이콘
         title = PROJECT_NAME.c_str();
@@ -3788,4 +3795,229 @@ int Engine::getTotalBlockCount() const
         totalCount += getBlockCountForObject(pair.first);
     }
     return totalCount;
+}
+
+TTF_Font *Engine::getDialogFont()
+{
+    // 우선 hudFont를 재사용합니다. 필요시 별도 폰트 로드 로직 추가 가능.
+    if (!hudFont)
+    {
+        EngineStdOut("Dialog font (hudFont) is not loaded!", 2);
+        // 여기서 기본 폰트를 로드하거나, hudFont가 로드되도록 보장해야 합니다.
+    }
+    return hudFont;
+}
+
+void Engine::drawDialogs()
+{
+    if (!renderer || !tempScreenTexture)
+        return;
+
+    SDL_SetRenderTarget(renderer, tempScreenTexture); // 스테이지 텍스처에 그립니다.
+
+    TTF_Font *font = getDialogFont();
+    if (!font)
+        return;
+
+    for (auto &pair : entities)
+    { // Entity의 DialogState를 수정할 수 있으므로 non-const 반복
+        Entity *entity = pair.second;
+        if (entity && entity->hasActiveDialog())
+        {
+            Entity::DialogState &dialog = entity->m_currentDialog; // 수정 가능한 참조 가져오기
+
+            // 1. 텍스트 텍스처 생성/업데이트 (필요한 경우)
+            if (dialog.needsRedraw || !dialog.textTexture)
+            {
+                if (dialog.textTexture)
+                    SDL_DestroyTexture(dialog.textTexture);
+                SDL_Color textColor = {0, 0, 0, 255}; // 검은색 텍스트
+                // 텍스트 자동 줄 바꿈을 위해 _Wrapped 함수 사용 (예: 150px 너비에서 줄 바꿈)
+                SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(font, dialog.text.c_str(), dialog.text.size(), textColor, 150);
+                if (surface)
+                {
+                    dialog.textTexture = SDL_CreateTextureFromSurface(renderer, surface);
+                    dialog.textRect.w = static_cast<float>(surface->w);
+                    dialog.textRect.h = static_cast<float>(surface->h);
+                    SDL_DestroySurface(surface);
+                }
+                dialog.needsRedraw = false;
+            }
+
+            if (!dialog.textTexture)
+                continue; // 텍스처 생성 실패 시 건너뛰기
+
+            // 2. 말풍선 위치 및 크기 계산
+            float entitySdlX = static_cast<float>(entity->getX() + PROJECT_STAGE_WIDTH / 2.0);
+            float entitySdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entity->getY());
+
+            // 엔티티의 시각적 너비/높이 추정 (단순화된 방식)
+            float entityVisualWidth = static_cast<float>(entity->getWidth() * std::abs(entity->getScaleX()));
+            float entityVisualHeight = static_cast<float>(entity->getHeight() * std::abs(entity->getScaleY()));
+
+            // 말풍선 기준점 (엔티티 등록점 기준 우측 상단 근처)
+            // 좀 더 정확한 위치는 엔티티의 실제 화면상 경계 상자를 사용해야 합니다.
+            float anchorX = entitySdlX + entityVisualWidth * 0.25f;
+            float anchorY = entitySdlY - entityVisualHeight * 0.25f;
+
+            float padding = 8.0f;
+            float bubbleWidth = dialog.textRect.w + 2 * padding;
+            float bubbleHeight = dialog.textRect.h + 2 * padding;
+            float tailHeight = 10.0f;
+            float tailWidth = 15.0f;
+
+            // 말풍선 위치 (말풍선 내용 영역의 좌상단)
+            // 기준점 위에 말풍선이 위치하도록 조정
+            dialog.bubbleScreenRect.x = anchorX;
+            dialog.bubbleScreenRect.y = anchorY - bubbleHeight - tailHeight;
+            dialog.bubbleScreenRect.w = bubbleWidth;
+            dialog.bubbleScreenRect.h = bubbleHeight;
+
+            // 화면 경계 내로 클램핑
+            if (dialog.bubbleScreenRect.x < 0)
+                dialog.bubbleScreenRect.x = 0;
+            if (dialog.bubbleScreenRect.y < 0)
+                dialog.bubbleScreenRect.y = 0;
+            if (dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w > PROJECT_STAGE_WIDTH)
+            {
+                dialog.bubbleScreenRect.x = PROJECT_STAGE_WIDTH - dialog.bubbleScreenRect.w;
+            }
+            if (dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h > PROJECT_STAGE_HEIGHT)
+            {
+                dialog.bubbleScreenRect.y = PROJECT_STAGE_HEIGHT - dialog.bubbleScreenRect.h;
+            }
+
+            // 3. 말풍선 배경 렌더링
+            SDL_Color bubbleBgColor = {255, 255, 255, 255};    // 흰색
+            SDL_Color bubbleBorderColor = {79, 128, 255, 255}; // 엔트리 블루 테두리
+            float cornerRadius = 8.0f;
+
+            if (dialog.type == "think")
+            {
+                // "생각" 풍선: 여러 개의 원으로 구름 모양 표현 (간단 버전)
+                SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.3f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.4f), static_cast<int>(dialog.bubbleScreenRect.h * 0.4f));
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.7f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.35f), static_cast<int>(dialog.bubbleScreenRect.h * 0.35f));
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.5f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.6f), static_cast<int>(dialog.bubbleScreenRect.h * 0.5f));
+                // "생각" 풍선 꼬리 (작은 원들)
+                Helper_DrawFilledCircle(renderer, static_cast<int>(anchorX - 10), static_cast<int>(anchorY - 5), 5);
+                Helper_DrawFilledCircle(renderer, static_cast<int>(anchorX - 5), static_cast<int>(anchorY - 10), 4);
+            }
+            else
+            { // "speak"
+                // 테두리 먼저 그리기
+                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b, bubbleBorderColor.a);
+                Helper_RenderFilledRoundedRect(renderer, &dialog.bubbleScreenRect, cornerRadius);
+                // 내부 배경 그리기 (테두리보다 약간 작게)
+                SDL_FRect innerBgRect = {dialog.bubbleScreenRect.x + 1.0f, dialog.bubbleScreenRect.y + 1.0f, dialog.bubbleScreenRect.w - 2.0f, dialog.bubbleScreenRect.h - 2.0f};
+                SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
+                Helper_RenderFilledRoundedRect(renderer, &innerBgRect, cornerRadius - 1.0f);
+
+                // 4. "말하기" 풍선 꼬리 렌더링
+                dialog.tailVertices[0] = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.3f, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                dialog.tailVertices[1] = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.4f, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                dialog.tailVertices[2] = {anchorX, anchorY};
+
+                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b, bubbleBorderColor.a);
+                SDL_RenderGeometry(renderer, nullptr, dialog.tailVertices, 3, nullptr, 0); // 테두리 색으로 채우기
+            }
+
+            // 5. 텍스트 렌더링
+            SDL_FRect textDestRect = {
+                dialog.bubbleScreenRect.x + padding,
+                dialog.bubbleScreenRect.y + padding,
+                dialog.textRect.w,
+                dialog.textRect.h};
+            SDL_RenderTexture(renderer, dialog.textTexture, nullptr, &textDestRect);
+        }
+    }
+    SDL_SetRenderTarget(renderer, nullptr); // 렌더 타겟 리셋
+}
+bool Engine::setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId)
+{
+    for (auto &objInfo : objects_in_order)
+    {
+        if (objInfo.id == entityId)
+        {
+            // Check if the costumeId exists in objInfo.costumes
+            bool costumeExists = false;
+            for (const auto &costume : objInfo.costumes)
+            {
+                if (costume.id == costumeId)
+                {
+                    costumeExists = true;
+                    break;
+                }
+            }
+            if (costumeExists)
+            {
+                objInfo.selectedCostumeId = costumeId;
+                // If you have an Entity* map, you might want to inform the Entity object too,
+                // or the Entity might fetch its ObjectInfo when needed.
+                // For now, just updating ObjectInfo which is used in drawAllEntities.
+                return true;
+            }
+            else
+            {
+                EngineStdOut("Costume ID '" + costumeId + "' not found in the costume list for object '" + entityId + "'.", 1);
+                return false;
+            }
+        }
+    }
+    EngineStdOut("Entity ID '" + entityId + "' not found in objects_in_order when trying to set costume.", 1);
+    return false;
+}
+bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &asOption)
+{
+    for (auto &objInfo : objects_in_order)
+    {
+        if (objInfo.id == entityId)
+        {
+            if (objInfo.costumes.size() <= 1)
+            {
+                // 모양이 없거나 1개만 있으면 다음/이전으로 변경 불가
+                EngineStdOut("Entity '" + entityId + "' has " + to_string(objInfo.costumes.size()) + " costume(s). Cannot change to next/previous.", 1);
+                return false;
+            }
+
+            int currentCostumeIndex = -1;
+            for (size_t i = 0; i < objInfo.costumes.size(); ++i)
+            {
+                if (objInfo.costumes[i].id == objInfo.selectedCostumeId)
+                {
+                    currentCostumeIndex = static_cast<int>(i);
+                    break;
+                }
+            }
+
+            if (currentCostumeIndex == -1)
+            {
+                // 현재 선택된 모양 ID를 목록에서 찾을 수 없는 경우 (데이터 불일치)
+                // 안전하게 첫 번째 모양으로 설정하거나 오류 처리
+                EngineStdOut("Error: Selected costume ID '" + objInfo.selectedCostumeId + "' not found in costume list for entity '" + entityId + "'. Defaulting to first costume if available.", 2);
+                if (!objInfo.costumes.empty()) {
+                    objInfo.selectedCostumeId = objInfo.costumes[0].id;
+                }
+                return false; // 또는 true를 반환하고 첫 번째 모양으로 설정
+            }
+
+            int totalCostumes = static_cast<int>(objInfo.costumes.size());
+            int nextCostumeIndex = currentCostumeIndex;
+
+            if (asOption == "prev")
+            {
+                nextCostumeIndex = (currentCostumeIndex - 1 + totalCostumes) % totalCostumes;
+            }
+            else // "next" 또는 다른 알 수 없는 옵션은 다음으로 처리
+            {
+                nextCostumeIndex = (currentCostumeIndex + 1) % totalCostumes;
+            }
+
+            objInfo.selectedCostumeId = objInfo.costumes[nextCostumeIndex].id;
+            EngineStdOut("Entity '" + entityId + "' changed costume to '" + objInfo.costumes[nextCostumeIndex].name + "' (ID: " + objInfo.selectedCostumeId + ")", 0);
+            return true;
+        }
+    }
+    EngineStdOut("Entity ID '" + entityId + "' not found in objects_in_order for changing costume.", 1);
+    return false; // entityId를 찾지 못한 경우
 }

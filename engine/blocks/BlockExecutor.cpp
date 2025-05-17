@@ -133,6 +133,18 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             }
             return processMathematicalBlock(engine, objectId, subBlock);
         }
+        else if (fieldType == "get_pictures") {
+            // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
+            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
+                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            {
+                return OperandValue(paramField["params"][0].GetString());
+            }
+            engine.EngineStdOut("Invalid 'get_pictures' block structure in parameter field for " + objectId + ". Expected params[0] to be a string (costume ID).", 1);
+            return OperandValue(""); // 또는 오류를 나타내는 빈 OperandValue
+        }
+
+
 
         engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1);
         return OperandValue();
@@ -1845,11 +1857,109 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
     return OperandValue();
 }
 /**
- * @brief 모양블럭
+ * @brief 모양새
  *
  */
-void Shape(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
+    Entity *entity = engine.getEntityById(objectId);
+    if (!entity) {
+        engine.EngineStdOut("Looks block: Entity " + objectId + " not found for block type " + BlockType, 2);
+        return;
+    }
+
+    if (BlockType == "show")
+    {
+        entity->setVisible(true);
+    }else if (BlockType == "hide"){
+        entity->setVisible(false);
+    }else if (BlockType == "dialog_time"){
+        // params: VALUE (message), SECOND, OPTION (speak/think)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3) { // 인디케이터 포함하면 4개일 수 있음
+            engine.EngineStdOut("dialog_time block for " + objectId + " has insufficient parameters. Expected message, time, option.", 2);
+            return;
+        }
+        OperandValue messageOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue optionOp = getOperandValue(engine, objectId, block.paramsJson[2]); // Dropdown value
+
+        if (timeOp.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("dialog_time block for " + objectId + ": SECOND parameter is not a number. Value: " + timeOp.asString(), 2);
+            return;
+        }
+        if (optionOp.type != OperandValue::Type::STRING) {
+             engine.EngineStdOut("dialog_time block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+            return;
+        }
+
+        std::string message = messageOp.asString();
+        Uint64 durationMs = static_cast<Uint64>(timeOp.asNumber() * 1000.0);
+        std::string dialogType = optionOp.asString(); 
+
+        entity->showDialog(message, dialogType, durationMs);
+
+    } else if (BlockType == "dialog") {
+        // params: VALUE (message), OPTION (speak/think)
+         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // 인디케이터 포함하면 3개일 수 있음
+            engine.EngineStdOut("dialog block for " + objectId + " has insufficient parameters. Expected message, option.", 2);
+            return;
+        }
+        OperandValue messageOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue optionOp = getOperandValue(engine, objectId, block.paramsJson[1]); // Dropdown value
+
+        if (optionOp.type != OperandValue::Type::STRING) {
+             engine.EngineStdOut("dialog block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+            return;
+        }
+
+        std::string message = messageOp.asString();
+        std::string dialogType = optionOp.asString();
+
+        entity->showDialog(message, dialogType, 0); // 0 duration means permanent until removed
+    }
+    else if (BlockType == "remove_dialog")
+    {
+        entity->removeDialog();
+    }else if (BlockType == "change_to_some_shape"){
+        //이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
+        OperandValue imageDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
+        // getOperandValue는 get_pictures 블록의 params[0] (모양 ID 문자열)을 반환해야 합니다.
+        // getOperandValue 내부에서 get_pictures 타입 처리가 필요합니다.
+
+        if (imageDropdown.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)) ,2);
+            return;
+        }
+        std::string costumeIdToSet = imageDropdown.asString();
+        if (costumeIdToSet.empty()) {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.",2);
+            return;
+        }
+
+        // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
+        if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet)) {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + ": Failed to set costume to ID '" + costumeIdToSet + "'. It might not exist for this object.",1);
+        } else {
+            engine.EngineStdOut("Entity " + objectId + " changed shape to: " + costumeIdToSet, 0);
+        }
+
+    }else if (BlockType == "change_to_next_shape"){
+        OperandValue nextorprev = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (nextorprev.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(nextorprev.type)) ,2);
+            return;
+        }
+        std::string direction = nextorprev.asString();
+        if (direction == "next")
+        {
+            engine.setEntitychangeToNextCostume(objectId,"next");
+        }else{
+            engine.setEntitychangeToNextCostume(objectId,"prev");
+        }
+        
+    }
 }
 /**
  * @brief 사운드블럭

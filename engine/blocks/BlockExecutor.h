@@ -44,7 +44,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
 OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block);
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Shape(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
+void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
 void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);

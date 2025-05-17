@@ -34,6 +34,21 @@ void Entity::PenState::reset(float currentStageX, float currentStageY) {
     lastStagePosition = {currentStageX, currentStageY};
 }
 
+void Entity::DialogState::clear() {
+    isActive = false;
+    text.clear();
+    type.clear();
+    if (textTexture) {
+        SDL_DestroyTexture(textTexture);
+        textTexture = nullptr;
+    }
+    startTimeMs = 0;
+    durationMs = 0;
+    needsRedraw = true;
+    // bubbleScreenRect and tailVertices don't need explicit clearing here,
+    // they are recalculated when the dialog becomes active.
+}
+
 Entity::Entity(Engine* engine, const std::string& entityId, const std::string& entityName,
     double initial_x, double initial_y, double initial_regX, double initial_regY,
     double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
@@ -74,7 +89,7 @@ void Entity::executeScript(const Script* scriptPtr)
             // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
             Moving(block.type, *pEngineInstance, this->id, block);
             Calculator(block.type, *pEngineInstance, this->id, block); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정
-            Shape(block.type, *pEngineInstance, this->id, block);
+            Looks(block.type, *pEngineInstance, this->id, block);
             Sound(block.type, *pEngineInstance, this->id, block);
             Variable(block.type, *pEngineInstance, this->id, block);
             Function(block.type, *pEngineInstance, this->id, block);
@@ -191,3 +206,32 @@ void Entity::setLastCollisionSide(CollisionSide side) {
 // processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
 // 간결성을 위해 전체 구현은 생략합니다. BlockExecutor.cpp의 내용을 참고하세요.
 // -> 이 주석은 이제 유효하지 않습니다. 해당 함수들은 BlockExecutor.cpp에 있습니다.
+
+void Entity::showDialog(const std::string& message, const std::string& dialogType, Uint64 duration) {
+    m_currentDialog.clear(); 
+
+    m_currentDialog.text = message.empty() ? "    " : message;
+    m_currentDialog.type = dialogType;
+    m_currentDialog.isActive = true;
+    m_currentDialog.durationMs = duration;
+    m_currentDialog.startTimeMs = SDL_GetTicks(); 
+    m_currentDialog.needsRedraw = true;
+
+    if (pEngineInstance) {
+         pEngineInstance->EngineStdOut("Entity " + id + " dialog: '" + m_currentDialog.text + "', type: " + m_currentDialog.type + ", duration: " + std::to_string(duration), 3);
+    }
+}
+
+void Entity::removeDialog() {
+    if (m_currentDialog.isActive) {
+        m_currentDialog.clear();
+    }
+}
+
+void Entity::updateDialog(Uint64 currentTimeMs) {
+    if (m_currentDialog.isActive && m_currentDialog.durationMs > 0) {
+        if (currentTimeMs >= m_currentDialog.startTimeMs + m_currentDialog.durationMs) {
+            removeDialog();
+        }
+    }
+}
