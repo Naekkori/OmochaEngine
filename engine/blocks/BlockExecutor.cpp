@@ -998,7 +998,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.", 2);
-            throw "Invalid params for quotient_and_mod block";
+            throw "Invalid params of size";
             return OperandValue();
         }
 
@@ -1009,7 +1009,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (operator_op.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2);
-            throw "Invalid operator type in quotient_and_mod block";
+            throw "Invalid operator type";
             return OperandValue();
         }
         std::string anOperator = operator_op.string_val;
@@ -1022,8 +1022,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             if (right_val == 0.0)
             {
                 engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId, 2);
-                throw "Division by zero in quotient_and_mod (QUOTIENT)";
-                return OperandValue();
+                throw "Division by zero in (QUOTIENT)";
+                return OperandValue("Div by Zero Error (QUOTIENT)");
             }
             return OperandValue(std::floor(left_val / right_val));
         }
@@ -1032,8 +1032,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             if (right_val == 0.0)
             {
                 engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId, 2);
-                throw "Division by zero in quotient_and_mod (MOD)";
-                return OperandValue();
+                throw "Division by zero in (MOD)";
+                return OperandValue("Div by Zero Error (MOD)");
             }
             return OperandValue(left_val - right_val * std::floor(left_val / right_val));
         }
@@ -1841,9 +1841,9 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
         {
             if (numRight == 0.0)
             {
-                engine.EngineStdOut("Division by zero in calc_basic for " + objectId, 1);
-
-                return OperandValue(numLeft / numRight);
+                engine.EngineStdOut("Division by zero", 2);
+                throw "Division by zero";
+                return OperandValue("Div by Zero Error");
             }
             return OperandValue(numLeft / numRight);
         }
