@@ -154,17 +154,21 @@ if(WIN32)
 
     if(DEFINED VCPKG_BIN_DIR AND IS_DIRECTORY "${VCPKG_BIN_DIR}")
         set(PROJECT_DLLS
-            "SDL3.dll"
-            "SDL3_image.dll"
-            "SDL3_ttf.dll"
-            "tiff.dll"
-            "jpeg62.dll"
-            "libpng16.dll"
-            "libwebpdemux.dll"
-            "libwebp.dll"
-            "liblzma.dll"
-            "libsharpyuv.dll"
-            "zlib1.dll"
+        "SDL3.dll"
+        "SDL3_image.dll"
+        "SDL3_ttf.dll"
+        "jpeg62.dll"
+        "bz2.dll"
+        "tiff.dll"
+        "brotlidec.dll"
+        "brotlicommon.dll"
+        "freetype.dll"
+        "libpng16.dll"
+        "libwebpdemux.dll"
+        "libwebp.dll"
+        "liblzma.dll"
+        "libsharpyuv.dll"
+        "zlib1.dll"
         )
 
         foreach(DLL_BASENAME ${PROJECT_DLLS})

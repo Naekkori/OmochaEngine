@@ -151,22 +151,4 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
     return "알 수 없는 블록 타입";
 }
 
-std::string blockTypeEnumToEnglishString(BlockTypeEnum type) {
-    // This is the reverse of stringToBlockTypeEnum's map keys.
-    // For brevity, only a few examples. You'd need to fill this out completely.
-    static const std::map<BlockTypeEnum, std::string> englishMap = {
-        {BlockTypeEnum::MOVE_DIRECTION, "move_direction"},
-        {BlockTypeEnum::BOUNCE_WALL, "bounce_wall"},
-        // ... Add all other mappings ...
-        {BlockTypeEnum::CALC_BASIC, "calc_basic"},
-        {BlockTypeEnum::SHOW, "show"},
-        {BlockTypeEnum::UNKNOWN, "unknown_block_type"}
-    };
-     auto it = englishMap.find(type);
-    if (it != englishMap.end()) {
-        return it->second;
-    }
-    return "unknown_block_type";
-}
-
 } // namespace Omocha

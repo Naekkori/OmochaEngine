@@ -97,11 +97,13 @@ void Entity::executeScript(const Script* scriptPtr)
         catch (const std::exception& e)
         {
             
-            //런타임 에러로 대체
-            //pEngineInstance->showMessageBox("Error executing block: " + block.id + " of type: " + block.type + " for object: " + id + "\n" + e.what(), pEngineInstance->msgBoxIconType.ICON_ERROR);
             Omocha::BlockTypeEnum blockType = Omocha::stringToBlockTypeEnum(block.type);
-            throw runtime_error("블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ block.id + " 의 타입 " + Omocha::blockTypeEnumToKoreanString(blockType)+ " 에서 사용 하는 객체 " + id + "\n" + e.what());
-            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + Omocha::blockTypeEnumToEnglishString(blockType) + " for object: " + id + "\n" + e.what(),2);
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockType);
+            std::string originalBlockTypeForLog = block.type;
+
+            std::string errorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ block.id + " 의 타입 " + koreanBlockTypeName + (blockType == Omocha::BlockTypeEnum::UNKNOWN && !originalBlockTypeForLog.empty() ? " (원본: " + originalBlockTypeForLog + ")" : "") + " 에서 사용 하는 객체 " + id + "\n" + e.what();
+            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + originalBlockTypeForLog + " for object: " + id + ". Original error: " + e.what(),2);
+            throw std::runtime_error(errorMessage);
         }
     }
 }

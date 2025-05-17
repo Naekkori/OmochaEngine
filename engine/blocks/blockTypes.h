@@ -91,13 +91,4 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr);
  * @return The Korean string for the block type.
  */
 std::string blockTypeEnumToKoreanString(BlockTypeEnum type);
-
-/**
- * @brief Converts a BlockTypeEnum back to its original English string representation.
- * Useful if you need the original string for other logic.
- * @param type The BlockTypeEnum value.
- * @return The original English string for the block type.
- */
-std::string blockTypeEnumToEnglishString(BlockTypeEnum type);
-
-} // namespace Omocha
+}
