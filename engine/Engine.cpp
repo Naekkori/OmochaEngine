@@ -1664,7 +1664,17 @@ bool Engine::loadImages()
 
     EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount), 0);
     chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double>>(chrono::steady_clock::now() - startTime);
-    EngineStdOut("Time to load entire image : " + to_string(loadingDuration.count()) + " seconds");
+    string greething = "";
+    double duration = loadingDuration.count();
+
+    if (duration < 1.0) {
+        greething = "WoW Excellent!"; 
+    } else if (duration < 10.0) {
+        greething = "Umm ok.";
+    } else {
+        greething = "You to Slow.";
+    }
+    EngineStdOut("Time to load entire image " + to_string(loadingDuration.count()) + " seconds " + greething);
     if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0)
     {
         EngineStdOut("All images failed to load. Cannot continue.", 2); // 모든 이미지 로드 실패
