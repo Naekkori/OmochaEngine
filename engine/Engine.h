@@ -28,9 +28,6 @@ const int WINDOW_HEIGHT = 270 * 3;
 static const int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
 static const int PROJECT_STAGE_HEIGHT = 270; // 실제 프로젝트의 세로 크기(16:9 비율)에 맞춤
 
-// Forward declaration for Command (Commands.h에 정의됨)
-struct BaseCommand;
-
 // HUD 상수 정의
 static const int SLIDER_X = 10;
 static const int SLIDER_Y = WINDOW_HEIGHT - 40;
@@ -176,8 +173,6 @@ private:
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
-
-    std::queue<std::unique_ptr<BaseCommand>> m_commandQueue;
     std::mutex m_commandQueueMutex;
     std::condition_variable m_commandQueueCV; // 엔티티 스레드가 커맨드를 추가했음을 알리기 위함 (선택적)
     void processCommands(); // 메인 루프에서 커맨드를 처리하는 함수
@@ -236,7 +231,6 @@ public:
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
     bool loadImages();
-    void enqueueCommand(std::unique_ptr<BaseCommand> command);
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;

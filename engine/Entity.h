@@ -2,8 +2,10 @@
 
 #include <string>
 #include <vector>
-#include <mutex>
-#include "SDL3/SDL_pixels.h" // For SDL_Color
+#include <mutex> // For std::mutex
+#include "SDL3/SDL_pixels.h" // For SDL_Color (already included)
+#include "SDL3/SDL_rect.h"   // For SDL_FRect, SDL_FPoint
+#include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
 
 // Forward declaration
 class Engine;
@@ -120,7 +122,7 @@ private:
     RotationMethod rotateMethod;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
-    mutable mutex m_stateMutex;
+    mutable std::mutex m_stateMutex;
 public: // Made brush and paint public for now for easier access from blocks
     Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;

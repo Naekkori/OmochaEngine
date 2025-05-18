@@ -11,7 +11,7 @@ Entity::PenState::PenState(Engine* enginePtr)
     : pEngine(enginePtr), 
       stop(false),      // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
       isPenDown(false),
-      lastStagePosition{0.0f, 0.0f},
+      lastStagePosition({0.0f, 0.0f}),
       color{0, 0, 0, 255}
 {
 }

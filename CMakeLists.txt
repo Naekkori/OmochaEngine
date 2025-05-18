@@ -16,6 +16,10 @@ set(DEVELOPER_NAME "Naekkori")
 set(GITHUB "https://github.com/Naekkori/OmochaEngine")
 project("OmochaEngine" VERSION 1.0.0) 
 add_compile_options(-finput-charset=UTF-8)
+
+if(WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)
+endif()
 set(RESOURCE_RC_FILE ${CMAKE_SOURCE_DIR}/resource.rc)
 set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
