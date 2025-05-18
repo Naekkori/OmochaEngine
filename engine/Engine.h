@@ -241,7 +241,7 @@ public:
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
     void showProjectTimer(bool show); // 프로젝트 타이머 표시 여부 설정
-    void EngineStdOut(string s, int LEVEL = 0) const;
+    void EngineStdOut(string s, int LEVEL = 0,string TREADID="") const;
     void processInput(const SDL_Event &event);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();

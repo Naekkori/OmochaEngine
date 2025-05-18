@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <mutex>
 #include "SDL3/SDL_pixels.h" // For SDL_Color
 
 // Forward declaration
@@ -119,6 +120,7 @@ private:
     RotationMethod rotateMethod;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
+    mutable mutex m_stateMutex;
 public: // Made brush and paint public for now for easier access from blocks
     Engine* pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
@@ -143,7 +145,7 @@ public:
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();
     void updateDialog(Uint64 currentTimeMs);
-    bool hasActiveDialog() const { return m_currentDialog.isActive; }
+    bool hasActiveDialog() const;
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;
     const std::string &getName() const;

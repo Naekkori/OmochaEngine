@@ -3556,9 +3556,10 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
  * @brief 엔진 로그출력
  *
  * @param s 출력할내용
- * @param LEVEL 수준 예) 0:정보, 1:경고, 2:오류, 3:디버그, 4:특수
+ * @param LEVEL 수준 예) 0:정보, 1:경고, 2:오류, 3:디버그, 4:특수, 5:TREAD
+ * @param ThreadID 쓰레드 ID
  */
-void Engine::EngineStdOut(string s, int LEVEL) const
+void Engine::EngineStdOut(string s, int LEVEL, string TREADID) const
 {
     string prefix;
 
@@ -3585,6 +3586,10 @@ void Engine::EngineStdOut(string s, int LEVEL) const
     case 4:
         prefix = "[SAYHELLO]";
         color_code = ANSI_COLOR_YELLOW + ANSI_STYLE_BOLD;
+        break;
+    case 5:
+        prefix = "[EntryCPP THREAD " + TREADID + "]";
+        color_code = ANSI_COLOR_CYAN + ANSI_STYLE_BOLD;
         break;
     default:
         prefix = "[LOG]";

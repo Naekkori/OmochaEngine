@@ -51,6 +51,8 @@ find_package(SDL3_image CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
 find_package(SDL3_ttf CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_ttf::SDL3_ttf>,SDL3_ttf::SDL3_ttf,SDL3_ttf::SDL3_ttf-static>)
+#boost
+find_package(Boost REQUIRED)
 # config file
 configure_file(
     "${PROJECT_SOURCE_DIR}/version_config.h.in" 
@@ -112,6 +114,23 @@ install(TARGETS OmochaEngine
     RUNTIME DESTINATION . COMPONENT Application
 )
 
+# Install the license file
+set(LICENSE_FILE_PATH "")
+set(LICENSE_FILE_NAME_WITH_EXT "LICENSE.txt")
+set(LICENSE_FILE_NAME_NO_EXT "LICENSE")
+if(EXISTS "${PROJECT_SOURCE_DIR}/${LICENSE_FILE_NAME_WITH_EXT}")
+    set(LICENSE_FILE_PATH "${PROJECT_SOURCE_DIR}/${LICENSE_FILE_NAME_WITH_EXT}")
+    set(ACTUAL_LICENSE_FILE_NAME ${LICENSE_FILE_NAME_WITH_EXT})
+elseif(EXISTS "${PROJECT_SOURCE_DIR}/${LICENSE_FILE_NAME_NO_EXT}")
+    set(LICENSE_FILE_PATH "${PROJECT_SOURCE_DIR}/${LICENSE_FILE_NAME_NO_EXT}")
+    set(ACTUAL_LICENSE_FILE_NAME ${LICENSE_FILE_NAME_NO_EXT})
+endif()
+if(NOT LICENSE_FILE_PATH STREQUAL "")
+    install(FILES "${LICENSE_FILE_PATH}" DESTINATION . COMPONENT Application)
+    message(STATUS "License file (${ACTUAL_LICENSE_FILE_NAME}) will be packaged.")
+else()
+    message(WARNING "License file not found (checked for ${LICENSE_FILE_NAME_WITH_EXT} and ${LICENSE_FILE_NAME_NO_EXT}). It will not be packaged.")
+endif()
 # Install fonts
 set(FONT_DIR_RELATIVE "font")
 set(FONT_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${FONT_DIR_RELATIVE}")
@@ -182,6 +201,58 @@ if(WIN32)
     else()
         message(WARNING "VCPKG_BIN_DIR is not defined or not a directory. DLLs will not be packaged.")
     endif()
+
+    # Install vcpkg library licenses
+    set(VCPKG_INSTALL_ROOT_FOR_LICENSES "")
+    if(CMAKE_PREFIX_PATH)
+        foreach(prefix_candidate ${CMAKE_PREFIX_PATH})
+            if(IS_DIRECTORY "${prefix_candidate}/share")
+                set(VCPKG_INSTALL_ROOT_FOR_LICENSES "${prefix_candidate}")
+                message(STATUS "Using vcpkg installation root for licenses: ${VCPKG_INSTALL_ROOT_FOR_LICENSES}")
+                break() 
+            endif()
+        endforeach()
+    endif()
+
+    if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share")
+        # 프로젝트 루트 라이선스 파일 존재 여부 확인 메시지 추가
+        if(NOT LICENSE_FILE_PATH STREQUAL "")
+            message(STATUS "프로젝트 루트 라이선스 '${ACTUAL_LICENSE_FILE_NAME}'가 발견되었습니다. 개별 vcpkg 라이선스 패키징을 진행합니다.")
+        else()
+            message(STATUS "프로젝트 루트 라이선스를 찾지 못했습니다. 개별 vcpkg 라이선스 패키징을 진행합니다.")
+        endif()
+
+        set(VCPKG_LIC_PORTS
+            "rapidjson"     # From find_package
+            "sdl3"          # From find_package
+            "sdl3-image"    # From find_package
+            "sdl3-ttf"      # From find_package
+            "boost"         # Used for asio, license often general
+            "bzip2"         # From bz2.dll
+            "libjpeg-turbo" # From jpeg62.dll
+            "libtiff"       # From tiff.dll
+            "brotli"        # From brotlidec.dll, brotlicommon.dll
+            "freetype"      # From freetype.dll
+            "libpng"        # From libpng16.dll
+            "libwebp"       # From libwebp.dll, libwebpdemux.dll
+            "xz-utils"      # From liblzma.dll (port name for xz/liblzma)
+            "zlib"          # From zlib1.dll
+        )
+
+        foreach(PORT_NAME ${VCPKG_LIC_PORTS})
+            set(COPYRIGHT_FILE_PATH "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share/${PORT_NAME}/copyright")
+            if(EXISTS "${COPYRIGHT_FILE_PATH}")
+                install(FILES "${COPYRIGHT_FILE_PATH}"
+                        DESTINATION "licenses/vcpkg/${PORT_NAME}"
+                        COMPONENT LicensesVcpkg) # New component for vcpkg licenses
+                message(STATUS "Packaging vcpkg license for ${PORT_NAME} from ${COPYRIGHT_FILE_PATH}")
+            else()
+                message(STATUS "Vcpkg copyright file for ${PORT_NAME} not found at ${COPYRIGHT_FILE_PATH}")
+            endif()
+        endforeach()
+    else()
+        message(WARNING "Could not determine vcpkg installation directory for licenses. Vcpkg licenses will not be packaged.")
+    endif()
 endif()
 
 # CPack configuration
@@ -193,7 +264,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OmochaEngine Game Engine")
 set(CPACK_PACKAGE_HOMEPAGE_URL "${GITHUB}")
 set(CPACK_PACKAGE_CONTACT "${DEVELOPER_NAME}") # You can use an email here
 
-set(CPACK_COMPONENTS_ALL Application RuntimeLibraries Assets)
+set(CPACK_COMPONENTS_ALL Application RuntimeLibraries Assets LicensesVcpkg) # Added LicensesVcpkg
 
 if(WIN32)
     set(CPACK_GENERATOR "ZIP") # Creates a .zip file

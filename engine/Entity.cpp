@@ -1,5 +1,6 @@
 #include "Entity.h"
 #include <iostream>
+#include <mutex> // For std::lock_guard
 #include <string>
 #include <cmath>
 #include <stdexcept>
@@ -111,59 +112,79 @@ void Entity::executeScript(const Script* scriptPtr)
 const std::string& Entity::getId() const { return id; }
 const std::string& Entity::getName() const { return name; }
 
-double Entity::getX() const { return x; }
-double Entity::getY() const { return y; }
-double Entity::getRegX() const { return regX; }
-double Entity::getRegY() const { return regY; }
-double Entity::getScaleX() const { return scaleX; }
-double Entity::getScaleY() const { return scaleY; }
-double Entity::getRotation() const { return rotation; }
-double Entity::getDirection() const { return direction; }
-double Entity::getWidth() const { return width; }
-double Entity::getHeight() const { return height; }
-bool Entity::isVisible() const { return visible; }
+double Entity::getX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return x; }
+double Entity::getY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return y; }
+double Entity::getRegX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return regX; }
+double Entity::getRegY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return regY; }
+double Entity::getScaleX() const { std::lock_guard<std::mutex> lock(m_stateMutex); return scaleX; }
+double Entity::getScaleY() const { std::lock_guard<std::mutex> lock(m_stateMutex); return scaleY; }
+double Entity::getRotation() const { std::lock_guard<std::mutex> lock(m_stateMutex); return rotation; }
+double Entity::getDirection() const { std::lock_guard<std::mutex> lock(m_stateMutex); return direction; }
+double Entity::getWidth() const { std::lock_guard<std::mutex> lock(m_stateMutex); return width; }
+double Entity::getHeight() const { std::lock_guard<std::mutex> lock(m_stateMutex); return height; }
+bool Entity::isVisible() const { std::lock_guard<std::mutex> lock(m_stateMutex); return visible; }
 
 
-void Entity::setX(double newX) { x = newX; }
-void Entity::setY(double newY) { y = newY; }
-void Entity::setRegX(double newRegX) { regX = newRegX; }
-void Entity::setRegY(double newRegY) { regY = newRegY; }
-void Entity::setScaleX(double newScaleX) { scaleX = newScaleX; }
-void Entity::setScaleY(double newScaleY) { scaleY = newScaleY; }
-void Entity::setRotation(double newRotation) { rotation = newRotation; }
+void Entity::setX(double newX) { std::lock_guard<std::mutex> lock(m_stateMutex); x = newX; }
+void Entity::setY(double newY) { std::lock_guard<std::mutex> lock(m_stateMutex); y = newY; }
+void Entity::setRegX(double newRegX) { std::lock_guard<std::mutex> lock(m_stateMutex); regX = newRegX; }
+void Entity::setRegY(double newRegY) { std::lock_guard<std::mutex> lock(m_stateMutex); regY = newRegY; }
+void Entity::setScaleX(double newScaleX) { std::lock_guard<std::mutex> lock(m_stateMutex); scaleX = newScaleX; }
+void Entity::setScaleY(double newScaleY) { std::lock_guard<std::mutex> lock(m_stateMutex); scaleY = newScaleY; }
+void Entity::setRotation(double newRotation) { std::lock_guard<std::mutex> lock(m_stateMutex); rotation = newRotation; }
+
 void Entity::setDirection(double newDirection) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     // 방향 업데이트
     direction = newDirection;
 
+    // 현재 스케일 값의 절대값을 유지하면서 부호만 변경하기 위함
+    double currentScaleXMagnitude = std::abs(scaleX);
+    double currentScaleYMagnitude = std::abs(scaleY);
+
+    // 방향 값을 [0, 360) 범위로 정규화
+    double normalizedAngle = std::fmod(newDirection, 360.0);
+    if (normalizedAngle < 0.0) {
+        normalizedAngle += 360.0;
+    }
+
     // 회전 방식에 따른 스프라이트 반전 처리
     if (rotateMethod == RotationMethod::HORIZONTAL) {
-        // direction이 0~180 (오른쪽)이면 scaleX를 양수로, 180~360 (왼쪽)이면 음수로 설정
-        scaleX = (direction < 180) ? std::abs(scaleX) : -std::abs(scaleX);
-    } else if (rotateMethod == RotationMethod::VERTICAL || rotateMethod == RotationMethod::FREE) {
-        // direction이 90~270 (아래쪽)이면 scaleY를 음수로, 그 외 (위쪽)이면 양수로 설정
-        // 0도: 위쪽, 90도: 오른쪽, 180도: 아래쪽, 270도: 왼쪽
-        if (direction >= 90 && direction < 270) {
-            scaleY = -std::abs(scaleY);
+        // normalizedAngle이 [0, 180) 범위면 오른쪽으로 간주하여 scaleX를 양수로,
+        // [180, 360) 범위면 왼쪽으로 간주하여 scaleX를 음수로 설정합니다.
+        if (normalizedAngle < 180.0) {
+            scaleX = currentScaleXMagnitude;
         } else {
-            scaleY = std::abs(scaleY);
+            scaleX = -currentScaleXMagnitude;
+        }
+    } else if (rotateMethod == RotationMethod::VERTICAL) {
+        // normalizedAngle이 [90, 270) 범위면 아래쪽으로 간주하여 scaleY를 음수로,
+        // 그 외 ([0, 90) U [270, 360)) 범위면 위쪽으로 간주하여 scaleY를 양수로 설정합니다.
+        if (normalizedAngle >= 90.0 && normalizedAngle < 270.0) {
+            scaleY = -currentScaleYMagnitude;
+        } else {
+            scaleY = currentScaleYMagnitude;
         }
     }
-    // RotationMethod::FREE 또는 NONE의 경우는 여기서 처리하지 않음
-    // (FREE는 회전각으로 처리, NONE은 반전 없음)
+    // RotationMethod::FREE 또는 NONE의 경우, 방향(direction)에 따라 scale을 변경하지 않습니다.
+    // FREE 회전은 rotation 속성으로 처리됩니다.
 }
-void Entity::setWidth(double newWidth) { width = newWidth; }
-void Entity::setHeight(double newHeight) { height = newHeight; }
-void Entity::setVisible(bool newVisible) { visible = newVisible; }
+void Entity::setWidth(double newWidth) { std::lock_guard<std::mutex> lock(m_stateMutex); width = newWidth; }
+void Entity::setHeight(double newHeight) { std::lock_guard<std::mutex> lock(m_stateMutex); height = newHeight; }
+void Entity::setVisible(bool newVisible) { std::lock_guard<std::mutex> lock(m_stateMutex); visible = newVisible; }
 
 Entity::RotationMethod Entity::getRotateMethod() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     return rotateMethod;
 }
 
 void Entity::setRotateMethod(RotationMethod method) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     rotateMethod = method;
 }
 
 bool Entity::isPointInside(double pX, double pY) const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     // pX, pY는 스테이지 좌표 (중앙 (0,0), Y축 위쪽)
     // this->x, this->y는 엔티티의 등록점의 스테이지 좌표
     // 1. 점을 엔티티의 로컬 좌표계로 변환 (등록점을 원점으로)
@@ -203,10 +224,12 @@ bool Entity::isPointInside(double pX, double pY) const {
     return false;
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     return lastCollisionSide;
 }
 
 void Entity::setLastCollisionSide(CollisionSide side) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     lastCollisionSide = side;
 }
 // processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
@@ -214,6 +237,7 @@ void Entity::setLastCollisionSide(CollisionSide side) {
 // -> 이 주석은 이제 유효하지 않습니다. 해당 함수들은 BlockExecutor.cpp에 있습니다.
 
 void Entity::showDialog(const std::string& message, const std::string& dialogType, Uint64 duration) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     m_currentDialog.clear(); 
 
     m_currentDialog.text = message.empty() ? "    " : message;
@@ -229,15 +253,22 @@ void Entity::showDialog(const std::string& message, const std::string& dialogTyp
 }
 
 void Entity::removeDialog() {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     if (m_currentDialog.isActive) {
         m_currentDialog.clear();
     }
 }
 
 void Entity::updateDialog(Uint64 currentTimeMs) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
     if (m_currentDialog.isActive && m_currentDialog.durationMs > 0) {
         if (currentTimeMs >= m_currentDialog.startTimeMs + m_currentDialog.durationMs) {
-            removeDialog();
+            // removeDialog()는 내부적으로 m_stateMutex를 다시 잠그려고 시도할 수 있습니다.
+            // 이미 m_stateMutex가 잠겨있는 상태이므로, clear()를 직접 호출하거나
+            // removeDialog()의 내부 로직을 여기에 직접 구현하는 것이 좋습니다.
+            // 여기서는 clear()를 직접 호출하는 것으로 변경합니다.
+            m_currentDialog.clear();
         }
     }
 }
+bool Entity::hasActiveDialog() const { std::lock_guard<std::mutex> lock(m_stateMutex); return m_currentDialog.isActive; }
