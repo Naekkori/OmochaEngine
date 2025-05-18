@@ -131,6 +131,29 @@ if(NOT LICENSE_FILE_PATH STREQUAL "")
 else()
     message(WARNING "License file not found (checked for ${LICENSE_FILE_NAME_WITH_EXT} and ${LICENSE_FILE_NAME_NO_EXT}). It will not be packaged.")
 endif()
+
+# Install project-specific licenses from LICENSES directory
+set(PROJECT_LICENSES_DIR_PATH "${PROJECT_SOURCE_DIR}/LICENSES")
+
+if(IS_DIRECTORY "${PROJECT_LICENSES_DIR_PATH}")
+    file(GLOB PROJECT_LICENSE_FILES LIST_DIRECTORIES false "${PROJECT_LICENSES_DIR_PATH}/*")
+
+    if(PROJECT_LICENSE_FILES)
+        message(STATUS "Found project licenses in directory: ${PROJECT_LICENSES_DIR_PATH}")
+        install(FILES ${PROJECT_LICENSE_FILES}
+                DESTINATION "licenses/project" # Installs to <prefix>/licenses/project/
+                COMPONENT LicensesProject)
+        message(STATUS "Packaging project licenses from ${PROJECT_LICENSES_DIR_PATH} to 'licenses/project/'.")
+        foreach(lic_file ${PROJECT_LICENSE_FILES})
+            get_filename_component(fname ${lic_file} NAME)
+            message(STATUS "  - Queued for packaging: ${fname}")
+        endforeach()
+    else()
+        message(STATUS "Project licenses directory '${PROJECT_LICENSES_DIR_PATH}' is empty. No additional project licenses will be packaged.")
+    endif()
+else()
+    message(STATUS "Project licenses directory not found: ${PROJECT_LICENSES_DIR_PATH}. No additional project licenses will be packaged.")
+endif()
 # Install fonts
 set(FONT_DIR_RELATIVE "font")
 set(FONT_DIR_ABSOLUTE "${PROJECT_SOURCE_DIR}/${FONT_DIR_RELATIVE}")
@@ -264,7 +287,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OmochaEngine Game Engine")
 set(CPACK_PACKAGE_HOMEPAGE_URL "${GITHUB}")
 set(CPACK_PACKAGE_CONTACT "${DEVELOPER_NAME}") # You can use an email here
 
-set(CPACK_COMPONENTS_ALL Application RuntimeLibraries Assets LicensesVcpkg) # Added LicensesVcpkg
+set(CPACK_COMPONENTS_ALL Application RuntimeLibraries Assets LicensesVcpkg LicensesProject) # Added LicensesVcpkg and LicensesProject
 
 if(WIN32)
     set(CPACK_GENERATOR "ZIP") # Creates a .zip file
