@@ -75,13 +75,23 @@ OmochaEngine v1.0.0 by Maiteil
 ```
 
 # 사용 라이브러리
-| Name       | URL                                     |
-|------------|-----------------------------------------|
-| Rapid Json | https://rapidjson.org/                  |
-| SDL        | https://github.com/libsdl-org/SDL       |
-| SDL_image  | https://github.com/libsdl-org/SDL_image |
-| SDL_ttf    | https://github.com/libsdl-org/SDL_ttf   |
-| miniAudio  | http://miniaud.io/                      |
+| Name           | URL                                      |
+|----------------|------------------------------------------|
+| RapidJSON      | [https://rapidjson.org/](https://rapidjson.org/) |
+| SDL            | [https://github.com/libsdl-org/SDL](https://github.com/libsdl-org/SDL) |
+| SDL_image      | [https://github.com/libsdl-org/SDL_image](https://github.com/libsdl-org/SDL_image) |
+| SDL_ttf        | [https://github.com/libsdl-org/SDL_ttf](https://github.com/libsdl-org/SDL_ttf) |
+| miniAudio      | [http://miniaud.io/](http://miniaud.io/) |
+| Boost          | [https://www.boost.org/](https://www.boost.org/) |
+| Bzip2          | [https://sourceware.org/bzip2/](https://sourceware.org/bzip2/) |
+| libjpeg-turbo  | [https://libjpeg-turbo.org/](https://libjpeg-turbo.org/) |
+| libtiff        | [http://www.libtiff.org/](http://www.libtiff.org/) |
+| Brotli         | [https://github.com/google/brotli](https://github.com/google/brotli) |
+| Freetype       | [https://freetype.org/](https://freetype.org/) |
+| libpng         | [http://www.libpng.org/pub/png/libpng.html](http://www.libpng.org/pub/png/libpng.html) |
+| libwebp        | [https://chromium.googlesource.com/webm/libwebp/](https://chromium.googlesource.com/webm/libwebp/) |
+| xz-utils       | [https://tukaani.org/xz/](https://tukaani.org/xz/) |
+| zlib           | [https://zlib.net/](https://zlib.net/) |                     |
 
 ## 계산 블록 구현 현황
 
