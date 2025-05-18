@@ -294,7 +294,7 @@ if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LI
 
     foreach(PORT_NAME ${VCPKG_LIC_PORTS})
         set(TARGET_LICENSE_FILE_IN_PACKAGE "copyright") # 패키지 내 최종 파일명
-        set(DEST_DIR_IN_PACKAGE "licenses/vcpkg/${PORT_NAME}") # 패키지 내 최종 경로
+        set(DEST_DIR_IN_PACKAGE "licenses/${PORT_NAME}") # 패키지 내 최종 경로
 
         set(SOURCE_LICENSE_FILE_PATH "") # 설치할 라이선스 파일의 실제 경로
         set(LICENSE_SOURCE_DESCRIPTION "") # 라이선스 출처 설명
