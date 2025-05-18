@@ -92,7 +92,7 @@ OmochaEngine v1.0.0 by Maiteil
 | libwebp        | [https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING](https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING) |
 | xz-utils       | [https://tukaani.org/xz/xz-license.txt](https://tukaani.org/xz/xz-license.txt) |
 | zlib           | [https://zlib.net/zlib_license.html](https://zlib.net/zlib_license.html) |
-#라이센스
+# 라이센스
 ```
 MIT License
 
