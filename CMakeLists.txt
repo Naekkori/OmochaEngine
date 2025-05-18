@@ -7,6 +7,10 @@ if(EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
 endif()
 cmake_minimum_required (VERSION 3.8)
 
+# Set policies to suppress warnings and use modern behavior
+cmake_policy(SET CMP0074 NEW) # find_package uses <PackageName>_ROOT variables as CMake variables.
+cmake_policy(SET CMP0167 NEW) # The FindBoost module is removed.
+
 
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
@@ -183,6 +187,16 @@ if(EXISTS "${SYSMENU_DIR_ABSOLUTE}")
 else()
     message(WARNING "Sysmenu directory not found: ${SYSMENU_DIR_ABSOLUTE}. Sysmenu files will not be packaged.")
 endif()
+
+#install README.md
+set(README_FILE_PATH "${PROJECT_SOURCE_DIR}/README.md")
+if(EXISTS "${README_FILE_PATH}")
+    install(FILES "${README_FILE_PATH}" DESTINATION . COMPONENT Assets)
+    message(STATUS "README.md will be packaged.")
+else()
+    message(WARNING "README.md not found. It will not be packaged.")
+endif()
+
 # Install DLLs for Windows
 if(WIN32)
     # VCPKG_BIN_DIR should be set from the DLL copying section above.
@@ -228,58 +242,122 @@ if(WIN32)
     else()
         message(WARNING "VCPKG_BIN_DIR is not defined or not a directory. DLLs will not be packaged.")
     endif()
+endif()
 
-    # Install vcpkg library licenses
-    set(VCPKG_INSTALL_ROOT_FOR_LICENSES "")
-    if(CMAKE_PREFIX_PATH)
-        foreach(prefix_candidate ${CMAKE_PREFIX_PATH})
-            if(IS_DIRECTORY "${prefix_candidate}/share")
-                set(VCPKG_INSTALL_ROOT_FOR_LICENSES "${prefix_candidate}")
-                message(STATUS "Using vcpkg installation root for licenses: ${VCPKG_INSTALL_ROOT_FOR_LICENSES}")
-                break() 
-            endif()
-        endforeach()
+# Install third-party library licenses (vcpkg, manual, or downloaded)
+set(VCPKG_INSTALL_ROOT_FOR_LICENSES "")
+if(CMAKE_PREFIX_PATH)
+    foreach(prefix_candidate ${CMAKE_PREFIX_PATH})
+        if(IS_DIRECTORY "${prefix_candidate}/share") # Heuristic for a vcpkg-like install prefix (for vcpkg licenses)
+            set(VCPKG_INSTALL_ROOT_FOR_LICENSES "${prefix_candidate}")
+            message(STATUS "Determined vcpkg installation root for licenses: ${VCPKG_INSTALL_ROOT_FOR_LICENSES}")
+            break()
+        endif()
+    endforeach()
+endif()
+
+if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share")
+    message(STATUS "Processing third-party licenses. Vcpkg share directory: ${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share")
+    # The following message about project root license is for context, not directly tied to each vcpkg lib.
+    if(NOT LICENSE_FILE_PATH STREQUAL "")
+        message(STATUS "프로젝트 루트 라이선스 '${ACTUAL_LICENSE_FILE_NAME}'가 발견되었습니다. 개별 의존성 라이선스 패키징을 진행합니다.")
+    else()
+        message(STATUS "프로젝트 루트 라이선스를 찾지 못했습니다. 개별 vcpkg 라이선스 패키징을 진행합니다.")
     endif()
 
-    if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share")
-        # 프로젝트 루트 라이선스 파일 존재 여부 확인 메시지 추가
-        if(NOT LICENSE_FILE_PATH STREQUAL "")
-            message(STATUS "프로젝트 루트 라이선스 '${ACTUAL_LICENSE_FILE_NAME}'가 발견되었습니다. 개별 vcpkg 라이선스 패키징을 진행합니다.")
-        else()
-            message(STATUS "프로젝트 루트 라이선스를 찾지 못했습니다. 개별 vcpkg 라이선스 패키징을 진행합니다.")
+    set(VCPKG_LIC_PORTS
+        "rapidjson"     # From find_package
+        "sdl3"          # From find_package
+        "sdl3-image"    # From find_package
+        "sdl3-ttf"      # From find_package
+        "boost"         # Used for asio, license often general
+        "bzip2"         # From bz2.dll (Windows) or linked dependency
+        "libjpeg-turbo" # From jpeg62.dll (Windows) or linked dependency
+        "libtiff"       # From tiff.dll (Windows) or linked dependency
+        "brotli"        # From brotlidec.dll, brotlicommon.dll (Windows) or linked dependency
+        "freetype"      # From freetype.dll (Windows) or linked dependency
+        "libpng"        # From libpng16.dll (Windows) or linked dependency
+        "libwebp"       # From libwebp.dll, libwebpdemux.dll (Windows) or linked dependency
+        "xz-utils"      # From liblzma.dll (Windows) or linked dependency (port name for xz/liblzma)
+        "zlib"          # From zlib1.dll (Windows) or linked dependency
+    )
+
+    set(MANUAL_LICENSES_DIR "${PROJECT_SOURCE_DIR}/licenses_manual_vcpkg")
+    set(DOWNLOAD_STAGING_DIR "${CMAKE_CURRENT_BINARY_DIR}/downloaded_licenses_staging")
+    file(MAKE_DIRECTORY "${DOWNLOAD_STAGING_DIR}") # For storing downloaded files before install
+
+    # --- 사용자 정의: 다운로드할 라이선스 URL ---
+    set(LICENSE_URL_boost "https://www.boost.org/LICENSE_1_0.txt")
+    set(LICENSE_URL_libtiff "https://gitlab.com/libtiff/libtiff/-/raw/master/LICENSE.md") # 실제 URL 확인 필요
+    set(LICENSE_URL_xz_utils "https://git.tukaani.org/?p=xz.git;a=blob_plain;f=COPYING;hb=HEAD")
+    # -----------------------------------------
+
+    foreach(PORT_NAME ${VCPKG_LIC_PORTS})
+        set(TARGET_LICENSE_FILE_IN_PACKAGE "copyright") # 패키지 내 최종 파일명
+        set(DEST_DIR_IN_PACKAGE "licenses/vcpkg/${PORT_NAME}") # 패키지 내 최종 경로
+
+        set(SOURCE_LICENSE_FILE_PATH "") # 설치할 라이선스 파일의 실제 경로
+        set(LICENSE_SOURCE_DESCRIPTION "") # 라이선스 출처 설명
+
+        # 1. vcpkg 경로에서 찾기
+        set(VCPKG_COPYRIGHT_FILE "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share/${PORT_NAME}/copyright")
+        if(EXISTS "${VCPKG_COPYRIGHT_FILE}")
+            set(SOURCE_LICENSE_FILE_PATH "${VCPKG_COPYRIGHT_FILE}")
+            set(LICENSE_SOURCE_DESCRIPTION "vcpkg")
         endif()
 
-        set(VCPKG_LIC_PORTS
-            "rapidjson"     # From find_package
-            "sdl3"          # From find_package
-            "sdl3-image"    # From find_package
-            "sdl3-ttf"      # From find_package
-            "boost"         # Used for asio, license often general
-            "bzip2"         # From bz2.dll
-            "libjpeg-turbo" # From jpeg62.dll
-            "libtiff"       # From tiff.dll
-            "brotli"        # From brotlidec.dll, brotlicommon.dll
-            "freetype"      # From freetype.dll
-            "libpng"        # From libpng16.dll
-            "libwebp"       # From libwebp.dll, libwebpdemux.dll
-            "xz-utils"      # From liblzma.dll (port name for xz/liblzma)
-            "zlib"          # From zlib1.dll
-        )
-
-        foreach(PORT_NAME ${VCPKG_LIC_PORTS})
-            set(COPYRIGHT_FILE_PATH "${VCPKG_INSTALL_ROOT_FOR_LICENSES}/share/${PORT_NAME}/copyright")
-            if(EXISTS "${COPYRIGHT_FILE_PATH}")
-                install(FILES "${COPYRIGHT_FILE_PATH}"
-                        DESTINATION "licenses/vcpkg/${PORT_NAME}"
-                        COMPONENT LicensesVcpkg) # New component for vcpkg licenses
-                message(STATUS "Packaging vcpkg license for ${PORT_NAME} from ${COPYRIGHT_FILE_PATH}")
-            else()
-                message(STATUS "Vcpkg copyright file for ${PORT_NAME} not found at ${COPYRIGHT_FILE_PATH}")
+        # 2. vcpkg에 없으면, 프로젝트 내 수동 추가 폴더에서 찾기
+        if(SOURCE_LICENSE_FILE_PATH STREQUAL "")
+            set(MANUAL_COPYRIGHT_FILE "${MANUAL_LICENSES_DIR}/${PORT_NAME}/copyright")
+            if(EXISTS "${MANUAL_COPYRIGHT_FILE}")
+                set(SOURCE_LICENSE_FILE_PATH "${MANUAL_COPYRIGHT_FILE}")
+                set(LICENSE_SOURCE_DESCRIPTION "manual project copy from ${MANUAL_LICENSES_DIR}/${PORT_NAME}")
+                message(STATUS "Using manual copy for ${PORT_NAME} license: ${MANUAL_COPYRIGHT_FILE}")
             endif()
-        endforeach()
-    else()
-        message(WARNING "Could not determine vcpkg installation directory for licenses. Vcpkg licenses will not be packaged.")
-    endif()
+        endif()
+
+        # 3. 그래도 없으면, 인터넷에서 다운로드 시도
+        if(SOURCE_LICENSE_FILE_PATH STREQUAL "")
+            set(CURRENT_PORT_LICENSE_URL_VAR "LICENSE_URL_${PORT_NAME}")
+            string(REPLACE "-" "_" CURRENT_PORT_LICENSE_URL_VAR ${CURRENT_PORT_LICENSE_URL_VAR}) # 변수명 표준화 (예: libjpeg-turbo -> LICENSE_URL_libjpeg_turbo)
+
+            if(DEFINED ${CURRENT_PORT_LICENSE_URL_VAR})
+                set(LICENSE_URL "${${CURRENT_PORT_LICENSE_URL_VAR}}")
+                set(DOWNLOADED_FILE_STAGING_PATH "${DOWNLOAD_STAGING_DIR}/${PORT_NAME}_license_downloaded.txt") # 임시 저장 파일명
+
+                message(STATUS "License for ${PORT_NAME} not found locally. Attempting download from: ${LICENSE_URL}")
+                file(DOWNLOAD "${LICENSE_URL}" "${DOWNLOADED_FILE_STAGING_PATH}"
+                     TIMEOUT 15
+                     STATUS download_status
+                     LOG download_log SHOW_PROGRESS)
+
+                list(GET download_status 0 error_code)
+                if(error_code EQUAL 0 AND EXISTS "${DOWNLOADED_FILE_STAGING_PATH}")
+                    message(STATUS "Successfully downloaded license for ${PORT_NAME} to ${DOWNLOADED_FILE_STAGING_PATH}")
+                    set(SOURCE_LICENSE_FILE_PATH "${DOWNLOADED_FILE_STAGING_PATH}")
+                    set(LICENSE_SOURCE_DESCRIPTION "downloaded")
+                else()
+                    message(WARNING "Failed to download license for ${PORT_NAME} from ${LICENSE_URL}. Error: ${error_code}. See log for details.")
+                    message(DEBUG "Download log for ${PORT_NAME}: ${download_log}")
+                endif()
+            else()
+                message(STATUS "License for ${PORT_NAME} not found (vcpkg, manual) and no download URL (e.g. ${CURRENT_PORT_LICENSE_URL_VAR}) configured.")
+            endif()
+        endif()
+
+        # 4. 라이선스 파일을 찾았거나 다운로드했다면 설치
+        if(NOT SOURCE_LICENSE_FILE_PATH STREQUAL "")
+            install(FILES "${SOURCE_LICENSE_FILE_PATH}"
+                    DESTINATION "${DEST_DIR_IN_PACKAGE}"
+                    RENAME "${TARGET_LICENSE_FILE_IN_PACKAGE}" # 패키지에는 'copyright' 이름으로 설치
+                    COMPONENT LicensesVcpkg)
+            message(STATUS "Packaging license for ${PORT_NAME} (source: ${LICENSE_SOURCE_DESCRIPTION}) to ${DEST_DIR_IN_PACKAGE}/${TARGET_LICENSE_FILE_IN_PACKAGE}")
+        else()
+            message(WARNING "Could not find, copy, or download license for ${PORT_NAME}. It will not be packaged.")
+        endif()
+    endforeach()
+else()
+    message(STATUS "Could not determine a suitable vcpkg installation directory for licenses from CMAKE_PREFIX_PATH, or its 'share' subdirectory is missing. Vcpkg licenses will not be packaged by this method.")
 endif()
 
 # CPack configuration
