@@ -75,24 +75,23 @@ OmochaEngine v1.0.0 by Maiteil
 ```
 
 # 사용 라이브러리
-| Name           | URL                                      |
-|----------------|------------------------------------------|
-| RapidJSON      | [https://rapidjson.org/](https://rapidjson.org/) |
-| SDL            | [https://github.com/libsdl-org/SDL](https://github.com/libsdl-org/SDL) |
-| SDL_image      | [https://github.com/libsdl-org/SDL_image](https://github.com/libsdl-org/SDL_image) |
-| SDL_ttf        | [https://github.com/libsdl-org/SDL_ttf](https://github.com/libsdl-org/SDL_ttf) |
-| miniAudio      | [http://miniaud.io/](http://miniaud.io/) |
-| Boost          | [https://www.boost.org/](https://www.boost.org/) |
-| Bzip2          | [https://sourceware.org/bzip2/](https://sourceware.org/bzip2/) |
-| libjpeg-turbo  | [https://libjpeg-turbo.org/](https://libjpeg-turbo.org/) |
-| libtiff        | [http://www.libtiff.org/](http://www.libtiff.org/) |
-| Brotli         | [https://github.com/google/brotli](https://github.com/google/brotli) |
-| Freetype       | [https://freetype.org/](https://freetype.org/) |
-| libpng         | [http://www.libpng.org/pub/png/libpng.html](http://www.libpng.org/pub/png/libpng.html) |
-| libwebp        | [https://chromium.googlesource.com/webm/libwebp/](https://chromium.googlesource.com/webm/libwebp/) |
-| xz-utils       | [https://tukaani.org/xz/](https://tukaani.org/xz/) |
-| zlib           | [https://zlib.net/](https://zlib.net/) |                     |
-
+| Name           | License URL                                                                                          |
+|----------------|------------------------------------------------------------------------------------------------------|
+| RapidJSON      | [https://github.com/Tencent/rapidjson/blob/master/license.txt](https://github.com/Tencent/rapidjson/blob/master/license.txt) |
+| SDL            | [https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt) |
+| SDL_image      | [https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt) |
+| SDL_ttf        | [https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt) |
+| miniAudio      | [https://github.com/mackron/miniaudio/blob/master/LICENSE](https://github.com/mackron/miniaudio/blob/master/LICENSE) |
+| Boost          | [https://www.boost.org/LICENSE_1_0.txt](https://www.boost.org/LICENSE_1_0.txt) |
+| Bzip2          | [https://sourceware.org/bzip2/LICENSE](https://sourceware.org/bzip2/LICENSE) |
+| libjpeg-turbo  | [https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md) |
+| libtiff        | [https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT](https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT) |
+| Brotli         | [https://github.com/google/brotli/blob/master/LICENSE](https://github.com/google/brotli/blob/master/LICENSE) |
+| Freetype       | [https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/docs/FTL.TXT](https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/docs/FTL.TXT) |
+| libpng         | [http://www.libpng.org/pub/png/src/libpng-LICENSE.txt](http://www.libpng.org/pub/png/src/libpng-LICENSE.txt) |
+| libwebp        | [https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING](https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING) |
+| xz-utils       | [https://tukaani.org/xz/xz-license.txt](https://tukaani.org/xz/xz-license.txt) |
+| zlib           | [https://zlib.net/zlib_license.html](https://zlib.net/zlib_license.html) |
 ## 계산 블록 구현 현황
 
 - [x] **`calc_basic`**: 10 + 10 (사칙연산: 덧셈, 뺄셈, 곱셈, 나눗셈)
