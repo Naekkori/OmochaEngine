@@ -1954,7 +1954,76 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         
     }else if (BlockType == "add_effect_amount")
     {
-        
+        // params: EFFECT (dropdown: "color", "brightness", "transparency"), VALUE (number)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // 인디케이터 포함 시 3개일 수 있음
+            engine.EngineStdOut("add_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
+            return;
+        }
+        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]); // EFFECT dropdown
+        OperandValue effectValueOp = getOperandValue(engine, objectId, block.paramsJson[1]); // VALUE number
+
+        if (effectTypeOp.type != OperandValue::Type::STRING) {
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
+            return;
+        }
+        if (effectValueOp.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
+            return;
+        }
+
+        std::string effectName = effectTypeOp.asString();
+        double value = effectValueOp.asNumber();
+
+        if (effectName == "color") { // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
+            entity->setEffectHue(entity->getEffectHue() + value);
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectHue()), 0);
+        } else if (effectName == "brightness") {
+            entity->setEffectBrightness(entity->getEffectBrightness() + value);
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectBrightness()), 0);
+        } else if (effectName == "transparency") {
+            // JavaScript: sprite.effect.alpha = sprite.effect.alpha - effectValue / 100;
+            // 여기서 effectValue는 0-100 범위의 값으로, 투명도를 증가시킵니다 (알파 값을 감소시킴).
+            // Entity의 m_effectAlpha는 0.0(투명) ~ 1.0(불투명) 범위입니다.
+            entity->setEffectAlpha(entity->getEffectAlpha() - (value / 100.0));
+            engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + std::to_string(value) + "%, new value: " + std::to_string(entity->getEffectAlpha()), 0);
+        } else {
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": Unknown effect type '" + effectName + "'.", 1);
+        }
+    }else if (BlockType == "change_effect_amount"){
+        if (!block.paramsJson.Empty() || block.paramsJson.Size() < 2)
+        {
+            engine.EngineStdOut("change_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
+            return;
+        }
+        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]); // EFFECT dropdown
+        OperandValue effectValueOp = getOperandValue(engine, objectId, block.paramsJson[1]); // VALUE number
+
+        if (effectTypeOp.type != OperandValue::Type::STRING) {
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
+            return;
+        }
+        if (effectValueOp.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
+            return;
+        }
+
+        std::string effectName = effectTypeOp.asString();
+        double value = effectValueOp.asNumber();
+        if (effectName == "color"){
+            entity->setEffectHue(value);
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + std::to_string(value), 0);
+        }else if (effectName == "brightness"){
+            entity->setEffectBrightness(value);
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + std::to_string(value), 0);
+        }else if (effectName == "transparency"){
+            entity->setEffectAlpha(1 - (value/100.0));
+            engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed to " + std::to_string(value), 0);
+        }
+    }else if (BlockType == "erase_all_effects"){
+        entity->setEffectBrightness(0.0); // 밝기 효과 초기화 (0.0이 기본값)
+        entity->setEffectAlpha(1.0);    // 투명도 효과 초기화 (1.0이 기본값, 완전 불투명)
+        entity->setEffectHue(0.0);      // 색깔 효과 (색조) 초기화 (0.0이 기본값)
+        engine.EngineStdOut("Entity " + objectId + " all graphic effects erased.", 0);
     }
     
 }

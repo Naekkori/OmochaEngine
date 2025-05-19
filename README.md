@@ -173,9 +173,9 @@ SOFTWARE.
 - [x] `remove_dialog`: 표시된 말풍선/생각풍선을 제거합니다.
 - [x] `change_to_some_shape`: 엔티티의 모양을 지정된 모양으로 변경합니다. (ID 또는 이름으로 모양 선택)
 - [x] `change_to_next_shape`: 엔티티의 모양을 다음 또는 이전 모양으로 변경합니다. (다음, 이전 옵션 포함)
-- [ ] `add_effect_amount`: 엔티티에 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값만큼 더합니다.
-- [ ] `change_effect_amount`: 엔티티의 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값으로 설정합니다.
-- [ ] `erase_all_effects`: 엔티티에 적용된 모든 그래픽 효과를 제거합니다.
+- [x] `add_effect_amount`: 엔티티에 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값만큼 더합니다.
+- [x] `change_effect_amount`: 엔티티의 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값으로 설정합니다.
+- [x] `erase_all_effects`: 엔티티에 적용된 모든 그래픽 효과를 제거합니다.
 - [ ] `change_scale_size`: 엔티티의 크기를 지정된 값만큼 변경합니다. (기존 크기에 더함)
 - [ ] `set_scale_size`: 엔티티의 크기를 지정된 값으로 설정합니다. (절대 크기)
 - [ ] `stretch_scale_size`: 엔티티의 가로 또는 세로 크기를 지정된 값만큼 변경합니다. (너비, 높이 옵션)

@@ -58,6 +58,38 @@ static void Helper_DrawFilledCircle(SDL_Renderer *renderer, int centerX, int cen
         SDL_RenderLine(renderer, centerX - dx_limit, centerY + dy, centerX + dx_limit, centerY + dy);
     }
 }
+// Engine.cpp 상단 또는 유틸리티 함수 영역에 추가
+SDL_Color hueToRGB(double H) { // H는 0-359 범위의 색조(hue) 값
+    H = std::fmod(H, 360.0);
+    if (H < 0) H += 360.0;
+
+    double S = 1.0; // 채도 (Saturation) - 여기서는 최대로 설정
+    double V = 1.0; // 명도 (Value/Brightness) - 여기서는 최대로 설정
+
+    int Hi = static_cast<int>(std::floor(H / 60.0)) % 6;
+    double f = H / 60.0 - std::floor(H / 60.0);
+
+    double p = V * (1.0 - S);
+    double q = V * (1.0 - f * S);
+    double t = V * (1.0 - (1.0 - f) * S);
+
+    double r_norm = 0, g_norm = 0, b_norm = 0;
+
+    switch (Hi) {
+        case 0: r_norm = V; g_norm = t; b_norm = p; break;
+        case 1: r_norm = q; g_norm = V; b_norm = p; break;
+        case 2: r_norm = p; g_norm = V; b_norm = t; break;
+        case 3: r_norm = p; g_norm = q; b_norm = V; break;
+        case 4: r_norm = t; g_norm = p; b_norm = V; break;
+        case 5: r_norm = V; g_norm = p; b_norm = q; break;
+    }
+    return {
+        static_cast<Uint8>(std::clamp(r_norm * 255.0, 0.0, 255.0)),
+        static_cast<Uint8>(std::clamp(g_norm * 255.0, 0.0, 255.0)),
+        static_cast<Uint8>(std::clamp(b_norm * 255.0, 0.0, 255.0)),
+        255 // Alpha는 여기서는 불투명으로 고정
+    };
+}
 
 static void Helper_RenderFilledRoundedRect(SDL_Renderer *renderer, const SDL_FRect *rect, float radius)
 {
@@ -1819,7 +1851,48 @@ void Engine::drawAllEntities()
                 dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY());
 
                 double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0); // SDL 렌더링 각도 계산
+                bool colorModApplied = false , alphaModApplied = false;
+                double brightness_effect = entityPtr->getEffectBrightness();
+                double hue_effect_dgress  = entityPtr->getEffectHue();
 
+                Uint8 r_final_mod = 255, g_final_mod =255, b_final_mod = 255;
+
+                float brightness_factor = (100.0f + static_cast<float>(brightness_effect)) / 100.0f;
+                brightness_factor = clamp(brightness_factor, 0.0f, 2.0f);
+
+                if (abs(hue_effect_dgress)>0.01)
+                {
+                    colorModApplied = true;
+                    SDL_Color hue_tint_color = hueToRGB(hue_effect_dgress);
+
+                    r_final_mod = static_cast<Uint8>(clamp(hue_tint_color.r * brightness_factor, 0.0f, 255.0f));
+                    g_final_mod = static_cast<Uint8>(clamp(hue_tint_color.g * brightness_factor, 0.0f, 255.0f));
+                    b_final_mod = static_cast<Uint8>(clamp(hue_tint_color.b * brightness_factor, 0.0f, 255.0f));
+                }else if (abs(brightness_effect)>0.01)
+                {
+                    colorModApplied = true;
+                    r_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
+                    g_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
+                    b_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
+                }
+                if (colorModApplied)
+                {
+                    SDL_SetTextureColorMod(selectedCostume->imageHandle,r_final_mod,g_final_mod,b_final_mod);
+                }
+                double alpha_effect = entityPtr->getEffectAlpha();
+                if (abs(alpha_effect - 1.0)>0.01)
+                {
+                    alphaModApplied = true;
+                    Uint8 alpha_sdl_mod = static_cast<Uint8>(std::clamp(alpha_effect*255.0, 0.0, 255.0));
+                    SDL_SetTextureAlphaMod(selectedCostume->imageHandle, alpha_sdl_mod);
+                }
+
+                if (colorModApplied) {
+                    SDL_SetTextureColorMod(selectedCostume->imageHandle, 255, 255, 255);
+                }
+                if (alphaModApplied) {
+                    SDL_SetTextureAlphaMod(selectedCostume->imageHandle, 255);
+                }
                 SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
             }
         }

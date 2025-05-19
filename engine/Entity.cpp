@@ -58,7 +58,11 @@ Entity::Entity(Engine* engine, const std::string& entityId, const std::string& e
       x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
       scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
       width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
-      brush(engine), paint(engine), timedMoveObjState(), timedRotationState() { // Initialize PenState members
+      brush(engine), paint(engine), timedMoveObjState(), timedRotationState(),
+      m_effectBrightness(0.0),      // 0: 원본 밝기
+      m_effectAlpha(1.0),           // 1.0: 완전 불투명
+      m_effectHue(0.0)              // 0: 색조 변경 없음
+{ // Initialize PenState members
 } 
 
 Entity::~Entity() {
@@ -274,3 +278,13 @@ void Entity::updateDialog(Uint64 currentTimeMs) {
     }
 }
 bool Entity::hasActiveDialog() const { std::lock_guard<std::mutex> lock(m_stateMutex); return m_currentDialog.isActive; }
+
+// Effect Getters and Setters
+double Entity::getEffectBrightness() const { std::lock_guard<std::mutex> lock(m_stateMutex); return m_effectBrightness; }
+void Entity::setEffectBrightness(double brightness) { std::lock_guard<std::mutex> lock(m_stateMutex); m_effectBrightness = std::clamp(brightness, -100.0, 100.0); }
+
+double Entity::getEffectAlpha() const { std::lock_guard<std::mutex> lock(m_stateMutex); return m_effectAlpha; }
+void Entity::setEffectAlpha(double alpha) { std::lock_guard<std::mutex> lock(m_stateMutex); m_effectAlpha = std::clamp(alpha, 0.0, 1.0); }
+
+double Entity::getEffectHue() const { std::lock_guard<std::mutex> lock(m_stateMutex); return m_effectHue; }
+void Entity::setEffectHue(double hue) { std::lock_guard<std::mutex> lock(m_stateMutex); m_effectHue = std::fmod(hue, 360.0); if (m_effectHue < 0) m_effectHue += 360.0; }

@@ -139,6 +139,13 @@ private:
     double height;
     bool visible;
     RotationMethod rotateMethod;
+    // Effects
+    // Brightness: -100 (어둡게) to 0 (원본) to +100 (밝게)
+    double m_effectBrightness;
+    // Alpha: 0.0 (완전 투명) to 1.0 (완전 불투명)
+    double m_effectAlpha;
+    // Hue: 0-359 degrees offset for color effect
+    double m_effectHue;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
     mutable std::mutex m_stateMutex;
@@ -194,4 +201,12 @@ public:
     void setWidth(double newWidth);
     void setHeight(double newHeight);
     void setVisible(bool newVisible);
+
+    // Effect getters/setters
+    double getEffectBrightness() const;
+    void setEffectBrightness(double brightness);
+    double getEffectAlpha() const;
+    void setEffectAlpha(double alpha);
+    double getEffectHue() const;
+    void setEffectHue(double hue);
 };
