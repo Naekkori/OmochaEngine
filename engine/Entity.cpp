@@ -97,14 +97,16 @@ void Entity::executeScript(const Script* scriptPtr, const std::string& execution
         }
         catch (const std::exception& e)
         {
-            
-            Omocha::BlockTypeEnum blockType = Omocha::stringToBlockTypeEnum(block.type);
-            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockType);
+            // 상세 오류 메시지 생성은 Engine으로 이동합니다.
+            // 여기서는 간단한 로그와 함께 사용자 정의 예외를 발생시킵니다.
             std::string originalBlockTypeForLog = block.type;
-
-            std::string errorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ block.id + " 의 타입 " + koreanBlockTypeName + (blockType == Omocha::BlockTypeEnum::UNKNOWN && !originalBlockTypeForLog.empty() ? " (원본: " + originalBlockTypeForLog + ")" : "") + " 에서 사용 하는 객체 " + id + "\n" + e.what();
-            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + originalBlockTypeForLog + " for object: " + id + ". Original error: " + e.what(), 2, executionThreadId);
-            throw std::runtime_error(errorMessage);
+            pEngineInstance->EngineStdOut("Block execution failed within Entity: " + id + ", Block ID: " + block.id + ", Type: " + originalBlockTypeForLog + ". Original error: " + e.what(), 2, executionThreadId);
+            throw ScriptBlockExecutionError(
+                "Error during script block execution in entity.", // 기본 메시지
+                block.id,
+                originalBlockTypeForLog, // 원본 블록 타입 전달
+                this->id,
+                e.what());
         }
     }
 }

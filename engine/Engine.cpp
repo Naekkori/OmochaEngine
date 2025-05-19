@@ -18,6 +18,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 #include "blocks/BlockExecutor.h"
+#include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -4044,8 +4045,21 @@ void Engine::dispatchScriptForExecution(const std::string& entityId, const Scrip
             } else {
                 EngineStdOut("Entity " + entityId + " not found when trying to execute script in worker thread " + thread_id_str, 1, thread_id_str);
             }
+        } catch (const ScriptBlockExecutionError& sbee) {
+            // ScriptBlockExecutionError를 여기서 처리하여 상세 한글 오류 메시지 생성
+            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
+            
+            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ sbee.blockId +
+                                       " 의 타입 " + koreanBlockTypeName +
+                                       (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty() ? " (원본: " + sbee.blockType + ")" : "") +
+                                       " 에서 사용 하는 객체 " + sbee.entityId + 
+                                       "\n원본 오류: " + sbee.originalMessage;
+
+            EngineStdOut("Script Execution Error (Thread " + thread_id_str + "): " + detailedErrorMessage, 2, thread_id_str);
+            this->showMessageBox("오류가 발생했습니다!\n"+detailedErrorMessage,SDL_MESSAGEBOX_ERROR);
         } catch (const std::exception& e) {
-            EngineStdOut("Exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId + ": " + e.what(), 2, thread_id_str);
+            EngineStdOut("Generic exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId + ": " + e.what(), 2, thread_id_str);
         } catch (...) {
             EngineStdOut("Unknown exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId, 2, thread_id_str);
         }

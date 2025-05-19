@@ -1019,8 +1019,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId, 2);
-                throw "0으로 나누기 (몫) (은)는 불가능합니다.";
+                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId + ". Returning NaN.", 2);
+                // throw "0으로 나누기 (몫) (은)는 불가능합니다.";
+                return OperandValue(std::nan("")); // NaN 반환
             }
             return OperandValue(std::floor(left_val / right_val));
         }
@@ -1028,8 +1029,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId, 2);
-                throw "0으로 나누기 (나머지) (은)는 불가능합니다.";
+                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId + ". Returning NaN.", 2);
+                // throw "0으로 나누기 (나머지) (은)는 불가능합니다.";
+                return OperandValue(std::nan("")); // NaN 반환
             }
             return OperandValue(left_val - right_val * std::floor(left_val / right_val));
         }
@@ -1836,7 +1838,7 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
             if (numRight == 0.0)
             {
                 engine.EngineStdOut("Division by zero", 2);
-                throw "0으로 나누기는 불가능합니다.";
+                return OperandValue(std::nan(""));
             }
             return OperandValue(numLeft / numRight);
         }

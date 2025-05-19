@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <stdexcept> // For std::runtime_error
 #include <string>
 #include <vector>
 #include <mutex> // For std::mutex
@@ -11,6 +12,24 @@
 class Engine;
 struct Script; // Forward declaration for Script
 class Block;   // Forward declaration for Block
+
+// 사용자 정의 예외: 스크립트 블록 실행 중 발생하는 오류를 위한 클래스
+class ScriptBlockExecutionError : public std::runtime_error {
+public:
+    std::string blockId;
+    std::string blockType;
+    std::string entityId;
+    std::string originalMessage; // 원본 std::exception의 what() 메시지
+
+    ScriptBlockExecutionError(const std::string& msg, // runtime_error 기본 생성자용 메시지
+                              const std::string& bId,
+                              const std::string& bType,
+                              const std::string& eId,
+                              const std::string& origMsg)
+        : std::runtime_error(msg), 
+          blockId(bId), blockType(bType), entityId(eId), originalMessage(origMsg) {}
+};
+
 
 class Entity
 {
