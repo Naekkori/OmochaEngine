@@ -1071,16 +1071,6 @@ bool Engine::loadProject(const string &projectFilePath)
             return false;
         }
     }
-
-    if (!currentSceneId.empty())
-    {
-        EngineStdOut("Triggering 'when_scene_start' scripts for initial scene: " + currentSceneId, 0);
-        triggerWhenSceneStartScripts();
-    }
-    else
-    {
-    }
-
     /**
      * @brief 특정 이벤트에 연결될 스크립트 식별 (예: 시작 버튼 클릭, 키 입력, 메시지 수신 등)
      */
