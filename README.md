@@ -38,7 +38,7 @@ javascript 기반 엔진보다 속도가 빠릅니다
 ### 설명
 brandName  브랜드네임 여기에 자기가 적고싶은 문구를 적습니다.
 <br>
-showProjectNameUI 프로젝트 제목을 출력합니다.
+showProjectNameUI 프로젝트 제목을 출력합니다. (로딩 스크린 전용)
 <br>
 showZoomSliderUI 뷰포트를 확대/축소 하는 슬라이더 를 표시합니다.
 <br>
