@@ -142,7 +142,7 @@ public:
     ~Entity();
     CollisionSide getLastCollisionSide() const;
     // 스크립트 실행 함수
-    void executeScript(const Script* scriptPtr);
+    void executeScript(const Script* scriptPtr, const std::string& executionThreadId);
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();

@@ -68,27 +68,27 @@ Entity::~Entity() {
 // BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
 
 
-void Entity::executeScript(const Script* scriptPtr)
+void Entity::executeScript(const Script* scriptPtr, const std::string& executionThreadId)
 {
     if (!pEngineInstance) {
         // EngineStdOut은 Engine의 멤버이므로 직접 호출 불가. 로깅 방식 변경 필요
-        std::cerr << "ERROR: Entity " << id << " has no valid Engine instance for script execution." << std::endl;
+        std::cerr << "ERROR: Entity " << id << " has no valid Engine instance for script execution (Thread: " << executionThreadId << ")." << std::endl;
         return;
     }
     if (!scriptPtr) {
-        pEngineInstance->EngineStdOut("executeScript called with null script pointer for object: " + id, 2);
+        pEngineInstance->EngineStdOut("executeScript called with null script pointer for object: " + id, 2, executionThreadId);
         return;
     }
 
-    pEngineInstance->EngineStdOut("Executing script for object: " + id, 3);
+    pEngineInstance->EngineStdOut("Executing script for object: " + id, 5, executionThreadId); // LEVEL 5 및 스레드 ID 사용
     for (size_t i = 1; i < scriptPtr->blocks.size(); ++i) // 첫 번째 블록은 이벤트 트리거이므로 1부터 시작
     {
         const Block& block = scriptPtr->blocks[i];
-        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3);
+        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 5, executionThreadId); // LEVEL 5 및 스레드 ID 사용
         try
         {   
             // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
-            Moving(block.type, *pEngineInstance, this->id, block);
+            Moving(block.type, *pEngineInstance, this->id, block); // TODO: 이 함수들 내부 로그도 스레드 ID를 포함하려면 executionThreadId를 넘겨야 함
             Calculator(block.type, *pEngineInstance, this->id, block); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정
             Looks(block.type, *pEngineInstance, this->id, block);
             Sound(block.type, *pEngineInstance, this->id, block);
@@ -103,7 +103,7 @@ void Entity::executeScript(const Script* scriptPtr)
             std::string originalBlockTypeForLog = block.type;
 
             std::string errorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID "+ block.id + " 의 타입 " + koreanBlockTypeName + (blockType == Omocha::BlockTypeEnum::UNKNOWN && !originalBlockTypeForLog.empty() ? " (원본: " + originalBlockTypeForLog + ")" : "") + " 에서 사용 하는 객체 " + id + "\n" + e.what();
-            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + originalBlockTypeForLog + " for object: " + id + ". Original error: " + e.what(),2);
+            pEngineInstance->EngineStdOut("Error executing block: "+ block.id + " of type: " + originalBlockTypeForLog + " for object: " + id + ". Original error: " + e.what(), 2, executionThreadId);
             throw std::runtime_error(errorMessage);
         }
     }

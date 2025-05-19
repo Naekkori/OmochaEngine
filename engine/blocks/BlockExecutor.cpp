@@ -1950,7 +1950,11 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             engine.setEntitychangeToNextCostume(objectId,"prev");
         }
         
+    }else if (BlockType == "add_effect_amount")
+    {
+        
     }
+    
 }
 /**
  * @brief 사운드블럭

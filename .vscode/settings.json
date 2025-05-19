@@ -87,6 +87,10 @@
         "thread": "cpp",
         "unordered_map": "cpp",
         "unordered_set": "cpp",
-        "xhash": "cpp"
+        "xhash": "cpp",
+        "codecvt": "cpp",
+        "csignal": "cpp",
+        "shared_mutex": "cpp",
+        "source_location": "cpp"
     }
 }

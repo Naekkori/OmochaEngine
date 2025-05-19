@@ -21,6 +21,8 @@
 #include <queue>
 #include <condition_variable>
 #include <memory> // For std::unique_ptr
+#include <boost/asio/thread_pool.hpp> // 추가
+#include <boost/asio/post.hpp>
 using namespace std;
 
 const int WINDOW_WIDTH = 480 * 3;
@@ -126,7 +128,8 @@ private:
     vector<pair<string, const Script *>> m_whenObjectClickCanceledScripts;
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
-
+    boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
+    std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -141,7 +144,6 @@ private:
     // bool m_projectTimerVisible = false; // 이제 HUDVariableDisplay의 isVisible로 관리
     bool m_gameplayInputActive = false; // Flag to indicate if gameplay-related key input is active
     Uint64 m_projectTimerStartTime = 0; // Start time of the project timer (Uint64로 변경)
-    // int Soundloader(const string& soundUri);
     // --- Mouse State ---
     float m_currentStageMouseX = 0.0f;
     float m_currentStageMouseY = 0.0f;
@@ -250,6 +252,7 @@ public:
     Entity *getEntityById(const string &id);
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
+    Entity *getEntityById_nolock(const std::string &id);
     void renderLoadingScreen();
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();
@@ -285,7 +288,7 @@ public:
     void drawDialogs();
     bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
     bool setEntitychangeToNextCostume(const string& entityId,const string& asOption);
+    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr);
     SimpleLogger logger;                           // 로거 인스턴스
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
-    mutable std::mutex m_engineDataMutex; // 엔진의 주요 데이터(objectScripts, scenes, entities 등) 보호용
 };

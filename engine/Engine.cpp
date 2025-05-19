@@ -39,7 +39,8 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
 }
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
-                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
+                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
+                   m_scriptThreadPool(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
     
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -120,6 +121,9 @@ Engine::~Engine()
     }
     entities.clear();
     objects_in_order.clear();
+    EngineStdOut("Shutting down script thread pool...", 0);
+    m_scriptThreadPool.join(); // 모든 작업이 완료될 때까지 대기
+    EngineStdOut("Script thread pool shut down.", 0);
     objectScripts.clear();
 }
 
@@ -2762,8 +2766,6 @@ void Engine::processInput(const SDL_Event &event)
                         const string &objectId = scriptPair.first;
                         const Script *scriptPtr = scriptPair.second;
                         Entity *currentEntity = getEntityById(objectId);
-
-                        // Entity의 멤버 함수로 executeScript를 호출하도록 변경
                         if (currentEntity)
                         {
                             if (currentEntity->isVisible()) // 엔티티가 보이는지 확인
@@ -2776,7 +2778,7 @@ void Engine::processInput(const SDL_Event &event)
                                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                     if (isInCurrentScene || isGlobal)
                                     {
-                                        currentEntity->executeScript(scriptPtr); // 조건 만족 시 스크립트 실행 요청
+                                        this->dispatchScriptForExecution(objectId, scriptPtr);
                                     }
                                 }
                                 else
@@ -2817,10 +2819,9 @@ void Engine::processInput(const SDL_Event &event)
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
                                 if (clickScriptPair.first == objectId)
-                                {
-                                    const Script *scriptPtr = clickScriptPair.second;
-                                    EngineStdOut("Requesting 'when_object_click' for object: " + entity->getId(), 0);
-                                    entity->executeScript(scriptPtr);
+                                {                                    
+                                    EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 0);
+                                    this->dispatchScriptForExecution(objectId, clickScriptPair.second);
                                 }
                             }
                             break;
@@ -2851,17 +2852,8 @@ void Engine::processInput(const SDL_Event &event)
                 {
                     const string &objectId = scriptPair.first;
                     const Script *scriptPtr = scriptPair.second;
-                    EngineStdOut(" -> Executing 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
-                    // executeScript(*this, objectId, scriptPtr); // 기존 호출
-                    Entity *targetEntity = getEntityById(objectId);
-                    if (targetEntity)
-                    {
-                        targetEntity->executeScript(scriptPtr);
-                    }
-                    else
-                    {
-                        EngineStdOut(" -> Entity " + objectId + " not found for key press script.", 1);
-                    }
+                    EngineStdOut(" -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
+                    this->dispatchScriptForExecution(objectId, scriptPtr);
                 }
             }
         }
@@ -3011,7 +3003,7 @@ void Engine::processInput(const SDL_Event &event)
                                 bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                 if (isInCurrentScene || isGlobal)
                                 {
-                                    currentEntity->executeScript(scriptPtr); // 조건 만족 시 스크립트 실행 요청
+                                    this->dispatchScriptForExecution(objectId, scriptPtr);
                                 }
                             }
                             else
@@ -3019,7 +3011,8 @@ void Engine::processInput(const SDL_Event &event)
                                 EngineStdOut("Warning: ObjectInfo not found for entity ID '" + objectId + "' during mouse_click_canceled event processing. Script not run.", 1);
                             }
                         } else if (!currentEntity) {
-                            currentEntity->executeScript(scriptPtr);
+                            // currentEntity가 null이면 아무것도 할 수 없음. 이 경우는 로직 오류일 수 있음.
+                            EngineStdOut("Warning: mouse_click_canceled event for null entity ID '" + objectId + "'. Script not run.", 1);
                         }
                     }
                 }
@@ -3031,18 +3024,8 @@ void Engine::processInput(const SDL_Event &event)
                     {
                         if (scriptPair.first == canceledObjectId)
                         {
-                            const Script *scriptPtr = scriptPair.second;
-
-                            EngineStdOut("Requesting 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                            Entity *targetEntity = getEntityById(canceledObjectId);
-                            if (targetEntity)
-                            {
-                                targetEntity->executeScript(scriptPtr);
-                            }
-                            else
-                            {
-                                EngineStdOut(" -> Entity " + canceledObjectId + " not found for click cancel script.", 1);
-                            }
+                            EngineStdOut("Dispatching 'when_object_click_canceled' for object: " + canceledObjectId, 0);
+                            this->dispatchScriptForExecution(canceledObjectId, scriptPair.second);
                         }
                     }
                 }
@@ -3231,18 +3214,8 @@ void Engine::runStartButtonScripts()
     {
         const string &objectId = scriptPair.first;
         const Script *scriptPtr = scriptPair.second;
-
         EngineStdOut(" -> Running script for object: " + objectId, 3);
-        // executeScript(*this, objectId, scriptPtr); // 기존 호출
-        Entity *targetEntity = getEntityById(objectId);
-        if (targetEntity)
-        {
-            targetEntity->executeScript(scriptPtr); // 새 호출
-        }
-        else
-        {
-            EngineStdOut(" -> Entity " + objectId + " not found for start button script.", 1);
-        }
+        this->dispatchScriptForExecution(objectId, scriptPtr);
         m_gameplayInputActive = true;
     }
     EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
@@ -3332,6 +3305,17 @@ Entity *Engine::getEntityById(const string &id)
         return it->second;
     }
 
+    return nullptr;
+}
+
+// Private method, assumes m_engineDataMutex is already locked by the caller.
+Entity* Engine::getEntityById_nolock(const std::string& id)
+{
+    auto it = entities.find(id);
+    if (it != entities.end())
+    {
+        return it->second;
+    }
     return nullptr;
 }
 
@@ -3732,16 +3716,7 @@ void Engine::triggerWhenSceneStartScripts()
         if (executeForScene)
         {
             EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
-            // executeScript(*this, objectId, scriptPtr); // 기존 호출
-            Entity *targetEntity = getEntityById(objectId);
-            if (targetEntity)
-            {
-                targetEntity->executeScript(scriptPtr); // 새 호출
-            }
-            else
-            {
-                EngineStdOut("  -> Entity " + objectId + " not found for scene start script.", 1);
-            }
+            this->dispatchScriptForExecution(objectId, scriptPtr);
         }
     }
 }
@@ -4046,4 +4021,43 @@ bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &
     }
     EngineStdOut("Entity ID '" + entityId + "' not found in objects_in_order for changing costume.", 1);
     return false; // entityId를 찾지 못한 경우
+}
+
+void Engine::dispatchScriptForExecution(const std::string& entityId, const Script* scriptPtr) {
+    if (!scriptPtr) {
+        EngineStdOut("dispatchScriptForExecution called with null script pointer for object: " + entityId, 2);
+        return;
+    }
+     if (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1) { // 첫번째 블록은 이벤트 트리거
+        EngineStdOut("dispatchScriptForExecution: Script for object " + entityId + " has no executable blocks. Skipping.", 1);
+        return;
+    }
+
+    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr]() {
+        std::string thread_id_str;
+        try {
+            std::thread::id current_thread_id = std::this_thread::get_id();
+            std::stringstream ss;
+            ss << current_thread_id;
+            thread_id_str = ss.str();
+
+            EngineStdOut("Worker thread " + thread_id_str + " picked up script for entity: " + entityId, 5, thread_id_str);
+
+            Entity* entity = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
+                entity = getEntityById_nolock(entityId); // 뮤텍스가 이미 잠겨있으므로 _nolock 버전 사용 (만약 없다면 getEntityById 사용)
+            }
+
+            if (entity) {
+                entity->executeScript(scriptPtr, thread_id_str);
+            } else {
+                EngineStdOut("Entity " + entityId + " not found when trying to execute script in worker thread " + thread_id_str, 1, thread_id_str);
+            }
+        } catch (const std::exception& e) {
+            EngineStdOut("Exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId + ": " + e.what(), 2, thread_id_str);
+        } catch (...) {
+            EngineStdOut("Unknown exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId, 2, thread_id_str);
+        }
+    });
 }
