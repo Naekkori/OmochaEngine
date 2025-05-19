@@ -4,7 +4,7 @@ the entryjs cpp porting
 [entryjs](https://github.com/entrylabs/entryjs)
 를 CPP 로 옮긴 엔진 입니다.
 <br>
-entry hw,카메라 와 마이크(stt 처리), ai 기능들은 전부 제외되어있습니다
+entry hw,카메라 와 마이크(stt 처리), ai 기능들은 전부 제외 시켜 경량화(?) 된 엔진 입니다.
 **게임엔진** 에 가깝습니다.
 
 ### 왜 만들었나요?
