@@ -3,7 +3,7 @@
 #include "miniaudio.h"
 #include <stdexcept>
 
-AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log") {
+AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackSpeed(1.0f) {
     aeStdOut("Audio Engine Helper initializing...");
     ma_device_config deviceConfig;
     ma_context_config contextConfig;
@@ -78,7 +78,7 @@ void AudioEngineHelper::uninitializeSound(ma_sound* pSound) {
     }
 }
 
-void AudioEngineHelper::playSound(const std::string& objectId, const std::string& filePath, bool loop, float initialVolume) {
+void AudioEngineHelper::playSound(const std::string& objectId, const std::string& filePath, bool loop=false, float initialVolume=1.0f) {
     if (!m_engineInitialized) {
         aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
         return;
@@ -105,12 +105,136 @@ void AudioEngineHelper::playSound(const std::string& objectId, const std::string
 
     ma_sound_set_looping(&soundInstance, loop ? MA_TRUE : MA_FALSE);
     ma_sound_set_volume(&soundInstance, initialVolume);
+    ma_sound_set_pitch(&soundInstance, m_globalPlaybackSpeed); // 전역 재생 속도 적용
     ma_sound_start(&soundInstance);
 
     m_activeSounds[objectId] = soundInstance; // 맵에 저장 (새로 추가 또는 덮어쓰기)
     aeStdOut("Sound started: " + filePath + " for object: " + objectId);
 }
+void AudioEngineHelper::playSoundForDuration(const std::string& objectId, const std::string& filePath, double durationSeconds, bool loop = false, float initialVolume = 1.0f){
+    if (!m_engineInitialized) {
+        aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
+        return;
+    }
 
+    // 해당 objectId로 이미 재생 중인 사운드가 있다면 정지하고 해제
+    auto it = m_activeSounds.find(objectId);
+    if (it != m_activeSounds.end()) {
+        aeStdOut("Stopping and uninitializing existing sound for object: " + objectId);
+        uninitializeSound(&(it->second));
+        // map에서 제거하지 않고, 새 사운드로 덮어쓸 것이므로 ma_sound 객체만 새로 초기화
+    }
+
+    ma_sound soundInstance; // 새 ma_sound 인스턴스 또는 기존 맵 위치에 새로 초기화
+    ma_result result;
+    // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
+    // 스트리밍이 필요하면 플래그를 조정하거나 ma_sound_init_from_file_w 스트리밍 버전 사용
+    result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+
+    if (result != MA_SUCCESS) {
+        aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
+        return;
+    }
+
+    // durationSeconds 만큼 재생 후 멈추도록 설정
+    if (durationSeconds > 0.0) {
+        ma_uint64 stopTimeMs = static_cast<ma_uint64>(durationSeconds * 1000.0);
+        ma_sound_set_stop_time_in_milliseconds(&soundInstance, stopTimeMs);
+        aeStdOut("Sound '" + filePath + "' for object '" + objectId + "' will play for " + std::to_string(durationSeconds) + "s (stop time: " + std::to_string(stopTimeMs) + "ms)");
+    }
+
+    ma_sound_set_looping(&soundInstance, loop ? MA_TRUE : MA_FALSE);
+    ma_sound_set_pitch(&soundInstance, m_globalPlaybackSpeed); // 전역 재생 속도 적용
+    ma_sound_set_volume(&soundInstance, initialVolume);
+    ma_sound_start(&soundInstance);
+
+    m_activeSounds[objectId] = soundInstance; // 맵에 저장 (새로 추가 또는 덮어쓰기)
+    aeStdOut("Sound started: " + filePath + " for object: " + objectId);
+}
+void AudioEngineHelper::playSoundFromTo(const std::string& objectId, const std::string& filePath, double startTimeSeconds, double endTimeSeconds, bool loop = false, float initialVolume = 1.0f){
+    if (!m_engineInitialized) {
+        aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
+        return;
+    }
+
+    // 해당 objectId로 이미 재생 중인 사운드가 있다면 정지하고 해제
+    auto it = m_activeSounds.find(objectId);
+    if (it != m_activeSounds.end()) {
+        aeStdOut("Stopping and uninitializing existing sound for object: " + objectId);
+        uninitializeSound(&(it->second));
+        // map에서 제거하지 않고, 새 사운드로 덮어쓸 것이므로 ma_sound 객체만 새로 초기화
+    }
+
+    ma_sound soundInstance; // 새 ma_sound 인스턴스 또는 기존 맵 위치에 새로 초기화
+    ma_result result;
+    // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
+    // 스트리밍이 필요하면 플래그를 조정하거나 ma_sound_init_from_file_w 스트리밍 버전 사용
+    result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+
+    if (result != MA_SUCCESS) {
+        aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
+        return;
+    }
+
+    // 1. 재생 시작 시간으로 이동
+    if (startTimeSeconds > 0.0) {
+        ma_sound_seek_to_second(&soundInstance, static_cast<float>(startTimeSeconds));
+        aeStdOut("Sound '" + filePath + "' seeked to " + std::to_string(startTimeSeconds) + "s for playFromTo.");
+    }
+
+    // 2. 재생 종료 시간 설정 (startTimeSeconds 이후부터 endTimeSeconds까지 재생)
+    if (endTimeSeconds > startTimeSeconds) {
+        ma_uint64 stopTimeMs = static_cast<ma_uint64>(endTimeSeconds * 1000.0);
+        ma_sound_set_stop_time_in_milliseconds(&soundInstance, stopTimeMs);
+        aeStdOut("Sound '" + filePath + "' stop time set to " + std::to_string(stopTimeMs) + "ms for playFromTo.");
+    } // endTimeSeconds <= startTimeSeconds 이면, startTimeSeconds부터 끝까지 재생됩니다.
+
+    ma_sound_set_looping(&soundInstance, loop ? MA_TRUE : MA_FALSE);
+    ma_sound_set_volume(&soundInstance, initialVolume);
+    ma_sound_set_pitch(&soundInstance, m_globalPlaybackSpeed); // 전역 재생 속도 적용
+    ma_sound_start(&soundInstance);
+
+    m_activeSounds[objectId] = soundInstance; // 맵에 저장 (새로 추가 또는 덮어쓰기)
+    aeStdOut("Sound started: " + filePath + " for object: " + objectId);
+}
+bool AudioEngineHelper::isSoundPlaying(const std::string& objectId) const {
+    if (!m_engineInitialized) return false;
+
+    auto it = m_activeSounds.find(objectId);
+    if (it != m_activeSounds.end())
+    {
+        return ma_sound_is_playing(const_cast<ma_sound*>(&it->second)) == MA_TRUE;
+    }
+    return false;
+}
+double AudioEngineHelper::getSoundFileDuration(const std::string& filePath)const{
+    if (!m_engineInitialized)
+    {
+        aeStdOut("Engine not initalized. Cannot get Sound Duration for:"+filePath);
+        return 0.0;
+    }
+    ma_decoder dec;
+    ma_decoder_config conf = ma_decoder_config_init_default();
+
+    ma_result result = ma_decoder_init_file(filePath.c_str(),&conf,&dec);
+    if (result != MA_SUCCESS) {
+        aeStdOut("Failed to initialize decoder for duration check: " + filePath + ". Error: " + ma_result_description(result));
+        return 0.0; // 디코더 초기화 실패 시 0.0 반환
+    }
+
+    ma_uint64 frame = 0;
+    ma_uint32 sampleRate = dec.outputSampleRate;
+    double sec =0;
+    ma_decoder_get_length_in_pcm_frames(&dec,&frame);
+
+    if (sampleRate > 0)
+    {
+        sec = static_cast<double>(frame)/sampleRate;
+    }
+
+    ma_decoder_uninit(&dec); // 사용한 디코더 해제
+    return sec;
+}
 void AudioEngineHelper::stopSound(const std::string& objectId) {
     if (!m_engineInitialized) return;
 
@@ -224,6 +348,7 @@ void AudioEngineHelper::playBackgroundMusic(const std::string& filePath, bool lo
 
     ma_sound_set_looping(&m_backgroundMusic, loop ? MA_TRUE : MA_FALSE);
     ma_sound_set_volume(&m_backgroundMusic, initialVolume);
+    ma_sound_set_pitch(&m_backgroundMusic, m_globalPlaybackSpeed); // 전역 재생 속도 적용
     ma_sound_start(&m_backgroundMusic);
 
     m_backgroundMusicInitialized = true;
@@ -253,6 +378,28 @@ bool AudioEngineHelper::isBackgroundMusicPlaying() const {
     return ma_sound_is_playing(const_cast<ma_sound*>(&m_backgroundMusic)) == MA_TRUE;
 }
 
+void AudioEngineHelper::setGlobalPlaybackSpeed(float speed) {
+    if (!m_engineInitialized) return;
+    if (speed <= 0.0f) { // 속도는 0보다 커야 합니다.
+        aeStdOut("Invalid playback speed: " + std::to_string(speed) + ". Speed must be positive.");
+        return;
+    }
+    m_globalPlaybackSpeed = speed;
+    aeStdOut("Global playback speed set to: " + std::to_string(m_globalPlaybackSpeed));
+
+    // 모든 활성 효과음에 적용
+    for (auto& pair : m_activeSounds) {
+        ma_sound_set_pitch(&(pair.second), m_globalPlaybackSpeed);
+    }
+    // 배경음악에 적용
+    if (m_backgroundMusicInitialized) {
+        ma_sound_set_pitch(&m_backgroundMusic, m_globalPlaybackSpeed);
+    }
+}
+
+float AudioEngineHelper::getGlobalPlaybackSpeed() const {
+    return m_globalPlaybackSpeed;
+}
 
 void AudioEngineHelper::aeStdOut(const std::string &message) const {
     std::string TAG = "[Hibiki] "; // std::string으로 변경
