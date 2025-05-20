@@ -39,7 +39,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 Engine::Engine() : window(nullptr), renderer(nullptr),
-                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(this->specialConfig.setZoomfactor), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
+                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.0), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
                    m_scriptThreadPool(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
