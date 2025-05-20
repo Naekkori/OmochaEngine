@@ -39,11 +39,12 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 Engine::Engine() : window(nullptr), renderer(nullptr),
-                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor(1.0), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
+                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor((this->specialConfig.setZoomfactor <= 0.0) ? 1.0f : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor),
+                    Engine::MIN_ZOOM, Engine::MAX_ZOOM)), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
                    m_scriptThreadPool(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
-    
+
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
 }
@@ -59,9 +60,11 @@ static void Helper_DrawFilledCircle(SDL_Renderer *renderer, int centerX, int cen
     }
 }
 // Engine.cpp 상단 또는 유틸리티 함수 영역에 추가
-SDL_Color hueToRGB(double H) { // H는 0-359 범위의 색조(hue) 값
+SDL_Color hueToRGB(double H)
+{ // H는 0-359 범위의 색조(hue) 값
     H = std::fmod(H, 360.0);
-    if (H < 0) H += 360.0;
+    if (H < 0)
+        H += 360.0;
 
     double S = 1.0; // 채도 (Saturation) - 여기서는 최대로 설정
     double V = 1.0; // 명도 (Value/Brightness) - 여기서는 최대로 설정
@@ -75,13 +78,38 @@ SDL_Color hueToRGB(double H) { // H는 0-359 범위의 색조(hue) 값
 
     double r_norm = 0, g_norm = 0, b_norm = 0;
 
-    switch (Hi) {
-        case 0: r_norm = V; g_norm = t; b_norm = p; break;
-        case 1: r_norm = q; g_norm = V; b_norm = p; break;
-        case 2: r_norm = p; g_norm = V; b_norm = t; break;
-        case 3: r_norm = p; g_norm = q; b_norm = V; break;
-        case 4: r_norm = t; g_norm = p; b_norm = V; break;
-        case 5: r_norm = V; g_norm = p; b_norm = q; break;
+    switch (Hi)
+    {
+    case 0:
+        r_norm = V;
+        g_norm = t;
+        b_norm = p;
+        break;
+    case 1:
+        r_norm = q;
+        g_norm = V;
+        b_norm = p;
+        break;
+    case 2:
+        r_norm = p;
+        g_norm = V;
+        b_norm = t;
+        break;
+    case 3:
+        r_norm = p;
+        g_norm = q;
+        b_norm = V;
+        break;
+    case 4:
+        r_norm = t;
+        g_norm = p;
+        b_norm = V;
+        break;
+    case 5:
+        r_norm = V;
+        g_norm = p;
+        b_norm = q;
+        break;
     }
     return {
         static_cast<Uint8>(std::clamp(r_norm * 255.0, 0.0, 255.0)),
@@ -144,7 +172,7 @@ Engine::~Engine()
     // }
     EngineStdOut("All entity logic threads stopped.", 0);
 
-    // 2. Terminate SDL and other engine systems 
+    // 2. Terminate SDL and other engine systems
     terminateGE(); // Now it's safer to terminate SDL and other resources
 
     // 3. Delete entity objects
@@ -887,7 +915,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 lock_guard<mutex> lock(m_engineDataMutex);
                 entities[objectId] = newEntity;
                 // newEntity->startLogicThread();
-                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
+                EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
             else
             {
@@ -1609,7 +1637,7 @@ void Engine::handleRenderDeviceReset()
 bool Engine::loadImages()
 {
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now(); // 이미지 로딩 시작 시간
-    EngineStdOut("Starting image loading...", 0); // 이미지 로딩 시작
+    EngineStdOut("Starting image loading...", 0);                                     // 이미지 로딩 시작
     totalItemsToLoad = 0;
     loadedItemCount = 0;
 
@@ -1709,11 +1737,16 @@ bool Engine::loadImages()
     string greething = "";
     double duration = loadingDuration.count();
 
-    if (duration < 1.0) {
-        greething = "WoW Excellent!"; 
-    } else if (duration < 10.0) {
+    if (duration < 1.0)
+    {
+        greething = "WoW Excellent!";
+    }
+    else if (duration < 10.0)
+    {
         greething = "Umm ok.";
-    } else {
+    }
+    else
+    {
         greething = "You to Slow.";
     }
     EngineStdOut("Time to load entire image " + to_string(loadingDuration.count()) + " seconds " + greething);
@@ -1852,16 +1885,16 @@ void Engine::drawAllEntities()
                 dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY());
 
                 double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0); // SDL 렌더링 각도 계산
-                bool colorModApplied = false , alphaModApplied = false;
+                bool colorModApplied = false, alphaModApplied = false;
                 double brightness_effect = entityPtr->getEffectBrightness();
-                double hue_effect_dgress  = entityPtr->getEffectHue();
+                double hue_effect_dgress = entityPtr->getEffectHue();
 
-                Uint8 r_final_mod = 255, g_final_mod =255, b_final_mod = 255;
+                Uint8 r_final_mod = 255, g_final_mod = 255, b_final_mod = 255;
 
                 float brightness_factor = (100.0f + static_cast<float>(brightness_effect)) / 100.0f;
                 brightness_factor = clamp(brightness_factor, 0.0f, 2.0f);
 
-                if (abs(hue_effect_dgress)>0.01)
+                if (abs(hue_effect_dgress) > 0.01)
                 {
                     colorModApplied = true;
                     SDL_Color hue_tint_color = hueToRGB(hue_effect_dgress);
@@ -1869,7 +1902,8 @@ void Engine::drawAllEntities()
                     r_final_mod = static_cast<Uint8>(clamp(hue_tint_color.r * brightness_factor, 0.0f, 255.0f));
                     g_final_mod = static_cast<Uint8>(clamp(hue_tint_color.g * brightness_factor, 0.0f, 255.0f));
                     b_final_mod = static_cast<Uint8>(clamp(hue_tint_color.b * brightness_factor, 0.0f, 255.0f));
-                }else if (abs(brightness_effect)>0.01)
+                }
+                else if (abs(brightness_effect) > 0.01)
                 {
                     colorModApplied = true;
                     r_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
@@ -1878,20 +1912,22 @@ void Engine::drawAllEntities()
                 }
                 if (colorModApplied)
                 {
-                    SDL_SetTextureColorMod(selectedCostume->imageHandle,r_final_mod,g_final_mod,b_final_mod);
+                    SDL_SetTextureColorMod(selectedCostume->imageHandle, r_final_mod, g_final_mod, b_final_mod);
                 }
                 double alpha_effect = entityPtr->getEffectAlpha();
-                if (abs(alpha_effect - 1.0)>0.01)
+                if (abs(alpha_effect - 1.0) > 0.01)
                 {
                     alphaModApplied = true;
-                    Uint8 alpha_sdl_mod = static_cast<Uint8>(std::clamp(alpha_effect*255.0, 0.0, 255.0));
+                    Uint8 alpha_sdl_mod = static_cast<Uint8>(std::clamp(alpha_effect * 255.0, 0.0, 255.0));
                     SDL_SetTextureAlphaMod(selectedCostume->imageHandle, alpha_sdl_mod);
                 }
 
-                if (colorModApplied) {
+                if (colorModApplied)
+                {
                     SDL_SetTextureColorMod(selectedCostume->imageHandle, 255, 255, 255);
                 }
-                if (alphaModApplied) {
+                if (alphaModApplied)
+                {
                     SDL_SetTextureAlphaMod(selectedCostume->imageHandle, 255);
                 }
                 SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
@@ -2078,8 +2114,8 @@ void Engine::drawHUD()
             // 배경 사각형 설정
             float bgPadding = 5.0f; // 텍스트 주변 여백
             SDL_FRect bgRect = {
-                10.0f - bgPadding,                                         // FPS 텍스트 x 위치에서 여백만큼 왼쪽으로
-                10.0f - bgPadding,                                         // FPS 텍스트 y 위치에서 여백만큼 위로
+                10.0f - bgPadding,                                  // FPS 텍스트 x 위치에서 여백만큼 왼쪽으로
+                10.0f - bgPadding,                                  // FPS 텍스트 y 위치에서 여백만큼 위로
                 static_cast<float>(textSurface->w) + 2 * bgPadding, // 텍스트 너비 + 양쪽 여백
                 static_cast<float>(textSurface->h) + 2 * bgPadding  // 텍스트 높이 + 양쪽 여백
             };
@@ -2836,7 +2872,7 @@ void Engine::processInput(const SDL_Event &event)
                             if (currentEntity->isVisible()) // 엔티티가 보이는지 확인
                             {
                                 // 현재 씬에 속하거나 전역 오브젝트인지 확인
-                                const ObjectInfo* objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
+                                const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
                                 if (objInfoPtr)
                                 {
                                     bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
@@ -2884,7 +2920,7 @@ void Engine::processInput(const SDL_Event &event)
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
                                 if (clickScriptPair.first == objectId)
-                                {                                    
+                                {
                                     EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 0);
                                     this->dispatchScriptForExecution(objectId, clickScriptPair.second);
                                 }
@@ -3061,7 +3097,7 @@ void Engine::processInput(const SDL_Event &event)
                         if (currentEntity && currentEntity->isVisible())
                         { // 엔티티가 존재하고 보이는 경우
                             // 현재 씬에 속하거나 전역 오브젝트인지 확인
-                            const ObjectInfo* objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
+                            const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
                             if (objInfoPtr)
                             {
                                 bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
@@ -3075,7 +3111,9 @@ void Engine::processInput(const SDL_Event &event)
                             {
                                 EngineStdOut("Warning: ObjectInfo not found for entity ID '" + objectId + "' during mouse_click_canceled event processing. Script not run.", 1);
                             }
-                        } else if (!currentEntity) {
+                        }
+                        else if (!currentEntity)
+                        {
                             // currentEntity가 null이면 아무것도 할 수 없음. 이 경우는 로직 오류일 수 있음.
                             EngineStdOut("Warning: mouse_click_canceled event for null entity ID '" + objectId + "'. Script not run.", 1);
                         }
@@ -3374,7 +3412,7 @@ Entity *Engine::getEntityById(const string &id)
 }
 
 // Private method, assumes m_engineDataMutex is already locked by the caller.
-Entity* Engine::getEntityById_nolock(const std::string& id)
+Entity *Engine::getEntityById_nolock(const std::string &id)
 {
     auto it = entities.find(id);
     if (it != entities.end())
@@ -3818,15 +3856,18 @@ int Engine::getBlockCountForScene(const std::string &sceneId) const
     }
     return totalCount;
 }
-void Engine::changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType) {
+void Engine::changeObjectIndex(const std::string &entityId, Omocha::ObjectIndexChangeType changeType)
+{
     std::lock_guard<std::mutex> lock(this->m_engineDataMutex); // Protect access to objects_in_order
 
     auto it = std::find_if(objects_in_order.begin(), objects_in_order.end(),
-                           [&entityId](const ObjectInfo& objInfo) {
+                           [&entityId](const ObjectInfo &objInfo)
+                           {
                                return objInfo.id == entityId;
                            });
 
-    if (it == objects_in_order.end()) {
+    if (it == objects_in_order.end())
+    {
         EngineStdOut("changeObjectIndex: Entity ID '" + entityId + "' not found in objects_in_order.", 1);
         return;
     }
@@ -3836,43 +3877,51 @@ void Engine::changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexC
     int targetIndex = currentIndex;
     int numObjects = static_cast<int>(objects_in_order.size());
 
-    if (numObjects <= 0) { // Should not happen if an item was found, but good for safety
+    if (numObjects <= 0)
+    { // Should not happen if an item was found, but good for safety
         EngineStdOut("changeObjectIndex: objects_in_order is empty or in an invalid state.", 2);
         return;
     }
     int maxPossibleIndex = numObjects - 1;
 
-
-    switch (changeType) {
-        case Omocha::ObjectIndexChangeType::BRING_TO_FRONT: // Move to index 0 (topmost)
-            targetIndex = 0;
-            break;
-        case Omocha::ObjectIndexChangeType::SEND_TO_BACK:   // Move to the last index (bottommost)
-            targetIndex = maxPossibleIndex;
-            break;
-        case Omocha::ObjectIndexChangeType::BRING_FORWARD:  // Move one step towards top (index decreases)
-            if (currentIndex > 0) {
-                targetIndex = currentIndex - 1;
-            } else {
-                EngineStdOut("Object " + entityId + " is already at the front. No change in Z-order.", 0);
-                return; // Already at the front
-            }
-            break;
-        case Omocha::ObjectIndexChangeType::SEND_BACKWARD: // Move one step towards bottom (index increases)
-            if (currentIndex < maxPossibleIndex) {
-                targetIndex = currentIndex + 1;
-            } else {
-                EngineStdOut("Object " + entityId + " is already at the back. No change in Z-order.", 0);
-                return; // Already at the back
-            }
-            break;
-        case Omocha::ObjectIndexChangeType::UNKNOWN:
-        default:
-            EngineStdOut("changeObjectIndex: Unknown or unsupported Z-order change type for entity " + entityId, 1);
-            return;
+    switch (changeType)
+    {
+    case Omocha::ObjectIndexChangeType::BRING_TO_FRONT: // Move to index 0 (topmost)
+        targetIndex = 0;
+        break;
+    case Omocha::ObjectIndexChangeType::SEND_TO_BACK: // Move to the last index (bottommost)
+        targetIndex = maxPossibleIndex;
+        break;
+    case Omocha::ObjectIndexChangeType::BRING_FORWARD: // Move one step towards top (index decreases)
+        if (currentIndex > 0)
+        {
+            targetIndex = currentIndex - 1;
+        }
+        else
+        {
+            EngineStdOut("Object " + entityId + " is already at the front. No change in Z-order.", 0);
+            return; // Already at the front
+        }
+        break;
+    case Omocha::ObjectIndexChangeType::SEND_BACKWARD: // Move one step towards bottom (index increases)
+        if (currentIndex < maxPossibleIndex)
+        {
+            targetIndex = currentIndex + 1;
+        }
+        else
+        {
+            EngineStdOut("Object " + entityId + " is already at the back. No change in Z-order.", 0);
+            return; // Already at the back
+        }
+        break;
+    case Omocha::ObjectIndexChangeType::UNKNOWN:
+    default:
+        EngineStdOut("changeObjectIndex: Unknown or unsupported Z-order change type for entity " + entityId, 1);
+        return;
     }
 
-    if (targetIndex == currentIndex && changeType != Omocha::ObjectIndexChangeType::BRING_TO_FRONT && changeType != Omocha::ObjectIndexChangeType::SEND_TO_BACK) { // No actual move needed unless it's to absolute front/back
+    if (targetIndex == currentIndex && changeType != Omocha::ObjectIndexChangeType::BRING_TO_FRONT && changeType != Omocha::ObjectIndexChangeType::SEND_TO_BACK)
+    { // No actual move needed unless it's to absolute front/back
         return;
     }
 
@@ -4123,7 +4172,8 @@ bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &
                 // 현재 선택된 모양 ID를 목록에서 찾을 수 없는 경우 (데이터 불일치)
                 // 안전하게 첫 번째 모양으로 설정하거나 오류 처리
                 EngineStdOut("Error: Selected costume ID '" + objInfo.selectedCostumeId + "' not found in costume list for entity '" + entityId + "'. Defaulting to first costume if available.", 2);
-                if (!objInfo.costumes.empty()) {
+                if (!objInfo.costumes.empty())
+                {
                     objInfo.selectedCostumeId = objInfo.costumes[0].id;
                 }
                 return false; // 또는 true를 반환하고 첫 번째 모양으로 설정
@@ -4150,17 +4200,21 @@ bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &
     return false; // entityId를 찾지 못한 경우
 }
 
-void Engine::dispatchScriptForExecution(const std::string& entityId, const Script* scriptPtr) {
-    if (!scriptPtr) {
+void Engine::dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr)
+{
+    if (!scriptPtr)
+    {
         EngineStdOut("dispatchScriptForExecution called with null script pointer for object: " + entityId, 2);
         return;
     }
-     if (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1) { // 첫번째 블록은 이벤트 트리거
+    if (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1)
+    { // 첫번째 블록은 이벤트 트리거
         EngineStdOut("dispatchScriptForExecution: Script for object " + entityId + " has no executable blocks. Skipping.", 1);
         return;
     }
 
-    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr]() {
+    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr]()
+                      {
         std::string thread_id_str;
         try {
             std::thread::id current_thread_id = std::this_thread::get_id();
@@ -4198,6 +4252,5 @@ void Engine::dispatchScriptForExecution(const std::string& entityId, const Scrip
             EngineStdOut("Generic exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId + ": " + e.what(), 2, thread_id_str);
         } catch (...) {
             EngineStdOut("Unknown exception caught in worker thread " + thread_id_str + " executing script for entity " + entityId, 2, thread_id_str);
-        }
-    });
+        } });
 }
