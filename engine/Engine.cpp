@@ -295,7 +295,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             else
             {
-                this->specialConfig.setZoomfactor = 1.26f;
+                this->specialConfig.setZoomfactor = 1.0f; // 원래배율
                 EngineStdOut("'specialConfig.setZoomfactor' field missing or not numeric. Using default: 1.26", 1);
             }
             if (specialConfigJson.HasMember("showProjectNameUI") && specialConfigJson["showProjectNameUI"].IsBool())
