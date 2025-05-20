@@ -15,6 +15,7 @@
 #include "SDL3/SDL_render.h"      // SDL 렌더링
 #include "SDL3/SDL_scancode.h"    // For SDL_Scancode
 #include "blocks/Block.h"
+#include "blocks/blockTypes.h"
 #include "util/fontName.h"
 #include "../util/Logger.h"
 #include <mutex>
@@ -289,6 +290,7 @@ public:
     bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
     bool setEntitychangeToNextCostume(const string& entityId,const string& asOption);
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr);
+    void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };

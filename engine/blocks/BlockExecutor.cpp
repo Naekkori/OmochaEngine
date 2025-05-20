@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <ctime>
+#include "blockTypes.h"
 AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
 
 // OperandValue 생성자 및 멤버 함수 구현 (BlockExecutor.h에 선언됨)
@@ -82,7 +83,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
         std::string str_val_for_op = paramField.GetString();
         OperandValue temp_op_val(str_val_for_op);
         return temp_op_val;
-    }else if (paramField.IsObject())
+    }
+    else if (paramField.IsObject())
     {
         if (!paramField.HasMember("type") || !paramField["type"].IsString())
         {
@@ -132,7 +134,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             }
             return processMathematicalBlock(engine, objectId, subBlock);
         }
-        else if (fieldType == "get_pictures") {
+        else if (fieldType == "get_pictures")
+        {
             // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
             if (paramField.HasMember("params") && paramField["params"].IsArray() &&
                 paramField["params"].Size() > 0 && paramField["params"][0].IsString())
@@ -142,8 +145,6 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             engine.EngineStdOut("Invalid 'get_pictures' block structure in parameter field for " + objectId + ". Expected params[0] to be a string (costume ID).", 1);
             return OperandValue(""); // 또는 오류를 나타내는 빈 OperandValue
         }
-
-
 
         engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1);
         return OperandValue();
@@ -158,6 +159,14 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
  */
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
+    Entity *entity = engine.getEntityById(objectId);
+    if (!entity)
+    {
+        // Moving 함수 내 어떤 블록도 이 objectId에 대해 실행될 수 없으므로 여기서 공통 오류 처리 후 반환합니다.
+        engine.EngineStdOut("Moving block execution failed: Entity " + objectId + " not found.", 2);
+        return;
+    }
+
     if (BlockType == "move_direction")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
@@ -174,27 +183,16 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         double dist = distance.number_val;
         double dir = direction.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
-            double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
-            entity->setX(newX);
-            entity->setY(newY);
-        }
-        else
-        {
-            engine.EngineStdOut("move_direction block for object " + objectId + " - entity not found.", 2);
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
+        double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
+        entity->setX(newX);
+        entity->setY(newY);
     }
     else if (BlockType == "bounce_wall")
     {
-        Entity *entity = engine.getEntityById(objectId);
-        if (!entity)
-        {
-            engine.EngineStdOut("bounce_wall block for object " + objectId + " - entity not found.", 2);
-            return;
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        // 이전의 if (!entity) 체크는 불필요합니다.
 
         // Javascript의 threshold와 유사한 값 (픽셀 충돌이 아니므로 의미가 다를 수 있음)
         // const float collisionThreshold = 0.0f; // 경계 상자 충돌에서는 크게 의미 없을 수 있음
@@ -400,12 +398,9 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             return;
         }
         double dist = distance.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            double newX = entity->getX() + dist;
-            entity->setX(newX);
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        double newX = entity->getX() + dist;
+        entity->setX(newX);
     }
     else if (BlockType == "move_y")
     {
@@ -421,25 +416,21 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             return;
         }
         double dist = distance.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            double newY = entity->getY() + dist;
-            entity->setY(newY);
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        double newY = entity->getY() + dist;
+        entity->setY(newY);
     }
     else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") // 이둘 똑같이 동작하는걸 확인함 왜 이걸 따로뒀는지 이해안감
     {
-        Entity *entity = engine.getEntityById(objectId);
-        if (!entity) {
-            engine.EngineStdOut("move_xy_time: Entity " + objectId + " not found.", 2);
-            return;
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        // 이전의 if (!entity) 체크는 불필요합니다.
 
-        Entity::TimedMoveState& state = entity->timedMoveState;
+        Entity::TimedMoveState &state = entity->timedMoveState;
 
-        if (!state.isActive) { // 블록 처음 실행 시 초기화
-            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3) {
+        if (!state.isActive)
+        { // 블록 처음 실행 시 초기화
+            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+            {
                 engine.EngineStdOut("move_xy_time block for " + objectId + " is missing parameters. Expected TIME, X, Y.", 2);
                 state.isActive = false; // Ensure it's not accidentally active
                 return;
@@ -451,7 +442,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
 
             if (timeOp.type != OperandValue::Type::NUMBER ||
                 xOp.type != OperandValue::Type::NUMBER ||
-                yOp.type != OperandValue::Type::NUMBER) {
+                yOp.type != OperandValue::Type::NUMBER)
+            {
                 engine.EngineStdOut("move_xy_time block for " + objectId + " has non-number parameters. Time: " + timeOp.asString() + ", X: " + xOp.asString() + ", Y: " + yOp.asString(), 2);
                 state.isActive = false;
                 return;
@@ -467,20 +459,23 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             state.isActive = true;
 
             // 1 프레임 이동이면 즉시 처리
-            if (state.remainingFrames <= 1.0 && state.totalFrames <=1.0) { // totalFrames도 확인
+            if (state.remainingFrames <= 1.0 && state.totalFrames <= 1.0)
+            { // totalFrames도 확인
                 entity->setX(state.targetX);
                 entity->setY(state.targetY);
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
-                                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")", 0);
+                                        std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
+                                    0);
                 state.isActive = false; // 완료
-                return; // 이 블록 실행 완료
+                return;                 // 이 블록 실행 완료
             }
         }
 
         // 매 프레임 실행 로직 (state.isActive가 true일 때)
-        if (state.isActive && state.remainingFrames > 0) {
+        if (state.isActive && state.remainingFrames > 0)
+        {
             double currentX = entity->getX();
             double currentY = entity->getY();
 
@@ -498,86 +493,98 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
 
             state.remainingFrames--;
 
-            if (state.remainingFrames <= 0) {
+            if (state.remainingFrames <= 0)
+            {
                 entity->setX(state.targetX); // 최종 위치로 정확히 이동
                 entity->setY(state.targetY);
                 state.isActive = false; // 이동 완료
             }
         }
-    }else if (BlockType == "locate_x"){
+    }
+    else if (BlockType == "locate_x")
+    {
         OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (valueX.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("locate_x block for object "+objectId+" is not a number.", 2);
+            engine.EngineStdOut("locate_x block for object " + objectId + " is not a number.", 2);
             return;
         }
         double x = valueX.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity){
-            entity->setX(x);
-        }
-    }else if(BlockType == "locate_y"){
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        entity->setX(x);
+    }
+    else if (BlockType == "locate_y")
+    {
         OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (valueY.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("locate_y block for object "+objectId+" is not a number.", 2);
+            engine.EngineStdOut("locate_y block for object " + objectId + " is not a number.", 2);
             return;
         }
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity){
-            double y = valueY.number_val;
-            entity->setY(y);
-        }
-    }else if (BlockType=="locate_xy"){
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        double y = valueY.number_val;
+        entity->setY(y);
+    }
+    else if (BlockType == "locate_xy")
+    {
         OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[1]);
-        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER){
-            engine.EngineStdOut("locate_xy block for object "+objectId+" is not a number.", 2);
+        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("locate_xy block for object " + objectId + " is not a number.", 2);
             return;
         }
         double x = valueX.number_val;
         double y = valueY.number_val;
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity){
-            entity->setX(x);
-            entity->setY(y);
-        }
-    }else if (BlockType == "locate"){
-        //이것은 마우스커서 나 오브젝트를 따라갑니다.
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        entity->setX(x);
+        entity->setY(y);
+    }
+    else if (BlockType == "locate")
+    {
+        // 이것은 마우스커서 나 오브젝트를 따라갑니다.
         OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (target.type != OperandValue::Type::STRING)
         {
-           engine.EngineStdOut("locate block for object "+objectId+" is not a string.", 2);
+            engine.EngineStdOut("locate block for object " + objectId + " is not a string.", 2);
             return;
         }
-        if(target.string_val=="mouse"){
-            if(engine.isMouseCurrentlyOnStage()){
-                Entity *entity = engine.getEntityById(objectId);
-                if(entity){
-                    entity->setX(static_cast<double>(engine.getCurrentStageMouseX()));
-                    entity->setY(static_cast<double>(engine.getCurrentStageMouseY()));
-                }
+        if (target.string_val == "mouse")
+        {
+            if (engine.isMouseCurrentlyOnStage())
+            {
+                // entity는 함수 시작 시 이미 검증되었습니다.
+                entity->setX(static_cast<double>(engine.getCurrentStageMouseX()));
+                entity->setY(static_cast<double>(engine.getCurrentStageMouseY()));
             }
-        }else{
+        }
+        else
+        {
             Entity *targetEntity = engine.getEntityById(target.string_val);
-            Entity *entity = engine.getEntityById(objectId);
-            if(targetEntity){
-                entity->setX(engine.getEntityById(target.string_val)->getX());
-                entity->setY(engine.getEntityById(target.string_val)->getY());
+            // entity (현재 객체)는 함수 시작 시 이미 검증되었습니다.
+            if (targetEntity)
+            {
+                entity->setX(targetEntity->getX());
+                entity->setY(targetEntity->getY());
+            }
+            else
+            {
+                engine.EngineStdOut("locate block for object " + objectId + ": target entity '" + target.string_val + "' not found.", 2);
             }
         }
-    }else if (BlockType=="locate_object_time"){
+    }
+    else if (BlockType == "locate_object_time")
+    {
         // locate_object_time 구현
-        Entity *entity = engine.getEntityById(objectId);
-        if (!entity) {
-            engine.EngineStdOut("locate_object_time: Entity " + objectId + " not found.", 2);
-            return;
-        }
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        // 이전의 if (!entity) 체크는 불필요합니다.
 
-        Entity::TimedMoveToObjectState& state = entity->timedMoveObjState;
+        Entity::TimedMoveToObjectState &state = entity->timedMoveObjState;
 
-        if (!state.isActive) { // 블록 처음 실행 시 초기화
-            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // time, target 필요
+        if (!state.isActive)
+        { // 블록 처음 실행 시 초기화
+            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+            { // time, target 필요
                 engine.EngineStdOut("locate_object_time block for " + objectId + " is missing parameters. Expected TIME, TARGET_OBJECT_ID.", 2);
                 // state.isActive는 false로 유지됩니다.
                 return;
@@ -586,7 +593,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
             OperandValue targetOp = getOperandValue(engine, objectId, block.paramsJson[1]);
 
-            if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING) {
+            if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING)
+            {
                 engine.EngineStdOut("locate_object_time block for " + objectId + " has invalid parameters. Time should be number, target should be string.", 2);
                 // state.isActive는 false로 유지됩니다.
                 return;
@@ -602,14 +610,20 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             state.isActive = true;
 
             // 시간이 0 또는 1프레임 이동이면 즉시 이동하고 완료합니다.
-            if (state.totalFrames <= 1.0) {
-                Entity* targetEntity = engine.getEntityById(state.targetObjectId);
-                if (targetEntity) {
+            if (state.totalFrames <= 1.0)
+            {
+                Entity *targetEntity = engine.getEntityById(state.targetObjectId);
+                if (targetEntity)
+                {
                     entity->setX(targetEntity->getX());
                     entity->setY(targetEntity->getY());
-                    if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
-                    if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
-                } else {
+                    if (entity->paint.isPenDown)
+                        entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+                    if (entity->brush.isPenDown)
+                        entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                }
+                else
+                {
                     engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " not found for " + objectId + ".", 2);
                 }
                 state.isActive = false; // 이동 완료, 이 틱에서 블록 실행 완료.
@@ -618,9 +632,11 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
 
         // state.isActive가 true (이동 진행 중)이고 남은 프레임이 있을 경우 매 프레임 실행됩니다.
-        if (state.isActive && state.remainingFrames > 0) {
-            Entity* targetEntity = engine.getEntityById(state.targetObjectId);
-            if (!targetEntity) {
+        if (state.isActive && state.remainingFrames > 0)
+        {
+            Entity *targetEntity = engine.getEntityById(state.targetObjectId);
+            if (!targetEntity)
+            {
                 engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " disappeared mid-move for " + objectId + ".", 2);
                 state.isActive = false;
                 return;
@@ -643,22 +659,27 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             entity->setX(newX);
             entity->setY(newY);
 
-            if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
-            if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+            if (entity->paint.isPenDown)
+                entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+            if (entity->brush.isPenDown)
+                entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
 
             state.remainingFrames--;
 
-            if (state.remainingFrames <= 0) {
+            if (state.remainingFrames <= 0)
+            {
                 // 목표 위치로 정확히 이동시키고, 이동을 완료합니다.
                 entity->setX(targetX);
                 entity->setY(targetY);
-                if(entity->paint.isPenDown) entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
-                if(entity->brush.isPenDown) entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+                if (entity->paint.isPenDown)
+                    entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
+                if (entity->brush.isPenDown)
+                    entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 state.isActive = false;
             }
         }
     }
-    else if (BlockType == "rotate_relative"||BlockType == "direction_relative")
+    else if (BlockType == "rotate_relative" || BlockType == "direction_relative")
     {
         OperandValue value = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (value.type != OperandValue::Type::NUMBER)
@@ -666,12 +687,10 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2);
             return;
         }
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            entity->setDirection(value.number_val + entity->getDirection());
-        }
-    }else if (BlockType == "rotate_by_time" || BlockType == "direction_relative_duration")
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        entity->setDirection(value.number_val + entity->getDirection());
+    }
+    else if (BlockType == "rotate_by_time" || BlockType == "direction_relative_duration")
     {
         OperandValue timeValue = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1]);
@@ -682,96 +701,98 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         double time = timeValue.number_val;
         double angle = angleValue.number_val;
-        
-        Entity *entity = engine.getEntityById(objectId);
-        if (!entity) {
-            engine.EngineStdOut("rotate_by_time: Entity " + objectId + " not found.", 2);
-            return;
-        }
 
-        Entity::TimedRotationState& state = entity->timedRotationState;
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        // 이전의 if (!entity) 체크는 불필요합니다.
+        Entity::TimedRotationState &state = entity->timedRotationState;
 
-        if (!state.isActive) {
+        if (!state.isActive)
+        {
             const double fps = static_cast<double>(engine.getTargetFps());
-            state.totalFrames = max(1.0, floor(time * fps)); 
+            state.totalFrames = max(1.0, floor(time * fps));
             state.remainingFrames = state.totalFrames;
-            state.dAngle = angle / state.totalFrames; 
+            state.dAngle = angle / state.totalFrames;
             state.isActive = true;
         }
 
-        if (state.isActive && state.remainingFrames > 0) {
+        if (state.isActive && state.remainingFrames > 0)
+        {
             entity->setRotation(entity->getRotation() + state.dAngle);
             state.remainingFrames--;
 
-            if (state.remainingFrames <= 0) {
+            if (state.remainingFrames <= 0)
+            {
                 state.isActive = false;
             }
         }
-
-    }else if (BlockType == "rotate_absolute"){
+    }
+    else if (BlockType == "rotate_absolute")
+    {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (angle.type != OperandValue::Type::NUMBER)
         {
             engine.EngineStdOut("rotate_absolute block for object " + objectId + " is not a number.", 2);
             return;
         }
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            entity->setRotation(angle.number_val);
-        }
-    }else if (BlockType == "direction_absolute"){
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        entity->setRotation(angle.number_val);
+    }
+    else if (BlockType == "direction_absolute")
+    {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (angle.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("direction_absolute block for object "+ objectId + "is not a number.",2);
+            engine.EngineStdOut("direction_absolute block for object " + objectId + "is not a number.", 2);
             return;
         }
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            entity->setDirection(angle.number_val);
-        }
-    }else if (BlockType == "see_angle_object"){
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        entity->setDirection(angle.number_val);
+    }
+    else if (BlockType == "see_angle_object")
+    {
         OperandValue hasmouse = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (hasmouse.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("see_angle_object block for object "+ objectId + "is not a string.",2);
+            engine.EngineStdOut("see_angle_object block for object " + objectId + "is not a string.", 2);
             return;
         }
-        if(hasmouse.string_val=="mouse"){
-            if(engine.isMouseCurrentlyOnStage()){
-                Entity *entity = engine.getEntityById(objectId);
-                if(entity){
-                    entity->setRotation(engine.getCurrentStageMouseAngle(entity->getX(), entity->getY()));
-                }
+        if (hasmouse.string_val == "mouse")
+        {
+            if (engine.isMouseCurrentlyOnStage())
+            {
+                // entity는 함수 시작 시 이미 검증되었습니다.
+                entity->setRotation(engine.getCurrentStageMouseAngle(entity->getX(), entity->getY()));
             }
-         }else{
+        }
+        else
+        {
             Entity *targetEntity = engine.getEntityById(hasmouse.string_val);
-            Entity *entity = engine.getEntityById(objectId);
-            if(targetEntity){
+            // entity (현재 객체)는 함수 시작 시 이미 검증되었습니다.
+            if (targetEntity)
+            {
                 entity->setRotation(engine.getAngle(entity->getX(), entity->getY(), targetEntity->getX(), targetEntity->getY()));
             }
-         }
-    }else if (BlockType == "move_to_angle"){
+            else
+            {
+                engine.EngineStdOut("see_angle_object block for object " + objectId + ": target entity '" + hasmouse.string_val + "' not found.", 2);
+            }
+        }
+    }
+    else if (BlockType == "move_to_angle")
+    {
         OperandValue setAngle = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue setDesnitance = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (setAngle.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("move_to_angle block for object "+ objectId + "is not a number.",2);
+            engine.EngineStdOut("move_to_angle block for object " + objectId + "is not a number.", 2);
             return;
         }
-        Entity *entity = engine.getEntityById(objectId);
-        if (entity)
-        {
-            double angle = setAngle.number_val;
-            double distance = setDesnitance.number_val;
-            entity->setX(entity->getX() + distance * cos(angle * SDL_PI_D / 180.0));
-            entity->setY(entity->getY() + distance * sin(angle * SDL_PI_D / 180.0));
-        }
-
+        // entity는 함수 시작 시 이미 검증되었습니다.
+        double angle = setAngle.number_val;
+        double distance = setDesnitance.number_val;
+        entity->setX(entity->getX() + distance * cos(angle * SDL_PI_D / 180.0));
+        entity->setY(entity->getY() + distance * sin(angle * SDL_PI_D / 180.0));
     }
-    
 }
 /**
  * @brief 계산 블록
@@ -1703,7 +1724,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     }
     else if (BlockType == "set_visible_project_timer")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0) {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0)
+        {
             engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has missing or invalid params array. Defaulting to HIDE.", 2);
             engine.showProjectTimer(false); // Default action
             return OperandValue();
@@ -1729,16 +1751,20 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             // 기본적으로 숨김 처리 또는 아무것도 안 함
         }
         return OperandValue();
-    }else if(BlockType == "get_user_name"){
-        //네이버 클라우드 플랫폼에서 제공하는 사용자 이름을 가져오는 블록
-        //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
+    }
+    else if (BlockType == "get_user_name")
+    {
+        // 네이버 클라우드 플랫폼에서 제공하는 사용자 이름을 가져오는 블록
+        // 엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
         return OperandValue(publicVariable.user_id);
-    }else if (BlockType == "get_nickname"){
-        //네이버 클라우드 플랫폼에서 제공하는 사용자 ID를 가져오는 블록
-        //엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
+    }
+    else if (BlockType == "get_nickname")
+    {
+        // 네이버 클라우드 플랫폼에서 제공하는 사용자 ID를 가져오는 블록
+        // 엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
         return OperandValue(publicVariable.user_name);
     }
-    
+
     return OperandValue();
 }
 
@@ -1857,9 +1883,9 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
  */
 void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
 {
-    // Commands.h를 사용한다면, 여기서 Entity 포인터를 직접 가져와 상태를 변경하는 대신
     Entity *entity = engine.getEntityById(objectId);
-    if (!entity) {
+    if (!entity)
+    {
         engine.EngineStdOut("Looks block: Entity " + objectId + " not found for block type " + BlockType, 2);
         return;
     }
@@ -1867,11 +1893,16 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
     if (BlockType == "show")
     {
         entity->setVisible(true);
-    }else if (BlockType == "hide"){
+    }
+    else if (BlockType == "hide")
+    {
         entity->setVisible(false);
-    }else if (BlockType == "dialog_time"){
+    }
+    else if (BlockType == "dialog_time")
+    {
         // params: VALUE (message), SECOND, OPTION (speak/think)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3) { // 인디케이터 포함하면 4개일 수 있음
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        { // 인디케이터 포함하면 4개일 수 있음
             engine.EngineStdOut("dialog_time block for " + objectId + " has insufficient parameters. Expected message, time, option.", 2);
             return;
         }
@@ -1879,94 +1910,111 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         OperandValue optionOp = getOperandValue(engine, objectId, block.paramsJson[2]); // Dropdown value
 
-        if (timeOp.type != OperandValue::Type::NUMBER) {
+        if (timeOp.type != OperandValue::Type::NUMBER)
+        {
             engine.EngineStdOut("dialog_time block for " + objectId + ": SECOND parameter is not a number. Value: " + timeOp.asString(), 2);
             return;
         }
-        if (optionOp.type != OperandValue::Type::STRING) {
-             engine.EngineStdOut("dialog_time block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+        if (optionOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("dialog_time block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
             return;
         }
 
         std::string message = messageOp.asString();
         Uint64 durationMs = static_cast<Uint64>(timeOp.asNumber() * 1000.0);
-        std::string dialogType = optionOp.asString(); 
+        std::string dialogType = optionOp.asString();
         entity->showDialog(message, dialogType, durationMs);
-
-    } else if (BlockType == "dialog") {
+    }
+    else if (BlockType == "dialog")
+    {
         // params: VALUE (message), OPTION (speak/think)
-         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // 인디케이터 포함하면 3개일 수 있음
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        { // 인디케이터 포함하면 3개일 수 있음
             engine.EngineStdOut("dialog block for " + objectId + " has insufficient parameters. Expected message, option.", 2);
             return;
         }
         OperandValue messageOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue optionOp = getOperandValue(engine, objectId, block.paramsJson[1]); // Dropdown value
 
-        if (optionOp.type != OperandValue::Type::STRING) {
-             engine.EngineStdOut("dialog block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+        if (optionOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("dialog block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
             return;
         }
 
         std::string message = messageOp.asString();
         std::string dialogType = optionOp.asString();
-        entity->showDialog(message, dialogType,0);
+        entity->showDialog(message, dialogType, 0);
     }
     else if (BlockType == "remove_dialog")
     {
         entity->removeDialog();
-    }else if (BlockType == "change_to_some_shape"){
-        //이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
+    }
+    else if (BlockType == "change_to_some_shape")
+    {
+        // 이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
         OperandValue imageDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
         // getOperandValue는 get_pictures 블록의 params[0] (모양 ID 문자열)을 반환해야 합니다.
         // getOperandValue 내부에서 get_pictures 타입 처리가 필요합니다.
         if (imageDropdown.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)) ,2);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)), 2);
             return;
         }
         std::string costumeIdToSet = imageDropdown.asString();
-        if (costumeIdToSet.empty()) {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.",2);
+        if (costumeIdToSet.empty())
+        {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.", 2);
             return;
         }
 
         // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
-        if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet)) {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + ": Failed to set costume to ID '" + costumeIdToSet + "'. It might not exist for this object.",1);
-        } else {
+        if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet))
+        {
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + ": Failed to set costume to ID '" + costumeIdToSet + "'. It might not exist for this object.", 1);
+        }
+        else
+        {
             engine.EngineStdOut("Entity " + objectId + " changed shape to: " + costumeIdToSet, 0);
         }
-
-    }else if (BlockType == "change_to_next_shape"){
+    }
+    else if (BlockType == "change_to_next_shape")
+    {
         OperandValue nextorprev = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (nextorprev.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(nextorprev.type)) ,2);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(nextorprev.type)), 2);
             return;
         }
         std::string direction = nextorprev.asString();
         if (direction == "next")
         {
-            engine.setEntitychangeToNextCostume(objectId,"next");
-        }else{
-            engine.setEntitychangeToNextCostume(objectId,"prev");
+            engine.setEntitychangeToNextCostume(objectId, "next");
         }
-        
-    }else if (BlockType == "add_effect_amount")
+        else
+        {
+            engine.setEntitychangeToNextCostume(objectId, "prev");
+        }
+    }
+    else if (BlockType == "add_effect_amount")
     {
         // params: EFFECT (dropdown: "color", "brightness", "transparency"), VALUE (number)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2) { // 인디케이터 포함 시 3개일 수 있음
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        { // 인디케이터 포함 시 3개일 수 있음
             engine.EngineStdOut("add_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
             return;
         }
-        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]); // EFFECT dropdown
+        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]);  // EFFECT dropdown
         OperandValue effectValueOp = getOperandValue(engine, objectId, block.paramsJson[1]); // VALUE number
 
-        if (effectTypeOp.type != OperandValue::Type::STRING) {
+        if (effectTypeOp.type != OperandValue::Type::STRING)
+        {
             engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
             return;
         }
-        if (effectValueOp.type != OperandValue::Type::NUMBER) {
+        if (effectValueOp.type != OperandValue::Type::NUMBER)
+        {
             engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
             return;
         }
@@ -1974,58 +2022,109 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         std::string effectName = effectTypeOp.asString();
         double value = effectValueOp.asNumber();
 
-        if (effectName == "color") { // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
+        if (effectName == "color")
+        { // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
             entity->setEffectHue(entity->getEffectHue() + value);
             engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectHue()), 0);
-        } else if (effectName == "brightness") {
+        }
+        else if (effectName == "brightness")
+        {
             entity->setEffectBrightness(entity->getEffectBrightness() + value);
             engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectBrightness()), 0);
-        } else if (effectName == "transparency") {
+        }
+        else if (effectName == "transparency")
+        {
             // JavaScript: sprite.effect.alpha = sprite.effect.alpha - effectValue / 100;
             // 여기서 effectValue는 0-100 범위의 값으로, 투명도를 증가시킵니다 (알파 값을 감소시킴).
             // Entity의 m_effectAlpha는 0.0(투명) ~ 1.0(불투명) 범위입니다.
             entity->setEffectAlpha(entity->getEffectAlpha() - (value / 100.0));
             engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + std::to_string(value) + "%, new value: " + std::to_string(entity->getEffectAlpha()), 0);
-        } else {
+        }
+        else
+        {
             engine.EngineStdOut("add_effect_amount block for " + objectId + ": Unknown effect type '" + effectName + "'.", 1);
         }
-    }else if (BlockType == "change_effect_amount"){
+    }
+    else if (BlockType == "change_effect_amount")
+    {
         if (!block.paramsJson.Empty() || block.paramsJson.Size() < 2)
         {
             engine.EngineStdOut("change_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
             return;
         }
-        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]); // EFFECT dropdown
+        OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]);  // EFFECT dropdown
         OperandValue effectValueOp = getOperandValue(engine, objectId, block.paramsJson[1]); // VALUE number
 
-        if (effectTypeOp.type != OperandValue::Type::STRING) {
+        if (effectTypeOp.type != OperandValue::Type::STRING)
+        {
             engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
             return;
         }
-        if (effectValueOp.type != OperandValue::Type::NUMBER) {
+        if (effectValueOp.type != OperandValue::Type::NUMBER)
+        {
             engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
             return;
         }
 
         std::string effectName = effectTypeOp.asString();
         double value = effectValueOp.asNumber();
-        if (effectName == "color"){
+        if (effectName == "color")
+        {
             entity->setEffectHue(value);
             engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + std::to_string(value), 0);
-        }else if (effectName == "brightness"){
+        }
+        else if (effectName == "brightness")
+        {
             entity->setEffectBrightness(value);
             engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + std::to_string(value), 0);
-        }else if (effectName == "transparency"){
-            entity->setEffectAlpha(1 - (value/100.0));
+        }
+        else if (effectName == "transparency")
+        {
+            entity->setEffectAlpha(1 - (value / 100.0));
             engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed to " + std::to_string(value), 0);
         }
-    }else if (BlockType == "erase_all_effects"){
+    }
+    else if (BlockType == "erase_all_effects")
+    {
         entity->setEffectBrightness(0.0); // 밝기 효과 초기화 (0.0이 기본값)
-        entity->setEffectAlpha(1.0);    // 투명도 효과 초기화 (1.0이 기본값, 완전 불투명)
-        entity->setEffectHue(0.0);      // 색깔 효과 (색조) 초기화 (0.0이 기본값)
+        entity->setEffectAlpha(1.0);      // 투명도 효과 초기화 (1.0이 기본값, 완전 불투명)
+        entity->setEffectHue(0.0);        // 색깔 효과 (색조) 초기화 (0.0이 기본값)
         engine.EngineStdOut("Entity " + objectId + " all graphic effects erased.", 0);
     }
-    
+    else if (BlockType == "change_scale_size")
+    {
+        OperandValue size = getOperandValue(engine, objectId, block.paramsJson[0]);
+        entity->setScaleX(entity->getScaleX() + size.asNumber());
+        entity->setScaleY(entity->getScaleY() + size.asNumber());
+    }
+    else if (BlockType == "set_scale_size")
+    {
+        OperandValue setSize = getOperandValue(engine, objectId, block.paramsJson[0]);
+        entity->setScaleX(setSize.asNumber());
+        entity->setScaleY(setSize.asNumber());
+    }else if (BlockType == "stretch_scale_size"){
+        OperandValue setWidth = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue setHeight = getOperandValue(engine, objectId, block.paramsJson[1]);
+        entity->setWidth(setWidth.asNumber());
+        entity->setHeight(setHeight.asNumber());
+    }else if (BlockType == "reset_scale_size"){
+        entity->resetScaleSize();
+    }else if (BlockType == "flip_x"){
+        entity->setScaleX(-1 * entity->getScaleX());
+    }else if (BlockType == "flip_y"){
+        entity->setScaleY(-1 * entity->getScaleY());
+    }else if (BlockType == "change_object_index"){
+        //이 엔진은 역순으로 스프라이트를 렌더링 하고있음
+        OperandValue zindexEnumDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (zindexEnumDropdown.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_object_index object is not String", 2);
+            return;
+        }
+        std::string zindexEnumStr = zindexEnumDropdown.asString();
+        Omocha::ObjectIndexChangeType changeType = Omocha::stringToObjectIndexChangeType(zindexEnumStr);
+        engine.changeObjectIndex(objectId, changeType);
+    }
 }
 /**
  * @brief 사운드블럭

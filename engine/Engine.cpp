@@ -1214,10 +1214,11 @@ bool Engine::loadProject(const string &projectFilePath)
                         string messageIdToReceive;
                         bool messageParamFound = false;
 
-                        if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() > 1 &&
-                            firstBlock.paramsJson[1].IsString())
+                        // After FilterNullsInParamsJsonArray, the signal ID should be the first element if present.
+                        if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() >= 1 &&
+                            firstBlock.paramsJson[0].IsString()) // Check size >= 1 and access index 0
                         {
-                            messageIdToReceive = firstBlock.paramsJson[1].GetString();
+                            messageIdToReceive = firstBlock.paramsJson[0].GetString(); // Get signal ID from index 0
                             messageParamFound = true;
                         }
 
@@ -3817,7 +3818,69 @@ int Engine::getBlockCountForScene(const std::string &sceneId) const
     }
     return totalCount;
 }
+void Engine::changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType) {
+    std::lock_guard<std::mutex> lock(this->m_engineDataMutex); // Protect access to objects_in_order
 
+    auto it = std::find_if(objects_in_order.begin(), objects_in_order.end(),
+                           [&entityId](const ObjectInfo& objInfo) {
+                               return objInfo.id == entityId;
+                           });
+
+    if (it == objects_in_order.end()) {
+        EngineStdOut("changeObjectIndex: Entity ID '" + entityId + "' not found in objects_in_order.", 1);
+        return;
+    }
+
+    ObjectInfo objectToMove = *it; // Make a copy of the ObjectInfo
+    int currentIndex = static_cast<int>(std::distance(objects_in_order.begin(), it));
+    int targetIndex = currentIndex;
+    int numObjects = static_cast<int>(objects_in_order.size());
+
+    if (numObjects <= 0) { // Should not happen if an item was found, but good for safety
+        EngineStdOut("changeObjectIndex: objects_in_order is empty or in an invalid state.", 2);
+        return;
+    }
+    int maxPossibleIndex = numObjects - 1;
+
+
+    switch (changeType) {
+        case Omocha::ObjectIndexChangeType::BRING_TO_FRONT: // Move to index 0 (topmost)
+            targetIndex = 0;
+            break;
+        case Omocha::ObjectIndexChangeType::SEND_TO_BACK:   // Move to the last index (bottommost)
+            targetIndex = maxPossibleIndex;
+            break;
+        case Omocha::ObjectIndexChangeType::BRING_FORWARD:  // Move one step towards top (index decreases)
+            if (currentIndex > 0) {
+                targetIndex = currentIndex - 1;
+            } else {
+                EngineStdOut("Object " + entityId + " is already at the front. No change in Z-order.", 0);
+                return; // Already at the front
+            }
+            break;
+        case Omocha::ObjectIndexChangeType::SEND_BACKWARD: // Move one step towards bottom (index increases)
+            if (currentIndex < maxPossibleIndex) {
+                targetIndex = currentIndex + 1;
+            } else {
+                EngineStdOut("Object " + entityId + " is already at the back. No change in Z-order.", 0);
+                return; // Already at the back
+            }
+            break;
+        case Omocha::ObjectIndexChangeType::UNKNOWN:
+        default:
+            EngineStdOut("changeObjectIndex: Unknown or unsupported Z-order change type for entity " + entityId, 1);
+            return;
+    }
+
+    if (targetIndex == currentIndex && changeType != Omocha::ObjectIndexChangeType::BRING_TO_FRONT && changeType != Omocha::ObjectIndexChangeType::SEND_TO_BACK) { // No actual move needed unless it's to absolute front/back
+        return;
+    }
+
+    objects_in_order.erase(it);
+    objects_in_order.insert(objects_in_order.begin() + targetIndex, objectToMove);
+
+    EngineStdOut("Object " + entityId + " Z-order changed. From original index " + std::to_string(currentIndex) + " to new index " + std::to_string(targetIndex) + " (0 is topmost).", 0);
+}
 void Engine::engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness)
 {
     // p1_stage_entry is {lastX_entry, lastY_entry}

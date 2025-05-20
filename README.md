@@ -176,10 +176,42 @@ SOFTWARE.
 - [x] `add_effect_amount`: 엔티티에 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값만큼 더합니다.
 - [x] `change_effect_amount`: 엔티티의 그래픽 효과(색깔, 밝기, 투명도)를 지정된 값으로 설정합니다.
 - [x] `erase_all_effects`: 엔티티에 적용된 모든 그래픽 효과를 제거합니다.
-- [ ] `change_scale_size`: 엔티티의 크기를 지정된 값만큼 변경합니다. (기존 크기에 더함)
-- [ ] `set_scale_size`: 엔티티의 크기를 지정된 값으로 설정합니다. (절대 크기)
-- [ ] `stretch_scale_size`: 엔티티의 가로 또는 세로 크기를 지정된 값만큼 변경합니다. (너비, 높이 옵션)
-- [ ] `reset_scale_size`: 엔티티의 크기를 원래대로 되돌립니다. (가로/세로 비율 포함)
-- [ ] `flip_x`: 엔티티를 상하로 뒤집습니다. (Y축 기준 반전)
-- [ ] `flip_y`: 엔티티를 좌우로 뒤집습니다. (X축 기준 반전)
-- [ ] `change_object_index`: 엔티티의 그리기 순서를 변경합니다. (맨 앞으로 가져오기, 앞으로 가져오기, 뒤로 보내기, 맨 뒤로 보내기 옵션)
+- [x] `change_scale_size`: 엔티티의 크기를 지정된 값만큼 변경합니다. (기존 크기에 더함)
+- [x] `set_scale_size`: 엔티티의 크기를 지정된 값으로 설정합니다. (절대 크기)
+- [x] `stretch_scale_size`: 엔티티의 가로 또는 세로 크기를 지정된 값만큼 변경합니다. (너비, 높이 옵션)
+- [x] `reset_scale_size`: 엔티티의 크기를 원래대로 되돌립니다. (가로/세로 비율 포함)
+- [x] `flip_x`: 엔티티를 상하로 뒤집습니다. (Y축 기준 반전)
+- [x] `flip_y`: 엔티티를 좌우로 뒤집습니다. (X축 기준 반전)
+- [x] `change_object_index`: 엔티티의 그리기 순서를 변경합니다. (맨 앞으로 가져오기, 앞으로 가져오기, 뒤로 보내기, 맨 뒤로 보내기 옵션)
+
+## 소리 블록 구현 상태
+
+### 재생 관련
+
+*   [ ] `sound_something_with_block`: 소리 재생하기 (예: '소리이름' 재생하기)
+*   [ ] `sound_something_second_with_block`: 소리 (N)초 재생하기 (예: '소리이름' (N)초 재생하기)
+*   [ ] `sound_from_to`: 소리 (시작)초부터 (끝)초까지 재생하기
+*   [ ] `sound_something_wait_with_block`: 소리 재생하고 기다리기 (예: '소리이름' 재생하고 기다리기)
+*   [ ] `sound_something_second_wait_with_block`: 소리 (N)초 재생하고 기다리기 (예: '소리이름' (N)초 재생하고 기다리기)
+*   [ ] `sound_from_to_and_wait`: 소리 (시작)초부터 (끝)초까지 재생하고 기다리기
+
+### 효과 및 제어
+
+*   [ ] `sound_volume_change`: 소리 크기를 (N)만큼 바꾸기
+*   [ ] `sound_volume_set`: 소리 크기를 (N)%로 정하기
+*   [ ] `get_sound_volume`: 소리 크기 값 (블록)
+*   [ ] `get_sound_speed`: 소리 재생 속도 값 (블록)
+*   [ ] `sound_speed_change`: 소리 재생 속도를 (N)만큼 바꾸기
+*   [ ] `sound_speed_set`: 소리 재생 속도를 (N)으로 정하기
+*   [ ] `sound_silent_all`: 모든 소리 끄기 (옵션: 모든 소리, 이 오브젝트의 소리, 다른 오브젝트의 소리)
+
+### 배경음악
+
+*   [ ] `play_bgm`: 배경음악 재생하기 ('소리이름')
+*   [ ] `stop_bgm`: 배경음악 끄기
+
+### 정보
+
+*   [ ] `get_sound_duration`: ('소리이름')의 재생 길이 (초) (블록)
+
+---

@@ -150,5 +150,12 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
     }
     return "알 수 없는 블록 타입";
 }
+ObjectIndexChangeType stringToObjectIndexChangeType(const std::string& typeStr) {
+    if (typeStr == "FRONT") return ObjectIndexChangeType::BRING_TO_FRONT;
+    if (typeStr == "FORWARD") return ObjectIndexChangeType::BRING_FORWARD;
+    if (typeStr == "BACKWARD") return ObjectIndexChangeType::SEND_BACKWARD;
+    if (typeStr == "BACK") return ObjectIndexChangeType::SEND_TO_BACK;
+    return ObjectIndexChangeType::UNKNOWN;
+}
 
 } // namespace Omocha

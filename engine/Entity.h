@@ -201,7 +201,7 @@ public:
     void setWidth(double newWidth);
     void setHeight(double newHeight);
     void setVisible(bool newVisible);
-
+    void resetScaleSize();
     // Effect getters/setters
     double getEffectBrightness() const;
     void setEffectBrightness(double brightness);

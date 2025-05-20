@@ -31,7 +31,6 @@ public:
             }
         }
     }
-
     // 이동 생성자 (권장)
     Block(Block&& other) noexcept
         : id(std::move(other.id)),
