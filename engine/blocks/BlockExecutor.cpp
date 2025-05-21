@@ -2124,7 +2124,25 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         std::string zindexEnumStr = zindexEnumDropdown.asString();
         Omocha::ObjectIndexChangeType changeType = Omocha::stringToObjectIndexChangeType(zindexEnumStr);
         engine.changeObjectIndex(objectId, changeType);
+    }else if (BlockType == "sound_something_with_block")
+    {
+        OperandValue soundType = getOperandValue(engine, objectId, block.paramsJson[0]);
+
+        if (soundType.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2);
+            return;
+        }
+        std::string soundIdToPlay = soundType.asString();
+
+        if (soundIdToPlay.empty()) {
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
+            return;
+        }
+
+        entity->playSound(soundIdToPlay);
     }
+    
 }
 /**
  * @brief 사운드블럭

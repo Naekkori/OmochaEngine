@@ -601,3 +601,42 @@ void Entity::setEffectHue(double hue)
     if (m_effectHue < 0)
         m_effectHue += 360.0;
 }
+
+void Entity::playSound(const std::string& soundId) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+
+    if (!pEngineInstance) {
+        std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
+        return;
+    }
+
+    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+    if (!objInfo) {
+        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
+        return;
+    }
+
+    const SoundFile* soundToPlay = nullptr;
+    for (const auto& soundFile : objInfo->sounds) {
+        if (soundFile.id == soundId) {
+            soundToPlay = &soundFile;
+            break;
+        }
+    }
+
+    if (soundToPlay) {
+        std::string soundFilePath = "";
+        if (pEngineInstance->IsSysMenu)
+        {
+            soundFilePath = "sysmenu/" + soundToPlay->fileurl;
+        }
+        else
+        {
+            soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
+        }
+        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath); // Engine의 public aeHelper 사용
+        pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+    } else {
+        pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
+    }
+}

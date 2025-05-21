@@ -209,4 +209,5 @@ public:
     void setEffectAlpha(double alpha);
     double getEffectHue() const;
     void setEffectHue(double hue);
+    void playSound(const std::string& soundId);
 };

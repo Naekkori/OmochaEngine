@@ -38,9 +38,9 @@ public:
     void clearPreloadedSounds(); // 모든 미리 로딩된 사운드 해제
 
     // 효과음 관련 메서드
-    void playSound(const std::string& objectId, const std::string& filePath, bool loop, float initialVolume);
-    void playSoundForDuration(const std::string &objectId, const std::string &filePath, double durationSeconds, bool loop, float initialVolume);
-    void playSoundFromTo(const std::string &objectId, const std::string &filePath, double startTimeSeconds, double endTimeSeconds, bool loop, float initialVolume);
+    void playSound(const std::string& objectId, const std::string& filePath, bool loop=false, float initialVolume=1.0f);
+    void playSoundForDuration(const std::string &objectId, const std::string &filePath, double durationSeconds, bool loop=false, float initialVolume=1.0f);
+    void playSoundFromTo(const std::string &objectId, const std::string &filePath, double startTimeSeconds, double endTimeSeconds,  bool loop=false, float initialVolume=1.0f);
     void stopSound(const std::string &objectId);
     void stopAllSounds();
     void stopAllSoundsExcept(const std::string& objectIdToKeepPlaying);

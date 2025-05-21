@@ -134,7 +134,6 @@ private:
     boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
     std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
-    AudioEngineHelper aeHelper;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
     const string ANSI_COLOR_YELLOW = "\x1b[33m";
@@ -286,6 +285,7 @@ public:
     // --- Pen Drawing ---
     void engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness);
 
+    AudioEngineHelper aeHelper; // public으로 이동
     int getBlockCountForObject(const std::string &objectId) const;
     int getBlockCountForScene(const std::string &sceneId) const; // 이 함수는 getBlockCountForObject를 호출하므로 간접적으로 objectScripts에 접근
     int getTotalBlockCount() const;

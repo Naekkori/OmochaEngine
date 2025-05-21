@@ -1819,7 +1819,15 @@ bool Engine::loadSounds()
         {
             if (!sf.fileurl.empty())
             {
-                string fullAudioPath = string(BASE_ASSETS) + sf.fileurl;
+                string fullAudioPath = "";
+                if (IsSysMenu)
+                {
+                    fullAudioPath = "sysmenu/" + sf.fileurl;
+                }
+                else
+                {
+                    fullAudioPath = string(BASE_ASSETS) + sf.fileurl;
+                }
                 // In case IsSysMenu affects sound paths, similar logic to loadImages could be added here.
                 aeHelper.preloadSound(fullAudioPath);
                 preloadedSuccessfullyCount++; // Increment if preload was attempted/successful

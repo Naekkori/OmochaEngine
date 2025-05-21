@@ -119,7 +119,7 @@ void AudioEngineHelper::clearPreloadedSounds() {
     aeStdOut("All preloaded sounds cleared.");
 }
 
-void AudioEngineHelper::playSound(const std::string& objectId, const std::string& filePath, bool loop=false, float initialVolume=1.0f) {
+void AudioEngineHelper::playSound(const std::string& objectId, const std::string& filePath, bool loop, float initialVolume) {
     if (!m_engineInitialized) {
         aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
         return;
@@ -167,7 +167,7 @@ void AudioEngineHelper::playSound(const std::string& objectId, const std::string
     m_activeSounds[objectId] = soundInstance; // 맵에 저장 (새로 추가 또는 덮어쓰기)
     aeStdOut("Sound started: " + filePath + " for object: " + objectId);
 }
-void AudioEngineHelper::playSoundForDuration(const std::string& objectId, const std::string& filePath, double durationSeconds, bool loop = false, float initialVolume = 1.0f){
+void AudioEngineHelper::playSoundForDuration(const std::string& objectId, const std::string& filePath, double durationSeconds, bool loop, float initialVolume){
     if (!m_engineInitialized) {
         aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
         return;
@@ -218,7 +218,7 @@ void AudioEngineHelper::playSoundForDuration(const std::string& objectId, const 
     m_activeSounds[objectId] = soundInstance; // 맵에 저장 (새로 추가 또는 덮어쓰기)
     aeStdOut("Sound started: " + filePath + " for object: " + objectId);
 }
-void AudioEngineHelper::playSoundFromTo(const std::string& objectId, const std::string& filePath, double startTimeSeconds, double endTimeSeconds, bool loop = false, float initialVolume = 1.0f){
+void AudioEngineHelper::playSoundFromTo(const std::string& objectId, const std::string& filePath, double startTimeSeconds, double endTimeSeconds, bool loop, float initialVolume){
     if (!m_engineInitialized) {
         aeStdOut("Engine not initialized. Cannot play sound for object: " + objectId);
         return;
