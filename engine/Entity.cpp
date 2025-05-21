@@ -683,7 +683,6 @@ void Entity::playSoundWithSeconds(const std::string& soundId, double seconds) {
 }
 void Entity::playSoundWithFromTo(const std::string& soundId, double from, double to) {
         std::lock_guard<std::mutex> lock(m_stateMutex);
-        std::lock_guard<std::mutex> lock(m_stateMutex);
 
         if (!pEngineInstance) {
             //std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
