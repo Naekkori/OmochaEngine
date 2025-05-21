@@ -2124,7 +2124,16 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         std::string zindexEnumStr = zindexEnumDropdown.asString();
         Omocha::ObjectIndexChangeType changeType = Omocha::stringToObjectIndexChangeType(zindexEnumStr);
         engine.changeObjectIndex(objectId, changeType);
-    }else if (BlockType == "sound_something_with_block")
+    }
+}
+/**
+ * @brief 사운드블럭
+ *
+ */
+void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+{
+    Entity *entity = engine.getEntityById(objectId);
+    if (BlockType == "sound_something_with_block")
     {
         OperandValue soundType = getOperandValue(engine, objectId, block.paramsJson[0]);
 
@@ -2141,15 +2150,54 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
 
         entity->playSound(soundIdToPlay);
+    }else if (BlockType == "sound_something_second_with_block")
+    {
+        OperandValue soundType = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue soundTime = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (soundType.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2);
+            return;
+        }
+        if (soundTime.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound time parameter is not a number.");
+            return;
+        }
+        
+        std::string soundIdToPlay = soundType.asString();
+
+        if (soundIdToPlay.empty()) {
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
+            return;
+        }
+
+        entity->playSoundWithSeconds(soundIdToPlay, soundTime.asNumber());
+    }else if (BlockType == "sound_from_to"){
+        OperandValue soundId = getOperandValue(engine,objectId,block.paramsJson[0]);
+        OperandValue from = getOperandValue(engine,objectId,block.paramsJson[1]);
+        OperandValue to = getOperandValue(engine,objectId,block.paramsJson[2]);
+        if (soundId.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundId.asString(), 2);
+            return;
+        }
+        if (from.type != OperandValue::Type::NUMBER && to.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound time parameter is not a number.");
+            return;
+        }
+        
+        std::string soundIdToPlay = soundId.asString();
+        double fromTime = from.asNumber();
+        double toTime = to.asNumber();
+        if (soundIdToPlay.empty())
+        {
+            engine.EngineStdOut("sound_from_to for object " + objectId + ": received an empty sound ID");
+            return;
+        }
+        entity->playSoundWithFromTo(soundIdToPlay, fromTime, toTime);
     }
-    
-}
-/**
- * @brief 사운드블럭
- *
- */
-void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
-{
 }
 /**
  * @brief 변수블럭
