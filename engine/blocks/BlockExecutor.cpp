@@ -2141,6 +2141,12 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 {
 }
 /**
+ * @brief 흐름 
+ * 
+ */
+void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block){
+}
+/**
  * @brief 함수블럭
  *
  */

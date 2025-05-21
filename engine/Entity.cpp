@@ -100,6 +100,10 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 5, executionThreadId); // LEVEL 5 및 스레드 ID 사용
         try
         {
+            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
+                pEngineInstance->EngineStdOut("Script execution cancelled due to engine shutdown for entity: " + this->getId(), 1, executionThreadId);
+                return;
+            }
             // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
             Moving(block.type, *pEngineInstance, this->id, block);     // TODO: 이 함수들 내부 로그도 스레드 ID를 포함하려면 executionThreadId를 넘겨야 함
             Calculator(block.type, *pEngineInstance, this->id, block); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정

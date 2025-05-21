@@ -274,6 +274,7 @@ if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LI
         "bzip2"         # From bz2.dll (Windows) or linked dependency
         "libjpeg-turbo" # From jpeg62.dll (Windows) or linked dependency
         "libtiff"       # From tiff.dll (Windows) or linked dependency
+        "liblzma"       # From liblzma.dll (Windows) or linked dependency
         "brotli"        # From brotlidec.dll, brotlicommon.dll (Windows) or linked dependency
         "freetype"      # From freetype.dll (Windows) or linked dependency
         "libpng"        # From libpng16.dll (Windows) or linked dependency

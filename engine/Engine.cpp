@@ -19,6 +19,7 @@
 #include "rapidjson/writer.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
+#include <future>
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -40,8 +41,7 @@ static string RapidJsonValueToString(const rapidjson::Value &value)
     return buffer.GetString();
 }
 Engine::Engine() : window(nullptr), renderer(nullptr),
-                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor((this->specialConfig.setZoomfactor <= 0.0) ? 1.0f : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor),
-                    Engine::MIN_ZOOM, Engine::MAX_ZOOM)), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
+                   tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0), zoomFactor((this->specialConfig.setZoomfactor <= 0.0) ? 1.0f : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)), m_isDraggingZoomSlider(false), m_pressedObjectId(""), logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
                    m_scriptThreadPool(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
@@ -162,31 +162,29 @@ static void Helper_RenderFilledRoundedRect(SDL_Renderer *renderer, const SDL_FRe
 }
 Engine::~Engine()
 {
-    EngineStdOut("Engine shutting down...", 0);
-
-    // 1. Stop all entity logic threads first
-    EngineStdOut("Stopping all entity logic threads...", 0);
-    // for (auto& pair : entities) { // Use reference to access Entity methods
-    //     if (pair.second) {
-    //         pair.second->stopLogicThread(); // Ensure this joins the thread
-    //     }
-    // }
-    EngineStdOut("All entity logic threads stopped.", 0);
-
-    // 2. Terminate SDL and other engine systems
-    terminateGE(); // Now it's safer to terminate SDL and other resources
-
-    // 3. Delete entity objects
-    for (auto const &pair : entities)
-    {
-        delete pair.second;
+    EngineStdOut("Engine shutting down...");
+    m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
+    EngineStdOut("Shutting down script thread pool...");
+    m_scriptThreadPool.stop();
+    std::future<void> join_future = std::async(std::launch::async, [&]() {
+        m_scriptThreadPool.join();
+    });
+    EngineStdOut("Waiting for script threads to join...", 0);
+    std::chrono::seconds timeout_duration(3);
+    if (join_future.wait_for(timeout_duration) == std::future_status::timeout) {
+        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2);
+        showMessageBox("엔진 종료 중 스크립트 스레드 대기 시간이 초과되었습니다.\n일부 스크립트가 응답하지 않는 것 같습니다.", msgBoxIconType.ICON_WARNING);
+        quick_exit(EXIT_FAILURE);
+    } else {
+        EngineStdOut("Script threads joined successfully.", 0);
     }
+    terminateGE();
+    EngineStdOut("Deleting entity objects...");
     entities.clear();
     objects_in_order.clear();
-    EngineStdOut("Shutting down script thread pool...", 0);
-    m_scriptThreadPool.join(); // 모든 작업이 완료될 때까지 대기
-    EngineStdOut("Script thread pool shut down.", 0);
+    EngineStdOut("Entity objects deleted.");
     objectScripts.clear();
+    EngineStdOut("Object Script Clear");
 }
 
 string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
@@ -1413,6 +1411,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
     string defaultFontPath = "font/nanum_gothic.ttf"; // 기본 폰트 경로
     hudFont = TTF_OpenFont(defaultFontPath.c_str(), 20);
     loadingScreenFont = TTF_OpenFont(defaultFontPath.c_str(), 30);
+    percentFont = TTF_OpenFont(defaultFontPath.c_str(), 15);
 
     if (!hudFont)
     { // HUD 폰트 로드 실패
@@ -1423,6 +1422,23 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan)
 
         if (loadingScreenFont)
             TTF_CloseFont(loadingScreenFont);
+        TTF_Quit();
+        SDL_DestroyRenderer(this->renderer);
+        this->renderer = nullptr;
+        SDL_DestroyWindow(this->window);
+        this->window = nullptr;
+
+        SDL_Quit();
+        return false;
+    }
+    if (!percentFont)
+    {
+        string errMsg = "Failed to load percent font! Font path: " + defaultFontPath;
+        EngineStdOut(errMsg, 2);
+
+        showMessageBox(errMsg, msgBoxIconType.ICON_ERROR);
+        if (hudFont)
+            TTF_CloseFont(hudFont);
         TTF_Quit();
         SDL_DestroyRenderer(this->renderer);
         this->renderer = nullptr;
@@ -1637,7 +1653,7 @@ void Engine::handleRenderDeviceReset()
 
 bool Engine::loadImages()
 {
-    LOADING_METHOD_NAME="Loading Sprites...";
+    LOADING_METHOD_NAME = "Loading Sprites...";
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now(); // 이미지 로딩 시작 시간
     EngineStdOut("Starting image loading...", 0);                                     // 이미지 로딩 시작
     totalItemsToLoad = 0;
@@ -1764,16 +1780,17 @@ bool Engine::loadImages()
     }
     return true;
 }
-bool Engine::loadSounds(){
-    LOADING_METHOD_NAME="Loading Sounds...";
+bool Engine::loadSounds()
+{
+    LOADING_METHOD_NAME = "Loading Sounds...";
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now();
     EngineStdOut("Starting Sound loading...", 0);
 
     // 1. Calculate total sound items to load for the progress bar
     int numSoundsToAttemptPreload = 0;
-    for (const auto& objInfo : objects_in_order)
+    for (const auto &objInfo : objects_in_order)
     {
-        for (const auto& sf : objInfo.sounds)
+        for (const auto &sf : objInfo.sounds)
         {
             if (!sf.fileurl.empty())
             {
@@ -1783,7 +1800,7 @@ bool Engine::loadSounds(){
     }
 
     this->totalItemsToLoad = numSoundsToAttemptPreload; // Set total items for this loading phase
-    this->loadedItemCount = 0;                         // Reset loaded items count
+    this->loadedItemCount = 0;                          // Reset loaded items count
 
     EngineStdOut("Total sound items to preload: " + to_string(this->totalItemsToLoad), 0);
 
@@ -1794,11 +1811,11 @@ bool Engine::loadSounds(){
     }
 
     int preloadedSuccessfullyCount = 0; // To count actual successful preloads if needed, though aeHelper logs this.
-                                      // For now, 'pl' or 'loadedItemCount' will represent processed items.
+                                        // For now, 'pl' or 'loadedItemCount' will represent processed items.
 
-    for (const auto& objInfo : objects_in_order)
+    for (const auto &objInfo : objects_in_order)
     {
-        for (const auto& sf : objInfo.sounds)
+        for (const auto &sf : objInfo.sounds)
         {
             if (!sf.fileurl.empty())
             {
@@ -1810,11 +1827,14 @@ bool Engine::loadSounds(){
                 this->loadedItemCount++; // Increment for progress bar
 
                 // Update loading screen periodically and check for quit event
-                if (this->loadedItemCount % 5 == 0 || this->loadedItemCount == this->totalItemsToLoad) {
+                if (this->loadedItemCount % 5 == 0 || this->loadedItemCount == this->totalItemsToLoad)
+                {
                     renderLoadingScreen();
                     SDL_Event e;
-                    while (SDL_PollEvent(&e) != 0) {
-                        if (e.type == SDL_EVENT_QUIT) {
+                    while (SDL_PollEvent(&e) != 0)
+                    {
+                        if (e.type == SDL_EVENT_QUIT)
+                        {
                             EngineStdOut("Sound loading cancelled by user.", 1);
                             return false; // Allow cancellation
                         }
@@ -3529,13 +3549,12 @@ void Engine::renderLoadingScreen()
 
     if (loadingScreenFont)
     {
-        SDL_Color textColor = {220, 220, 220, 255}; // 텍스트 색상
-
+        SDL_Color textColor = {255, 255, 255, 255}; // 텍스트 색상
         ostringstream percentStream;
         percentStream << fixed << setprecision(0) << (progressPercent * 100.0f) << "%";
         string percentText = percentStream.str();
         // 진행률 텍스트 렌더링
-        SDL_Surface *surfPercent = TTF_RenderText_Blended(loadingScreenFont, percentText.c_str(), percentText.size(), textColor);
+        SDL_Surface *surfPercent = TTF_RenderText_Blended(percentFont, percentText.c_str(), percentText.size(), textColor);
         if (surfPercent)
         {
             SDL_Texture *texPercent = SDL_CreateTextureFromSurface(renderer, surfPercent);
@@ -3584,8 +3603,10 @@ void Engine::renderLoadingScreen()
             {
                 EngineStdOut("Failed to render brand name text surface ", 2);
             }
-        }else{
-            //아니면 무엇이 로드하는지 보여줌.
+        }
+        else
+        {
+            // 아니면 무엇이 로드하는지 보여줌.
             SDL_Surface *surfBrand = TTF_RenderText_Blended(loadingScreenFont, LOADING_METHOD_NAME.c_str(), specialConfig.BRAND_NAME.size(), textColor);
             if (surfBrand)
             {

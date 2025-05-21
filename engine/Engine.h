@@ -25,6 +25,7 @@
 #include <boost/asio/thread_pool.hpp> // 추가
 #include <boost/asio/post.hpp>
 using namespace std;
+#include <atomic> // For std::atomic
 
 const int WINDOW_WIDTH = 480 * 3;
 const int WINDOW_HEIGHT = 270 * 3;
@@ -119,6 +120,7 @@ private:
     SDL_Renderer *renderer;      // SDL Renderer
     string currentSceneId;
     TTF_Font *hudFont = nullptr;           // HUD용 폰트
+    TTF_Font *percentFont = nullptr;
     TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
     SDL_Texture *tempScreenTexture;
@@ -294,5 +296,6 @@ public:
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr);
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스
+    std::atomic<bool> m_isShuttingDown{false};     // 엔진 종료 상태 플래그
     rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
 };
