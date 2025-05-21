@@ -250,6 +250,14 @@ int main(int argc, char *argv[])
             {
                 engine.EngineStdOut("Image loading process completed successfully.", 0);
             }
+            
+            if (!engine.loadSounds())
+            {
+                engine.EngineStdOut("Sound loading process completed with errors.",1);
+            }else{
+                engine.EngineStdOut("Sound loading process completed successfully.",0);
+            }
+            
             engine.renderLoadingScreen();
             engine.EngineStdOut("Entering game loop.", 0);
             engine.runStartButtonScripts();

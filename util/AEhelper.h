@@ -20,6 +20,7 @@ private:
     bool m_contextInitialized = false;
     bool m_deviceInitialized = false;
     bool m_engineInitialized = false;
+    std::map<std::string, ma_sound> m_decodedSoundsCache; // 미리 디코딩된 사운드 캐시
 
     ma_sound m_backgroundMusic;          // 배경음악을 위한 ma_sound 인스턴스
     bool m_backgroundMusicInitialized = false; // 배경음악 초기화 상태
@@ -31,6 +32,10 @@ private:
 public:
     AudioEngineHelper();
     ~AudioEngineHelper();
+
+    // 사운드 미리 로딩
+    void preloadSound(const std::string& filePath);
+    void clearPreloadedSounds(); // 모든 미리 로딩된 사운드 해제
 
     // 효과음 관련 메서드
     void playSound(const std::string& objectId, const std::string& filePath, bool loop, float initialVolume);

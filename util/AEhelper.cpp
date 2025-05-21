@@ -50,24 +50,31 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
 
 AudioEngineHelper::~AudioEngineHelper() {
     aeStdOut("Audio Engine Helper uninitializing...");
-    stopAllSounds(); // 모든 활성 사운드 정리
-    if (m_backgroundMusicInitialized) {
-        aeStdOut("Stopping and uninitializing background music.");
-        uninitializeSound(&m_backgroundMusic); // 배경음악도 해제
-        m_backgroundMusicInitialized = false;
-    }
 
     if (m_engineInitialized) {
-        ma_engine_uninit(&m_engine);
+        ma_engine_uninit(&m_engine); // 엔진을 먼저 해제하여 오디오 스레드를 중지합니다.
         aeStdOut("Audio engine uninitialized");
+        m_engineInitialized = false; // 플래그 업데이트
     }
+
+    // 엔진이 중지된 후 사운드 리소스를 정리합니다.
+    stopAllSounds(); // 모든 활성 사운드 정리 (내부적으로 배경음악도 처리 시도)
+    if (m_backgroundMusicInitialized) { // stopAllSounds에서 처리되지 않았을 경우를 대비
+        aeStdOut("Uninitializing background music.");
+        uninitializeSound(&m_backgroundMusic);
+        m_backgroundMusicInitialized = false;
+    }
+    clearPreloadedSounds(); // 미리 로딩된 사운드 해제
+
     if (m_deviceInitialized) {
         ma_device_uninit(&m_device);
         aeStdOut("Audio device uninitialized");
+        m_deviceInitialized = false; // 플래그 업데이트
     }
     if (m_contextInitialized) {
         ma_context_uninit(&m_context);
-        aeStdOut("Audio context initialized successfully");
+        aeStdOut("Audio context uninitialized");
+        m_contextInitialized = false; // 플래그 업데이트
     }
 }
 
@@ -76,6 +83,40 @@ void AudioEngineHelper::uninitializeSound(ma_sound* pSound) {
         ma_sound_stop(pSound);
         ma_sound_uninit(pSound);
     }
+}
+
+void AudioEngineHelper::preloadSound(const std::string& filePath) {
+    if (!m_engineInitialized) {
+        aeStdOut("Engine not initialized. Cannot preload sound: " + filePath);
+        return;
+    }
+    if (m_decodedSoundsCache.count(filePath)) {
+        aeStdOut("Sound already preloaded: " + filePath);
+        return;
+    }
+
+    ma_sound soundToCache;
+    ma_result result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundToCache);
+
+    if (result != MA_SUCCESS) {
+        aeStdOut("Failed to preload sound file: " + filePath + ". Error: " + ma_result_description(result));
+    } else {
+        m_decodedSoundsCache[filePath] = soundToCache;
+        aeStdOut("Sound preloaded successfully: " + filePath);
+    }
+}
+
+void AudioEngineHelper::clearPreloadedSounds() {
+    if (!m_engineInitialized) return;
+    if (m_decodedSoundsCache.empty()) return;
+
+    aeStdOut("Clearing all preloaded sounds (" + std::to_string(m_decodedSoundsCache.size()) + " sounds)...");
+    for (auto& pair : m_decodedSoundsCache) {
+        // ma_sound_uninit은 ma_sound*를 받으므로 주소를 전달합니다.
+        ma_sound_uninit(&(pair.second));
+    }
+    m_decodedSoundsCache.clear();
+    aeStdOut("All preloaded sounds cleared.");
 }
 
 void AudioEngineHelper::playSound(const std::string& objectId, const std::string& filePath, bool loop=false, float initialVolume=1.0f) {
@@ -92,15 +133,30 @@ void AudioEngineHelper::playSound(const std::string& objectId, const std::string
         // map에서 제거하지 않고, 새 사운드로 덮어쓸 것이므로 ma_sound 객체만 새로 초기화
     }
 
-    ma_sound soundInstance; // 새 ma_sound 인스턴스 또는 기존 맵 위치에 새로 초기화
+    ma_sound soundInstance; 
     ma_result result;
-    // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
-    // 스트리밍이 필요하면 플래그를 조정하거나 ma_sound_init_from_file_w 스트리밍 버전 사용
-    result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
 
-    if (result != MA_SUCCESS) {
-        aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
-        return;
+    auto cache_it = m_decodedSoundsCache.find(filePath);
+    if (cache_it != m_decodedSoundsCache.end()) {
+        // 캐시에서 발견됨, 복사하여 사용
+        // 복사 시 플래그는 0 또는 필요한 최소 플래그 (원본이 DECODE | SHARE로 로드됨)
+        result = ma_sound_init_copy(&m_engine, &(cache_it->second), 0, nullptr, &soundInstance);
+        if (result == MA_SUCCESS) {
+            aeStdOut("Playing sound from cache: " + filePath + " for object: " + objectId);
+        } else {
+            aeStdOut("Failed to copy sound from cache: " + filePath + ". Error: " + ma_result_description(result) + ". Loading from file instead.");
+            // 복사 실패 시 파일에서 직접 로드 (아래 로직으로 이어짐)
+        }
+    }
+    
+    if (result != MA_SUCCESS) { // 캐시에 없거나 복사 실패 시 파일에서 직접 로드
+        // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
+        result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+        if (result != MA_SUCCESS) {
+            aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
+            return;
+        }
+        aeStdOut("Playing sound loaded from file (not cached or cache copy failed): " + filePath + " for object: " + objectId);
     }
 
     ma_sound_set_looping(&soundInstance, loop ? MA_TRUE : MA_FALSE);
@@ -125,15 +181,26 @@ void AudioEngineHelper::playSoundForDuration(const std::string& objectId, const 
         // map에서 제거하지 않고, 새 사운드로 덮어쓸 것이므로 ma_sound 객체만 새로 초기화
     }
 
-    ma_sound soundInstance; // 새 ma_sound 인스턴스 또는 기존 맵 위치에 새로 초기화
+    ma_sound soundInstance;
     ma_result result;
-    // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
-    // 스트리밍이 필요하면 플래그를 조정하거나 ma_sound_init_from_file_w 스트리밍 버전 사용
-    result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+
+    auto cache_it = m_decodedSoundsCache.find(filePath);
+    if (cache_it != m_decodedSoundsCache.end()) {
+        result = ma_sound_init_copy(&m_engine, &(cache_it->second), 0, nullptr, &soundInstance);
+        if (result == MA_SUCCESS) {
+            aeStdOut("Playing sound (for duration) from cache: " + filePath + " for object: " + objectId);
+        } else {
+            aeStdOut("Failed to copy sound (for duration) from cache: " + filePath + ". Error: " + ma_result_description(result) + ". Loading from file.");
+        }
+    }
 
     if (result != MA_SUCCESS) {
-        aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
-        return;
+        result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+        if (result != MA_SUCCESS) {
+            aeStdOut("Failed to load sound file (for duration): " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
+            return;
+        }
+        aeStdOut("Playing sound (for duration) loaded from file: " + filePath + " for object: " + objectId);
     }
 
     // durationSeconds 만큼 재생 후 멈추도록 설정
@@ -165,15 +232,26 @@ void AudioEngineHelper::playSoundFromTo(const std::string& objectId, const std::
         // map에서 제거하지 않고, 새 사운드로 덮어쓸 것이므로 ma_sound 객체만 새로 초기화
     }
 
-    ma_sound soundInstance; // 새 ma_sound 인스턴스 또는 기존 맵 위치에 새로 초기화
+    ma_sound soundInstance;
     ma_result result;
-    // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
-    // 스트리밍이 필요하면 플래그를 조정하거나 ma_sound_init_from_file_w 스트리밍 버전 사용
-    result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+
+    auto cache_it = m_decodedSoundsCache.find(filePath);
+    if (cache_it != m_decodedSoundsCache.end()) {
+        result = ma_sound_init_copy(&m_engine, &(cache_it->second), 0, nullptr, &soundInstance);
+        if (result == MA_SUCCESS) {
+            aeStdOut("Playing sound (from-to) from cache: " + filePath + " for object: " + objectId);
+        } else {
+            aeStdOut("Failed to copy sound (from-to) from cache: " + filePath + ". Error: " + ma_result_description(result) + ". Loading from file.");
+        }
+    }
 
     if (result != MA_SUCCESS) {
-        aeStdOut("Failed to load sound file: " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
-        return;
+        result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, &soundInstance);
+        if (result != MA_SUCCESS) {
+            aeStdOut("Failed to load sound file (from-to): " + filePath + " for object: " + objectId + ". Error: " + ma_result_description(result));
+            return;
+        }
+        aeStdOut("Playing sound (from-to) loaded from file: " + filePath + " for object: " + objectId);
     }
 
     // 1. 재생 시작 시간으로 이동
@@ -400,11 +478,10 @@ void AudioEngineHelper::setGlobalPlaybackSpeed(float speed) {
 float AudioEngineHelper::getGlobalPlaybackSpeed() const {
     return m_globalPlaybackSpeed;
 }
-
 void AudioEngineHelper::aeStdOut(const std::string &message) const {
-    std::string TAG = "[Hibiki] "; // std::string으로 변경
-    std::string lm = TAG + message; // std::string으로 변경
+    std::string TAG = "[Hibiki] ";
+    std::string lm = TAG + message;
     printf(lm.c_str());
-    printf("\n"); // printf는 자동 줄바꿈 안 함
+    printf("\n");
     logger.log(lm);
 }

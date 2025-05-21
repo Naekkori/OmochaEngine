@@ -10,7 +10,7 @@
 #include "SDL3/SDL.h"             // SDL 코어
 #include "SDL3_image/SDL_image.h" //SDL 이미지
 #include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
-#include "SDL3/SDL_audio.h"       // SDL 오디오
+#include "util/AEhelper.h"
 #include "SDL3/SDL_stdinc.h"      // For SDL_PI_D
 #include "SDL3/SDL_render.h"      // SDL 렌더링
 #include "SDL3/SDL_scancode.h"    // For SDL_Scancode
@@ -132,6 +132,7 @@ private:
     boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
     std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
+    AudioEngineHelper aeHelper;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
     const string ANSI_COLOR_YELLOW = "\x1b[33m";
@@ -234,6 +235,7 @@ public:
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
     bool loadImages();
+    bool loadSounds();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;

@@ -30,6 +30,7 @@ const float Engine::MIN_LIST_HEIGHT = 60.0f;
 const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
+string LOADING_METHOD_NAME;
 const double PI_VALUE = acos(-1.0);
 static string RapidJsonValueToString(const rapidjson::Value &value)
 {
@@ -1636,6 +1637,7 @@ void Engine::handleRenderDeviceReset()
 
 bool Engine::loadImages()
 {
+    LOADING_METHOD_NAME="Loading Sprites...";
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now(); // 이미지 로딩 시작 시간
     EngineStdOut("Starting image loading...", 0);                                     // 이미지 로딩 시작
     totalItemsToLoad = 0;
@@ -1762,7 +1764,70 @@ bool Engine::loadImages()
     }
     return true;
 }
+bool Engine::loadSounds(){
+    LOADING_METHOD_NAME="Loading Sounds...";
+    chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now();
+    EngineStdOut("Starting Sound loading...", 0);
 
+    // 1. Calculate total sound items to load for the progress bar
+    int numSoundsToAttemptPreload = 0;
+    for (const auto& objInfo : objects_in_order)
+    {
+        for (const auto& sf : objInfo.sounds)
+        {
+            if (!sf.fileurl.empty())
+            {
+                numSoundsToAttemptPreload++;
+            }
+        }
+    }
+
+    this->totalItemsToLoad = numSoundsToAttemptPreload; // Set total items for this loading phase
+    this->loadedItemCount = 0;                         // Reset loaded items count
+
+    EngineStdOut("Total sound items to preload: " + to_string(this->totalItemsToLoad), 0);
+
+    if (this->totalItemsToLoad == 0)
+    {
+        EngineStdOut("No sound items to preload.", 0);
+        return true;
+    }
+
+    int preloadedSuccessfullyCount = 0; // To count actual successful preloads if needed, though aeHelper logs this.
+                                      // For now, 'pl' or 'loadedItemCount' will represent processed items.
+
+    for (const auto& objInfo : objects_in_order)
+    {
+        for (const auto& sf : objInfo.sounds)
+        {
+            if (!sf.fileurl.empty())
+            {
+                string fullAudioPath = string(BASE_ASSETS) + sf.fileurl;
+                // In case IsSysMenu affects sound paths, similar logic to loadImages could be added here.
+                aeHelper.preloadSound(fullAudioPath);
+                preloadedSuccessfullyCount++; // Increment if preload was attempted/successful
+
+                this->loadedItemCount++; // Increment for progress bar
+
+                // Update loading screen periodically and check for quit event
+                if (this->loadedItemCount % 5 == 0 || this->loadedItemCount == this->totalItemsToLoad) {
+                    renderLoadingScreen();
+                    SDL_Event e;
+                    while (SDL_PollEvent(&e) != 0) {
+                        if (e.type == SDL_EVENT_QUIT) {
+                            EngineStdOut("Sound loading cancelled by user.", 1);
+                            return false; // Allow cancellation
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double>>(chrono::steady_clock::now() - startTime);
+    EngineStdOut("Finished preloading " + to_string(preloadedSuccessfullyCount) + " sound assets. Time taken: " + to_string(loadingDuration.count()) + " seconds.", 0);
+    return true;
+}
 bool Engine::recreateAssetsIfNeeded()
 {
     if (!m_needsTextureRecreation)
@@ -3519,6 +3584,29 @@ void Engine::renderLoadingScreen()
             {
                 EngineStdOut("Failed to render brand name text surface ", 2);
             }
+        }else{
+            //아니면 무엇이 로드하는지 보여줌.
+            SDL_Surface *surfBrand = TTF_RenderText_Blended(loadingScreenFont, LOADING_METHOD_NAME.c_str(), specialConfig.BRAND_NAME.size(), textColor);
+            if (surfBrand)
+            {
+                SDL_Texture *texBrand = SDL_CreateTextureFromSurface(renderer, surfBrand);
+                if (texBrand)
+                {
+
+                    SDL_FRect dstRect = {(windowW - static_cast<float>(surfBrand->w)) / 2.0f, barY - static_cast<float>(surfBrand->h) - 10.0f, static_cast<float>(surfBrand->w), static_cast<float>(surfBrand->h)};
+                    SDL_RenderTexture(renderer, texBrand, nullptr, &dstRect);
+                    SDL_DestroyTexture(texBrand);
+                }
+                else
+                {
+                    EngineStdOut("Failed to create brand name text texture: " + string(SDL_GetError()), 2);
+                }
+                SDL_DestroySurface(surfBrand);
+            }
+            else
+            {
+                EngineStdOut("Failed to render brand name text surface ", 2);
+            }
         }
         // 프로젝트 이름 렌더링 (설정된 경우)
         if (specialConfig.SHOW_PROJECT_NAME && !PROJECT_NAME.empty())
@@ -4222,7 +4310,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
             ss << current_thread_id;
             thread_id_str = ss.str();
 
-            EngineStdOut("Worker thread " + thread_id_str + " picked up script for entity: " + entityId, 5, thread_id_str);
+            EngineStdOut("Worker thread picked up script for entity: " + entityId, 5, thread_id_str);
 
             Entity* entity = nullptr;
             {
