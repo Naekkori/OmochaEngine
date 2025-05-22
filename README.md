@@ -204,7 +204,7 @@ SOFTWARE.
 *   [x] `get_sound_speed`: 소리 재생 속도 값 (블록)
 *   [x] `sound_speed_change`: 소리 재생 속도를 (N)만큼 바꾸기
 *   [x] `sound_speed_set`: 소리 재생 속도를 (N)으로 정하기
-*   [ ] `sound_silent_all`: 모든 소리 끄기 (옵션: 모든 소리, 이 오브젝트의 소리, 다른 오브젝트의 소리)
+*   [x] `sound_silent_all`: 모든 소리 끄기 (옵션: 모든 소리, 이 오브젝트의 소리, 다른 오브젝트의 소리)
 
 ### 배경음악
 
