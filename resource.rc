@@ -1,3 +1,41 @@
 #include "resource.h"
-
+#include "winver.h"
+#include "out/build/x64-debug/version_config.h"
 IDI_OMOC ICON "app.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    OMOCHA_ENGINE_VERSION_MAJOR,OMOCHA_ENGINE_VERSION_MINOR,OMOCHA_ENGINE_VERSION_PATCH,0
+ PRODUCTVERSION OMOCHA_ENGINE_VERSION_MAJOR,OMOCHA_ENGINE_VERSION_MINOR,OMOCHA_ENGINE_VERSION_PATCH,0
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+ FILEFLAGS    VS_FF_DEBUG
+#else
+ FILEFLAGS    0x0L
+#endif
+ FILEOS       VOS_NT_WINDOWS32
+ FILETYPE     VFT_APP
+ FILESUBTYPE  VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        // 언어 및 코드 페이지 설정 (041204b0은 한국어, 유니코드)
+        BLOCK "041204b0"
+        BEGIN
+            // 여기에 상세 정보들을 채워 넣습니다.
+            // VALUE "항목이름", "값" 형식입니다.
+            VALUE "CompanyName",      OMOCHA_DEVELOPER_NAME
+            VALUE "FileDescription",  "the Entry C++ Runtime aka Engine"
+            VALUE "FileVersion",      OMOCHA_ENGINE_VERSION
+            VALUE "InternalName",     "OmochaEngine.exe"
+            VALUE "LegalCopyright",   "Copyright (C) 2025 " OMOCHA_DEVELOPER_NAME
+            VALUE "OriginalFilename", "OmochaEngine.exe"
+            VALUE "ProductName",      OMOCHA_ENGINE_NAME
+            VALUE "ProductVersion",   OMOCHA_ENGINE_VERSION
+            VALUE "Copyright",        OMOCHA_DEVELOPER_NAME
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0412, 0x04B0 // 한국어, 유니코드
+    END
+END
