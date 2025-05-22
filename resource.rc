@@ -21,8 +21,6 @@ BEGIN
         // 언어 및 코드 페이지 설정 (041204b0은 한국어, 유니코드)
         BLOCK "041204b0"
         BEGIN
-            // 여기에 상세 정보들을 채워 넣습니다.
-            // VALUE "항목이름", "값" 형식입니다.
             VALUE "CompanyName",      OMOCHA_DEVELOPER_NAME
             VALUE "FileDescription",  "the Entry C++ Runtime aka Engine"
             VALUE "FileVersion",      OMOCHA_ENGINE_VERSION
