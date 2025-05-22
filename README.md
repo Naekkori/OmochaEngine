@@ -193,17 +193,17 @@ SOFTWARE.
 *   [x] `sound_something_second_with_block`: 소리 (N)초 재생하기 (예: '소리이름' (N)초 재생하기)
 *   [x] `sound_from_to`: 소리 (시작)초부터 (끝)초까지 재생하기
 *   [x] `sound_something_wait_with_block`: 소리 재생하고 기다리기 (예: '소리이름' 재생하고 기다리기)
-*   [ ] `sound_something_second_wait_with_block`: 소리 (N)초 재생하고 기다리기 (예: '소리이름' (N)초 재생하고 기다리기)
-*   [ ] `sound_from_to_and_wait`: 소리 (시작)초부터 (끝)초까지 재생하고 기다리기
+*   [x] `sound_something_second_wait_with_block`: 소리 (N)초 재생하고 기다리기 (예: '소리이름' (N)초 재생하고 기다리기)
+*   [x] `sound_from_to_and_wait`: 소리 (시작)초부터 (끝)초까지 재생하고 기다리기
 
 ### 효과 및 제어
 
-*   [ ] `sound_volume_change`: 소리 크기를 (N)만큼 바꾸기
-*   [ ] `sound_volume_set`: 소리 크기를 (N)%로 정하기
-*   [ ] `get_sound_volume`: 소리 크기 값 (블록)
-*   [ ] `get_sound_speed`: 소리 재생 속도 값 (블록)
-*   [ ] `sound_speed_change`: 소리 재생 속도를 (N)만큼 바꾸기
-*   [ ] `sound_speed_set`: 소리 재생 속도를 (N)으로 정하기
+*   [x] `sound_volume_change`: 소리 크기를 (N)만큼 바꾸기
+*   [x] `sound_volume_set`: 소리 크기를 (N)%로 정하기
+*   [x] `get_sound_volume`: 소리 크기 값 (블록)
+*   [x] `get_sound_speed`: 소리 재생 속도 값 (블록)
+*   [x] `sound_speed_change`: 소리 재생 속도를 (N)만큼 바꾸기
+*   [x] `sound_speed_set`: 소리 재생 속도를 (N)으로 정하기
 *   [ ] `sound_silent_all`: 모든 소리 끄기 (옵션: 모든 소리, 이 오브젝트의 소리, 다른 오브젝트의 소리)
 
 ### 배경음악

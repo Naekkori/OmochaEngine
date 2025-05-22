@@ -214,4 +214,5 @@ public:
     void playSoundWithFromTo(const std::string &soundId, double from, double to);
     void waitforPlaysound(const std::string &soundId);
     void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds);
+    void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to);
 };

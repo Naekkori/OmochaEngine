@@ -45,7 +45,9 @@ public:
     void stopAllSounds();
     void stopAllSoundsExcept(const std::string& objectIdToKeepPlaying);
     void setSoundVolume(const std::string& objectId, float volume);
-    float getSoundVolume(const std::string& objectId) const;
+    float getGlobalVolume();
+    void setGlobalVolume(float volume);
+    float getSoundVolume(const std::string &objectId) const;
     unsigned int getPlayingSoundCount() const;
     bool isSoundPlaying(const std::string& objectId) const;
     double getSoundFileDuration(const std::string& filePath) const;

@@ -6,6 +6,7 @@
 #include <vector>
 #include <thread>
 #include <cmath>
+#include <algorithm> // std::clamp를 위해 추가
 #include <limits>
 #include <ctime>
 #include "blockTypes.h"
@@ -1764,6 +1765,17 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         // 엔트리쪽 에서 API 를 제공하지 못하기에 플레이스 홀더 로 사용
         return OperandValue(publicVariable.user_name);
     }
+    else if (BlockType == "get_sound_volume")
+    {
+        // engine.aeHelper.getGlobalVolume()이 0.0f ~ 1.0f 범위의 float 값을 반환한다고 가정
+        double volume = static_cast<double>(engine.aeHelper.getGlobalVolume()) * 100.0; // 백분율로 변환
+        return OperandValue(volume);
+    }
+    else if (BlockType == "get_sound_speed")
+    {
+        float speed = engine.aeHelper.getGlobalPlaybackSpeed(); // 전역 재생 속도 가져오기 (0.0f ~ N.Nf)
+        return OperandValue(static_cast<double>(speed));
+    }
 
     return OperandValue();
 }
@@ -2025,12 +2037,12 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         if (effectName == "color")
         { // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
             entity->setEffectHue(entity->getEffectHue() + value);
-            //engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectHue()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectHue()), 0);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(entity->getEffectBrightness() + value);
-            //engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectBrightness()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectBrightness()), 0);
         }
         else if (effectName == "transparency")
         {
@@ -2038,7 +2050,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             // 여기서 effectValue는 0-100 범위의 값으로, 투명도를 증가시킵니다 (알파 값을 감소시킴).
             // Entity의 m_effectAlpha는 0.0(투명) ~ 1.0(불투명) 범위입니다.
             entity->setEffectAlpha(entity->getEffectAlpha() - (value / 100.0));
-            //engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + std::to_string(value) + "%, new value: " + std::to_string(entity->getEffectAlpha()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + std::to_string(value) + "%, new value: " + std::to_string(entity->getEffectAlpha()), 0);
         }
         else
         {
@@ -2102,19 +2114,29 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue setSize = getOperandValue(engine, objectId, block.paramsJson[0]);
         entity->setScaleX(setSize.asNumber());
         entity->setScaleY(setSize.asNumber());
-    }else if (BlockType == "stretch_scale_size"){
+    }
+    else if (BlockType == "stretch_scale_size")
+    {
         OperandValue setWidth = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue setHeight = getOperandValue(engine, objectId, block.paramsJson[1]);
         entity->setWidth(setWidth.asNumber());
         entity->setHeight(setHeight.asNumber());
-    }else if (BlockType == "reset_scale_size"){
+    }
+    else if (BlockType == "reset_scale_size")
+    {
         entity->resetScaleSize();
-    }else if (BlockType == "flip_x"){
+    }
+    else if (BlockType == "flip_x")
+    {
         entity->setScaleX(-1 * entity->getScaleX());
-    }else if (BlockType == "flip_y"){
+    }
+    else if (BlockType == "flip_y")
+    {
         entity->setScaleY(-1 * entity->getScaleY());
-    }else if (BlockType == "change_object_index"){
-        //이 엔진은 역순으로 스프라이트를 렌더링 하고있음
+    }
+    else if (BlockType == "change_object_index")
+    {
+        // 이 엔진은 역순으로 스프라이트를 렌더링 하고있음
         OperandValue zindexEnumDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (zindexEnumDropdown.type != OperandValue::Type::STRING)
         {
@@ -2144,13 +2166,15 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
         std::string soundIdToPlay = soundType.asString();
 
-        if (soundIdToPlay.empty()) {
+        if (soundIdToPlay.empty())
+        {
             engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
             return;
         }
 
         entity->playSound(soundIdToPlay);
-    }else if (BlockType == "sound_something_second_with_block")
+    }
+    else if (BlockType == "sound_something_second_with_block")
     {
         OperandValue soundType = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue soundTime = getOperandValue(engine, objectId, block.paramsJson[1]);
@@ -2164,19 +2188,22 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
             engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound time parameter is not a number.");
             return;
         }
-        
+
         std::string soundIdToPlay = soundType.asString();
 
-        if (soundIdToPlay.empty()) {
+        if (soundIdToPlay.empty())
+        {
             engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
             return;
         }
 
         entity->playSoundWithSeconds(soundIdToPlay, soundTime.asNumber());
-    }else if (BlockType == "sound_from_to"){
-        OperandValue soundId = getOperandValue(engine,objectId,block.paramsJson[0]);
-        OperandValue from = getOperandValue(engine,objectId,block.paramsJson[1]);
-        OperandValue to = getOperandValue(engine,objectId,block.paramsJson[2]);
+    }
+    else if (BlockType == "sound_from_to")
+    {
+        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue from = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue to = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (soundId.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundId.asString(), 2);
@@ -2184,48 +2211,168 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
         if (from.type != OperandValue::Type::NUMBER && to.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound time parameter is not a number.",2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound time parameter is not a number.", 2);
             return;
         }
-        
+
         std::string soundIdToPlay = soundId.asString();
         double fromTime = from.asNumber();
         double toTime = to.asNumber();
         if (soundIdToPlay.empty())
         {
-            engine.EngineStdOut("sound_from_to for object " + objectId + ": received an empty sound ID",2);
+            engine.EngineStdOut("sound_from_to for object " + objectId + ": received an empty sound ID", 2);
             return;
         }
         entity->playSoundWithFromTo(soundIdToPlay, fromTime, toTime);
-    }else if (BlockType == "sound_something_wait_with_block"){
-        //소리 를 재생하고 기다리기. (재생이 끝날때까지 기다리는것)
-        OperandValue soundId = getOperandValue(engine,objectId,block.paramsJson[0]);
+    }
+    else if (BlockType == "sound_something_wait_with_block")
+    {
+        // 소리 를 재생하고 기다리기. (재생이 끝날때까지 기다리는것)
+        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (soundId.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_wait_with_block for object" + objectId+ ": received an empty sound ID",2);
+            engine.EngineStdOut("sound_something_wait_with_block for object" + objectId + ": received an empty sound ID", 2);
             return;
         }
         std::string soundIdToPlay = soundId.asString();
         entity->waitforPlaysound(soundIdToPlay);
-    }else if (BlockType == "sound_something_second_wait_with_block")
-    {
-       OperandValue soundId = getOperandValue(engine,objectId,block.paramsJson[0]);
-       OperandValue soundTime = getOperandValue(engine,objectId,block.paramsJson[1]);
-       if (soundId.type != OperandValue::Type::STRING)
-       {
-           engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId+ ": received an empty sound ID",2);
-           return;
-       }
-       if (soundTime.type != OperandValue::Type::NUMBER){
-            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId+ ": received an empty time",2);
-            return;
-       }
-       std::string soundIdToPlay = soundId.asString();
-       double soundTimeValue = soundTime.asNumber();
-
-       entity->waitforPlaysoundWithSeconds(soundIdToPlay, soundTimeValue);
     }
-    
+    else if (BlockType == "sound_something_second_wait_with_block")
+    {
+        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue soundTime = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (soundId.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty sound ID", 2);
+            return;
+        }
+        if (soundTime.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty time", 2);
+            return;
+        }
+        std::string soundIdToPlay = soundId.asString();
+        double soundTimeValue = soundTime.asNumber();
+
+        entity->waitforPlaysoundWithSeconds(soundIdToPlay, soundTimeValue);
+    }
+    else if (BlockType == "sound_from_to_and_wait")
+    {
+        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue from = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue to = getOperandValue(engine, objectId, block.paramsJson[2]);
+        if (soundId.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty sound ID", 2);
+            return;
+        }
+        if (from.type != OperandValue::Type::NUMBER && to.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty from and to time", 2);
+            return;
+        }
+        std::string soundIdToPlay = soundId.asString();
+        double fromTime = from.asNumber();
+        double toTime = to.asNumber();
+        entity->waitforPlaysoundWithFromTo(soundIdToPlay, fromTime, toTime);
+    }
+    else if (BlockType == "sound_volume_change")
+    {
+        // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        { // VALUE 파라미터 확인
+            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2);
+            return;
+        }
+        OperandValue volumeChangeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (volumeChangeOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2);
+            return;
+        }
+
+        double volumeChangePercentage = volumeChangeOp.asNumber();                     // 사용자가 입력한 값 (예: 10, -20)
+        float volumeChangeRatio = static_cast<float>(volumeChangePercentage) / 100.0f; // 비율로 변환 (예: 0.1, -0.2)
+
+        // Engine의 AudioEngineHelper를 통해 전역 볼륨을 가져와서 변경하고 다시 설정
+        // aeHelper에 getGlobalVolume() 및 setGlobalVolume() 함수가 구현되어 있다고 가정합니다.
+        float currentGlobalVolume = engine.aeHelper.getGlobalVolume();
+        float newGlobalVolume = currentGlobalVolume + volumeChangeRatio;
+        newGlobalVolume = std::clamp(newGlobalVolume, 0.0f, 1.0f); // 0.0 ~ 1.0 범위로 제한
+
+        engine.aeHelper.setGlobalVolume(newGlobalVolume);
+        engine.EngineStdOut("Global volume changed by " + std::to_string(volumeChangePercentage) + "%. New global volume: " + std::to_string(newGlobalVolume) + " (triggered by object " + objectId + ")", 0);
+    }
+    else if (BlockType == "sound_volume_set")
+    {
+        // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        { // VALUE 파라미터 확인
+            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2);
+            return;
+        }
+        OperandValue volumeChangeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (volumeChangeOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2);
+            return;
+        }
+
+        double volumeChangePercentage = volumeChangeOp.asNumber();                     // 사용자가 입력한 값 (예: 10, -20)
+        float volumeChangeRatio = static_cast<float>(volumeChangePercentage) / 100.0f; // 비율로 변환 (예: 0.1, -0.2)
+        engine.aeHelper.setGlobalVolume(volumeChangeRatio);
+    }
+    else if (BlockType == "sound_speed_change")
+    {
+        OperandValue speed = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (speed.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2);
+            return;
+        }
+        double valueFromBlock = speed.asNumber();                            // 사용자가 블록에 입력한 값 (예: 10, -20)
+        float currentSpeedFactor = engine.aeHelper.getGlobalPlaybackSpeed(); // 현재 재생 속도 (예: 1.0이 기본)
+
+        // 입력값을 100으로 나누어 실제 속도 변경량으로 변환 (예: 10 -> 0.1)
+        float speedChangeAmount = static_cast<float>(valueFromBlock) / 100.0f;
+        float newSpeedFactor = currentSpeedFactor + speedChangeAmount;
+
+        double clampedSpeed = std::clamp(static_cast<double>(newSpeedFactor), 0.5, 2.0); // 엔트리와 동일하게 0.5 ~ 2.0 범위로 제한
+        engine.aeHelper.setGlobalPlaybackSpeed(static_cast<float>(clampedSpeed));
+    }
+    else if (BlockType == "sound_speed_set")
+    {
+        OperandValue speed = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (speed.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2);
+            return;
+        }
+        double valueFromBlock = speed.asNumber(); // 사용자가 블록에 입력한 값 (예: 10, -20)
+        // 입력값을 100으로 나누어 실제 속도 변경량으로 변환 (예: 10 -> 0.1)
+        float speedChangeAmount = static_cast<float>(valueFromBlock) / 100.0f;
+        engine.aeHelper.setGlobalPlaybackSpeed(static_cast<float>(speedChangeAmount));
+    } else if (BlockType == "sound_silent_all") {
+        // 파라미터는 하나 (TARGET) - "all", "thisOnly", "other_objects"
+        if (block.paramsJson.Empty() || !block.paramsJson[0].IsString()) {
+            engine.EngineStdOut("sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2);
+            return;
+        }
+        std::string target = block.paramsJson[0].GetString();
+
+        if (target == "all") {
+            engine.aeHelper.stopAllSounds();
+            //engine.EngineStdOut("All sounds stopped (triggered by object " + objectId + ")", 0);
+        } else if (target == "thisOnly") {
+            engine.aeHelper.stopSound(objectId); // 해당 objectId의 모든 소리 중지
+            //engine.EngineStdOut("Sounds for object " + objectId + " stopped.", 0);
+        } else if (target == "other_objects") {
+            engine.aeHelper.stopAllSoundsExcept(objectId);
+            //engine.EngineStdOut("Sounds for all other objects (except " + objectId + ") stopped.", 0);
+        } else {
+            engine.EngineStdOut("sound_silent_all for object " + objectId + ": Unknown TARGET parameter value: " + target, 2);
+        }
+    }
 }
 /**
  * @brief 변수블럭
@@ -2235,10 +2382,11 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 {
 }
 /**
- * @brief 흐름 
- * 
+ * @brief 흐름
+ *
  */
-void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block){
+void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+{
 }
 /**
  * @brief 함수블럭

@@ -607,7 +607,21 @@ void AudioEngineHelper::setSoundVolume(const std::string &objectId, float volume
         aeStdOut("Cannot set volume: No sound found for object: " + objectId);
     }
 }
+float AudioEngineHelper::getGlobalVolume() {
+    if (!m_engineInitialized) {
+        aeStdOut("Audio engine not initialized. Cannot get global volume.");
+        return 0.0f; // 엔진 미초기화 시 기본값 0.0f 반환
+    }
+    return ma_engine_get_volume(&m_engine); // ma_engine_get_volume이 반환하는 실제 볼륨 값을 반환
+}
 
+void AudioEngineHelper::setGlobalVolume(float volume)
+{
+    if (!m_engineInitialized)
+        return;
+    ma_engine_set_volume(&m_engine, volume);
+    
+}
 float AudioEngineHelper::getSoundVolume(const std::string &objectId) const
 {
     if (!m_engineInitialized)
