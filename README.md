@@ -192,7 +192,7 @@ SOFTWARE.
 *   [x] `sound_something_with_block`: 소리 재생하기 (예: '소리이름' 재생하기)
 *   [x] `sound_something_second_with_block`: 소리 (N)초 재생하기 (예: '소리이름' (N)초 재생하기)
 *   [x] `sound_from_to`: 소리 (시작)초부터 (끝)초까지 재생하기
-*   [ ] `sound_something_wait_with_block`: 소리 재생하고 기다리기 (예: '소리이름' 재생하고 기다리기)
+*   [x] `sound_something_wait_with_block`: 소리 재생하고 기다리기 (예: '소리이름' 재생하고 기다리기)
 *   [ ] `sound_something_second_wait_with_block`: 소리 (N)초 재생하고 기다리기 (예: '소리이름' (N)초 재생하고 기다리기)
 *   [ ] `sound_from_to_and_wait`: 소리 (시작)초부터 (끝)초까지 재생하고 기다리기
 

@@ -533,7 +533,7 @@ bool Engine::loadProject(const string &projectFilePath)
             }
 
             this->m_HUDVariables.push_back(currentVarDisplay); // 완전히 채워진 표시 객체 추가
-            EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")", 3);
+            EngineStdOut(string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " + currentVarDisplay.variableType + ")");
         }
     }
     /**
@@ -3765,6 +3765,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
  */
 void Engine::EngineStdOut(string s, int LEVEL, string TREADID) const
 {
+    std::lock_guard<std::mutex> lock(m_logMutex);
     string prefix;
 
     string color_code = ANSI_COLOR_RESET;

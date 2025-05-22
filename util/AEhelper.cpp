@@ -241,6 +241,7 @@ void AudioEngineHelper::clearPreloadedSounds()
     {
         // pair.second는 이제 ma_sound* 입니다.
         ma_sound_uninit(pair.second);
+        aeStdOut("Deleted audio in Memory : "+pair.first);
         delete pair.second; // 힙에 할당된 ma_sound 객체 해제
         soundsCleared++;
         if (hwndProgress)

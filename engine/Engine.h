@@ -124,6 +124,7 @@ private:
     TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
     SDL_Texture *tempScreenTexture;
+    mutable mutex m_logMutex;
     string m_pressedObjectId; // ID of the object currently being pressed by the mouse
     vector<pair<string, const Script *>> m_mouseClickedScripts;
     vector<pair<string, const Script *>> m_mouseClickCanceledScripts;
@@ -132,7 +133,7 @@ private:
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
     boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
-    std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
+    mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";

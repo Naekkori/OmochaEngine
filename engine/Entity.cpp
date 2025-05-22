@@ -720,3 +720,116 @@ void Entity::playSoundWithFromTo(const std::string& soundId, double from, double
             pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
         }
 }
+void Entity::waitforPlaysound(const std::string& soundId){
+    std::unique_lock<std::mutex> lock(m_stateMutex);
+
+    if (!pEngineInstance) {
+        //std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
+        pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.",2);
+        return;
+    }
+
+    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+    if (!objInfo) {
+        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
+        return;
+    }
+
+    const SoundFile* soundToPlay = nullptr;
+    for (const auto& soundFile : objInfo->sounds) {
+        if (soundFile.id == soundId) {
+            soundToPlay = &soundFile;
+            break;
+        }
+    }
+
+    if (soundToPlay) {
+        std::string soundFilePath = "";
+        if (pEngineInstance->IsSysMenu)
+        {
+            soundFilePath = "sysmenu/" + soundToPlay->fileurl;
+        }
+        else
+        {
+            soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
+        }
+        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath); // Engine의 public aeHelper 사용
+        //pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+
+        lock.unlock();
+        while (pEngineInstance->aeHelper.isSoundPlaying(this->getId())) // 루프 조건에서 상태를 계속 확인
+        {
+            // 현재 스레드를 잠시 멈춥니다.
+            // 이 작업은 현재 스크립트 실행 스레드를 블로킹합니다.
+            // 메인 게임 루프를 블로킹하지 않도록 주의해야 합니다.
+            SDL_Delay(2);
+
+            // 엔진 종료 상태 확인
+            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
+                 pEngineInstance->EngineStdOut("Wait for sound cancelled due to engine shutdown for entity: " + this->getId(), 1);
+                 break; // 대기 루프 종료
+            }
+        }
+        lock.lock(); // std::unique_lock 사용 시, 루프 후 다시 잠금
+        pEngineInstance->EngineStdOut("Entity " + id + " finished waiting for sound: " + soundToPlay->name, 0);
+    } else {
+        pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
+    }
+}
+
+void Entity::waitforPlaysoundWithSeconds(const std::string& soundId, double seconds){
+    std::unique_lock<std::mutex> lock(m_stateMutex);
+
+    if (!pEngineInstance) {
+        //std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
+        pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.",2);
+        return;
+    }
+
+    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+    if (!objInfo) {
+        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
+        return;
+    }
+
+    const SoundFile* soundToPlay = nullptr;
+    for (const auto& soundFile : objInfo->sounds) {
+        if (soundFile.id == soundId) {
+            soundToPlay = &soundFile;
+            break;
+        }
+    }
+
+    if (soundToPlay) {
+        std::string soundFilePath = "";
+        if (pEngineInstance->IsSysMenu)
+        {
+            soundFilePath = "sysmenu/" + soundToPlay->fileurl;
+        }
+        else
+        {
+            soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
+        }
+        pEngineInstance->aeHelper.playSoundForDuration(this->getId(), soundFilePath,seconds); // Engine의 public aeHelper 사용
+        //pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+
+        lock.unlock();
+        while (pEngineInstance->aeHelper.isSoundPlaying(this->getId())) // 루프 조건에서 상태를 계속 확인
+        {
+            // 현재 스레드를 잠시 멈춥니다.
+            // 이 작업은 현재 스크립트 실행 스레드를 블로킹합니다.
+            // 메인 게임 루프를 블로킹하지 않도록 주의해야 합니다.
+            SDL_Delay(2);
+
+            // 엔진 종료 상태 확인
+            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
+                 pEngineInstance->EngineStdOut("Wait for sound cancelled due to engine shutdown for entity: " + this->getId(), 1);
+                 break; // 대기 루프 종료
+            }
+        }
+        lock.lock(); // std::unique_lock 사용 시, 루프 후 다시 잠금
+        pEngineInstance->EngineStdOut("Entity " + id + " finished waiting for sound: " + soundToPlay->name, 0);
+    } else {
+        pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
+    }
+}
