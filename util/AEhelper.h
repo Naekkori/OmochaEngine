@@ -15,12 +15,12 @@ private:
     ma_context m_context;
     ma_device m_device;
 
-    std::map<std::string, ma_sound> m_activeSounds; // 오브젝트 ID와 ma_sound 매핑
+    std::map<std::string, ma_sound*> m_activeSounds; // 오브젝트 ID와 ma_sound 매핑
 
     bool m_contextInitialized = false;
     bool m_deviceInitialized = false;
     bool m_engineInitialized = false;
-    std::map<std::string, ma_sound> m_decodedSoundsCache; // 미리 디코딩된 사운드 캐시
+    std::map<std::string, ma_sound*> m_decodedSoundsCache; // 미리 디코딩된 사운드 캐시
 
     ma_sound m_backgroundMusic;          // 배경음악을 위한 ma_sound 인스턴스
     bool m_backgroundMusicInitialized = false; // 배경음악 초기화 상태
