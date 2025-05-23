@@ -22,9 +22,9 @@ BEGIN
         BLOCK "041204b0"
         BEGIN
             VALUE "CompanyName",      OMOCHA_DEVELOPER_NAME
-            VALUE "FileDescription",  "the Entry C++ Runtime aka Engine"
+            VALUE "FileDescription",  "OmochaEngine Runtime"
             VALUE "FileVersion",      OMOCHA_ENGINE_VERSION
-            VALUE "InternalName",     "OmochaEngine.exe"
+            VALUE "InternalName",     "EntryC++ Engine"
             VALUE "LegalCopyright",   "Copyright (C) 2025 " OMOCHA_DEVELOPER_NAME
             VALUE "OriginalFilename", "OmochaEngine.exe"
             VALUE "ProductName",      OMOCHA_ENGINE_NAME
