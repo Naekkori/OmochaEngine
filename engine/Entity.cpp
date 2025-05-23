@@ -889,20 +889,3 @@ void Entity::waitforPlaysoundWithFromTo(const std::string& soundId, double from,
         pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
     }
 }
-
-void Entity::soundVolumeChange(const std::string& soundId, double volume)
-{
-    std::lock_guard<std::mutex> lock(m_stateMutex);
-    if (!pEngineInstance) {
-        //std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
-        pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.",2);
-        return;
-    }
-
-    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
-    if (!objInfo) {
-        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
-        return;
-    }
-    pEngineInstance->aeHelper.setSoundVolume(this->getId(), volume);
-}
