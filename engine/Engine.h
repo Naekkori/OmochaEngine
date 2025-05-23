@@ -295,6 +295,7 @@ public:
     bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
     bool setEntitychangeToNextCostume(const string& entityId,const string& asOption);
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr);
+    void raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId);
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스
     std::atomic<bool> m_isShuttingDown{false};     // 엔진 종료 상태 플래그

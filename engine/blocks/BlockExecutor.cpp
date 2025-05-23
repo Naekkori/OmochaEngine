@@ -133,7 +133,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             {
                 subBlock.paramsJson.CopyFrom(paramField["params"], engine.m_blockParamsAllocatorDoc.GetAllocator());
             }
-            return processMathematicalBlock(engine, objectId, subBlock);
+            return processMathematicalBlock(engine, objectId, subBlock, ""); // executionThreadId not available here, or pass if possible
         }
         else if (fieldType == "get_pictures")
         {
@@ -145,6 +145,17 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             }
             engine.EngineStdOut("Invalid 'get_pictures' block structure in parameter field for " + objectId + ". Expected params[0] to be a string (costume ID).", 1);
             return OperandValue(""); // 또는 오류를 나타내는 빈 OperandValue
+        }
+        else if (fieldType == "get_sounds") // Handle get_sounds block type
+        {
+            // Similar to get_pictures, params[0] should be the sound ID string
+            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
+                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            {
+                return OperandValue(paramField["params"][0].GetString());
+            }
+            engine.EngineStdOut("Invalid 'get_sounds' block structure in parameter field for " + objectId + ". Expected params[0] to be a string (sound ID).", 1);
+            return OperandValue(""); // Return empty string or handle error appropriately
         }
 
         engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1);
@@ -158,7 +169,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
  * @brief 움직이기 블럭
  *
  */
-void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -172,14 +183,14 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("move_direction block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("move_direction block for object " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return;
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue direction = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (distance.type != OperandValue::Type::NUMBER || direction.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("move_direction block for object " + objectId + " has non-numeric params.", 2);
+            engine.EngineStdOut("move_direction block for object " + objectId + " has non-numeric params.", 2, executionThreadId);
             return;
         }
         double dist = distance.number_val;
@@ -389,13 +400,13 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("move_x block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("move_x block for object " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return;
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (distance.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("move_x block for object " + objectId + " has non-numeric params.", 2);
+            engine.EngineStdOut("move_x block for object " + objectId + " has non-numeric params.", 2, executionThreadId);
             return;
         }
         double dist = distance.number_val;
@@ -407,13 +418,13 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("move_y block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("move_y block for object " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return;
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (distance.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("move_y block for object " + objectId + " has non-numeric params.", 2);
+            engine.EngineStdOut("move_y block for object " + objectId + " has non-numeric params.", 2, executionThreadId);
             return;
         }
         double dist = distance.number_val;
@@ -432,7 +443,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         { // 블록 처음 실행 시 초기화
             if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
             {
-                engine.EngineStdOut("move_xy_time block for " + objectId + " is missing parameters. Expected TIME, X, Y.", 2);
+                engine.EngineStdOut("move_xy_time block for " + objectId + " is missing parameters. Expected TIME, X, Y.", 2, executionThreadId);
                 state.isActive = false; // Ensure it's not accidentally active
                 return;
             }
@@ -445,7 +456,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 xOp.type != OperandValue::Type::NUMBER ||
                 yOp.type != OperandValue::Type::NUMBER)
             {
-                engine.EngineStdOut("move_xy_time block for " + objectId + " has non-number parameters. Time: " + timeOp.asString() + ", X: " + xOp.asString() + ", Y: " + yOp.asString(), 2);
+                engine.EngineStdOut("move_xy_time block for " + objectId + " has non-number parameters. Time: " + timeOp.asString() + ", X: " + xOp.asString() + ", Y: " + yOp.asString(), 2, executionThreadId);
                 state.isActive = false;
                 return;
             }
@@ -467,8 +478,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
-                                        std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
-                                    0);
+                                        std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",0, executionThreadId);
                 state.isActive = false; // 완료
                 return;                 // 이 블록 실행 완료
             }
@@ -507,7 +517,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (valueX.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("locate_x block for object " + objectId + " is not a number.", 2);
+            engine.EngineStdOut("locate_x block for object " + objectId + " is not a number.", 2, executionThreadId);
             return;
         }
         double x = valueX.number_val;
@@ -519,7 +529,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (valueY.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("locate_y block for object " + objectId + " is not a number.", 2);
+            engine.EngineStdOut("locate_y block for object " + objectId + " is not a number.", 2, executionThreadId);
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
@@ -528,15 +538,17 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     }
     else if (BlockType == "locate_xy")
     {
-        OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0]);
-        OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[1]);
-        if (valueX.type != OperandValue::Type::NUMBER || valueY.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut("locate_xy block for object " + objectId + " is not a number.", 2);
-            return;
-        }
-        double x = valueX.number_val;
-        double y = valueY.number_val;
+        OperandValue valueXOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue valueYOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+
+        // Use asNumber() for type coercion. It returns 0.0 for strings that can't be converted.
+        double x = valueXOp.asNumber();
+        double y = valueYOp.asNumber();
+
+        // The original strict type check is removed.
+        // engine.EngineStdOut("locate_xy block for object " + objectId + " is not a number.", 2, executionThreadId);
+        // No explicit error here, as 0.0 is a valid coordinate if conversion fails, matching typical Scratch-like behavior.
+
         // entity는 함수 시작 시 이미 검증되었습니다.
         entity->setX(x);
         entity->setY(y);
@@ -547,7 +559,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (target.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("locate block for object " + objectId + " is not a string.", 2);
+            engine.EngineStdOut("locate block for object " + objectId + " is not a string.", 2, executionThreadId);
             return;
         }
         if (target.string_val == "mouse")
@@ -570,7 +582,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             }
             else
             {
-                engine.EngineStdOut("locate block for object " + objectId + ": target entity '" + target.string_val + "' not found.", 2);
+                engine.EngineStdOut("locate block for object " + objectId + ": target entity '" + target.string_val + "' not found.", 2, executionThreadId);
             }
         }
     }
@@ -586,7 +598,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         { // 블록 처음 실행 시 초기화
             if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
             { // time, target 필요
-                engine.EngineStdOut("locate_object_time block for " + objectId + " is missing parameters. Expected TIME, TARGET_OBJECT_ID.", 2);
+                engine.EngineStdOut("locate_object_time block for " + objectId + " is missing parameters. Expected TIME, TARGET_OBJECT_ID.", 2, executionThreadId);
                 // state.isActive는 false로 유지됩니다.
                 return;
             }
@@ -596,7 +608,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
 
             if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING)
             {
-                engine.EngineStdOut("locate_object_time block for " + objectId + " has invalid parameters. Time should be number, target should be string.", 2);
+                engine.EngineStdOut("locate_object_time block for " + objectId + " has invalid parameters. Time should be number, target should be string.", 2, executionThreadId);
                 // state.isActive는 false로 유지됩니다.
                 return;
             }
@@ -625,7 +637,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 }
                 else
                 {
-                    engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " not found for " + objectId + ".", 2);
+                    engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " not found for " + objectId + ".", 2, executionThreadId);
                 }
                 state.isActive = false; // 이동 완료, 이 틱에서 블록 실행 완료.
                 return;
@@ -638,7 +650,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             Entity *targetEntity = engine.getEntityById(state.targetObjectId);
             if (!targetEntity)
             {
-                engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " disappeared mid-move for " + objectId + ".", 2);
+                engine.EngineStdOut("locate_object_time: target object " + state.targetObjectId + " disappeared mid-move for " + objectId + ".", 2, executionThreadId);
                 state.isActive = false;
                 return;
             }
@@ -685,7 +697,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue value = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (value.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2);
+            engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2, executionThreadId);
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
@@ -697,7 +709,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (timeValue.type != OperandValue::Type::NUMBER || angleValue.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("rotate_by_time block for object " + objectId + " has non-number parameters.", 2);
+            engine.EngineStdOut("rotate_by_time block for object " + objectId + " has non-number parameters.", 2, executionThreadId);
             return;
         }
         double time = timeValue.number_val;
@@ -732,7 +744,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (angle.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("rotate_absolute block for object " + objectId + " is not a number.", 2);
+            engine.EngineStdOut("rotate_absolute block for object " + objectId + " is not a number.", 2, executionThreadId);
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
@@ -743,7 +755,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (angle.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("direction_absolute block for object " + objectId + "is not a number.", 2);
+            engine.EngineStdOut("direction_absolute block for object " + objectId + "is not a number.", 2, executionThreadId);
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
@@ -754,7 +766,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue hasmouse = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (hasmouse.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("see_angle_object block for object " + objectId + "is not a string.", 2);
+            engine.EngineStdOut("see_angle_object block for object " + objectId + "is not a string.", 2, executionThreadId);
             return;
         }
         if (hasmouse.string_val == "mouse")
@@ -775,7 +787,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             }
             else
             {
-                engine.EngineStdOut("see_angle_object block for object " + objectId + ": target entity '" + hasmouse.string_val + "' not found.", 2);
+                engine.EngineStdOut("see_angle_object block for object " + objectId + ": target entity '" + hasmouse.string_val + "' not found.", 2, executionThreadId);
             }
         }
     }
@@ -785,7 +797,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         OperandValue setDesnitance = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (setAngle.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("move_to_angle block for object " + objectId + "is not a number.", 2);
+            engine.EngineStdOut("move_to_angle block for object " + objectId + "is not a number.", 2, executionThreadId);
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
@@ -799,31 +811,31 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
  * @brief 계산 블록
  *
  */
-OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
     if (BlockType == "calc_basic")
     {
-        return processMathematicalBlock(engine, objectId, block);
+        return processMathematicalBlock(engine, objectId, block, executionThreadId);
     }
     else if (BlockType == "calc_rand")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("calc_rand block for object " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("calc_rand block for object " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue minVal = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue maxVal = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (minVal.type != OperandValue::Type::NUMBER || maxVal.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("calc_rand block for object " + objectId + " has non-numeric params.", 2);
+            engine.EngineStdOut("calc_rand block for object " + objectId + " has non-numeric params.", 2, executionThreadId);
             return OperandValue();
         }
         double min = minVal.number_val;
         double max = maxVal.number_val;
         if (min >= max)
         {
-            engine.EngineStdOut("calc_rand block for object " + objectId + " has invalid range.", 2);
+            engine.EngineStdOut("calc_rand block for object " + objectId + " has invalid range.", 2, executionThreadId);
             return OperandValue();
         }
         double randVal = min + static_cast<double>(rand()) / (static_cast<double>(RAND_MAX / (max - min)));
@@ -835,7 +847,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         // 드롭다운 값 ("x" 또는 "y")은 paramsJson[1]에 있습니다.
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() <= 1)
         { // 인덱스 1은 크기가 최소 2여야 함
-            engine.EngineStdOut("coordinate_mouse block for " + objectId + " has invalid params structure. Expected param at index 1 for VALUE.", 2);
+            engine.EngineStdOut("coordinate_mouse block for " + objectId + " has invalid params structure. Expected param at index 1 for VALUE.", 2, executionThreadId);
             return OperandValue(0.0);
         }
 
@@ -848,13 +860,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("coordinate_mouse block for " + objectId + ": VALUE parameter (index 1) is not a string.", 2);
+            engine.EngineStdOut("coordinate_mouse block for " + objectId + ": VALUE parameter (index 1) is not a string.", 2, executionThreadId);
             return OperandValue(0.0);
         }
 
         if (coord_type_str.empty())
         { // getOperandValue가 빈 문자열을 반환했거나, 원래 문자열이 비어있는 경우
-            engine.EngineStdOut("coordinate_mouse block for object " + objectId + " has an empty coordinate type string for VALUE parameter.", 2);
+            engine.EngineStdOut("coordinate_mouse block for object " + objectId + " has an empty coordinate type string for VALUE parameter.", 2, executionThreadId);
             return OperandValue(0.0);
         }
 
@@ -870,14 +882,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
             else
             {
-                engine.EngineStdOut("coordinate_mouse block for object " + objectId + " has unknown coordinate type: " + coord_type_str, 2);
+                engine.EngineStdOut("coordinate_mouse block for object " + objectId + " has unknown coordinate type: " + coord_type_str, 2, executionThreadId);
                 return OperandValue(0.0);
             }
         }
         else
         {
 
-            engine.EngineStdOut("Info: coordinate_mouse block - mouse is not on stage. Returning 0.0 for " + coord_type_str + " for object " + objectId, 0);
+            engine.EngineStdOut("Info: coordinate_mouse block - mouse is not on stage. Returning 0.0 for " + coord_type_str + " for object " + objectId, 0, executionThreadId);
             return OperandValue(0.0);
         }
     }
@@ -885,7 +897,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 4)
         {
-            engine.EngineStdOut("coordinate_object block for object " + objectId + " has invalid params structure. Expected at least 4 params.", 2);
+            engine.EngineStdOut("coordinate_object block for object " + objectId + " has invalid params structure. Expected at least 4 params.", 2, executionThreadId);
             return OperandValue(0.0);
         }
 
@@ -901,7 +913,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (targetIdOpVal.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("coordinate_object block for " + objectId + ": target object ID parameter (VALUE) is not a string.", 2);
+            engine.EngineStdOut("coordinate_object block for " + objectId + ": target object ID parameter (VALUE) is not a string.", 2, executionThreadId);
             return OperandValue(0.0);
         }
         std::string targetObjectIdStr = targetIdOpVal.asString();
@@ -909,7 +921,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue coordinateTypeOpVal = getOperandValue(engine, objectId, block.paramsJson[3]);
         if (coordinateTypeOpVal.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("coordinate_object block for " + objectId + ": coordinate type parameter (COORDINATE) is not a string.", 2);
+            engine.EngineStdOut("coordinate_object block for " + objectId + ": coordinate type parameter (COORDINATE) is not a string.", 2, executionThreadId);
             return OperandValue(0.0);
         }
         std::string coordinateTypeStr = coordinateTypeOpVal.asString();
@@ -926,7 +938,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (!targetEntity)
         {
-            engine.EngineStdOut("coordinate_object block for " + objectId + ": target entity '" + targetObjectIdStr + "' not found.", 2);
+            engine.EngineStdOut("coordinate_object block for " + objectId + ": target entity '" + targetObjectIdStr + "' not found.", 2, executionThreadId);
             if (coordinateTypeStr == "picture_name")
                 return OperandValue("");
             return OperandValue(0.0);
@@ -960,7 +972,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
             if (!targetObjInfo)
             {
-                engine.EngineStdOut("coordinate_object block for " + objectId + ": could not find ObjectInfo for target entity '" + targetEntity->getId() + "'.", 2);
+                engine.EngineStdOut("coordinate_object block for " + objectId + ": could not find ObjectInfo for target entity '" + targetEntity->getId() + "'.", 2, executionThreadId);
                 if (coordinateTypeStr == "picture_name")
                     return OperandValue("");
                 return OperandValue(0.0); // Align with indexOf behavior (0 if not found)
@@ -968,7 +980,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
             if (targetObjInfo->costumes.empty())
             {
-                engine.EngineStdOut("coordinate_object block for " + objectId + ": target entity '" + targetEntity->getId() + "' has no costumes.", 1);
+                engine.EngineStdOut("coordinate_object block for " + objectId + ": target entity '" + targetEntity->getId() + "' has no costumes.", 1, executionThreadId);
                 if (coordinateTypeStr == "picture_name")
                     return OperandValue("");
                 return OperandValue(0.0);
@@ -1001,7 +1013,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
             else
             {
-                engine.EngineStdOut("coordinate_object - Selected costume ID '" + selectedCostumeId + "' not found in costume list for entity '" + targetEntity->getId() + "'.", 1);
+                engine.EngineStdOut("coordinate_object - Selected costume ID '" + selectedCostumeId + "' not found in costume list for entity '" + targetEntity->getId() + "'.", 1, executionThreadId);
                 if (coordinateTypeStr == "picture_index")
                     return OperandValue(0.0); // Not found, return 0 for index
                 else
@@ -1010,7 +1022,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("coordinate_object block for " + objectId + ": unknown coordinate type '" + coordinateTypeStr + "'.", 2);
+            engine.EngineStdOut("coordinate_object block for " + objectId + ": unknown coordinate type '" + coordinateTypeStr + "'.", 2, executionThreadId);
             return OperandValue(0.0);
         }
     }
@@ -1018,7 +1030,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
-            engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.", 2);
+            engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.", 2, executionThreadId);
             throw "알수없는 파라미터 크기";
         }
 
@@ -1028,7 +1040,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (operator_op.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2);
+            engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2, executionThreadId);
             throw "알수없는 피연산자 타입";
             return OperandValue();
         }
@@ -1041,7 +1053,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId + ". Returning NaN.", 2);
+                engine.EngineStdOut("Division by zero in quotient_and_mod (QUOTIENT) for " + objectId + ". Returning NaN.", 2, executionThreadId);
                 // throw "0으로 나누기 (몫) (은)는 불가능합니다.";
                 return OperandValue(std::nan("")); // NaN 반환
             }
@@ -1051,7 +1063,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             if (right_val == 0.0)
             {
-                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId + ". Returning NaN.", 2);
+                engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId + ". Returning NaN.", 2, executionThreadId);
                 // throw "0으로 나누기 (나머지) (은)는 불가능합니다.";
                 return OperandValue(std::nan("")); // NaN 반환
             }
@@ -1112,7 +1124,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("calc_operation block for " + objectId + " has invalid params. Expected 2 params (LEFTHAND, OPERATOR).", 2);
+            engine.EngineStdOut("calc_operation block for " + objectId + " has invalid params. Expected 2 params (LEFTHAND, OPERATOR).", 2, executionThreadId);
             return OperandValue(std::nan(""));
         }
 
@@ -1121,12 +1133,12 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (leftOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("calc_operation block for " + objectId + " has non-numeric left operand.", 2);
+            engine.EngineStdOut("calc_operation block for " + objectId + " has non-numeric left operand.", 2, executionThreadId);
             return OperandValue(std::nan(""));
         }
         if (opVal.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("calc_operation block for " + objectId + " has non-string operator.", 2);
+            engine.EngineStdOut("calc_operation block for " + objectId + " has non-string operator.", 2, executionThreadId);
             return OperandValue(std::nan(""));
         }
 
@@ -1268,7 +1280,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (errorOccurred)
         {
-            engine.EngineStdOut("calc_operation block for " + objectId + ": " + errorMsg, 2);
+            engine.EngineStdOut("calc_operation block for " + objectId + ": " + errorMsg, 2, executionThreadId);
             return OperandValue(result); // NaN 반환
         }
 
@@ -1294,7 +1306,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
         {
-            engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2);
+            engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2, executionThreadId);
             return OperandValue();
         }
 
@@ -1335,7 +1347,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1);
+            engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1, executionThreadId);
             return OperandValue();
         }
     }
@@ -1352,7 +1364,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
             else
             {
-                engine.EngineStdOut("distance_something block for " + objectId + ": mouse is not on stage.", 1);
+                engine.EngineStdOut("distance_something block for " + objectId + ": mouse is not on stage.", 1, executionThreadId);
                 return OperandValue(0.0);
             }
         }
@@ -1361,7 +1373,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             Entity *targetEntity = engine.getEntityById(targetId);
             if (!targetEntity)
             {
-                engine.EngineStdOut("distance_something block for " + objectId + ": target entity '" + targetId + "' not found.", 2);
+                engine.EngineStdOut("distance_something block for " + objectId + ": target entity '" + targetId + "' not found.", 2, executionThreadId);
                 return OperandValue(0.0);
             }
             double dx = targetEntity->getX() - engine.getCurrentStageMouseX();
@@ -1373,13 +1385,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
         {
-            engine.EngineStdOut("length_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            engine.EngineStdOut("length_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (strOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("length_of_string block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("length_of_string block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         return OperandValue(static_cast<double>(strOp.string_val.length()));
@@ -1388,13 +1400,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
         {
-            engine.EngineStdOut("reverse_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            engine.EngineStdOut("reverse_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (strOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("reverse_of_string block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("reverse_of_string block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string reversedStr = strOp.string_val;
@@ -1405,14 +1417,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("combie_something block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("combie_something block for " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp1 = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue strOp2 = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (strOp1.type != OperandValue::Type::STRING || strOp2.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("combie_something block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("combie_something block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string combinedStr = strOp1.string_val + strOp2.string_val;
@@ -1422,20 +1434,20 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("char_at block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("char_at block for " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (strOp.type != OperandValue::Type::STRING || indexOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("char_at block for " + objectId + " has non-string or non-number parameter.", 2);
+            engine.EngineStdOut("char_at block for " + objectId + " has non-string or non-number parameter.", 2, executionThreadId);
             return OperandValue();
         }
         int index = static_cast<int>(indexOp.number_val);
         if (index < 0 || index >= static_cast<int>(strOp.string_val.length()))
         {
-            engine.EngineStdOut("char_at block for " + objectId + " has index out of range.", 2);
+            engine.EngineStdOut("char_at block for " + objectId + " has index out of range.", 2, executionThreadId);
             return OperandValue();
         }
         return OperandValue(std::string(1, strOp.string_val[index]));
@@ -1444,7 +1456,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
-            engine.EngineStdOut("substring block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            engine.EngineStdOut("substring block for " + objectId + " has invalid params structure. Expected 3 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
@@ -1452,14 +1464,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue endOp = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (strOp.type != OperandValue::Type::STRING || startOp.type != OperandValue::Type::NUMBER || endOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("substring block for " + objectId + " has non-string or non-number parameter.", 2);
+            engine.EngineStdOut("substring block for " + objectId + " has non-string or non-number parameter.", 2, executionThreadId);
             return OperandValue();
         }
         int startIndex = static_cast<int>(startOp.number_val);
         int endIndex = static_cast<int>(endOp.number_val);
         if (startIndex < 0 || endIndex > static_cast<int>(strOp.string_val.length()) || startIndex > endIndex)
         {
-            engine.EngineStdOut("substring block for " + objectId + " has index out of range.", 2);
+            engine.EngineStdOut("substring block for " + objectId + " has index out of range.", 2, executionThreadId);
             return OperandValue();
         }
         return OperandValue(strOp.string_val.substr(startIndex, endIndex - startIndex));
@@ -1468,14 +1480,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("count_match_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("count_match_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue subStrOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (strOp.type != OperandValue::Type::STRING || subStrOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("count_match_string block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("count_match_string block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string str = strOp.string_val;
@@ -1493,14 +1505,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("index_of_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("index_of_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue subStrOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (strOp.type != OperandValue::Type::STRING || subStrOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("index_of_string block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("index_of_string block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string str = strOp.string_val;
@@ -1519,7 +1531,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
-            engine.EngineStdOut("replace_string block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            engine.EngineStdOut("replace_string block for " + objectId + " has invalid params structure. Expected 3 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
@@ -1527,7 +1539,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue newStrOp = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (strOp.type != OperandValue::Type::STRING || oldStrOp.type != OperandValue::Type::STRING || newStrOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("replace_string block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("replace_string block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string str = strOp.string_val;
@@ -1548,14 +1560,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
         {
-            engine.EngineStdOut("change_string_case block for " + objectId + " has invalid params structure. Expected 2 params.", 2);
+            engine.EngineStdOut("change_string_case block for " + objectId + " has invalid params structure. Expected 2 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue strOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue caseOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (strOp.type != OperandValue::Type::STRING || caseOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_string_case block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("change_string_case block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string str = strOp.string_val;
@@ -1570,7 +1582,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("change_string_case block for " + objectId + " has unknown case type: " + caseType, 2);
+            engine.EngineStdOut("change_string_case block for " + objectId + " has unknown case type: " + caseType, 2, executionThreadId);
             return OperandValue();
         }
         return OperandValue(str);
@@ -1579,20 +1591,20 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
         {
-            engine.EngineStdOut("get_block_count block for " + objectId + " has invalid params structure. Expected 1 param (OBJECT).", 2);
+            engine.EngineStdOut("get_block_count block for " + objectId + " has invalid params structure. Expected 1 param (OBJECT).", 2, executionThreadId);
             return OperandValue(0.0);
         }
         OperandValue objectKeyOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (objectKeyOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("get_block_count block for " + objectId + " OBJECT parameter did not resolve to a string.", 2);
+            engine.EngineStdOut("get_block_count block for " + objectId + " OBJECT parameter did not resolve to a string.", 2, executionThreadId);
             return OperandValue(0.0);
         }
         std::string objectKey = objectKeyOp.string_val;
 
         if (objectKey.empty())
         {
-            engine.EngineStdOut("get_block_count block for " + objectId + " received an empty OBJECT key.", 1);
+            engine.EngineStdOut("get_block_count block for " + objectId + " received an empty OBJECT key.", 1, executionThreadId);
             return OperandValue(0.0);
         }
 
@@ -1618,7 +1630,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("get_block_count block for " + objectId + " has unknown OBJECT key: " + objectKey, 1);
+            engine.EngineStdOut("get_block_count block for " + objectId + " has unknown OBJECT key: " + objectKey, 1, executionThreadId);
             return OperandValue(0.0); // Default to 0 for unknown keys
         }
         return OperandValue(static_cast<double>(count));
@@ -1627,7 +1639,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
-            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has invalid params structure. Expected 3 params.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue redOp = getOperandValue(engine, objectId, block.paramsJson[0]);
@@ -1635,7 +1647,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue blueOp = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (redOp.type != OperandValue::Type::NUMBER || greenOp.type != OperandValue::Type::NUMBER || blueOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has non-number parameter.", 2);
+            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has non-number parameter.", 2, executionThreadId);
             return OperandValue();
         }
         int red = static_cast<int>(redOp.number_val);
@@ -1651,19 +1663,19 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
         {
-            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid params structure. Expected 1 param.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue hexOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (hexOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has non-string parameter.", 2);
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has non-string parameter.", 2, executionThreadId);
             return OperandValue();
         }
         std::string hexStr = hexOp.string_val;
         if (hexStr.length() != 7 || hexStr[0] != '#')
         {
-            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid hex string: " + hexStr, 2);
+            engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid hex string: " + hexStr, 2, executionThreadId);
             return OperandValue();
         }
         int red = std::stoi(hexStr.substr(1, 2), nullptr, 16);
@@ -1675,13 +1687,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
         {
-            engine.EngineStdOut("get_boolean_value block for " + objectId + " has invalid params structure. Expected 1 param.", 2);
+            engine.EngineStdOut("get_boolean_value block for " + objectId + " has invalid params structure. Expected 1 param.", 2, executionThreadId);
             return OperandValue();
         }
         OperandValue boolOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (boolOp.type != OperandValue::Type::BOOLEAN)
         {
-            engine.EngineStdOut("get_boolean_value block for " + objectId + " has non-boolean parameter.", 2);
+            engine.EngineStdOut("get_boolean_value block for " + objectId + " has non-boolean parameter.", 2, executionThreadId);
             return OperandValue();
         }
         return OperandValue(boolOp.boolean_val);
@@ -1694,7 +1706,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
         {
-            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2);
+            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2, executionThreadId);
             return OperandValue();
         }
 
@@ -1704,22 +1716,22 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (action == "START")
         {
-            engine.EngineStdOut("Project timer STARTED by object " + objectId, 0);
+            engine.EngineStdOut("Project timer STARTED by object " + objectId, 0, executionThreadId);
             engine.startProjectTimer();
         }
         else if (action == "STOP")
         {
-            engine.EngineStdOut("Project timer STOPPED by object " + objectId, 0);
+            engine.EngineStdOut("Project timer STOPPED by object " + objectId, 0, executionThreadId);
             engine.stopProjectTimer();
         }
         else if (action == "RESET")
         {
-            engine.EngineStdOut("Project timer RESET by object " + objectId, 0);
+            engine.EngineStdOut("Project timer RESET by object " + objectId, 0, executionThreadId);
             engine.resetProjectTimer(); // resetProjectTimer는 값만 0으로 설정합니다.
         }
         else
         {
-            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1);
+            engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1, executionThreadId);
         }
         return OperandValue();
     }
@@ -1727,7 +1739,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0)
         {
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has missing or invalid params array. Defaulting to HIDE.", 2);
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has missing or invalid params array. Defaulting to HIDE.", 2, executionThreadId);
             engine.showProjectTimer(false); // Default action
             return OperandValue();
         }
@@ -1735,7 +1747,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (actionValue.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("set_visible_project_timer parameter for object " + objectId + " did not resolve to a string. Interpreted as: '" + actionValue.string_val + "'", 1);
+            engine.EngineStdOut("set_visible_project_timer parameter for object " + objectId + " did not resolve to a string. Interpreted as: '" + actionValue.string_val + "'", 1, executionThreadId);
         }
 
         if (actionValue.string_val == "SHOW")
@@ -1748,7 +1760,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         else
         {
-            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown or non-string action value: '" + actionValue.string_val + "'. Defaulting to HIDE.", 1);
+            engine.EngineStdOut("set_visible_project_timer block for " + objectId + " has unknown or non-string action value: '" + actionValue.string_val + "'. Defaulting to HIDE.", 1, executionThreadId);
             // 기본적으로 숨김 처리 또는 아무것도 안 함
         }
         return OperandValue();
@@ -1780,27 +1792,27 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         {
-            engine.EngineStdOut("get_sound_duration block for " + objectId + " has insufficient parameters. Expected sound ID.", 2);
+            engine.EngineStdOut("get_sound_duration block for " + objectId + " has insufficient parameters. Expected sound ID.", 2, executionThreadId);
             return OperandValue(0.0); // 오류 시 기본값 반환
         }
         OperandValue soundIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (soundIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("get_sound_duration block for " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2);
+            engine.EngineStdOut("get_sound_duration block for " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2, executionThreadId);
             return OperandValue(0.0);
         }
         std::string targetSoundId = soundIdOp.asString();
 
         if (targetSoundId.empty())
         {
-            engine.EngineStdOut("get_sound_duration block for " + objectId + ": received an empty sound ID.", 2);
+            engine.EngineStdOut("get_sound_duration block for " + objectId + ": received an empty sound ID.", 2, executionThreadId);
             return OperandValue(0.0);
         }
 
         const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
         if (!objInfo)
         {
-            engine.EngineStdOut("get_sound_duration - ObjectInfo not found for entity: " + objectId, 2);
+            engine.EngineStdOut("get_sound_duration - ObjectInfo not found for entity: " + objectId, 2, executionThreadId);
             return OperandValue(0.0);
         }
 
@@ -1814,20 +1826,20 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
         }
 
-        engine.EngineStdOut("get_sound_duration - Sound ID '" + targetSoundId + "' not found in sound list for entity: " + objectId, 1);
+        engine.EngineStdOut("get_sound_duration - Sound ID '" + targetSoundId + "' not found in sound list for entity: " + objectId, 1, executionThreadId);
         return OperandValue(0.0); // 해당 ID의 사운드를 찾지 못한 경우
     }
 
     return OperandValue();
 }
 
-OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block)
+OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
     if (block.type == "calc_basic")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
         {
-            engine.EngineStdOut("calc_basic block for object " + objectId + " has invalid params structure. Expected 3 params.", 2);
+            engine.EngineStdOut("calc_basic block for object " + objectId + " has invalid params structure. Expected 3 params.", 2, executionThreadId);
             return OperandValue();
         }
 
@@ -1837,7 +1849,7 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
 
         if (opVal.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("calc_basic operator is not a string for " + objectId, 2);
+            engine.EngineStdOut("calc_basic operator is not a string for " + objectId, 2, executionThreadId);
             return OperandValue();
         }
         std::string anOperator = opVal.string_val;
@@ -1916,25 +1928,25 @@ OperandValue processMathematicalBlock(Engine &engine, const std::string &objectI
         {
             if (numRight == 0.0)
             {
-                engine.EngineStdOut("Division by zero", 2);
+                engine.EngineStdOut("Division by zero", 2, executionThreadId);
                 return OperandValue(std::nan(""));
             }
             return OperandValue(numLeft / numRight);
         }
         else
         {
-            engine.EngineStdOut("Unknown operator in calc_basic: " + anOperator + " for " + objectId, 2);
+            engine.EngineStdOut("Unknown operator in calc_basic: " + anOperator + " for " + objectId, 2, executionThreadId);
             return OperandValue();
         }
     }
-    engine.EngineStdOut("  Mathematical block type '" + block.type + "' not handled in processMathematicalBlock.", 1);
+    engine.EngineStdOut("  Mathematical block type '" + block.type + "' not handled in processMathematicalBlock.", 1, executionThreadId);
     return OperandValue();
 }
 /**
  * @brief 모양새
  *
  */
-void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -1956,7 +1968,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         // params: VALUE (message), SECOND, OPTION (speak/think)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
         { // 인디케이터 포함하면 4개일 수 있음
-            engine.EngineStdOut("dialog_time block for " + objectId + " has insufficient parameters. Expected message, time, option.", 2);
+            engine.EngineStdOut("dialog_time block for " + objectId + " has insufficient parameters. Expected message, time, option.", 2, executionThreadId);
             return;
         }
         OperandValue messageOp = getOperandValue(engine, objectId, block.paramsJson[0]);
@@ -1965,12 +1977,12 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (timeOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("dialog_time block for " + objectId + ": SECOND parameter is not a number. Value: " + timeOp.asString(), 2);
+            engine.EngineStdOut("dialog_time block for " + objectId + ": SECOND parameter is not a number. Value: " + timeOp.asString(), 2, executionThreadId);
             return;
         }
         if (optionOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("dialog_time block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+            engine.EngineStdOut("dialog_time block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -1984,7 +1996,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         // params: VALUE (message), OPTION (speak/think)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
         { // 인디케이터 포함하면 3개일 수 있음
-            engine.EngineStdOut("dialog block for " + objectId + " has insufficient parameters. Expected message, option.", 2);
+            engine.EngineStdOut("dialog block for " + objectId + " has insufficient parameters. Expected message, option.", 2, executionThreadId);
             return;
         }
         OperandValue messageOp = getOperandValue(engine, objectId, block.paramsJson[0]);
@@ -1992,7 +2004,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (optionOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("dialog block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2);
+            engine.EngineStdOut("dialog block for " + objectId + ": OPTION parameter is not a string. Value: " + optionOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -2012,24 +2024,24 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         // getOperandValue 내부에서 get_pictures 타입 처리가 필요합니다.
         if (imageDropdown.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)), 2);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(imageDropdown.type)), 2, executionThreadId);
             return;
         }
         std::string costumeIdToSet = imageDropdown.asString();
         if (costumeIdToSet.empty())
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.", 2);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.", 2, executionThreadId);
             return;
         }
 
         // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
         if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet))
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + ": Failed to set costume to ID '" + costumeIdToSet + "'. It might not exist for this object.", 1);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + ": Failed to set costume to ID '" + costumeIdToSet + "'. It might not exist for this object.", 1, executionThreadId);
         }
         else
         {
-            engine.EngineStdOut("Entity " + objectId + " changed shape to: " + costumeIdToSet, 0);
+            engine.EngineStdOut("Entity " + objectId + " changed shape to: " + costumeIdToSet, 0, executionThreadId);
         }
     }
     else if (BlockType == "change_to_next_shape")
@@ -2037,7 +2049,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue nextorprev = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (nextorprev.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(nextorprev.type)), 2);
+            engine.EngineStdOut("change_to_some_shape block for " + objectId + " parameter did not resolve to a string (expected costume ID). Actual type: " + std::to_string(static_cast<int>(nextorprev.type)), 2, executionThreadId);
             return;
         }
         std::string direction = nextorprev.asString();
@@ -2055,7 +2067,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         // params: EFFECT (dropdown: "color", "brightness", "transparency"), VALUE (number)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
         { // 인디케이터 포함 시 3개일 수 있음
-            engine.EngineStdOut("add_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2, executionThreadId);
             return;
         }
         OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]);  // EFFECT dropdown
@@ -2063,12 +2075,12 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (effectTypeOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2, executionThreadId);
             return;
         }
         if (effectValueOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -2095,14 +2107,14 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
         else
         {
-            engine.EngineStdOut("add_effect_amount block for " + objectId + ": Unknown effect type '" + effectName + "'.", 1);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": Unknown effect type '" + effectName + "'.", 1, executionThreadId);
         }
     }
     else if (BlockType == "change_effect_amount")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
         {
-            engine.EngineStdOut("change_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2);
+            engine.EngineStdOut("change_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.", 2, executionThreadId);
             return;
         }
         OperandValue effectTypeOp = getOperandValue(engine, objectId, block.paramsJson[0]);  // EFFECT dropdown
@@ -2110,12 +2122,12 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (effectTypeOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " + effectTypeOp.asString(), 2, executionThreadId);
             return;
         }
         if (effectValueOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2);
+            engine.EngineStdOut("add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " + effectValueOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -2124,12 +2136,12 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         if (effectName == "color")
         {
             entity->setEffectHue(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + std::to_string(value), 0);
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + std::to_string(value), 0, executionThreadId);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + std::to_string(value), 0);
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + std::to_string(value), 0, executionThreadId);
         }
         else if (effectName == "transparency")
         {
@@ -2142,7 +2154,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         entity->setEffectBrightness(0.0); // 밝기 효과 초기화 (0.0이 기본값)
         entity->setEffectAlpha(1.0);      // 투명도 효과 초기화 (1.0이 기본값, 완전 불투명)
         entity->setEffectHue(0.0);        // 색깔 효과 (색조) 초기화 (0.0이 기본값)
-        engine.EngineStdOut("Entity " + objectId + " all graphic effects erased.", 0);
+        engine.EngineStdOut("Entity " + objectId + " all graphic effects erased.", 0, executionThreadId);
     }
     else if (BlockType == "change_scale_size")
     {
@@ -2181,7 +2193,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue zindexEnumDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (zindexEnumDropdown.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_object_index object is not String", 2);
+            engine.EngineStdOut("change_object_index object is not String", 2, executionThreadId);
             return;
         }
         std::string zindexEnumStr = zindexEnumDropdown.asString();
@@ -2193,7 +2205,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
  * @brief 사운드블럭
  *
  */
-void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (BlockType == "sound_something_with_block")
@@ -2202,14 +2214,14 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (soundType.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2, executionThreadId);
             return;
         }
         std::string soundIdToPlay = soundType.asString();
 
         if (soundIdToPlay.empty())
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2, executionThreadId);
             return;
         }
 
@@ -2221,12 +2233,12 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue soundTime = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (soundType.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2);
+            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundType.asString(), 2, executionThreadId);
             return;
         }
         if (soundTime.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound time parameter is not a number.");
+            engine.EngineStdOut("sound_something_second_with_block for object " + objectId + ": sound time parameter is not a number.", 2, executionThreadId);
             return;
         }
 
@@ -2234,7 +2246,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         if (soundIdToPlay.empty())
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": received an empty sound ID.", 2, executionThreadId);
             return;
         }
 
@@ -2247,12 +2259,12 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue to = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (soundId.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundId.asString(), 2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound ID parameter is not a string. Value: " + soundId.asString(), 2, executionThreadId);
             return;
         }
         if (from.type != OperandValue::Type::NUMBER && to.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound time parameter is not a number.", 2);
+            engine.EngineStdOut("sound_something_with_block for object " + objectId + ": sound time parameter is not a number.", 2, executionThreadId);
             return;
         }
 
@@ -2261,7 +2273,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         double toTime = to.asNumber();
         if (soundIdToPlay.empty())
         {
-            engine.EngineStdOut("sound_from_to for object " + objectId + ": received an empty sound ID", 2);
+            engine.EngineStdOut("sound_from_to for object " + objectId + ": received an empty sound ID", 2, executionThreadId);
             return;
         }
         entity->playSoundWithFromTo(soundIdToPlay, fromTime, toTime);
@@ -2272,7 +2284,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (soundId.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_wait_with_block for object" + objectId + ": received an empty sound ID", 2);
+            engine.EngineStdOut("sound_something_wait_with_block for object" + objectId + ": received an empty sound ID", 2, executionThreadId);
             return;
         }
         std::string soundIdToPlay = soundId.asString();
@@ -2284,12 +2296,12 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue soundTime = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (soundId.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty sound ID", 2);
+            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty sound ID", 2, executionThreadId);
             return;
         }
         if (soundTime.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty time", 2);
+            engine.EngineStdOut("sound_something_second_wait_with_block for object" + objectId + ": received an empty time", 2, executionThreadId);
             return;
         }
         std::string soundIdToPlay = soundId.asString();
@@ -2304,12 +2316,12 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue to = getOperandValue(engine, objectId, block.paramsJson[2]);
         if (soundId.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty sound ID", 2);
+            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty sound ID", 2, executionThreadId);
             return;
         }
         if (from.type != OperandValue::Type::NUMBER && to.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty from and to time", 2);
+            engine.EngineStdOut("sound_from_to_and_wait for object" + objectId + ": received an empty from and to time", 2, executionThreadId);
             return;
         }
         std::string soundIdToPlay = soundId.asString();
@@ -2322,13 +2334,13 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         { // VALUE 파라미터 확인
-            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2);
+            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2, executionThreadId);
             return;
         }
         OperandValue volumeChangeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (volumeChangeOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2);
+            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -2342,20 +2354,20 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         newGlobalVolume = std::clamp(newGlobalVolume, 0.0f, 1.0f); // 0.0 ~ 1.0 범위로 제한
 
         engine.aeHelper.setGlobalVolume(newGlobalVolume);
-        engine.EngineStdOut("Global volume changed by " + std::to_string(volumeChangePercentage) + "%. New global volume: " + std::to_string(newGlobalVolume) + " (triggered by object " + objectId + ")", 0);
+        engine.EngineStdOut("Global volume changed by " + std::to_string(volumeChangePercentage) + "%. New global volume: " + std::to_string(newGlobalVolume) + " (triggered by object " + objectId + ")", 0, executionThreadId);
     }
     else if (BlockType == "sound_volume_set")
     {
         // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         { // VALUE 파라미터 확인
-            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2);
+            engine.EngineStdOut("sound_volume_change block for object " + objectId + " has insufficient parameters. Expected VALUE.", 2, executionThreadId);
             return;
         }
         OperandValue volumeChangeOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (volumeChangeOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2);
+            engine.EngineStdOut("sound_volume_change for object " + objectId + ": VALUE parameter is not a number. Value: " + volumeChangeOp.asString(), 2, executionThreadId);
             return;
         }
 
@@ -2368,7 +2380,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue speed = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (speed.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2);
+            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2, executionThreadId);
             return;
         }
         double valueFromBlock = speed.asNumber();                            // 사용자가 블록에 입력한 값 (예: 10, -20)
@@ -2386,7 +2398,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue speed = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (speed.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2);
+            engine.EngineStdOut("sound_speed_change for object " + objectId + ": VALUE parameter is not a number. Value: " + speed.asString(), 2, executionThreadId);
             return;
         }
         double valueFromBlock = speed.asNumber(); // 사용자가 블록에 입력한 값 (예: 10, -20)
@@ -2399,7 +2411,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         // 파라미터는 하나 (TARGET) - "all", "thisOnly", "other_objects"
         if (block.paramsJson.Empty() || !block.paramsJson[0].IsString())
         {
-            engine.EngineStdOut("sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2);
+            engine.EngineStdOut("sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2, executionThreadId);
             return;
         }
         std::string target = block.paramsJson[0].GetString();
@@ -2421,7 +2433,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
         else
         {
-            engine.EngineStdOut("sound_silent_all for object " + objectId + ": Unknown TARGET parameter value: " + target, 2);
+            engine.EngineStdOut("sound_silent_all for object " + objectId + ": Unknown TARGET parameter value: " + target, 2, executionThreadId);
         }
     }
     else if (BlockType == "play_bgm")
@@ -2430,13 +2442,13 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue soundIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (soundIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("play_bgm for object " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2);
+            engine.EngineStdOut("play_bgm for object " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2, executionThreadId);
             return;
         }
         std::string soundIdToPlay = soundIdOp.asString();
         if (soundIdToPlay.empty())
         {
-            engine.EngineStdOut("play_bgm for object " + objectId + ": received an empty sound ID.", 2);
+            engine.EngineStdOut("play_bgm for object " + objectId + ": received an empty sound ID.", 2, executionThreadId);
             return;
         }
 
@@ -2445,7 +2457,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
         if (!objInfo)
         {
-            engine.EngineStdOut("play_bgm - ObjectInfo not found for entity: " + objectId, 2);
+            engine.EngineStdOut("play_bgm - ObjectInfo not found for entity: " + objectId, 2, executionThreadId);
             return;
         }
         const SoundFile *soundToUseAsBgm = nullptr;
@@ -2473,7 +2485,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
         else
         {
-            engine.EngineStdOut("play_bgm - Sound ID '" + soundIdToPlay + "' not found in sound list for entity: " + objectId, 1);
+            engine.EngineStdOut("play_bgm - Sound ID '" + soundIdToPlay + "' not found in sound list for entity: " + objectId, 1, executionThreadId);
         }
     }
 }
@@ -2481,20 +2493,89 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
  * @brief 변수블럭
  *
  */
-void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
+
 }
 /**
  * @brief 흐름
  *
  */
-void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
 }
 /**
  * @brief 함수블럭
  *
  */
-void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block)
+void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
+}
+/**
+ * @brief 이벤트 (기타 제어)
+ * 
+ */
+void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId) {
+    if (BlockType == "message_cast")
+    {
+        // params: [message_id_string, null, null]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1 || !block.paramsJson[0].IsString()) {
+            engine.EngineStdOut("message_cast block for object " + objectId + " has invalid or missing message ID parameter.", 2, executionThreadId);
+            throw ScriptBlockExecutionError(
+                "메시지 ID 파라미터가 유효하지 않습니다.",
+                block.id, BlockType, objectId, "Invalid or missing message ID parameter."
+            );
+        }
+
+        std::string messageId = block.paramsJson[0].GetString();
+
+        if (messageId.empty() || messageId == "null") {
+            std::string errMsg = "메시지 ID가 비어있거나 null입니다. 메시지를 발송할 수 없습니다.";
+            engine.EngineStdOut("message_cast block for object " + objectId + ": " + errMsg, 2, executionThreadId);
+            throw ScriptBlockExecutionError(errMsg, block.id, BlockType, objectId, "Message ID is null or empty.");
+        }
+
+        // Optional: Validate if messageId exists in a list of defined messages if such a list is maintained by the Engine.
+        // For now, we proceed to raise the message.
+
+        engine.EngineStdOut("Object " + objectId + " is casting message: '" + messageId + "'", 0, executionThreadId);
+        engine.raiseMessage(messageId, objectId, executionThreadId); // Pass sender info (objectId and current threadId)
+    }else if (BlockType == "start_scene")
+    {
+        // params: [scene_id_string, null, null]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1) {
+            engine.EngineStdOut("start_scene block for object " + objectId + " has invalid or missing scene ID parameter.", 2, executionThreadId);
+            throw ScriptBlockExecutionError(
+                "장면 ID 파라미터가 유효하지 않습니다.",
+                block.id, BlockType, objectId, "Invalid or missing scene ID parameter."
+            );
+        }
+        OperandValue sceneIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (sceneIdOp.type != OperandValue::Type::STRING || sceneIdOp.asString().empty() || sceneIdOp.asString() == "null") {
+            std::string errMsg = "장면 ID가 유효한 문자열이 아니거나 비어있거나 null입니다. 장면을 전환할 수 없습니다. 값: " + sceneIdOp.asString();
+            engine.EngineStdOut("start_scene block for object " + objectId + ": " + errMsg, 2, executionThreadId);
+            throw ScriptBlockExecutionError(errMsg, block.id, BlockType, objectId, "Scene ID is not a valid string, is empty, or null.");
+        }
+
+        std::string sceneId = sceneIdOp.asString();
+        engine.EngineStdOut("Object " + objectId + " is requesting to start scene: '" + sceneId + "'", 0, executionThreadId);
+        engine.goToScene(sceneId); // goToScene 내부에서 scene 존재 여부 확인 및 when_scene_start 이벤트 트리거
+    }else if (BlockType == "start_neighbor_scene")
+    {
+        OperandValue o = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (o.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("start_neighbor_scene block for object ");
+            return;
+        }
+        if (o.string_val == "next")
+        {
+            engine.goToNextScene();
+        }else{
+            engine.goToPreviousScene();
+        }
+        
+    }
+    
+    
 }

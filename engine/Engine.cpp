@@ -4317,6 +4317,55 @@ bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &
     EngineStdOut("Entity ID '" + entityId + "' not found in objects_in_order for changing costume.", 1);
     return false; // entityId를 찾지 못한 경우
 }
+void Engine::raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId)
+{
+    EngineStdOut("Message '" + messageId + "' raised by object " + senderObjectId + " (Thread: " + executionThreadId + ")", 0, executionThreadId);
+    auto it = m_messageReceivedScripts.find(messageId);
+    if (it != m_messageReceivedScripts.end())
+    {
+        const auto& scriptsToRun = it->second;
+        EngineStdOut("Found " + std::to_string(scriptsToRun.size()) + " script(s) listening for message '" + messageId + "'", 0, executionThreadId);
+        for (const auto& scriptPair : scriptsToRun)
+        {
+            const std::string& listeningObjectId = scriptPair.first;
+            const Script* scriptPtr = scriptPair.second;
+
+            // Optional: Prevent an object from triggering its own message-received script if that's desired behavior.
+            // if (listeningObjectId == senderObjectId) {
+            //     EngineStdOut("Object " + listeningObjectId + " is trying to trigger its own message '" + messageId + "'. Skipping.", 1, executionThreadId);
+            //     continue;
+            // }
+
+            Entity* listeningEntity = getEntityById(listeningObjectId);
+            if (listeningEntity) {
+                 // Check if the listening entity is in the current scene or is global
+                const ObjectInfo* objInfoPtr = getObjectInfoById(listeningObjectId);
+                if (objInfoPtr) {
+                    bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
+                    bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
+                    if (isInCurrentScene || isGlobal) {
+                        if (listeningEntity->isVisible()) { // Only run if visible (optional, based on desired logic)
+                           EngineStdOut("Dispatching message-received script for object: " + listeningObjectId + " (Message: '" + messageId + "')", 0, executionThreadId);
+                           this->dispatchScriptForExecution(listeningObjectId, scriptPtr);
+                        } else {
+                            EngineStdOut("Script for message '" + messageId + "' on object " + listeningObjectId + " not run because object is hidden.", 1, executionThreadId);
+                        }
+                    } else {
+                         EngineStdOut("Script for message '" + messageId + "' on object " + listeningObjectId + " not run because object is not in current scene (" + currentSceneId + ") and not global.", 1, executionThreadId);
+                    }
+                } else {
+                    EngineStdOut("ObjectInfo not found for entity ID '" + listeningObjectId + "' during message '" + messageId + "' processing. Script not run.", 1, executionThreadId);
+                }
+            } else {
+                EngineStdOut("Entity " + listeningObjectId + " not found when trying to execute message-received script for message '" + messageId + "'.", 1, executionThreadId);
+            }
+        }
+    }
+    else
+    {
+        EngineStdOut("No scripts found listening for message '" + messageId + "'", 0, executionThreadId);
+    }
+}
 
 void Engine::dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr)
 {

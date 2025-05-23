@@ -105,12 +105,13 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 return;
             }
             // 여기서는 기존 함수 시그니처를 유지하고 Engine과 objectId를 전달합니다.
-            Moving(block.type, *pEngineInstance, this->id, block);     // TODO: 이 함수들 내부 로그도 스레드 ID를 포함하려면 executionThreadId를 넘겨야 함
-            Calculator(block.type, *pEngineInstance, this->id, block); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정
-            Looks(block.type, *pEngineInstance, this->id, block);
-            Sound(block.type, *pEngineInstance, this->id, block);
-            Variable(block.type, *pEngineInstance, this->id, block);
-            Function(block.type, *pEngineInstance, this->id, block);
+            Moving(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Calculator(block.type, *pEngineInstance, this->id, block, executionThreadId); // Calculator는 OperandValue를 반환하므로, 결과 처리가 필요하면 수정
+            Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
         }
         catch (const std::exception &e)
         {

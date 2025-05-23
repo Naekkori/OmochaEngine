@@ -41,14 +41,14 @@ struct OperandValue
 
 // 블록 처리 함수 선언
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField);
-OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block);
-void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block);
-
+OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 // 스크립트를 실행하는 함수 선언 (Entity의 멤버 함수로 이동 예정이므로 주석 처리 또는 삭제)
 // void executeScript(Engine& engine, const std::string& objectId, const Script* script);
 #endif // OMOCHA_BLOCK_EXECUTOR_H
