@@ -1776,6 +1776,47 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         float speed = engine.aeHelper.getGlobalPlaybackSpeed(); // 전역 재생 속도 가져오기 (0.0f ~ N.Nf)
         return OperandValue(static_cast<double>(speed));
     }
+    else if (BlockType == "get_sound_duration")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("get_sound_duration block for " + objectId + " has insufficient parameters. Expected sound ID.", 2);
+            return OperandValue(0.0); // 오류 시 기본값 반환
+        }
+        OperandValue soundIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (soundIdOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("get_sound_duration block for " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2);
+            return OperandValue(0.0);
+        }
+        std::string targetSoundId = soundIdOp.asString();
+
+        if (targetSoundId.empty())
+        {
+            engine.EngineStdOut("get_sound_duration block for " + objectId + ": received an empty sound ID.", 2);
+            return OperandValue(0.0);
+        }
+
+        const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
+        if (!objInfo)
+        {
+            engine.EngineStdOut("get_sound_duration - ObjectInfo not found for entity: " + objectId, 2);
+            return OperandValue(0.0);
+        }
+
+        const std::vector<SoundFile> &soundsVector = objInfo->sounds; // 참조로 받기
+
+        for (const auto &sound : soundsVector)
+        {
+            if (sound.id == targetSoundId)
+            {
+                return OperandValue(sound.duration); // SoundFile 구조체에 duration이 double로 저장되어 있음 아마도 이거사용하는게 좋을뜻 (엔트리가 캐시해둔 사운드의 길이인듯)
+            }
+        }
+
+        engine.EngineStdOut("get_sound_duration - Sound ID '" + targetSoundId + "' not found in sound list for entity: " + objectId, 1);
+        return OperandValue(0.0); // 해당 ID의 사운드를 찾지 못한 경우
+    }
 
     return OperandValue();
 }
@@ -2352,25 +2393,87 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         // 입력값을 100으로 나누어 실제 속도 변경량으로 변환 (예: 10 -> 0.1)
         float speedChangeAmount = static_cast<float>(valueFromBlock) / 100.0f;
         engine.aeHelper.setGlobalPlaybackSpeed(static_cast<float>(speedChangeAmount));
-    } else if (BlockType == "sound_silent_all") {
+    }
+    else if (BlockType == "sound_silent_all")
+    {
         // 파라미터는 하나 (TARGET) - "all", "thisOnly", "other_objects"
-        if (block.paramsJson.Empty() || !block.paramsJson[0].IsString()) {
+        if (block.paramsJson.Empty() || !block.paramsJson[0].IsString())
+        {
             engine.EngineStdOut("sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2);
             return;
         }
         std::string target = block.paramsJson[0].GetString();
 
-        if (target == "all") {
+        if (target == "all")
+        {
             engine.aeHelper.stopAllSounds();
-            //engine.EngineStdOut("All sounds stopped (triggered by object " + objectId + ")", 0);
-        } else if (target == "thisOnly") {
+            // engine.EngineStdOut("All sounds stopped (triggered by object " + objectId + ")", 0);
+        }
+        else if (target == "thisOnly")
+        {
             engine.aeHelper.stopSound(objectId); // 해당 objectId의 모든 소리 중지
-            //engine.EngineStdOut("Sounds for object " + objectId + " stopped.", 0);
-        } else if (target == "other_objects") {
+            // engine.EngineStdOut("Sounds for object " + objectId + " stopped.", 0);
+        }
+        else if (target == "other_objects")
+        {
             engine.aeHelper.stopAllSoundsExcept(objectId);
-            //engine.EngineStdOut("Sounds for all other objects (except " + objectId + ") stopped.", 0);
-        } else {
+            // engine.EngineStdOut("Sounds for all other objects (except " + objectId + ") stopped.", 0);
+        }
+        else
+        {
             engine.EngineStdOut("sound_silent_all for object " + objectId + ": Unknown TARGET parameter value: " + target, 2);
+        }
+    }
+    else if (BlockType == "play_bgm")
+    {
+        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue soundIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (soundIdOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("play_bgm for object " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2);
+            return;
+        }
+        std::string soundIdToPlay = soundIdOp.asString();
+        if (soundIdToPlay.empty())
+        {
+            engine.EngineStdOut("play_bgm for object " + objectId + ": received an empty sound ID.", 2);
+            return;
+        }
+
+        // 엔티티(오브젝트) 정보를 가져와서 해당 오브젝트에 등록된 소리인지 확인합니다.
+        // 배경음악 자체는 전역적이지만, 어떤 소리를 배경음악으로 사용할지는 특정 오브젝트의 소리 목록에서 가져옵니다.
+        const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
+        if (!objInfo)
+        {
+            engine.EngineStdOut("play_bgm - ObjectInfo not found for entity: " + objectId, 2);
+            return;
+        }
+        const SoundFile *soundToUseAsBgm = nullptr;
+        for (const auto &sound : objInfo->sounds)
+        {
+            if (sound.id == soundIdToPlay)
+            {
+                soundToUseAsBgm = &sound;
+                break;
+            }
+        }
+        if (soundToUseAsBgm)
+        {
+            string soundFilePath = "";
+            if (engine.IsSysMenu)
+            {
+                soundFilePath = "sysmenu/" + soundToUseAsBgm->fileurl;
+            }
+            else
+            {
+                soundFilePath = string(BASE_ASSETS) + soundToUseAsBgm->fileurl;
+            }
+            engine.aeHelper.stopBackgroundMusic();
+            engine.aeHelper.playBackgroundMusic(soundFilePath.c_str(), false); // 배경음악을 재생하지만 무한반복하는 옵션은 엔트리에 없음.
+        }
+        else
+        {
+            engine.EngineStdOut("play_bgm - Sound ID '" + soundIdToPlay + "' not found in sound list for entity: " + objectId, 1);
         }
     }
 }
