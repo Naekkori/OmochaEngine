@@ -2531,10 +2531,9 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         std::string questionMessage = questionOp.asString();
 
         if (questionMessage.empty()) {
-            // EntryJS는 빈 메시지를 허용하지 않는 것으로 보입니다. (Error: message can not be empty)
-            // 하지만 여기서는 빈 문자열로 질문을 띄울 수도 있습니다. EntryJS와 동일하게 하려면 예외 발생.
-            engine.EngineStdOut("ask_and_wait block for " + objectId + ": question message is empty. Proceeding with empty question.", 1, executionThreadId);
-            // throw ScriptBlockExecutionError("질문 내용이 비어있습니다.", block.id, BlockType, objectId, "Question message cannot be empty.");
+            // EntryJS는 빈 메시지를 허용하지 않는 것으로 보임 (오류)
+            engine.EngineStdOut("ask_and_wait block for " + objectId + ": question message is empty. Proceeding with empty question.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("질문 내용이 비어있습니다.", block.id, BlockType, objectId, "Question message cannot be empty.");
         }
 
         Entity* entity = engine.getEntityById(objectId);
@@ -2545,7 +2544,6 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 
         // EntryJS는 Dialog를 먼저 띄웁니다.
         // Engine의 activateTextInput 내부에서 Dialog를 띄우거나, 여기서 직접 호출할 수 있습니다.
-        // 여기서는 Engine::activateTextInput이 Dialog 표시까지 담당한다고 가정합니다.
         // entity->showDialog(questionMessage, "ask", 0); // Engine에서 처리하도록 변경
 
         // Engine에 텍스트 입력을 요청하고, 사용자 입력이 완료될 때까지 이 스크립트 스레드는 대기합니다.
