@@ -85,7 +85,9 @@ namespace Omocha
         // Params (usually not top-level executable blocks, but types within params)
         GET_PICTURES,         // from getOperandValue
         TEXT_REPORTER_NUMBER, // from getOperandValue
-        TEXT_REPORTER_STRING  // from getOperandValue
+        TEXT_REPORTER_STRING, // from getOperandValue
+    GET_VARIABLE,          // To retrieve a variable's value
+    VALUE_OF_INDEX_FROM_LIST // 리스트의 특정 인덱스 값을 가져오는 블록
     };
 
     /**

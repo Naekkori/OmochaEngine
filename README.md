@@ -219,13 +219,13 @@ SOFTWARE.
 
 ## 변수
 - [x] **`ask_and_wait` (묻고 기다리기)**: 사용자 입력 요청 및 대기
-- [ ] **`get_canvas_input_value` (대답)**: 마지막 입력 값 가져오기
+- [x] **`get_canvas_input_value` (대답)**: 마지막 입력 값 가져오기
 - [x] **`set_visible_answer` (대답 보이기/숨기기)**: 대답 UI 토글
-- [ ] **`get_variable` (변수 값)**: 변수 값 가져오기
-- [ ] **`change_variable` (변수 값 바꾸기)**: 변수 값 변경 (덧셈/이어붙이기)
-- [ ] **`set_variable` (변수 값 정하기)**: 변수 값 설정
-- [ ] **`show_variable` (변수 보이기)**: 변수 UI 표시
-- [ ] **`hide_variable` (변수 숨기기)**: 변수 UI 숨김
+- [x] **`get_variable` (변수 값)**: 변수 값 가져오기
+- [x] **`change_variable` (변수 값 바꾸기)**: 변수 값 변경 (덧셈/이어붙이기)
+- [x] **`set_variable` (변수 값 정하기)**: 변수 값 설정
+- [x] **`show_variable` (변수 보이기)**: 변수 UI 표시
+- [x] **`hide_variable` (변수 숨기기)**: 변수 UI 숨김
 
 ## 리스트
 - [ ] **`value_of_index_from_list` (리스트 항목 값)**: 특정 인덱스 항목 값 가져오기
