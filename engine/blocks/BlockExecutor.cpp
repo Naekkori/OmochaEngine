@@ -1729,6 +1729,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut("Project timer RESET by object " + objectId, 0, executionThreadId);
             engine.resetProjectTimer(); // resetProjectTimer는 값만 0으로 설정합니다.
         }
+    else if (BlockType == "get_canvas_input_value")
+    {
+        // 이 블록은 OperandValue를 반환해야 하므로, Variable 함수가 아닌 Calculator 함수에서 처리합니다.
+        // Variable 함수는 void 반환형을 가집니다.
+        // engine.getLastAnswer()는 가장 최근에 ask_and_wait을 통해 입력된 값을 반환해야 합니다.
+        return OperandValue(engine.getLastAnswer());
+    }
         else
         {
             engine.EngineStdOut("choose_project_timer_action block for " + objectId + " has unknown action: " + action, 1, executionThreadId);
@@ -2495,7 +2502,56 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
  */
 void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId)
 {
+    if (BlockType == "set_visible_answer")
+    {
+        OperandValue visibleDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (visibleDropdown.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("set_visible_answer for object " + objectId + ": visible parameter is not a string. Value: " + visibleDropdown.asString(), 2, executionThreadId);
+            return;
+        }
+        std::string visible = visibleDropdown.asString();
+        if (visible == "HIDE")
+        {
+            engine.showAnswerValue(false);
+        }else{
+            engine.showAnswerValue(true);
+        }
+        
+    }else if (BlockType == "ask_and_wait")
+    {
+        // params: [VALUE (question_string_block), null (indicator)]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("ask_and_wait block for " + objectId + " has insufficient parameters. Expected question.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("질문 파라미터가 부족합니다.", block.id, BlockType, objectId, "Insufficient parameters for ask_and_wait.");
+        }
 
+        OperandValue questionOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        std::string questionMessage = questionOp.asString();
+
+        if (questionMessage.empty()) {
+            // EntryJS는 빈 메시지를 허용하지 않는 것으로 보입니다. (Error: message can not be empty)
+            // 하지만 여기서는 빈 문자열로 질문을 띄울 수도 있습니다. EntryJS와 동일하게 하려면 예외 발생.
+            engine.EngineStdOut("ask_and_wait block for " + objectId + ": question message is empty. Proceeding with empty question.", 1, executionThreadId);
+            // throw ScriptBlockExecutionError("질문 내용이 비어있습니다.", block.id, BlockType, objectId, "Question message cannot be empty.");
+        }
+
+        Entity* entity = engine.getEntityById(objectId);
+        if (!entity) {
+            engine.EngineStdOut("ask_and_wait: Entity " + objectId + " not found.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("질문 대상 객체를 찾을 수 없습니다.", block.id, BlockType, objectId, "Entity not found for ask_and_wait.");
+        }
+
+        // EntryJS는 Dialog를 먼저 띄웁니다.
+        // Engine의 activateTextInput 내부에서 Dialog를 띄우거나, 여기서 직접 호출할 수 있습니다.
+        // 여기서는 Engine::activateTextInput이 Dialog 표시까지 담당한다고 가정합니다.
+        // entity->showDialog(questionMessage, "ask", 0); // Engine에서 처리하도록 변경
+
+        // Engine에 텍스트 입력을 요청하고, 사용자 입력이 완료될 때까지 이 스크립트 스레드는 대기합니다.
+        // engine.activateTextInput은 내부적으로 m_lastAnswer를 설정해야 합니다.
+        engine.activateTextInput(objectId, questionMessage, executionThreadId);
+    }
 }
 /**
  * @brief 흐름

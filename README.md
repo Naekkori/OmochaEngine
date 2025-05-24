@@ -215,4 +215,25 @@ SOFTWARE.
 
 *   [x] `get_sound_duration`: ('소리이름')의 재생 길이 (초) (블록)
 
----
+# 변수/리스트 블록 구현
+
+## 변수
+- [ ] **`ask_and_wait` (묻고 기다리기)**: 사용자 입력 요청 및 대기
+- [ ] **`get_canvas_input_value` (대답)**: 마지막 입력 값 가져오기
+- [x] **`set_visible_answer` (대답 보이기/숨기기)**: 대답 UI 토글
+- [ ] **`get_variable` (변수 값)**: 변수 값 가져오기
+- [ ] **`change_variable` (변수 값 바꾸기)**: 변수 값 변경 (덧셈/이어붙이기)
+- [ ] **`set_variable` (변수 값 정하기)**: 변수 값 설정
+- [ ] **`show_variable` (변수 보이기)**: 변수 UI 표시
+- [ ] **`hide_variable` (변수 숨기기)**: 변수 UI 숨김
+
+## 리스트
+- [ ] **`value_of_index_from_list` (리스트 항목 값)**: 특정 인덱스 항목 값 가져오기
+- [ ] **`add_value_to_list` (리스트에 항목 추가)**: 맨 뒤에 항목 추가
+- [ ] **`remove_value_from_list` (리스트에서 항목 삭제)**: 특정 인덱스 항목 삭제
+- [ ] **`insert_value_to_list` (리스트에 항목 삽입)**: 특정 인덱스에 항목 삽입
+- [ ] **`change_value_list_index` (리스트 항목 값 바꾸기)**: 특정 인덱스 항목 값 변경
+- [ ] **`length_of_list` (리스트 길이)**: 리스트 항목 수 가져오기
+- [ ] **`is_included_in_list` (리스트에 항목 포함 여부)**: 값 포함 여부 확인
+- [ ] **`show_list` (리스트 보이기)**: 리스트 UI 표시
+- [ ] **`hide_list` (리스트 숨기기)**: 리스트 UI 숨김

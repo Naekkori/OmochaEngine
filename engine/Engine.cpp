@@ -20,6 +20,7 @@
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
+#include <resource.h>
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -2250,6 +2251,101 @@ void Engine::drawHUD()
             EngineStdOut("Failed to render FPS text surface ", 2); // FPS 텍스트 표면 렌더링 실패
         }
     }
+    //대답 입력
+    if (m_textInputActive) { // 텍스트 입력 모드가 활성화된 경우
+        std::lock_guard<std::mutex> lock(m_textInputMutex); // m_textInputQuestionMessage, m_currentTextInputBuffer 접근 보호
+
+        // 화면 하단 등에 질문 메시지와 입력 필드 UI를 그립니다.
+        // 예시:
+        // 1. 질문 메시지 렌더링 (m_textInputQuestionMessage 사용)
+        // 2. 입력 필드 배경 렌더링
+        // 3. 현재 입력된 텍스트 렌더링 (m_currentTextInputBuffer 사용)
+        // 4. 체크버튼
+
+        if (hudFont) {
+            SDL_Color textColor = {0, 0, 0, 255}; // 검정
+            SDL_Color bgColor = {255, 255, 255, 255}; // 흰색
+
+            // 질문 메시지
+            if (!m_textInputQuestionMessage.empty()) {
+                SDL_Surface* questionSurface = TTF_RenderText_Blended_Wrapped(hudFont, m_textInputQuestionMessage.c_str(), m_textInputQuestionMessage.size(), textColor, WINDOW_WIDTH - 40);
+                if (questionSurface) {
+                    SDL_Texture* questionTexture = SDL_CreateTextureFromSurface(renderer, questionSurface);
+                    SDL_FRect questionRect = {20.0f, static_cast<float>(WINDOW_HEIGHT - 100 - questionSurface->h), static_cast<float>(questionSurface->w), static_cast<float>(questionSurface->h)};
+                    SDL_RenderTexture(renderer, questionTexture, nullptr, &questionRect);
+                    SDL_DestroyTexture(questionTexture);
+                    SDL_DestroySurface(questionSurface);
+                }
+            }
+
+            // 입력 필드
+            SDL_FRect inputBgRect = {20.0f, static_cast<float>(WINDOW_HEIGHT - 80), static_cast<float>(WINDOW_WIDTH - 40), 40.0f};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+            SDL_RenderFillRect(renderer, &inputBgRect);
+            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // 테두리
+            SDL_RenderRect(renderer, &inputBgRect);
+
+
+            std::string displayText = m_currentTextInputBuffer;
+            if (SDL_TextInputActive(window)) { // IME 사용 중이거나 텍스트 입력 중일 때 커서 표시
+                // 간단한 커서 표시 (깜빡임은 추가 구현 필요)
+               Uint64 currentTime = SDL_GetTicks();
+               if (currentTime > m_cursorBlinkToggleTime + CURSOR_BLINK_INTERVAL_MS) {
+                   m_cursorCharVisible = !m_cursorCharVisible;
+                   m_cursorBlinkToggleTime = currentTime;
+               }
+               if (m_cursorCharVisible) {
+                   displayText += "|";
+               } else {
+                   displayText += " ";
+               }
+            }
+
+            if (!displayText.empty()) {
+                SDL_Surface* textSurface = TTF_RenderText_Blended(hudFont, displayText.c_str(), displayText.size(), textColor);
+                if (textSurface) {
+                    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+                    // 입력 필드 내부에 텍스트 위치 조정
+                    float textX = inputBgRect.x + 10;
+                    float textY = inputBgRect.y + (inputBgRect.h - textSurface->h) / 2;
+                    SDL_FRect textRect = {textX, textY, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)};
+                    
+                    // 텍스트가 입력 필드를 넘어가지 않도록 클리핑
+                    if (textRect.x + textRect.w > inputBgRect.x + inputBgRect.w - 10) {
+                        textRect.w = inputBgRect.x + inputBgRect.w - 10 - textRect.x;
+                    }
+
+                    SDL_RenderTexture(renderer, textTexture, nullptr, &textRect);
+                    SDL_DestroyTexture(textTexture);
+                    SDL_DestroySurface(textSurface);
+                }
+            }
+                //체크버튼 누르면 엔터 친거랑 동일한 효과
+                SDL_Texture* checkboxTexture = LoadTextureFromSvgResource(renderer,IDI_CHBOX);
+                SDL_Rect inputFiledRect = {inputBgRect.x,inputBgRect.y,inputBgRect.w,inputBgRect.h};
+                if (checkboxTexture) {
+                    // 1. 체크박스의 크기를 입력창의 높이에 맞춘 정사각형으로 설정
+                    int checkboxSize = inputFiledRect.h;
+                
+                    // 2. 체크박스의 위치 계산
+                    SDL_FRect checkboxDestRect;
+                    checkboxDestRect.x = inputFiledRect.x + inputFiledRect.w + 10; // 입력창 우측 + 간격
+                    checkboxDestRect.y = inputFiledRect.y; // 입력창과 동일한 y 좌표 (상단 정렬)
+                    // 만약 입력창과 수직 중앙 정렬을 원한다면:
+                    // checkboxDestRect.y = inputFieldRect.y + (inputFieldRect.h - checkboxSize) / 2;
+                    // 이 경우 checkboxSize가 inputFieldRect.h와 같으므로 결과는 동일합니다.
+                
+                    checkboxDestRect.w = checkboxSize;
+                    checkboxDestRect.h = checkboxSize;
+                
+                    // 3. 체크박스 렌더링
+                    // SDL_RenderCopy는 checkboxTexture의 전체 내용을 checkboxDestRect에 맞춰 렌더링합니다.
+                    // SVG는 벡터이므로 checkboxDestRect 크기에 맞게 품질 저하 없이 스케일링됩니다.
+                    SDL_RenderTexture(renderer, checkboxTexture, NULL, &checkboxDestRect);
+                }
+        }
+    }
     // 줌 슬라이더 UI 표시
     if (this->specialConfig.showZoomSlider)
     {
@@ -2849,6 +2945,33 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 void Engine::processInput(const SDL_Event &event)
 {
 
+    if (m_textInputActive) { // 텍스트 입력 모드가 활성화된 경우
+        if (event.type == SDL_EVENT_TEXT_INPUT) {
+            std::lock_guard<std::mutex> lock(m_textInputMutex); // m_currentTextInputBuffer 접근 보호
+            m_currentTextInputBuffer += event.text.text;
+            // EngineStdOut("Text input: " + m_currentTextInputBuffer, 3);
+        } else if (event.type == SDL_EVENT_KEY_DOWN) {
+            std::lock_guard<std::mutex> lock(m_textInputMutex);
+            if (event.key.scancode == SDLK_BACKSPACE && !m_currentTextInputBuffer.empty()) {
+                m_currentTextInputBuffer.pop_back();
+                // EngineStdOut("Backspace. Buffer: " + m_currentTextInputBuffer, 3);
+            } else if (event.key.scancode == SDLK_RETURN || event.key.scancode == SDLK_KP_ENTER) {
+                m_lastAnswer = m_currentTextInputBuffer;
+                m_textInputActive = false; // 입력 완료, 플래그 해제
+
+                // 질문 다이얼로그 제거
+                Entity* entity = getEntityById_nolock(m_textInputRequesterObjectId);
+                if (entity) {
+                    entity->removeDialog();
+                }
+
+                m_textInputCv.notify_all(); // 대기 중인 스크립트 스레드 깨우기
+                EngineStdOut("Enter pressed. Input complete. Answer: " + m_lastAnswer, 0);
+            }
+        }
+        // 텍스트 입력 중에는 다른 키 입력(예: keyPressedScripts)을 무시할 수 있도록 return 또는 플래그 사용
+        return; // 텍스트 입력 중에는 다른 게임플레이 입력 처리 방지
+    }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
     { // 마우스 버튼 누름 이벤트
         if (event.button.button == SDL_BUTTON_LEFT)
@@ -3485,7 +3608,18 @@ void Engine::showProjectTimer(bool show)
     }
     EngineStdOut("showProjectTimer: No timer variable found in HUDVariables to set visibility.", 1);
 }
-
+void Engine::showAnswerValue(bool show)
+{
+    for (auto &var : m_HUDVariables)
+    {
+        if (var.variableType == "answer")
+        {
+            var.isVisible = show;
+            EngineStdOut(string("Project Answer ('") + var.name + "') visibility set to: " + (show ? "Visible" : "Hidden"), 3);
+            return; // Assuming only one timer variable for now
+        }
+    }
+}
 double Engine::getProjectTimerValue() const
 {
     if (m_projectTimerRunning) // 타이머가 실행 중이면 현재 경과 시간 반환
@@ -3758,7 +3892,50 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         return true;
     }
 }
+void Engine::activateTextInput(const std::string& requesterObjectId, const std::string& question, const std::string& executionThreadId) {
+    EngineStdOut("Activating text input for object " + requesterObjectId + " with question: \"" + question + "\"", 0, executionThreadId);
 
+    std::unique_lock<std::mutex> lock(m_textInputMutex);
+
+    // 이전 입력 상태 정리 및 새 입력 상태 설정
+    m_currentTextInputBuffer.clear();
+    m_textInputQuestionMessage = question;
+    m_textInputRequesterObjectId = requesterObjectId;
+    m_textInputActive = true;
+    m_gameplayInputActive = false; // 텍스트 입력 중에는 일반 게임플레이 키 입력 비활성화
+
+    // SDL 텍스트 입력 시작 (IME 등 활성화)
+    SDL_StartTextInput(window);
+
+    // Entity에 질문 다이얼로그 표시 요청 (Engine이 Entity를 직접 제어)
+    Entity* entity = getEntityById_nolock(requesterObjectId); // m_engineDataMutex는 여기서 잠그지 않음 (m_textInputMutex와 별개)
+                                                          // 만약 getEntityById가 m_engineDataMutex를 사용한다면,
+                                                          // activateTextInput 호출 전에 해당 뮤텍스를 잠그거나,
+                                                          // getEntityById_nolock 같은 내부용 함수를 사용해야 함.
+                                                          // 여기서는 getEntityById_nolock이 m_engineDataMutex를 잠그지 않는다고 가정.
+                                                          // 또는, Engine의 entities 맵 접근 시 m_engineDataMutex를 사용하도록 수정.
+    if (entity) {
+        // 다이얼로그 표시는 메인 스레드에서 처리하는 것이 더 안전할 수 있으나,
+        // Entity의 showDialog가 스레드 안전하다면 여기서 호출 가능.
+        // 여기서는 Entity의 showDialog가 상태만 변경하고 실제 그리기는 메인 스레드에서 한다고 가정.
+        entity->showDialog(question, "ask", 0); // 0 duration means it stays until explicitly removed
+    } else {
+        EngineStdOut("Warning: Entity " + requesterObjectId + " not found when trying to show 'ask' dialog.", 1, executionThreadId);
+    }
+
+    EngineStdOut("Script thread " + executionThreadId + " waiting for text input...", 0, executionThreadId);
+    m_textInputCv.wait(lock, [this]{ return !m_textInputActive || m_isShuttingDown; });
+
+    // 입력 완료 또는 엔진 종료로 대기 상태 해제
+    SDL_StopTextInput(window); // SDL 텍스트 입력 종료
+    m_gameplayInputActive = true; // 게임플레이 입력 다시 활성화
+
+    if (m_isShuttingDown) {
+        EngineStdOut("Text input cancelled due to engine shutdown for " + requesterObjectId, 1, executionThreadId);
+    } else {
+        EngineStdOut("Text input received for " + requesterObjectId + ". Last answer: \"" + m_lastAnswer + "\"", 0, executionThreadId);
+    }
+}
 /**
  * @brief 엔진 로그출력
  *
@@ -4231,6 +4408,68 @@ void Engine::drawDialogs()
     }
     SDL_SetRenderTarget(renderer, nullptr); // 렌더 타겟 리셋
 }
+
+SDL_Texture* LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID) {
+    HINSTANCE hInstance = GetModuleHandle(NULL); // 현재 실행 파일의 인스턴스 핸들
+
+    // 1. 리소스 정보 찾기
+    HRSRC hResInfo = FindResource(hInstance, MAKEINTRESOURCE(resourceID), RT_RCDATA);
+    if (hResInfo == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "FindResource failed for ID %d: %lu", resourceID, GetLastError());
+        return NULL;
+    }
+
+    // 2. 리소스 로드
+    HGLOBAL hResData = LoadResource(hInstance, hResInfo);
+    if (hResData == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "LoadResource failed for ID %d: %lu", resourceID, GetLastError());
+        return NULL;
+    }
+
+    // 3. 리소스 데이터 포인터 및 크기 얻기
+    void* pSvgData = LockResource(hResData);
+    DWORD dwSize = SizeofResource(hInstance, hResInfo);
+
+    if (pSvgData == NULL || dwSize == 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "LockResource or SizeofResource failed for ID %d. Error: %lu", resourceID, GetLastError());
+        // FreeResource는 LoadResource로 얻은 핸들에 대해 호출 (Vista 이상에서는 no-op)
+        // LockResource 실패 시에는 호출하지 않는 것이 일반적
+        return NULL;
+    }
+
+    // 4. 메모리상의 SVG 데이터를 위한 SDL_RWops 생성
+    SDL_IOStream* rw = SDL_IOFromConstMem(pSvgData, dwSize);
+    if (rw == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_RWFromConstMem failed: %s", SDL_GetError());
+        // pSvgData는 Windows 리소스이므로 여기서 해제하지 않음
+        return NULL;
+    }
+
+    // 5. SDL_image를 사용하여 SVG 데이터로부터 Surface 로드
+    // IMG_LoadTyped_RW의 세 번째 인자 '1'은 작업 후 SDL_image가 rwops를 자동으로 닫도록(SDL_RWclose) 함.
+    SDL_Surface* surface = IMG_LoadSVG_IO(rw); // "SVG" 타입을 명시
+    if (surface == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "IMG_LoadTyped_RW (SVG) failed");
+        // rw는 IMG_LoadTyped_RW에 의해 이미 처리되었으므로 여기서 SDL_RWclose를 호출할 필요 없음
+        return NULL;
+    }
+
+    // 6. Surface로부터 Texture 생성
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (texture == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateTextureFromSurface failed: %s", SDL_GetError());
+    }
+
+    // 7. 원본 Surface 해제
+    SDL_DestroySurface(surface);
+
+    // LockResource로 얻은 포인터(pSvgData)는 UnlockResource가 필요 없고,
+    // HGLOBAL 핸들(hResData)도 FreeResource를 명시적으로 호출할 필요가 없습니다 (특히 Vista 이상).
+    // 리소스는 모듈이 언로드될 때 자동으로 해제됩니다.
+
+    return texture;
+}
+
 bool Engine::setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId)
 {
     for (auto &objInfo : objects_in_order)

@@ -133,6 +133,14 @@ private:
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
     boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
+    // --- Text Input Members (for ask_and_wait) ---
+    std::string m_currentTextInputBuffer;      // 현재 입력 중인 텍스트 버퍼
+    bool m_textInputActive = false;            // 텍스트 입력 모드 활성화 여부
+    std::string m_textInputRequesterObjectId;  // 텍스트 입력을 요청한 오브젝트 ID
+    std::string m_textInputQuestionMessage;    // 텍스트 입력 시 표시될 질문 메시지
+    std::string m_lastAnswer;                  // 마지막으로 입력된 답변
+    std::mutex m_textInputMutex;
+    std::condition_variable m_textInputCv;
     mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
     const string ANSI_COLOR_RESET = "\x1b[0m";
@@ -171,6 +179,10 @@ private:
     float m_draggedHUDVariableMouseOffsetX = 0.0f;           // 드래그 중인 변수의 마우스 오프셋 X
     float m_draggedHUDVariableMouseOffsetY = 0.0f;           // 드래그 중인 변수의 마우스 오프셋 Y
     // 리사이즈 관련 변수 (리사이즈 시작 시점의 마우스 위치와 HUD 크기를 저장할 수도 있으나,
+    // --- Cursor Blink Members ---
+    Uint64 m_cursorBlinkToggleTime = 0; // 마지막으로 커서 상태가 변경된 시간
+    bool m_cursorCharVisible = true;    // 현재 커서 문자('|')가 보여야 하는지 여부
+    static const Uint32 CURSOR_BLINK_INTERVAL_MS = 500; // 커서 깜빡임 간격 (밀리초)
     // 여기서는 MOVING과 RESIZING 상태를 구분하고, 오프셋은 공유하되 계산 방식을 달리합니다.)
     // float m_resizeStartMouseX = 0.0f;
     // float m_resizeStartMouseY = 0.0f;
@@ -268,9 +280,12 @@ public:
     void triggerWhenSceneStartScripts();
     void startProjectTimer();
     void stopProjectTimer();
+    void activateTextInput(const std::string& requesterObjectId, const std::string& question, const std::string& executionThreadId);
+    std::string getLastAnswer() const;
     void resetProjectTimer();
     void setProjectTimerVisibility(bool show); // 이름 변경 및 기능 수정
     double getProjectTimerValue() const;
+    void showAnswerValue(bool show);
     void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
