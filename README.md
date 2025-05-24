@@ -218,7 +218,7 @@ SOFTWARE.
 # 변수/리스트 블록 구현
 
 ## 변수
-- [ ] **`ask_and_wait` (묻고 기다리기)**: 사용자 입력 요청 및 대기
+- [x] **`ask_and_wait` (묻고 기다리기)**: 사용자 입력 요청 및 대기
 - [ ] **`get_canvas_input_value` (대답)**: 마지막 입력 값 가져오기
 - [x] **`set_visible_answer` (대답 보이기/숨기기)**: 대답 UI 토글
 - [ ] **`get_variable` (변수 값)**: 변수 값 가져오기
