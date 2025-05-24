@@ -79,7 +79,7 @@ Entity::~Entity()
 // OperandValue 구조체 및 블록 처리 함수들은 BlockExecutor.h에 선언되어 있고,
 // BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
 
-void Entity::executeScript(const Script *scriptPtr, const std::string &executionThreadId)
+void Entity::executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string& sceneIdAtDispatch)
 {
     if (!pEngineInstance)
     {
@@ -93,11 +93,30 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         return;
     }
 
-    pEngineInstance->EngineStdOut("Executing script for object: " + id, 5, executionThreadId); // LEVEL 5 및 스레드 ID 사용
+    pEngineInstance->EngineStdOut("Executing script for object: " + id + " (Scene context: " + sceneIdAtDispatch + ")", 5, executionThreadId);
     for (size_t i = 1; i < scriptPtr->blocks.size(); ++i)                                      // 첫 번째 블록은 이벤트 트리거이므로 1부터 시작
     {
+        // 중요: 매 블록 실행 전 현재 씬 ID 확인
+        std::string currentEngineSceneId = pEngineInstance->getCurrentSceneId();
+        const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+        bool isGlobalEntity = false;
+        if (objInfo) {
+            isGlobalEntity = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
+        }
+
+        // 스크립트가 디스패치된 시점의 씬과 현재 엔진의 씬이 다르면서, 이 엔티티가 전역 엔티티가 아니라면 실행 중단
+        if (currentEngineSceneId != sceneIdAtDispatch && !isGlobalEntity) {
+            pEngineInstance->EngineStdOut("Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[i].type + ") halted. Scene changed from " + sceneIdAtDispatch + " to " + currentEngineSceneId + ".", 1, executionThreadId);
+            return; // 스크립트 실행 중단
+        }
+        // 또는, 엔티티가 현재 씬에 속하지 않으면 중단 (더 엄격한 체크)
+        if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
+             pEngineInstance->EngineStdOut("Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[i].type + ") halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+            return;
+        }
+
         const Block &block = scriptPtr->blocks[i];
-        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 5, executionThreadId); // LEVEL 5 및 스레드 ID 사용
+        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 5, executionThreadId);
         try
         {
             if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
@@ -113,10 +132,12 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
         }
+        catch (const ScriptBlockExecutionError& sbee) { // ScriptBlockExecutionError를 먼저 캐치
+            pEngineInstance->EngineStdOut("ScriptBlockExecutionError caught in Entity::executeScript for " + id + ", Block: " + block.type + ". Re-throwing. Original: " + sbee.originalMessage, 2, executionThreadId);
+            throw; 
+        }
         catch (const std::exception &e)
         {
-            // 상세 오류 메시지 생성은 Engine으로 이동합니다.
-            // 여기서는 간단한 로그와 함께 사용자 정의 예외를 발생시킵니다.
             std::string originalBlockTypeForLog = block.type;
             pEngineInstance->EngineStdOut("Block execution failed within Entity: " + id + ", Block ID: " + block.id + ", Type: " + originalBlockTypeForLog + ". Original error: " + e.what(), 2, executionThreadId);
             throw ScriptBlockExecutionError(

@@ -2972,7 +2972,7 @@ void Engine::processInput(const SDL_Event &event)
                                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                     if (isInCurrentScene || isGlobal)
                                     {
-                                        this->dispatchScriptForExecution(objectId, scriptPtr);
+                                        this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId());
                                     }
                                 }
                                 else
@@ -3015,7 +3015,7 @@ void Engine::processInput(const SDL_Event &event)
                                 if (clickScriptPair.first == objectId)
                                 {
                                     EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 0);
-                                    this->dispatchScriptForExecution(objectId, clickScriptPair.second);
+                                    this->dispatchScriptForExecution(objectId, clickScriptPair.second, getCurrentSceneId());
                                 }
                             }
                             break;
@@ -3047,7 +3047,7 @@ void Engine::processInput(const SDL_Event &event)
                     const string &objectId = scriptPair.first;
                     const Script *scriptPtr = scriptPair.second;
                     EngineStdOut(" -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " + SDL_GetScancodeName(scancode) + ")", 0);
-                    this->dispatchScriptForExecution(objectId, scriptPtr);
+                    this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId());
                 }
             }
         }
@@ -3193,11 +3193,12 @@ void Engine::processInput(const SDL_Event &event)
                             const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
                             if (objInfoPtr)
                             {
+                                std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
                                 bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
                                 bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                 if (isInCurrentScene || isGlobal)
                                 {
-                                    this->dispatchScriptForExecution(objectId, scriptPtr);
+                                    this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext);
                                 }
                             }
                             else
@@ -3218,10 +3219,11 @@ void Engine::processInput(const SDL_Event &event)
                     const string &canceledObjectId = m_pressedObjectId;
                     for (const auto &scriptPair : m_whenObjectClickCanceledScripts)
                     {
+                        std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
                         if (scriptPair.first == canceledObjectId)
                         {
                             EngineStdOut("Dispatching 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                            this->dispatchScriptForExecution(canceledObjectId, scriptPair.second);
+                            this->dispatchScriptForExecution(canceledObjectId, scriptPair.second,sceneContext);
                         }
                     }
                 }
@@ -3411,7 +3413,8 @@ void Engine::runStartButtonScripts()
         const string &objectId = scriptPair.first;
         const Script *scriptPtr = scriptPair.second;
         EngineStdOut(" -> Running script for object: " + objectId, 3);
-        this->dispatchScriptForExecution(objectId, scriptPtr);
+        std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
+        this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext);
         m_gameplayInputActive = true;
     }
     EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
@@ -3937,7 +3940,7 @@ void Engine::triggerWhenSceneStartScripts()
         if (executeForScene)
         {
             EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
-            this->dispatchScriptForExecution(objectId, scriptPtr);
+            this->dispatchScriptForExecution(objectId, scriptPtr, currentSceneId);
         }
     }
 }
@@ -4346,7 +4349,7 @@ void Engine::raiseMessage(const std::string& messageId, const std::string& sende
                     if (isInCurrentScene || isGlobal) {
                         if (listeningEntity->isVisible()) { // Only run if visible (optional, based on desired logic)
                            EngineStdOut("Dispatching message-received script for object: " + listeningObjectId + " (Message: '" + messageId + "')", 0, executionThreadId);
-                           this->dispatchScriptForExecution(listeningObjectId, scriptPtr);
+                           this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId);
                         } else {
                             EngineStdOut("Script for message '" + messageId + "' on object " + listeningObjectId + " not run because object is hidden.", 1, executionThreadId);
                         }
@@ -4367,7 +4370,7 @@ void Engine::raiseMessage(const std::string& messageId, const std::string& sende
     }
 }
 
-void Engine::dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr)
+void Engine::dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch)
 {
     if (!scriptPtr)
     {
@@ -4380,7 +4383,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
         return;
     }
 
-    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr]()
+    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr, sceneIdAtDispatch]()
                       {
         std::string thread_id_str;
         try {
@@ -4398,7 +4401,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
             }
 
             if (entity) {
-                entity->executeScript(scriptPtr, thread_id_str);
+                entity->executeScript(scriptPtr, thread_id_str, sceneIdAtDispatch);
             } else {
                 EngineStdOut("Entity " + entityId + " not found when trying to execute script in worker thread " + thread_id_str, 1, thread_id_str);
             }
