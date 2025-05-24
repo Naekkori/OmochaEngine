@@ -3873,6 +3873,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         if (SDL_ShowMessageBox(&messageboxData, &buttonid_press) < 0)
         {
             EngineStdOut("Can't Showing MessageBox");
+            return false; // Add return statement for the error case
         }
         else
         {
@@ -3891,6 +3892,13 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window); // 단순 메시지 박스 (OK 버튼만)
         return true;
     }
+    // If showYesNo was true and SDL_ShowMessageBox failed, this path might be reached.
+    // Adding a default return false here to satisfy all control paths,
+    // though the logic above should ideally cover it.
+    // However, the primary fix is inside the if (SDL_ShowMessageBox < 0) block.
+    // To be absolutely safe and ensure all paths return, especially if the above logic
+    // might be refactored, a fallback return here is defensive.
+    return false; 
 }
 void Engine::activateTextInput(const std::string& requesterObjectId, const std::string& question, const std::string& executionThreadId) {
     EngineStdOut("Activating text input for object " + requesterObjectId + " with question: \"" + question + "\"", 0, executionThreadId);
@@ -3936,6 +3944,13 @@ void Engine::activateTextInput(const std::string& requesterObjectId, const std::
         EngineStdOut("Text input received for " + requesterObjectId + ". Last answer: \"" + m_lastAnswer + "\"", 0, executionThreadId);
     }
 }
+
+std::string Engine::getLastAnswer() const
+{
+    std::lock_guard<std::mutex> lock(m_textInputMutex); // Protect access to m_lastAnswer
+    return m_lastAnswer;
+}
+
 /**
  * @brief 엔진 로그출력
  *
@@ -4409,7 +4424,7 @@ void Engine::drawDialogs()
     SDL_SetRenderTarget(renderer, nullptr); // 렌더 타겟 리셋
 }
 
-SDL_Texture* LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID) {
+SDL_Texture* Engine::LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID) {
     HINSTANCE hInstance = GetModuleHandle(NULL); // 현재 실행 파일의 인스턴스 핸들
 
     // 1. 리소스 정보 찾기

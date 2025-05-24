@@ -139,10 +139,11 @@ private:
     std::string m_textInputRequesterObjectId;  // 텍스트 입력을 요청한 오브젝트 ID
     std::string m_textInputQuestionMessage;    // 텍스트 입력 시 표시될 질문 메시지
     std::string m_lastAnswer;                  // 마지막으로 입력된 답변
-    std::mutex m_textInputMutex;
+    mutable std::mutex m_textInputMutex;
     std::condition_variable m_textInputCv;
     mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
+    SDL_Texture* LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID);
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
     const string ANSI_COLOR_YELLOW = "\x1b[33m";

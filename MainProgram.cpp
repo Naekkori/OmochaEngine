@@ -78,12 +78,12 @@ int main(int argc, char *argv[])
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
-            catch (const invalid_argument &e)
+            catch (const invalid_argument &)
             {
                 cerr << "Warning: Invalid argument for --setfps. Expected a number." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
             }
-            catch (const out_of_range &e)
+            catch (const out_of_range &)
             {
                 cerr << "Warning: FPS value for --setfps out of range." << endl;
                 targetFpsFromArg = -1; // Reset to default on error
@@ -105,12 +105,12 @@ int main(int argc, char *argv[])
                 }
                 i++; // Increment i because we consumed the next argument (the value)
             }
-            catch (const invalid_argument &e)
+            catch (const invalid_argument &)
             {
                 cerr << "Warning: Invalid argument for --setVsync. Expected a number (0 or 1). Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
             }
-             catch (const out_of_range &e)
+             catch (const out_of_range &)
             {
                 cerr << "Warning: Value for --setVsync out of range. Using default (1)." << endl;
                 mainProgram.mainProgramValue.setVsync = true; // Default to true on error
@@ -132,12 +132,12 @@ int main(int argc, char *argv[])
                 }
                 i++; 
             }
-            catch (const invalid_argument &e)
+            catch (const invalid_argument &)
             {
                 cerr << "Warning: Invalid argument for --useVk. Expected a number (0 or 1). Using default (0)." << endl;
                 mainProgram.mainProgramValue.useVulkan = false; // Default to false
             }
-            catch (const out_of_range &e) {
+            catch (const out_of_range &) {
                 cerr << "Warning: Value for --useVk out of range. Using default (0)." << endl;
                 mainProgram.mainProgramValue.useVulkan = false; // Default to false
             }
