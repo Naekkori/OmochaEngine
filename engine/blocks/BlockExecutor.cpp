@@ -2266,7 +2266,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "value_of_index_from_list block for " + objectId +
                     " has insufficient parameters. Expected LIST_ID and INDEX.",
                 2, executionThreadId);
-            return OperandValue(0.0); 
+            return OperandValue(0.0);
         }
 
         if (listId.type != OperandValue::Type::STRING)
@@ -2299,8 +2299,10 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
         double itemCount = targetListPtr->array.size();
         return OperandValue(itemCount);
-    }else if(BlockType == "is_included_in_list"){
-        //리스트에 해당 항목이 들어있는지 확인
+    }
+    else if (BlockType == "is_included_in_list")
+    {
+        // 리스트에 해당 항목이 들어있는지 확인
         OperandValue listId = getOperandValue(engine, objectId, block.paramsJson[0]);
         OperandValue dataOp = getOperandValue(engine, objectId, block.paramsJson[1]);
         if (listId.type != OperandValue::Type::STRING)
@@ -2316,7 +2318,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "is_included_in_list block for " + objectId +
                     " has insufficient parameters. Expected LIST_ID and DataOp.",
                 2, executionThreadId);
-            return OperandValue(false); 
+            return OperandValue(false);
         }
         HUDVariableDisplay *targetListPtr = nullptr;
         for (auto &hudVar : engine.getHUDVariables_Editable())
@@ -2338,21 +2340,24 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 }
             }
         }
-        if (!targetListPtr) {
+        if (!targetListPtr)
+        {
             engine.EngineStdOut(
                 "is_included_in_list block for " + objectId + ": List '" + listId.asString() + "' not found.", 1,
                 executionThreadId);
             return OperandValue(false);
         }
 
-        if (targetListPtr->variableType != "list") {
-             engine.EngineStdOut(
+        if (targetListPtr->variableType != "list")
+        {
+            engine.EngineStdOut(
                 "is_included_in_list block for " + objectId + ": Variable '" + listId.asString() + "' is not a list.", 2,
                 executionThreadId);
             return OperandValue(false);
         }
 
-        if (targetListPtr->isCloud) {
+        if (targetListPtr->isCloud)
+        {
             engine.loadCloudVariablesFromJson(); // 클라우드 변수인 경우 최신 데이터 로드
         }
 
@@ -3826,15 +3831,16 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
         size_t index_0_based = static_cast<size_t>(index_1_based - 1);
         listArray[index_0_based].data = valueOp.asString();
-    }else if (BlockType == "show_list")
+    }
+    else if (BlockType == "show_list")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
         }
-        OperandValue listIdtofindOp = getOperandValue(engine,objectId,block.paramsJson[0]);
-        if (listIdtofindOp.type != OperandValue::Type::STRING )
+        OperandValue listIdtofindOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (listIdtofindOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("listId is not a string objId:" + objectId, 2);
             return;
@@ -3850,25 +3856,26 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
         if (!targetListPtr)
         {
-            for (auto &hudVar : engine.getHUDVariables_Editable()){
+            for (auto &hudVar : engine.getHUDVariables_Editable())
+            {
                 if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId.empty())
                 {
                     targetListPtr = &hudVar;
                     break;
                 }
-            
             }
         }
         targetListPtr->isVisible = true;
-    }else if (BlockType == "hide_list")
+    }
+    else if (BlockType == "hide_list")
     {
         if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
         }
-        OperandValue listIdtofindOp = getOperandValue(engine,objectId,block.paramsJson[0]);
-        if (listIdtofindOp.type != OperandValue::Type::STRING )
+        OperandValue listIdtofindOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (listIdtofindOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("listId is not a string objId:" + objectId, 2);
             return;
@@ -3884,19 +3891,17 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
         if (!targetListPtr)
         {
-            for (auto &hudVar : engine.getHUDVariables_Editable()){
+            for (auto &hudVar : engine.getHUDVariables_Editable())
+            {
                 if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId.empty())
                 {
                     targetListPtr = &hudVar;
                     break;
                 }
-            
             }
         }
         targetListPtr->isVisible = false;
     }
-    
-    
 }
 
 /**
@@ -3906,6 +3911,125 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
           const std::string &executionThreadId)
 {
+    Entity *entity = engine.getEntityById(objectId);
+    if (!entity)
+    {
+        engine.EngineStdOut("Flow 'wait_second': Entity " + objectId + " not found.", 2, executionThreadId);
+        return;
+    }
+    if (BlockType == "wait_second")
+    {
+
+        if (!entity->scriptWaitState.isWaiting || entity->scriptWaitState.waitingForBlockId != block.id)
+        {
+            if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
+            {
+                engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": Missing or invalid time parameter.", 2, executionThreadId);
+                // engine.terminateScriptExecution(executionThreadId);
+                return;
+            }
+
+            OperandValue secondsOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+            if (secondsOp.type != OperandValue::Type::NUMBER)
+            {
+                engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": Time parameter is not a number. Value: " + secondsOp.asString(), 2, executionThreadId);
+                // engine.terminateScriptExecution(executionThreadId);
+                return;
+            }
+
+            double secondsToWait = secondsOp.asNumber();
+            if (secondsToWait < 0)
+            {
+                secondsToWait = 0;
+            }
+
+            entity->scriptWaitState.isWaiting = true;
+            entity->scriptWaitState.waitEndTime = SDL_GetTicks() + static_cast<Uint32>(secondsToWait * 1000.0);
+            entity->scriptWaitState.waitingForBlockId = block.id;
+            // entity->scriptWaitState.waitingOnExecutionThreadId = executionThreadId; // If you track this
+
+            engine.EngineStdOut("Flow 'wait_second': " + objectId + " starting wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
+            // The script executor will see 'isWaiting = true' and will not advance the Program Counter
+            // for this executionThreadId until the time is up (checked in the executor's loop).
+        }
+        // If the wait is already active for this block, this function might be skipped by the executor,
+        // or if called, it does nothing further, letting the executor manage the ongoing wait.
+    }
+    else if (BlockType == "repeat_basic")
+    {
+        // 기본 반복 블록 구현
+        // 반복 횟수 파라미터 가져오기
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
+        {
+            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Missing or invalid iteration count parameter.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("반복 횟수 파라미터가 부족하거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid iteration count parameter.");
+        }
+
+        OperandValue iterOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        if (iterOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Iteration count parameter is not a number. Value: " + iterOp.asString(), 2, executionThreadId);
+            throw ScriptBlockExecutionError("반복 횟수 파라미터가 숫자가 아닙니다.", block.id, BlockType, objectId, "Iteration count parameter is not a number.");
+        }
+        double iterNumber = iterOp.asNumber();
+        if (iterNumber < 0)
+        {
+            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Iteration count cannot be negative. Value: " + std::to_string(iterNumber), 2, executionThreadId);
+            throw ScriptBlockExecutionError("반복 횟수는 음수일 수 없습니다.", block.id, BlockType, objectId, "Iteration count cannot be negative.");
+        }
+        int iterCount = static_cast<int>(std::floor(iterNumber));
+
+        // DO 스테이트먼트 스크립트 가져오기
+        if (block.statementScripts.empty())
+        {
+            engine.EngineStdOut("repeat_basic block " + block.id + " for " + objectId + " has no DO statement.", 1, executionThreadId);
+            return; // 반복할 내용이 없으면 바로 종료
+        }
+        const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
+
+        engine.EngineStdOut("repeat_basic: " + objectId + " starting synchronous loop for " + std::to_string(iterCount) + " iterations. Block ID: " + block.id, 0, executionThreadId);
+
+        // 반복 횟수만큼 내부 블록들을 동기적으로 실행
+        for (int i = 0; i < iterCount; ++i)
+        {
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId);
+        }
+    }else if (BlockType == "repeat_inf")
+    {
+        //무한반복 이게 맞는듯
+        const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
+        if (doScript.blocks.empty()) {
+            SDL_Delay(10000); // 10초 대기
+            engine.EngineStdOut("Warning: repeat_inf for " + objectId + " has an empty DO statement. This will be a very tight loop if not handled carefully.", 1, executionThreadId);
+            std::string errorMsg = "무한 반복 블록 내부에 실행할 블록이 없는것 같습니다, 이는 의도하지 않은 프로그램 정지를 유발할 수 있습니다.";
+            engine.EngineStdOut("Error: repeat_inf for " + objectId + " has an empty DO statement. " + errorMsg, 2, executionThreadId);
+            throw ScriptBlockExecutionError(errorMsg, block.id, BlockType, objectId, "Empty DO statement in repeat_inf block.");
+            // 실행을 중단합니다.
+        }
+
+        while (true)
+        {
+            // 매 반복 시작 시 엔진 종료 또는 씬 변경 확인
+            if (engine.m_isShuttingDown.load(std::memory_order_relaxed)) {
+                 engine.EngineStdOut("repeat_inf for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
+                 break; // 루프 종료
+            }
+
+            std::string currentEngineSceneId = engine.getCurrentSceneId();
+            const ObjectInfo* objInfo = engine.getObjectInfoById(objectId);
+            bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
+
+            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
+                 engine.EngineStdOut("repeat_inf for " + objectId + " halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+                break; // 루프 종료
+            }
+
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId);
+            // executeBlocksSynchronously 내부에서도 종료/씬 변경을 확인하므로,
+            // 만약 해당 함수가 return으로 중단되었다면 이 while 루프도 다음 반복에서 위의 break 조건에 걸릴 것입니다.
+        }
+    }
+    
 }
 
 /**
@@ -3993,6 +4117,103 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
         else
         {
             engine.goToPreviousScene();
+        }
+    }
+}
+// 이 함수는 주어진 블록 목록을 순차적으로 실행하며, wait_second를 만나면 해당 스레드를 블록합니다.
+// 실제 게임 엔진에서는 비동기 실행 및 스레드 관리가 더 복잡하게 이루어집니다.
+void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks, const std::string &executionThreadId)
+{
+    Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
+
+    for (size_t i = 0; i < blocks.size(); ++i)
+    {
+        const Block &block = blocks[i];
+        // 엔진 종료 신호 확인
+        if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+        {
+            engine.EngineStdOut("Synchronous block execution cancelled due to engine shutdown for entity: " + objectId, 1, executionThreadId);
+            return; // Stop execution
+        }
+        // 씬 변경 확인 (동기 실행 중 씬 변경 시 중단)
+        // 이 헬퍼 함수는 호출 시점의 씬 컨텍스트를 알지 못하므로, 정확한 씬 변경 감지는 상위 실행기에서 해야 합니다.
+        // 여기서는 간단히 현재 엔진의 씬 ID와 오브젝트의 씬 ID를 비교합니다.
+        // 더 정확한 구현을 위해서는 executeScript 함수에서 씬 ID를 인자로 받아와야 합니다.
+        std::string currentEngineSceneId = engine.getCurrentSceneId();
+        const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
+        bool isGlobalEntity = false;
+        if (objInfo)
+        {
+            isGlobalEntity = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
+        }
+        // 오브젝트가 현재 씬에 속하지 않으면 중단 (전역 오브젝트는 제외)
+        if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
+        {
+            engine.EngineStdOut("Synchronous block execution for entity " + objectId + " (Block: " + block.type + ") halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+            return;
+        }
+
+        // wait_second 블록 처리 (동기적 대기)
+        if (block.type == "wait_second")
+        {
+            if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
+            {
+                engine.EngineStdOut("Synchronous wait_second for " + objectId + ": Missing or invalid time parameter.", 2, executionThreadId);
+                continue; // Skip this block
+            }
+            OperandValue secondsOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+            if (secondsOp.type != OperandValue::Type::NUMBER)
+            {
+                engine.EngineStdOut("Synchronous wait_second for " + objectId + ": Time parameter is not a number. Value: " + secondsOp.asString(), 2, executionThreadId);
+                continue; // Skip this block
+            }
+            double secondsToWait = secondsOp.asNumber();
+            if (secondsToWait < 0)
+                secondsToWait = 0;
+
+            Uint32 waitEndTime = SDL_GetTicks() + static_cast<Uint32>(secondsToWait * 1000.0);
+            engine.EngineStdOut("Synchronous wait_second: " + objectId + " starting blocking wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
+
+            while (SDL_GetTicks() < waitEndTime)
+            {
+                // 대기 중 엔진 종료 신호 확인
+                if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+                {
+                    engine.EngineStdOut("Synchronous wait cancelled due to engine shutdown for entity: " + objectId, 1, executionThreadId);
+                    return; // Stop execution
+                }
+                SDL_Delay(1); // 바쁜 대기 방지를 위한 작은 지연
+            }
+            engine.EngineStdOut("Synchronous wait_second: " + objectId + " wait finished. Block ID: " + block.id, 0, executionThreadId);
+            continue; // 다음 블록으로 이동
+        }
+
+        // 다른 블록 타입 실행
+        // 이 헬퍼 함수는 내부 블록 실행만을 담당하므로, 여기서 다시 제어 블록(repeat, if 등)을 만나면
+        // 해당 블록의 로직에 따라 재귀적으로 이 함수를 호출하거나 다른 처리를 해야 합니다.
+        // 여기서는 간단히 카테고리 함수만 호출합니다. 실제로는 더 복잡한 실행기 로직이 필요합니다.
+        try
+        {
+            Moving(block.type, engine, objectId, block, executionThreadId);
+            Calculator(block.type, engine, objectId, block, executionThreadId);
+            Looks(block.type, engine, objectId, block, executionThreadId);
+            Sound(block.type, engine, objectId, block, executionThreadId);
+            Variable(block.type, engine, objectId, block, executionThreadId);
+            Function(block.type, engine, objectId, block, executionThreadId);
+            Event(block.type, engine, objectId, block, executionThreadId);
+            Flow(block.type,engine,objectId,block,executionThreadId);//이거 왜뻄
+        }
+        catch (const ScriptBlockExecutionError &sbee)
+        {
+            // 내부 블록 실행 중 오류 발생 시 상위로 전파
+            throw;
+        }
+        catch (const std::exception &e)
+        {
+            // 다른 예외 발생 시 ScriptBlockExecutionError로 래핑하여 전파
+            throw ScriptBlockExecutionError(
+                "Error during synchronous nested block execution.",
+                block.id, block.type, objectId, e.what());
         }
     }
 }

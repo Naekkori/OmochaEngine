@@ -29,7 +29,21 @@ public:
         : std::runtime_error(msg), 
           blockId(bId), blockType(bType), entityId(eId), originalMessage(origMsg) {}
 };
+struct ScriptWaitState {
+    bool isWaiting = false;
+    Uint32 waitEndTime = 0;
+    std::string waitingForBlockId = "";
+    // std::string waitingOnExecutionThreadId = "";
 
+    ScriptWaitState() : isWaiting(false), waitEndTime(0) {}
+
+    void reset() {
+        isWaiting = false;
+        waitEndTime = 0;
+        waitingForBlockId = "";
+        // waitingOnExecutionThreadId = "";
+    }
+};
 
 class Entity
 {
@@ -166,6 +180,7 @@ public:
            double initial_width, double initial_height, bool initial_visible, RotationMethod rotationMethod);
 
     ~Entity();
+    ScriptWaitState scriptWaitState;
     CollisionSide getLastCollisionSide() const;
     // 스크립트 실행 함수 (sceneIdAtDispatch 추가)
     void executeScript(const Script* scriptPtr, const std::string& executionThreadId, const std::string& sceneIdAtDispatch);

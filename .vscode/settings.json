@@ -91,6 +91,7 @@
         "codecvt": "cpp",
         "csignal": "cpp",
         "shared_mutex": "cpp",
-        "source_location": "cpp"
+        "source_location": "cpp",
+        "resumable": "cpp"
     }
 }

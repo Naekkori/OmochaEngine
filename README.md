@@ -215,7 +215,7 @@ SOFTWARE.
 
 *   [x] `get_sound_duration`: ('소리이름')의 재생 길이 (초) (블록)
 
-# 변수/리스트 블록 구현
+## 변수/리스트 블록 구현
 
 ## 변수
 - [x] **`ask_and_wait` (묻고 기다리기)**: 사용자 입력 요청 및 대기
@@ -237,3 +237,20 @@ SOFTWARE.
 - [x] **`is_included_in_list` (리스트에 항목 포함 여부)**: 값 포함 여부 확인
 - [x] **`show_list` (리스트 보이기)**: 리스트 UI 표시
 - [x] **`hide_list` (리스트 숨기기)**: 리스트 UI 숨김
+
+## 흐름 블록 구현
+- [x] wait_second (~초 기다리기)
+- [x] repeat_basic (~번 반복하기)
+- [x] repeat_inf (계속 반복하기)
+- [ ] repeat_while_true (~가 될 때까지/동안 반복하기)
+- [ ] stop_repeat (반복 중단하기)
+- [ ] continue_repeat (반복 처음으로 돌아가기)
+- [ ] _if (만일 ~이라면)
+- [ ] if_else (만일 ~이라면, 아니면)
+- [ ] wait_until_true (~가 될 때까지 기다리기)
+- [ ] stop_object (모든/자신/다른/이 스크립트 멈추기)
+- [ ] restart_project (처음부터 다시 실행하기)
+- [ ] when_clone_start (복제되었을 때)
+- [ ] create_clone (~의 복제본 만들기)
+- [ ] delete_clone (이 복제본 삭제하기)
+- [ ] remove_all_clones (모든 복제본 삭제하기)

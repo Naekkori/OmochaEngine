@@ -69,7 +69,10 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"text_reporter_number", BlockTypeEnum::TEXT_REPORTER_NUMBER },
     {"text_reporter_string", BlockTypeEnum::TEXT_REPORTER_STRING },
     {"get_variable", BlockTypeEnum::GET_VARIABLE},
-    {"value_of_index_from_list", BlockTypeEnum::VALUE_OF_INDEX_FROM_LIST}
+    {"value_of_index_from_list", BlockTypeEnum::VALUE_OF_INDEX_FROM_LIST},
+        // Flow
+        {"wait_second", BlockTypeEnum::WAIT_SECOND},
+        {"repeat_basic", BlockTypeEnum::REPEAT_BASIC}
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -146,7 +149,10 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::TEXT_REPORTER_NUMBER, "숫자 입력 (파라미터용)"},
         {BlockTypeEnum::TEXT_REPORTER_STRING, "문자열 입력 (파라미터용)"},
     {BlockTypeEnum::GET_VARIABLE, "변수 값 가져오기"},
-    {BlockTypeEnum::VALUE_OF_INDEX_FROM_LIST, "리스트의 ~번째 항목 값"}
+    {BlockTypeEnum::VALUE_OF_INDEX_FROM_LIST, "리스트의 ~번째 항목 값"},
+        // Flow
+        {BlockTypeEnum::WAIT_SECOND, "~초 기다리기"},
+        {BlockTypeEnum::REPEAT_BASIC, "~번 반복하기"}
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {
