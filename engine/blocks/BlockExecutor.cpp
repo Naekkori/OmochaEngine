@@ -2051,7 +2051,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue(0.0);
         }
-        
+
         HUDVariableDisplay *targetListPtr = nullptr;
         // 1. Search for a local variable (associated with the current objectId)
         for (auto &hudVar : engine.getHUDVariables_Editable())
@@ -2064,7 +2064,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 2. If not found locally, search for a global variable
-        if (!targetListPtr) {
+        if (!targetListPtr)
+        {
             for (auto &hudVar : engine.getHUDVariables_Editable())
             {
                 if (hudVar.name == variableIdToFind && hudVar.objectId.empty())
@@ -2146,12 +2147,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "value_of_index_from_list block for " + objectId + ": List '" + listIdToFind + "' not found.", 1,
                 executionThreadId);
             return OperandValue("");
-        }else{
+        }
+        else
+        {
             if (targetListPtr->isCloud)
             {
                 engine.loadCloudVariablesFromJson();
             }
-            
         }
 
         std::vector<ListItem> &listArray = targetListPtr->array;
@@ -2252,6 +2254,118 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         // 5. 데이터 반환
         return OperandValue(listArray[finalIndex_0based].data);
+    }
+    else if (BlockType == "length_of_list")
+    {
+        // 리스트의 길이를 반환
+        OperandValue listId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        // params: [LIST_ID_STRING, INDEX_VALUE_OR_BLOCK, null, null]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut(
+                "value_of_index_from_list block for " + objectId +
+                    " has insufficient parameters. Expected LIST_ID and INDEX.",
+                2, executionThreadId);
+            return OperandValue(0.0); 
+        }
+
+        if (listId.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut(
+                "value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string.", 2,
+                executionThreadId);
+            return OperandValue(0.0);
+        }
+
+        HUDVariableDisplay *targetListPtr = nullptr;
+        for (auto &hudVar : engine.getHUDVariables_Editable())
+        {
+            if (hudVar.variableType == "list" && hudVar.name == listId.asString() && hudVar.objectId == objectId)
+            {
+                targetListPtr = &hudVar;
+                break;
+            }
+        }
+        if (!targetListPtr)
+        {
+            for (auto &hudVar : engine.getHUDVariables_Editable())
+            {
+                if (hudVar.variableType == "list" && hudVar.name == listId.asString() && hudVar.objectId.empty())
+                {
+                    targetListPtr = &hudVar;
+                    break;
+                }
+            }
+        }
+        double itemCount = targetListPtr->array.size();
+        return OperandValue(itemCount);
+    }else if(BlockType == "is_included_in_list"){
+        //리스트에 해당 항목이 들어있는지 확인
+        OperandValue listId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue dataOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        if (listId.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut(
+                "is_included_in_list block for " + objectId + ": LIST_ID  parameter is not a string.", 2,
+                executionThreadId);
+            return OperandValue(0.0);
+        }
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        {
+            engine.EngineStdOut(
+                "is_included_in_list block for " + objectId +
+                    " has insufficient parameters. Expected LIST_ID and DataOp.",
+                2, executionThreadId);
+            return OperandValue(false); 
+        }
+        HUDVariableDisplay *targetListPtr = nullptr;
+        for (auto &hudVar : engine.getHUDVariables_Editable())
+        {
+            if (hudVar.variableType == "list" && hudVar.name == listId.asString() && hudVar.objectId == objectId)
+            {
+                targetListPtr = &hudVar;
+                break;
+            }
+        }
+        if (!targetListPtr)
+        {
+            for (auto &hudVar : engine.getHUDVariables_Editable())
+            {
+                if (hudVar.variableType == "list" && hudVar.name == listId.asString() && hudVar.objectId.empty())
+                {
+                    targetListPtr = &hudVar;
+                    break;
+                }
+            }
+        }
+        if (!targetListPtr) {
+            engine.EngineStdOut(
+                "is_included_in_list block for " + objectId + ": List '" + listId.asString() + "' not found.", 1,
+                executionThreadId);
+            return OperandValue(false);
+        }
+
+        if (targetListPtr->variableType != "list") {
+             engine.EngineStdOut(
+                "is_included_in_list block for " + objectId + ": Variable '" + listId.asString() + "' is not a list.", 2,
+                executionThreadId);
+            return OperandValue(false);
+        }
+
+        if (targetListPtr->isCloud) {
+            engine.loadCloudVariablesFromJson(); // 클라우드 변수인 경우 최신 데이터 로드
+        }
+
+        bool finded = false;
+        for (auto &item : targetListPtr->array)
+        {
+            if (item.data == dataOp.asString())
+            {
+                finded = true;
+                break; // 항목을 찾으면 루프 종료
+            }
+        }
+        return OperandValue(finded);
     }
 
     return OperandValue();
@@ -3573,7 +3687,6 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         {
             engine.saveCloudVariablesToJson();
         }
-        
     }
     else if (BlockType == "insert_value_to_list")
     {
@@ -3641,7 +3754,78 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
         size_t index_0_based = static_cast<size_t>(index_1_based - 1);
         listArray.insert(listArray.begin() + index_0_based, {valueOp.asString()});
+        if (targetListPtr->isCloud)
+        {
+            engine.saveCloudVariablesToJson();
+        }
         engine.EngineStdOut("Inserted value '" + valueOp.asString() + "' at index " + std::to_string(index_1_based) + " (value: '" + valueOp.asString() + "') to list '");
+    }
+    else if (BlockType == "change_value_list_index")
+    {
+        // 특정 인덱스에 항목 변경
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        {
+            engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
+            return;
+        }
+        OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1]);
+        OperandValue listIdToFindOp = getOperandValue(engine, objectId, block.paramsJson[0]);
+        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[2]);
+        double index_1_based_double = indexOp.asNumber();
+        if (listIdToFindOp.type != OperandValue::Type::STRING || valueOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("listId or valueOp is not a string objId:" + objectId, 2);
+            return;
+        }
+        if (indexOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut("indexOp is not a number objId:" + objectId, 2);
+            return;
+        }
+        auto index_1_based = static_cast<long long>(index_1_based_double);
+        HUDVariableDisplay *targetListPtr = nullptr;
+        // 지역 리스트 검색 (현재 오브젝트에 속한 리스트)
+        for (auto &hudVar : engine.getHUDVariables_Editable())
+        {
+            if (hudVar.variableType == "list" && hudVar.name == listIdToFindOp.asString() && hudVar.objectId == objectId)
+            {
+                targetListPtr = &hudVar;
+                break;
+            }
+        }
+        // 지역 리스트가 없으면 전역 리스트 검색
+        if (!targetListPtr)
+        {
+            for (auto &hudVar : engine.getHUDVariables_Editable())
+            {
+                if (hudVar.variableType == "list" && hudVar.name == listIdToFindOp.asString() && hudVar.objectId.empty())
+                {
+                    // 전역 리스트 조건 확인
+                    targetListPtr = &hudVar;
+                    break;
+                }
+            }
+        }
+
+        // 혹시라도 타입이 list가 아닌 경우를 대비한 안전장치
+        if (targetListPtr->variableType != "list")
+        {
+            engine.EngineStdOut(
+                "remove_value_from_list block for " + objectId + ": Variable '" + listIdToFindOp.asString() +
+                    "' found but is not a list.",
+                2, executionThreadId);
+            return;
+        }
+        std::vector<ListItem> &listArray = targetListPtr->array;
+        if (index_1_based < 1 || index_1_based > static_cast<long long>(listArray.size()))
+        {
+            engine.EngineStdOut("insert_value_to_list block for" + objectId + ": index " + to_string(index_1_based_double) + " is out of bounds for list '" + listIdToFindOp.asString() +
+                                    "' (size: " + std::to_string(listArray.size()) + ").",
+                                1, executionThreadId);
+            return;
+        }
+        size_t index_0_based = static_cast<size_t>(index_1_based - 1);
+        listArray[index_0_based].data = valueOp.asString();
     }
 }
 
