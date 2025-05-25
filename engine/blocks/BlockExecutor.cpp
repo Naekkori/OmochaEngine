@@ -3826,7 +3826,77 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
         size_t index_0_based = static_cast<size_t>(index_1_based - 1);
         listArray[index_0_based].data = valueOp.asString();
+    }else if (BlockType == "show_list")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
+            return;
+        }
+        OperandValue listIdtofindOp = getOperandValue(engine,objectId,block.paramsJson[0]);
+        if (listIdtofindOp.type != OperandValue::Type::STRING )
+        {
+            engine.EngineStdOut("listId is not a string objId:" + objectId, 2);
+            return;
+        }
+        HUDVariableDisplay *targetListPtr = nullptr;
+        for (auto &hudVar : engine.getHUDVariables_Editable())
+        {
+            if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId == objectId)
+            {
+                targetListPtr = &hudVar;
+                break;
+            }
+        }
+        if (!targetListPtr)
+        {
+            for (auto &hudVar : engine.getHUDVariables_Editable()){
+                if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId.empty())
+                {
+                    targetListPtr = &hudVar;
+                    break;
+                }
+            
+            }
+        }
+        targetListPtr->isVisible = true;
+    }else if (BlockType == "hide_list")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
+            return;
+        }
+        OperandValue listIdtofindOp = getOperandValue(engine,objectId,block.paramsJson[0]);
+        if (listIdtofindOp.type != OperandValue::Type::STRING )
+        {
+            engine.EngineStdOut("listId is not a string objId:" + objectId, 2);
+            return;
+        }
+        HUDVariableDisplay *targetListPtr = nullptr;
+        for (auto &hudVar : engine.getHUDVariables_Editable())
+        {
+            if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId == objectId)
+            {
+                targetListPtr = &hudVar;
+                break;
+            }
+        }
+        if (!targetListPtr)
+        {
+            for (auto &hudVar : engine.getHUDVariables_Editable()){
+                if (hudVar.variableType == "list" && hudVar.name == listIdtofindOp.asString() && hudVar.objectId.empty())
+                {
+                    targetListPtr = &hudVar;
+                    break;
+                }
+            
+            }
+        }
+        targetListPtr->isVisible = false;
     }
+    
+    
 }
 
 /**

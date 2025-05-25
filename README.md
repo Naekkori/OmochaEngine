@@ -235,5 +235,5 @@ SOFTWARE.
 - [x] **`change_value_list_index` (리스트 항목 값 바꾸기)**: 특정 인덱스 항목 값 변경
 - [x] **`length_of_list` (리스트 길이)**: 리스트 항목 수 가져오기
 - [x] **`is_included_in_list` (리스트에 항목 포함 여부)**: 값 포함 여부 확인
-- [ ] **`show_list` (리스트 보이기)**: 리스트 UI 표시
-- [ ] **`hide_list` (리스트 숨기기)**: 리스트 UI 숨김
+- [x] **`show_list` (리스트 보이기)**: 리스트 UI 표시
+- [x] **`hide_list` (리스트 숨기기)**: 리스트 UI 숨김
