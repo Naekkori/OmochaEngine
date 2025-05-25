@@ -95,6 +95,7 @@ struct ListItem
 // HUD에 표시될 일반 변수의 정보를 담는 구조체
 struct HUDVariableDisplay
 {
+    string id;                             // 변수 ID
     string name;                         // 변수 이름
     string value;                        // 변수 값 (문자열로 표시)
     string objectId;                     // 변수를 표시할 오브젝트 ID 가 null 이면 public 변수
@@ -102,6 +103,7 @@ struct HUDVariableDisplay
     float x;                             // HUD에서의 X 좌표
     float y;                             // HUD에서의 Y 좌표
     string variableType;                 // 변수 유형 ("variable", "timer", "answer" 등)
+    bool isCloud;                        // 클라우드 변수 여부 (json 세이브)
     float width = 0;                     // HUD에서의 너비 리스트전용
     float height = 0;                    // HUD에서의 높이 리스트전용
     float transient_render_width = 0.0f; // 드래그 클램핑을 위해 마지막으로 계산된 렌더링 너비
@@ -251,6 +253,9 @@ public:
     void terminateGE();
     bool loadImages();
     bool loadSounds();
+     // --- Cloud Variable Persistence ---
+     bool saveCloudVariablesToJson();
+     bool loadCloudVariablesFromJson();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;

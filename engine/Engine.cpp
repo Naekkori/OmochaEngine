@@ -16,6 +16,8 @@
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
+#include "rapidjson/ostreamwrapper.h"
+#include "rapidjson/prettywriter.h"
 #include "rapidjson/writer.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
@@ -287,7 +289,6 @@ bool Engine::loadProject(const string &projectFilePath) {
     PROJECT_NAME = getSafeStringFromJson(document, "name", "project root", "Omocha Project", false, false);
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
     EngineStdOut("Project Name: " + (PROJECT_NAME.empty() ? "[Not Set]" : PROJECT_NAME), 0);
-
     if (document.HasMember("speed") && document["speed"].IsNumber()) {
         this->specialConfig.TARGET_FPS = document["speed"].GetInt();
         EngineStdOut("Target FPS set from project.json: " + to_string(this->specialConfig.TARGET_FPS), 0);
@@ -4487,4 +4488,179 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
                 entityId, 2, thread_id_str);
         }
     });
+}
+
+/**
+ * @brief Saves cloud variables to a JSON file based on m_projectId.
+ * @return True if saving was successful, false otherwise.
+ */
+bool Engine::saveCloudVariablesToJson() {
+    if (PROJECT_NAME.empty()) {
+        EngineStdOut("Project ID is not set. Cannot save cloud variables.", 2);
+        return false;
+    }
+    // 파일 경로를 m_projectId를 사용하여 생성
+    std::string directoryPath = "cloud_saves"; // 클라우드 저장 파일들을 모아둘 디렉토리
+    std::string filePath = directoryPath + "/" + PROJECT_NAME + ".cloud.json";
+
+    // 디렉토리 생성 (존재하지 않는 경우)
+    try {
+        if (!std::filesystem::exists(directoryPath)) {
+            if (std::filesystem::create_directories(directoryPath)) {
+                EngineStdOut("Created directory for cloud saves: " + directoryPath, 0);
+            } else {
+                EngineStdOut("Failed to create directory for cloud saves (unknown error): " + directoryPath, 2);
+                return false; // 디렉토리 생성 실패 시 저장 중단
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        EngineStdOut("Error creating directory for cloud saves '" + directoryPath + "': " + std::string(e.what()), 2);
+        return false; // 예외 발생 시 저장 중단
+    }
+    
+    EngineStdOut("Saving cloud variables to: " + filePath, 0);
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
+
+    rapidjson::Document doc;
+    doc.SetArray();
+    rapidjson::Document::AllocatorType& allocator = doc.GetAllocator();
+
+    for (const auto& hudVar : m_HUDVariables) {
+        if (hudVar.isCloud) {
+            rapidjson::Value varJson(rapidjson::kObjectType);
+
+            varJson.AddMember("name", rapidjson::Value(hudVar.name.c_str(), allocator).Move(), allocator);
+            varJson.AddMember("value", rapidjson::Value(hudVar.value.c_str(), allocator).Move(), allocator);
+            varJson.AddMember("objectId", rapidjson::Value(hudVar.objectId.c_str(), allocator).Move(), allocator);
+            varJson.AddMember("variableType", rapidjson::Value(hudVar.variableType.c_str(), allocator).Move(), allocator);
+
+            if (hudVar.variableType == "list") {
+                rapidjson::Value arrayJson(rapidjson::kArrayType);
+                for (const auto& item : hudVar.array) {
+                    rapidjson::Value itemJson(rapidjson::kObjectType);
+                    itemJson.AddMember("key", rapidjson::Value(item.key.c_str(), allocator).Move(), allocator);
+                    itemJson.AddMember("data", rapidjson::Value(item.data.c_str(), allocator).Move(), allocator);
+                    arrayJson.PushBack(itemJson, allocator);
+                }
+                varJson.AddMember("array", arrayJson, allocator);
+            }
+            doc.PushBack(varJson, allocator);
+        }
+    }
+
+    std::ofstream ofs(filePath);
+    if (!ofs.is_open()) {
+        EngineStdOut("Failed to open file for saving cloud variables: " + filePath, 2);
+        return false;
+    }
+
+    rapidjson::OStreamWrapper osw(ofs);
+    rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw);
+    doc.Accept(writer);
+    ofs.close();
+
+    EngineStdOut("Cloud variables saved successfully to: " + filePath, 0);
+    return true;
+}
+
+/**
+ * @brief Loads cloud variables from a JSON file based on m_projectId, updating existing ones.
+ * @return True if loading was successful or file didn't exist, false on parse error.
+ */
+bool Engine::loadCloudVariablesFromJson() {
+    if (PROJECT_NAME.empty()) {
+        EngineStdOut("Project ID is not set. Cannot load cloud variables.", 1);
+        return true; // 프로젝트 ID가 없으면 로드할 파일도 없다고 간주 (오류는 아님)
+    }
+    // 파일 경로를 m_projectId를 사용하여 생성
+    std::string directoryPath = "cloud_saves";
+    std::string filePath = directoryPath + "/" + PROJECT_NAME + ".cloud.json";
+
+    EngineStdOut("Attempting to load cloud variables from: " + filePath, 0);
+
+    if (!std::filesystem::exists(filePath)) {
+        EngineStdOut("Cloud variable save file not found: " + filePath + ". No variables loaded.", 0);
+        return true; // 저장 파일이 아직 없는 것은 정상적인 상황
+    }
+
+    std::ifstream ifs(filePath);
+    if (!ifs.is_open()) {
+        EngineStdOut("Failed to open cloud variable file: " + filePath, 2);
+        return false;
+    }
+
+    rapidjson::IStreamWrapper isw(ifs);
+    rapidjson::Document doc;
+    doc.ParseStream(isw);
+    ifs.close();
+
+    if (doc.HasParseError()) {
+        EngineStdOut("Failed to parse cloud variable file: " + std::string(rapidjson::GetParseError_En(doc.GetParseError())) +
+                     " (Offset: " + std::to_string(doc.GetErrorOffset()) + ")", 2);
+        return false;
+    }
+
+    if (!doc.IsArray()) {
+        EngineStdOut("Cloud variable file content is not a JSON array: " + filePath, 2);
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
+
+    int updatedCount = 0;
+    int notFoundCount = 0;
+
+    for (const auto& savedVarJson : doc.GetArray()) {
+        if (!savedVarJson.IsObject()) {
+            EngineStdOut("Skipping non-object entry in cloud variable file.", 1);
+            continue;
+        }
+
+        std::string name = getSafeStringFromJson(savedVarJson, "name", "cloud variable entry", "", true, false);
+        std::string value = getSafeStringFromJson(savedVarJson, "value", "cloud variable entry for " + name, "", false, true);
+        std::string objectId = getSafeStringFromJson(savedVarJson, "objectId", "cloud variable entry for " + name, "", false, true);
+        std::string variableType = getSafeStringFromJson(savedVarJson, "variableType", "cloud variable entry for " + name, "variable", true, false);
+
+        if (name.empty() || variableType.empty()) {
+            EngineStdOut("Skipping cloud variable entry with empty name or variableType.", 1);
+            continue;
+        }
+
+        bool foundAndUpdated = false;
+        for (auto& hudVar : m_HUDVariables) {
+            if (hudVar.isCloud && hudVar.name == name && hudVar.objectId == objectId && hudVar.variableType == variableType) {
+                hudVar.value = value;
+                EngineStdOut("Cloud variable '" + name + "' (Object: '" + (objectId.empty() ? "global" : objectId) + "') updated to value: '" + value + "'", 0);
+
+                if (variableType == "list") {
+                    hudVar.array.clear();
+                    if (savedVarJson.HasMember("array") && savedVarJson["array"].IsArray()) {
+                        const rapidjson::Value& arrayJson = savedVarJson["array"];
+                        for (const auto& itemJson : arrayJson.GetArray()) {
+                            if (itemJson.IsObject()) {
+                                ListItem listItem;
+                                listItem.key = getSafeStringFromJson(itemJson, "key", "list item in " + name, "", false, true);
+                                listItem.data = getSafeStringFromJson(itemJson, "data", "list item in " + name, "", false, true);
+                                hudVar.array.push_back(listItem);
+                            }
+                        }
+                        EngineStdOut("  List '" + name + "' updated with " + std::to_string(hudVar.array.size()) + " items.", 0);
+                    }
+                }
+                foundAndUpdated = true;
+                updatedCount++;
+                break; 
+            }
+        }
+
+        if (!foundAndUpdated) {
+            EngineStdOut("Cloud variable '" + name + "' (Object: '" + (objectId.empty() ? "global" : objectId) +
+                         "') from save file not found or not marked as cloud in current project configuration. Value not loaded.", 1);
+            notFoundCount++;
+        }
+    }
+
+    EngineStdOut("Cloud variables loading finished. Updated: " + std::to_string(updatedCount) +
+                 ", Not found/applicable: " + std::to_string(notFoundCount), 0);
+    return true;
 }
