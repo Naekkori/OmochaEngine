@@ -158,7 +158,9 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             if (paramField.HasMember("params") && paramField["params"].IsArray() &&
                 paramField["params"].Size() > 0 && paramField["params"][0].IsString())
             {
-                return OperandValue(paramField["params"][0].GetString());
+                std::string temp_image_id = paramField["params"][0].GetString();
+                // temp_image_id로 안전하게 복사된 문자열을 사용하여 OperandValue 직접 반환
+                return OperandValue(temp_image_id);
             }
             engine.EngineStdOut(
                 "Invalid 'get_pictures' block structure in parameter field for " + objectId +
@@ -184,7 +186,27 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
         engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1);
         return OperandValue();
     }
-    engine.EngineStdOut("Parameter field is not a string or object for " + objectId, 1);
+    // NEW: Check for other literal types before the final default
+    else if (paramField.IsNumber()) // If the param is a direct number literal
+    {
+        return OperandValue(paramField.GetDouble()); // Returns NUMBER
+    }
+    else if (paramField.IsBool()) // If the param is a direct boolean literal
+    {
+        bool val = paramField.GetBool();
+        engine.EngineStdOut(
+            "Parameter field for " + objectId + " is a direct boolean literal: " + (val ? "true" : "false") +
+            ". This might be unexpected if a block (e.g., get_pictures) was intended.", 1);
+        return OperandValue(val); // Returns BOOLEAN
+    }
+    else if (paramField.IsNull()) // If the param is a direct null literal
+    {
+        engine.EngineStdOut("Parameter field is null for " + objectId, 1);
+        return OperandValue(); // Returns EMPTY
+    }
+
+    // Fallback if not string, object, number, bool, or null
+    engine.EngineStdOut("Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " + std::to_string(paramField.GetType()), 1);
     return OperandValue();
 }
 
@@ -226,6 +248,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
         double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
+        engine.EngineStdOut("move_direction objectId: "+objectId+" direction: "+to_string(newX)+", "+to_string(newY), 0, executionThreadId);
         entity->setX(newX);
         entity->setY(newY);
     }
@@ -452,6 +475,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         double dist = distance.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist;
+        engine.EngineStdOut("move_x objId: "+objectId+" newX: "+to_string(newX), 0, executionThreadId);
         entity->setX(newX);
     }
     else if (BlockType == "move_y")
@@ -473,6 +497,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         double dist = distance.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newY = entity->getY() + dist;
+        engine.EngineStdOut("move_y objId: "+objectId+" newY: "+to_string(newY), 0, executionThreadId);
         entity->setY(newY);
     }
     else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") // 이둘 똑같이 동작하는걸 확인함 왜 이걸 따로뒀는지 이해안감
@@ -529,7 +554,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
                                         std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
-                                    0, executionThreadId);
+                                    3, executionThreadId);
                 state.isActive = false; // 완료
                 return;                 // 이 블록 실행 완료
             }
@@ -559,6 +584,9 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             {
                 entity->setX(state.targetX); // 최종 위치로 정확히 이동
                 entity->setY(state.targetY);
+                engine.EngineStdOut("move_xy_time: " + objectId + " Pos: (" +
+                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
+                3, executionThreadId);
                 state.isActive = false; // 이동 완료
             }
         }
@@ -573,6 +601,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         double x = valueX.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
+        engine.EngineStdOut("locate_x objId: "+objectId+" newX: "+to_string(x), 3, executionThreadId);
         entity->setX(x);
     }
     else if (BlockType == "locate_y")
@@ -585,6 +614,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
         double y = valueY.number_val;
+        engine.EngineStdOut("locate_y objId: "+objectId+" newX: "+to_string(y), 3, executionThreadId);
         entity->setY(y);
     }
     else if (BlockType == "locate_xy")
@@ -603,6 +633,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         // entity는 함수 시작 시 이미 검증되었습니다.
         entity->setX(x);
         entity->setY(y);
+        engine.EngineStdOut("locate_xy objId: "+objectId+" newX: "+to_string(x)+" newY: "+to_string(y), 3, executionThreadId);
     }
     else if (BlockType == "locate")
     {
@@ -738,7 +769,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
 
             entity->setX(newX);
             entity->setY(newY);
-
+            engine.EngineStdOut("locate_object_time: " + objectId + " moving to"+state.targetObjectId+". Pos: (" + to_string(newX) + ", " + to_string(newY) + ")", 3, executionThreadId);
             if (entity->paint.isPenDown)
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
             if (entity->brush.isPenDown)
@@ -2579,9 +2610,24 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
     else if (BlockType == "change_to_some_shape")
     {
         // 이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
+        // --- DEBUG START ---
+        if (block.paramsJson.IsArray() && !block.paramsJson.Empty()) {
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            block.paramsJson[0].Accept(writer);
+            engine.EngineStdOut(
+                "DEBUG: change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
+                std::string(buffer.GetString()), 3, executionThreadId);
+        } else {
+            engine.EngineStdOut(
+                "DEBUG: change_to_some_shape for " + objectId + ": paramsJson is not an array or is empty.", 3, executionThreadId);
+        }
+        // --- DEBUG END ---
+
         OperandValue imageDropdown = getOperandValue(engine, objectId, block.paramsJson[0]);
         // getOperandValue는 get_pictures 블록의 params[0] (모양 ID 문자열)을 반환해야 합니다.
         // getOperandValue 내부에서 get_pictures 타입 처리가 필요합니다.
+
         if (imageDropdown.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
@@ -2589,6 +2635,10 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
                     " parameter did not resolve to a string (expected costume ID). Actual type: " +
                     std::to_string(static_cast<int>(imageDropdown.type)),
                 2, executionThreadId);
+            // --- DEBUG START ---
+            engine.EngineStdOut(
+                "DEBUG: change_to_some_shape for " + objectId + ": imageDropdown.asString() returned: '" + imageDropdown.asString() + "'", 3, executionThreadId);
+             // --- DEBUG END ---
             return;
         }
         std::string costumeIdToSet = imageDropdown.asString();
@@ -2598,6 +2648,11 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
                                 executionThreadId);
             return;
         }
+        // --- DEBUG START ---
+        engine.EngineStdOut(
+            "DEBUG: change_to_some_shape for " + objectId + ": Attempting to set costume to ID: '" + costumeIdToSet + "'", 3, executionThreadId);
+        // --- DEBUG END ---
+
 
         // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
         if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet))
@@ -4028,7 +4083,11 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             // executeBlocksSynchronously 내부에서도 종료/씬 변경을 확인하므로,
             // 만약 해당 함수가 return으로 중단되었다면 이 while 루프도 다음 반복에서 위의 break 조건에 걸릴 것입니다.
         }
+    }else if (BlockType == "repeat_while_true")
+    {
+        //될때까지 반복
     }
+    
     
 }
 
