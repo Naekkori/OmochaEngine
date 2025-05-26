@@ -70,9 +70,9 @@ Block ParseBlockDataInternal(const rapidjson::Value& blockJson, Engine& engine, 
     // Parse Params
     if (blockJson.HasMember("params")) {
         const rapidjson::Value& paramsVal = blockJson["params"];
-        if (paramsVal.IsArray()) {
-            newBlock.paramsJson.CopyFrom(paramsVal, engine.m_blockParamsAllocatorDoc.GetAllocator());
-        } else {
+        if (paramsVal.IsArray()) { // paramsJson은 Document이므로 자체 Allocator 사용
+            newBlock.paramsJson.CopyFrom(paramsVal, newBlock.paramsJson.GetAllocator());
+        } else { // params가 있지만 배열이 아닌 경우
             engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type
                 + ") has 'params' but it's not an array. Params will be empty. Value: "
                 + RapidJsonValueToString(paramsVal), 1, ""); // Added empty thread ID
@@ -80,7 +80,7 @@ Block ParseBlockDataInternal(const rapidjson::Value& blockJson, Engine& engine, 
         }
     } else {
         newBlock.paramsJson.SetArray(); 
-    }
+    } // params 필드가 없으면 빈 배열로 초기화
     newBlock.FilterNullsInParamsJsonArray();
 
     // Parse Statements (Inner Scripts)
