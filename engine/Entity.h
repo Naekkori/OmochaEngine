@@ -7,6 +7,7 @@
 #include "SDL3/SDL_pixels.h" // For SDL_Color (already included)
 #include "SDL3/SDL_rect.h"   // For SDL_FRect, SDL_FPoint
 #include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
+#include <map>               // For std::map
 
 // Forward declaration
 class Engine;
@@ -180,9 +181,14 @@ public:
            double initial_width, double initial_height, bool initial_visible, RotationMethod rotationMethod);
 
     ~Entity();
-    ScriptWaitState scriptWaitState;
+    std::map<std::string, ScriptWaitState> scriptWaitStates; 
     CollisionSide getLastCollisionSide() const;
     // 스크립트 실행 함수 (sceneIdAtDispatch 추가)
+    // Thread-safe methods to manage script wait states
+    void setScriptWait(const std::string& executionThreadId, Uint32 waitEndTime, const std::string& waitingForBlockId); // Make executeScript public for Engine to call
+private: // performActiveWait is an internal helper
+    void performActiveWait(const std::string& executionThreadId, const std::string& waitedBlockId, Uint32 waitEndTime, Engine* pEngine, const std::string& sceneIdAtDispatchForWait);
+public:
     void executeScript(const Script* scriptPtr, const std::string& executionThreadId, const std::string& sceneIdAtDispatch);
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);

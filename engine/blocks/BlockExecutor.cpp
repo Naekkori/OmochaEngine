@@ -174,7 +174,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             if (paramField.HasMember("params") && paramField["params"].IsArray() &&
                 paramField["params"].Size() > 0 && paramField["params"][0].IsString())
             {
-                return OperandValue(paramField["params"][0].GetString());
+                std::string tem_sound_id = paramField["params"][0].GetString();
+                return OperandValue(tem_sound_id);
             }
             engine.EngineStdOut(
                 "Invalid 'get_sounds' block structure in parameter field for " + objectId +
@@ -196,7 +197,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
         bool val = paramField.GetBool();
         engine.EngineStdOut(
             "Parameter field for " + objectId + " is a direct boolean literal: " + (val ? "true" : "false") +
-            ". This might be unexpected if a block (e.g., get_pictures) was intended.", 1);
+                ". This might be unexpected if a block (e.g., get_pictures) was intended.",
+            1);
         return OperandValue(val); // Returns BOOLEAN
     }
     else if (paramField.IsNull()) // If the param is a direct null literal
@@ -248,7 +250,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
         double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
-        engine.EngineStdOut("move_direction objectId: "+objectId+" direction: "+to_string(newX)+", "+to_string(newY), 0, executionThreadId);
+        engine.EngineStdOut("move_direction objectId: " + objectId + " direction: " + to_string(newX) + ", " + to_string(newY), 0, executionThreadId);
         entity->setX(newX);
         entity->setY(newY);
     }
@@ -458,10 +460,10 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
     }
     else if (BlockType == "move_x")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
-                "move_x block for object " + objectId + " has invalid params structure. Expected 2 params.", 2,
+                "move_x block for object " + objectId + " has invalid params structure. Expected 1 param after filtering.", 2,
                 executionThreadId);
             return;
         }
@@ -475,15 +477,15 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         double dist = distance.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist;
-        engine.EngineStdOut("move_x objId: "+objectId+" newX: "+to_string(newX), 0, executionThreadId);
+        engine.EngineStdOut("move_x objId: " + objectId + " newX: " + to_string(newX), 0, executionThreadId);
         entity->setX(newX);
     }
     else if (BlockType == "move_y")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
-                "move_y block for object " + objectId + " has invalid params structure. Expected 2 params.", 2,
+                "move_y block for object " + objectId + " has invalid params structure. Expected 1 param after filtering.", 2,
                 executionThreadId);
             return;
         }
@@ -497,7 +499,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         double dist = distance.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newY = entity->getY() + dist;
-        engine.EngineStdOut("move_y objId: "+objectId+" newY: "+to_string(newY), 0, executionThreadId);
+        engine.EngineStdOut("move_y objId: " + objectId + " newY: " + to_string(newY), 0, executionThreadId);
         entity->setY(newY);
     }
     else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") // 이둘 똑같이 동작하는걸 확인함 왜 이걸 따로뒀는지 이해안감
@@ -585,8 +587,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->setX(state.targetX); // 최종 위치로 정확히 이동
                 entity->setY(state.targetY);
                 engine.EngineStdOut("move_xy_time: " + objectId + " Pos: (" +
-                    std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
-                3, executionThreadId);
+                                        std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
+                                    3, executionThreadId);
                 state.isActive = false; // 이동 완료
             }
         }
@@ -601,7 +603,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         double x = valueX.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
-        engine.EngineStdOut("locate_x objId: "+objectId+" newX: "+to_string(x), 3, executionThreadId);
+        engine.EngineStdOut("locate_x objId: " + objectId + " newX: " + to_string(x), 3, executionThreadId);
         entity->setX(x);
     }
     else if (BlockType == "locate_y")
@@ -614,7 +616,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
         double y = valueY.number_val;
-        engine.EngineStdOut("locate_y objId: "+objectId+" newX: "+to_string(y), 3, executionThreadId);
+        engine.EngineStdOut("locate_y objId: " + objectId + " newX: " + to_string(y), 3, executionThreadId);
         entity->setY(y);
     }
     else if (BlockType == "locate_xy")
@@ -633,7 +635,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         // entity는 함수 시작 시 이미 검증되었습니다.
         entity->setX(x);
         entity->setY(y);
-        engine.EngineStdOut("locate_xy objId: "+objectId+" newX: "+to_string(x)+" newY: "+to_string(y), 3, executionThreadId);
+        engine.EngineStdOut("locate_xy objId: " + objectId + " newX: " + to_string(x) + " newY: " + to_string(y), 3, executionThreadId);
     }
     else if (BlockType == "locate")
     {
@@ -769,7 +771,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
 
             entity->setX(newX);
             entity->setY(newY);
-            engine.EngineStdOut("locate_object_time: " + objectId + " moving to"+state.targetObjectId+". Pos: (" + to_string(newX) + ", " + to_string(newY) + ")", 3, executionThreadId);
+            engine.EngineStdOut("locate_object_time: " + objectId + " moving to" + state.targetObjectId + ". Pos: (" + to_string(newX) + ", " + to_string(newY) + ")", 3, executionThreadId);
             if (entity->paint.isPenDown)
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
             if (entity->brush.isPenDown)
@@ -2611,14 +2613,18 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
     {
         // 이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
         // --- DEBUG START ---
-        if (block.paramsJson.IsArray() && !block.paramsJson.Empty()) {
+        if (block.paramsJson.IsArray() && !block.paramsJson.Empty())
+        {
             rapidjson::StringBuffer buffer;
             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
             block.paramsJson[0].Accept(writer);
             engine.EngineStdOut(
                 "DEBUG: change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
-                std::string(buffer.GetString()), 3, executionThreadId);
-        } else {
+                    std::string(buffer.GetString()),
+                3, executionThreadId);
+        }
+        else
+        {
             engine.EngineStdOut(
                 "DEBUG: change_to_some_shape for " + objectId + ": paramsJson is not an array or is empty.", 3, executionThreadId);
         }
@@ -2638,7 +2644,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             // --- DEBUG START ---
             engine.EngineStdOut(
                 "DEBUG: change_to_some_shape for " + objectId + ": imageDropdown.asString() returned: '" + imageDropdown.asString() + "'", 3, executionThreadId);
-             // --- DEBUG END ---
+            // --- DEBUG END ---
             return;
         }
         std::string costumeIdToSet = imageDropdown.asString();
@@ -2652,7 +2658,6 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
         engine.EngineStdOut(
             "DEBUG: change_to_some_shape for " + objectId + ": Attempting to set costume to ID: '" + costumeIdToSet + "'", 3, executionThreadId);
         // --- DEBUG END ---
-
 
         // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
         if (!engine.setEntitySelectedCostume(objectId, costumeIdToSet))
@@ -3127,20 +3132,25 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
     }
     else if (BlockType == "play_bgm")
     {
-        OperandValue soundId = getOperandValue(engine, objectId, block.paramsJson[0]);
+        // EntryJS에서는 'VALUE' 필드 하나만 사용하며, 이것이 get_sounds 블록을 통해 사운드 ID를 가져옵니다.
+        // block.paramsJson[0]이 get_sounds 블록일 것으로 예상합니다.
         OperandValue soundIdOp = getOperandValue(engine, objectId, block.paramsJson[0]);
-        if (soundIdOp.type != OperandValue::Type::STRING)
+        if (soundIdOp.type != OperandValue::Type::STRING) // getOperandValue가 get_sounds를 처리하여 문자열 ID를 반환해야 함
         {
             engine.EngineStdOut(
                 "play_bgm for object " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2, executionThreadId);
-            return;
+            throw ScriptBlockExecutionError(
+                "play_bgm 블록의 사운드 ID 파라미터가 문자열이 아닙니다.",
+                block.id, BlockType, objectId, "Sound ID parameter is not a string. Value: " + soundIdOp.asString());
         }
-        std::string soundIdToPlay = soundIdOp.asString();
+        std::string soundIdToPlay = soundIdOp.asString(); // 실제 사운드 ID
         if (soundIdToPlay.empty())
         {
             engine.EngineStdOut("play_bgm for object " + objectId + ": received an empty sound ID.", 2,
                                 executionThreadId);
-            return;
+            throw ScriptBlockExecutionError(
+                "play_bgm 블록에 빈 사운드 ID가 전달되었습니다. (get_sounds 블록에서 ID를 가져오지 못했을 수 있습니다)",
+                block.id, BlockType, objectId, "Received an empty sound ID.");
         }
 
         // 엔티티(오브젝트) 정보를 가져와서 해당 오브젝트에 등록된 소리인지 확인합니다.
@@ -3171,7 +3181,10 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
             {
                 soundFilePath = string(BASE_ASSETS) + soundToUseAsBgm->fileurl;
             }
-            engine.aeHelper.stopBackgroundMusic();
+            // EntryJS의 forceStopBGM()과 유사하게, 기존 BGM을 확실히 중지합니다.
+            // AudioEngineHelper에 BGM 상태를 추적하고, 필요시 이전 BGM을 중지하는 로직이 있다면
+            // stopBackgroundMusic() 호출이 충분할 수 있습니다.
+            engine.aeHelper.stopBackgroundMusic(); // 기존 BGM 중지
             engine.aeHelper.playBackgroundMusic(soundFilePath.c_str(), false); // 배경음악을 재생하지만 무한반복하는 옵션은 엔트리에 없음.
         }
         else
@@ -3975,8 +3988,8 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
     if (BlockType == "wait_second")
     {
 
-        if (!entity->scriptWaitState.isWaiting || entity->scriptWaitState.waitingForBlockId != block.id)
-        {
+        // Flow 함수는 Entity의 setScriptWait를 호출하여 대기 상태 설정을 요청합니다.
+        // 실제 대기(SDL_Delay)는 Entity::executeScript의 메인 루프에서 처리됩니다.
             if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
             {
                 engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": Missing or invalid time parameter.", 2, executionThreadId);
@@ -3998,17 +4011,10 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                 secondsToWait = 0;
             }
 
-            entity->scriptWaitState.isWaiting = true;
-            entity->scriptWaitState.waitEndTime = SDL_GetTicks() + static_cast<Uint32>(secondsToWait * 1000.0);
-            entity->scriptWaitState.waitingForBlockId = block.id;
-            // entity->scriptWaitState.waitingOnExecutionThreadId = executionThreadId; // If you track this
+            Uint32 waitEndTime = SDL_GetTicks() + static_cast<Uint32>(secondsToWait * 1000.0);
+            entity->setScriptWait(executionThreadId, waitEndTime, block.id); // 엔티티에 대기 상태 설정 요청
 
-            engine.EngineStdOut("Flow 'wait_second': " + objectId + " starting wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
-            // The script executor will see 'isWaiting = true' and will not advance the Program Counter
-            // for this executionThreadId until the time is up (checked in the executor's loop).
-        }
-        // If the wait is already active for this block, this function might be skipped by the executor,
-        // or if called, it does nothing further, letting the executor manage the ongoing wait.
+            engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
     }
     else if (BlockType == "repeat_basic")
     {
@@ -4019,7 +4025,6 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Missing or invalid iteration count parameter.", 2, executionThreadId);
             throw ScriptBlockExecutionError("반복 횟수 파라미터가 부족하거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid iteration count parameter.");
         }
-
         OperandValue iterOp = getOperandValue(engine, objectId, block.paramsJson[0]);
         if (iterOp.type != OperandValue::Type::NUMBER)
         {
@@ -4040,8 +4045,25 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             engine.EngineStdOut("repeat_basic block " + block.id + " for " + objectId + " has no DO statement.", 1, executionThreadId);
             return; // 반복할 내용이 없으면 바로 종료
         }
+
         const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
 
+        // Debugging: Print the content of doScript
+        if (!doScript.blocks.empty()) {
+            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+            for (size_t j = 0; j < doScript.blocks.size(); ++j) {
+                const Block& innerBlock = doScript.blocks[j];
+                rapidjson::StringBuffer buffer;
+                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                // paramsJson이 Null이 아닐 경우에만 Accept 호출
+                if (!innerBlock.paramsJson.IsNull()) {
+                    innerBlock.paramsJson.Accept(writer);
+                }
+                engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+            }
+        } else {
+            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+        }
         engine.EngineStdOut("repeat_basic: " + objectId + " starting synchronous loop for " + std::to_string(iterCount) + " iterations. Block ID: " + block.id, 0, executionThreadId);
 
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
@@ -4049,33 +4071,57 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         {
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId);
         }
-    }else if (BlockType == "repeat_inf")
+    }
+    else if (BlockType == "repeat_inf")
     {
-        //무한반복 이게 맞는듯
+        // 무한반복 이게 맞는듯
+        if (block.statementScripts.empty())
+        {
+            // DO 블록에 해당하는 스크립트 자체가 없는 경우
+            engine.EngineStdOut("DO statement script missing in repeat_inf block. objectId:"+objectId, 1, executionThreadId);
+            return;
+        }
+
         const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
-        if (doScript.blocks.empty()) {
-            SDL_Delay(10000); // 10초 대기
+
+        // Debugging: Print the content of doScript
+        if (!doScript.blocks.empty()) {
+            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+            for (size_t j = 0; j < doScript.blocks.size(); ++j) {
+                const Block& innerBlock = doScript.blocks[j];
+                rapidjson::StringBuffer buffer;
+                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                // paramsJson이 Null이 아닐 경우에만 Accept 호출
+                if (!innerBlock.paramsJson.IsNull()) {
+                    innerBlock.paramsJson.Accept(writer);
+                }
+                engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+            }
+        } else {
+            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+        }
+
+        if (doScript.blocks.empty())
+        {
             engine.EngineStdOut("Warning: repeat_inf for " + objectId + " has an empty DO statement. This will be a very tight loop if not handled carefully.", 1, executionThreadId);
-            std::string errorMsg = "무한 반복 블록 내부에 실행할 블록이 없는것 같습니다, 이는 의도하지 않은 프로그램 정지를 유발할 수 있습니다.";
-            engine.EngineStdOut("Error: repeat_inf for " + objectId + " has an empty DO statement. " + errorMsg, 2, executionThreadId);
-            throw ScriptBlockExecutionError(errorMsg, block.id, BlockType, objectId, "Empty DO statement in repeat_inf block.");
-            // 실행을 중단합니다.
         }
 
         while (true)
         {
             // 매 반복 시작 시 엔진 종료 또는 씬 변경 확인
-            if (engine.m_isShuttingDown.load(std::memory_order_relaxed)) {
-                 engine.EngineStdOut("repeat_inf for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
-                 break; // 루프 종료
+            if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+            {
+                engine.EngineStdOut("repeat_inf for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
+                break; // 루프 종료
             }
 
             std::string currentEngineSceneId = engine.getCurrentSceneId();
-            const ObjectInfo* objInfo = engine.getObjectInfoById(objectId);
+            const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
             bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
 
-            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
-                 engine.EngineStdOut("repeat_inf for " + objectId + " halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
+            {
+                engine.EngineStdOut("repeat_inf for " + objectId + " halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
                 break; // 루프 종료
             }
 
@@ -4083,12 +4129,11 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             // executeBlocksSynchronously 내부에서도 종료/씬 변경을 확인하므로,
             // 만약 해당 함수가 return으로 중단되었다면 이 while 루프도 다음 반복에서 위의 break 조건에 걸릴 것입니다.
         }
-    }else if (BlockType == "repeat_while_true")
-    {
-        //될때까지 반복
     }
-    
-    
+    else if (BlockType == "repeat_while_true")
+    {
+        // 될때까지 반복
+    }
 }
 
 /**
@@ -4121,6 +4166,7 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
         }
 
         std::string messageId = block.paramsJson[0].GetString();
+        engine.EngineStdOut("DEBUG_MSG: Object " + objectId + " (Thread " + executionThreadId + ") is RAISING message: '" + messageId + "'", 3, executionThreadId);
 
         if (messageId.empty() || messageId == "null")
         {
@@ -4184,14 +4230,17 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
 void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks, const std::string &executionThreadId)
 {
     Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
+    engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + std::to_string(blocks.size()), 3, executionThreadId);
 
     for (size_t i = 0; i < blocks.size(); ++i)
     {
+        engine.EngineStdOut("executeBlocksSynchronously: Loop iteration " + std::to_string(i) + " for " + objectId, 3, executionThreadId);
         const Block &block = blocks[i];
         // 엔진 종료 신호 확인
         if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
         {
             engine.EngineStdOut("Synchronous block execution cancelled due to engine shutdown for entity: " + objectId, 1, executionThreadId);
+            engine.EngineStdOut("executeBlocksSynchronously: Shutting down. Exiting loop for " + objectId, 1, executionThreadId);
             return; // Stop execution
         }
         // 씬 변경 확인 (동기 실행 중 씬 변경 시 중단)
@@ -4209,42 +4258,8 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
         if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
         {
             engine.EngineStdOut("Synchronous block execution for entity " + objectId + " (Block: " + block.type + ") halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+            engine.EngineStdOut("executeBlocksSynchronously: Scene mismatch. Exiting loop for " + objectId + ". Entity scene: " + (objInfo ? objInfo->sceneId : "N/A") + ", Engine scene: " + currentEngineSceneId, 1, executionThreadId);
             return;
-        }
-
-        // wait_second 블록 처리 (동기적 대기)
-        if (block.type == "wait_second")
-        {
-            if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
-            {
-                engine.EngineStdOut("Synchronous wait_second for " + objectId + ": Missing or invalid time parameter.", 2, executionThreadId);
-                continue; // Skip this block
-            }
-            OperandValue secondsOp = getOperandValue(engine, objectId, block.paramsJson[0]);
-            if (secondsOp.type != OperandValue::Type::NUMBER)
-            {
-                engine.EngineStdOut("Synchronous wait_second for " + objectId + ": Time parameter is not a number. Value: " + secondsOp.asString(), 2, executionThreadId);
-                continue; // Skip this block
-            }
-            double secondsToWait = secondsOp.asNumber();
-            if (secondsToWait < 0)
-                secondsToWait = 0;
-
-            Uint32 waitEndTime = SDL_GetTicks() + static_cast<Uint32>(secondsToWait * 1000.0);
-            engine.EngineStdOut("Synchronous wait_second: " + objectId + " starting blocking wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
-
-            while (SDL_GetTicks() < waitEndTime)
-            {
-                // 대기 중 엔진 종료 신호 확인
-                if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
-                {
-                    engine.EngineStdOut("Synchronous wait cancelled due to engine shutdown for entity: " + objectId, 1, executionThreadId);
-                    return; // Stop execution
-                }
-                SDL_Delay(1); // 바쁜 대기 방지를 위한 작은 지연
-            }
-            engine.EngineStdOut("Synchronous wait_second: " + objectId + " wait finished. Block ID: " + block.id, 0, executionThreadId);
-            continue; // 다음 블록으로 이동
         }
 
         // 다른 블록 타입 실행
@@ -4253,6 +4268,7 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
         // 여기서는 간단히 카테고리 함수만 호출합니다. 실제로는 더 복잡한 실행기 로직이 필요합니다.
         try
         {
+            engine.EngineStdOut("   Recursive Block "+block.type,3);
             Moving(block.type, engine, objectId, block, executionThreadId);
             Calculator(block.type, engine, objectId, block, executionThreadId);
             Looks(block.type, engine, objectId, block, executionThreadId);
@@ -4260,7 +4276,7 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
             Variable(block.type, engine, objectId, block, executionThreadId);
             Function(block.type, engine, objectId, block, executionThreadId);
             Event(block.type, engine, objectId, block, executionThreadId);
-            Flow(block.type,engine,objectId,block,executionThreadId);//이거 왜뻄
+            Flow(block.type, engine, objectId, block, executionThreadId);
         }
         catch (const ScriptBlockExecutionError &sbee)
         {
@@ -4275,4 +4291,5 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
                 block.id, block.type, objectId, e.what());
         }
     }
+    engine.EngineStdOut("Exit executeBlocksSynchronously for " + objectId + ". Loop " + (blocks.empty() ? "was not entered (empty blocks)." : "completed or exited."), 3, executionThreadId);
 }

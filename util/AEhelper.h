@@ -9,7 +9,6 @@ class AudioEngineHelper
 {
 private:
     SimpleLogger logger;
-    void aeStdOut(const std::string &message) const; // const 멤버 함수로 변경 가능
 
     ma_engine m_engine;
     ma_context m_context;
@@ -32,11 +31,10 @@ private:
 public:
     AudioEngineHelper();
     ~AudioEngineHelper();
-
+    void aeStdOut(const std::string &message) const; // const 멤버 함수로 변경 가능
     // 사운드 미리 로딩
     void preloadSound(const std::string& filePath);
     void clearPreloadedSounds(); // 모든 미리 로딩된 사운드 해제
-
     // 효과음 관련 메서드
     void playSound(const std::string& objectId, const std::string& filePath, bool loop=false, float initialVolume=1.0f);
     void playSoundForDuration(const std::string &objectId, const std::string &filePath, double durationSeconds, bool loop=false, float initialVolume=1.0f);

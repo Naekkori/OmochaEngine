@@ -44,6 +44,81 @@ static string RapidJsonValueToString(const rapidjson::Value &value) {
     return buffer.GetString();
 }
 
+// Anonymous namespace for helper functions local to this file
+namespace {
+
+// Forward declaration for recursive use if ParseBlockDataInternal calls itself for nested statements.
+Block ParseBlockDataInternal(const rapidjson::Value& blockJson, Engine& engine, const std::string& contextForLog);
+
+Block ParseBlockDataInternal(const rapidjson::Value& blockJson, Engine& engine, const std::string& contextForLog) {
+    Block newBlock; // Default constructor initializes paramsJson to kNullType
+
+    // Parse ID
+    newBlock.id = engine.getSafeStringFromJson(blockJson, "id", contextForLog, "", true, false);
+    if (newBlock.id.empty()) {
+        // engine.EngineStdOut("ERROR: Block " + contextForLog + " has missing or empty 'id'. Cannot parse block.", 2); // getSafeStringFromJson logs critical
+        return Block(); // Return an empty/invalid block (its id will be empty)
+    }
+
+    // Parse Type
+    newBlock.type = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + newBlock.id + ")", "", true, false);
+    if (newBlock.type.empty()) {
+        // engine.EngineStdOut("ERROR: Block " + contextForLog + " (id: " + newBlock.id + ") has missing or empty 'type'. Cannot parse block.", 2);
+        return Block(); // Return an empty/invalid block
+    }
+
+    // Parse Params
+    if (blockJson.HasMember("params")) {
+        const rapidjson::Value& paramsVal = blockJson["params"];
+        if (paramsVal.IsArray()) {
+            newBlock.paramsJson.CopyFrom(paramsVal, engine.m_blockParamsAllocatorDoc.GetAllocator());
+        } else {
+            engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type
+                + ") has 'params' but it's not an array. Params will be empty. Value: "
+                + RapidJsonValueToString(paramsVal), 1, ""); // Added empty thread ID
+            newBlock.paramsJson.SetArray(); 
+        }
+    } else {
+        newBlock.paramsJson.SetArray(); 
+    }
+    newBlock.FilterNullsInParamsJsonArray();
+
+    // Parse Statements (Inner Scripts)
+    if (blockJson.HasMember("statements") && blockJson["statements"].IsArray()) {
+        const rapidjson::Value& statementsArray = blockJson["statements"];
+        for (rapidjson::SizeType stmtIdx = 0; stmtIdx < statementsArray.Size(); ++stmtIdx) {
+            const auto& statementStackJson = statementsArray[stmtIdx];
+            if (statementStackJson.IsArray()) {
+                Script innerScript;
+                std::string innerScriptContext = contextForLog + " statement " + std::to_string(stmtIdx);
+                for (rapidjson::SizeType innerBlockIdx = 0; innerBlockIdx < statementStackJson.Size(); ++innerBlockIdx) {
+                    const auto& innerBlockJsonVal = statementStackJson[innerBlockIdx];
+                    if (innerBlockJsonVal.IsObject()) {
+                        Block parsedInnerBlock = ParseBlockDataInternal(innerBlockJsonVal, engine, innerScriptContext + " inner_block " + std::to_string(innerBlockIdx));
+                        if (!parsedInnerBlock.id.empty()) { 
+                            innerScript.blocks.push_back(std::move(parsedInnerBlock));
+                        }
+                    } else {
+                         engine.EngineStdOut("WARN: Inner block in " + innerScriptContext + " at index " + std::to_string(innerBlockIdx)
+                            + " is not an object. Skipping. Content: " + RapidJsonValueToString(innerBlockJsonVal), 1, ""); // Added empty thread ID
+                    }
+                }
+                if (!innerScript.blocks.empty()) {
+                    newBlock.statementScripts.push_back(std::move(innerScript));
+                } else {
+                     engine.EngineStdOut("DEBUG: Inner script " + innerScriptContext + " is empty or all its blocks were invalid.", 3, ""); // Added empty thread ID
+                }
+            } else {
+                 engine.EngineStdOut("WARN: Statement entry in " + contextForLog + " at index " + std::to_string(stmtIdx)
+                    + " is not an array (not a valid script stack). Skipping. Content: " + RapidJsonValueToString(statementStackJson), 1, ""); // Added empty thread ID
+            }
+        }
+    }
+    return newBlock;
+}
+
+} // end anonymous namespace
+
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0),
                    zoomFactor((this->specialConfig.setZoomfactor <= 0.0)
@@ -958,65 +1033,25 @@ bool Engine::loadProject(const string &projectFilePath) {
                                             scriptDocument.Size()) + " for object " + objInfo.name, 0);
 
                                     for (rapidjson::SizeType k = 0; k < scriptStackJson.Size(); ++k) {
-                                        const auto &blockJson = scriptStackJson[k];
+                                        const auto &blockJsonValue = scriptStackJson[k]; // Renamed to avoid conflict
                                         string blockContext =
                                                 "block at index " + to_string(k) + " in script stack " +
                                                 to_string(j + 1) + " for object " + objInfo.name;
 
-                                        if (blockJson.IsObject()) {
-                                            string blockId = getSafeStringFromJson(
-                                                blockJson, "id", blockContext, "", true, false);
-                                            if (blockId.empty()) {
+                                        if (blockJsonValue.IsObject()) {
+                                            // Use the new helper function to parse the block, including its statements
+                                            Block parsedBlock = ParseBlockDataInternal(blockJsonValue, *this, blockContext);
+                                            if (!parsedBlock.id.empty()) { // Check if parsing was successful (id is a good indicator)
+                                                currentScript.blocks.push_back(std::move(parsedBlock));
+                                                // Log for the successfully parsed top-level block
                                                 EngineStdOut(
-                                                    "ERROR: Script " + blockContext +
-                                                    " has missing or empty 'id'. Skipping block.", 2);
-                                                continue;
+                                                    "    Parsed block: id='" + parsedBlock.id + "', type='" + parsedBlock.type + "'",
+                                                    0);
                                             }
-
-                                            string blockType = getSafeStringFromJson(
-                                                blockJson, "type", blockContext + " (id: " + blockId + ")", "", true,
-                                                false);
-                                            if (blockType.empty()) {
-                                                EngineStdOut(
-                                                    "ERROR: Script " + blockContext + " (id: " + blockId +
-                                                    ") has missing or empty 'type'. Skipping block.", 2);
-                                                continue;
-                                            }
-
-                                            Block block;
-                                            block.id = blockId;
-                                            block.type = blockType;
-
-                                            if (blockJson.HasMember("params") && blockJson["params"].IsArray()) {
-                                                block.paramsJson.CopyFrom(
-                                                    blockJson["params"], m_blockParamsAllocatorDoc.GetAllocator());
-                                            } else if (blockJson.HasMember("params")) {
-                                                EngineStdOut(
-                                                    "WARN: Script " + blockContext + " (id: " + blockId + ", type: " +
-                                                    blockType +
-                                                    ") has 'params' but it's not an array. Params will be empty. Value: "
-                                                    + RapidJsonValueToString(blockJson["params"]), 1);
-                                            }
-                                            block.FilterNullsInParamsJsonArray();
-                                            // DEBUG LOG: FilterNullsInParamsJsonArray 호출 후 paramsJson 상태 확인
-                                            if (block.id == "nbjb") {
-                                                // 특정 블록 ID에 대해서만 로그 출력 (디버깅용)
-                                                rapidjson::StringBuffer buffer;
-                                                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                                                block.paramsJson.Accept(writer);
-                                                EngineStdOut(
-                                                    "DEBUG: paramsJson for block " + block.id + " after FilterNulls: " +
-                                                    std::string(buffer.GetString()), 3);
-                                            }
-                                            // END DEBUG LOG
-                                            currentScript.blocks.push_back(block);
-                                            EngineStdOut(
-                                                "    Parsed block: id='" + block.id + "', type='" + block.type + "'",
-                                                0);
                                         } else {
                                             EngineStdOut(
                                                 "WARN: Invalid block structure (not an object) in " + blockContext +
-                                                ". Skipping block. Content: " + RapidJsonValueToString(blockJson), 1);
+                                                ". Skipping block. Content: " + RapidJsonValueToString(blockJsonValue), 1);
                                         }
                                     }
                                     if (!currentScript.blocks.empty()) {
@@ -1214,6 +1249,15 @@ bool Engine::loadProject(const string &projectFilePath) {
                     }
                 } else if (firstBlock.type == "when_message_cast") {
                     if (script.blocks.size() > 1) {
+                          // Log details of what's being checked and extracted
+                          EngineStdOut("DEBUG_MSG: Processing when_message_cast for " + objectId + ". First block ID: " + firstBlock.id, 3, "");
+                          bool isArr = firstBlock.paramsJson.IsArray();
+                          int arrSize = isArr ? static_cast<int>(firstBlock.paramsJson.Size()) : -1; // SizeType to int
+                          bool firstIsStr = (isArr && arrSize >= 1) ? firstBlock.paramsJson[0].IsString() : false;
+                          EngineStdOut("DEBUG_MSG:   paramsJson.IsArray(): " + std::string(isArr ? "true" : "false") +
+                                          ", Size: " + std::to_string(arrSize) +
+                                          ", [0].IsString(): " + std::string(firstIsStr ? "true" : "false"), 3, "");
+  
                         string messageIdToReceive;
                         bool messageParamFound = false;
 
@@ -1222,6 +1266,7 @@ bool Engine::loadProject(const string &projectFilePath) {
                             firstBlock.paramsJson[0].IsString()) // Check size >= 1 and access index 0
                         {
                             messageIdToReceive = firstBlock.paramsJson[0].GetString(); // Get signal ID from index 0
+                            EngineStdOut("DEBUG_MSG:   Extracted messageIdToReceive: '" + messageIdToReceive + "'", 3, "");
                             messageParamFound = true;
                         }
 
@@ -4390,17 +4435,10 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                     bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                     if (isInCurrentScene || isGlobal) {
-                        if (listeningEntity->isVisible()) {
-                            // Only run if visible (optional, based on desired logic)
                             EngineStdOut(
                                 "Dispatching message-received script for object: " + listeningObjectId + " (Message: '"
                                 + messageId + "')", 0, executionThreadId);
                             this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId);
-                        } else {
-                            EngineStdOut(
-                                "Script for message '" + messageId + "' on object " + listeningObjectId +
-                                " not run because object is hidden.", 1, executionThreadId);
-                        }
                     } else {
                         EngineStdOut(
                             "Script for message '" + messageId + "' on object " + listeningObjectId +

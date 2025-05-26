@@ -15,10 +15,14 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
     ma_context_config contextConfig;
     ma_result result;
 
-    // Initialize the context
+    // Initialize the context, attempting to use SDL backend
     contextConfig = ma_context_config_init();
-    // 특정 백엔드를 사용하지 않을 경우 nullptr과 0을 전달
-    result = ma_context_init(nullptr, 0, &contextConfig, &m_context);
+    ma_backend Backend[] = {
+        ma_backend_dsound,
+        ma_backend_wasapi,
+    };
+    aeStdOut("Attempting to initialize audio context with backend...");
+    result = ma_context_init(Backend, ma_countof(Backend), &contextConfig, &m_context);
     if (result != MA_SUCCESS)
     {
         throw std::runtime_error("Failed to initialize audio context");
@@ -26,11 +30,37 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
     m_contextInitialized = true;
     aeStdOut("Audio context initialized successfully");
 
+    // 장치 열거 및 선택
+    ma_device_info* pPlaybackDeviceInfos = nullptr;
+    ma_uint32 playbackDeviceCount = 0;
+    ma_device_info* pCaptureDeviceInfos = nullptr; // 캡처 장치는 이 예제에서 사용하지 않음
+    ma_uint32 captureDeviceCount = 0;
+    const ma_device_id* pSelectedPlaybackDeviceID = nullptr; // 선택된 재생 장치의 ID를 가리키는 포인터
+
+    result = ma_context_get_devices(&m_context, &pPlaybackDeviceInfos, &playbackDeviceCount, &pCaptureDeviceInfos, &captureDeviceCount);
+    if (result != MA_SUCCESS) {
+        aeStdOut("Warning: Failed to enumerate audio devices. Will attempt to use default device.");
+        // pSelectedPlaybackDeviceID는 nullptr로 유지되어 miniaudio가 기본 장치를 사용하도록 합니다.
+    } else {
+        if (playbackDeviceCount > 0) {
+            aeStdOut("Available playback devices:");
+            for (ma_uint32 i = 0; i < playbackDeviceCount; ++i) {
+                aeStdOut("  " + std::to_string(i) + ": " + pPlaybackDeviceInfos[i].name + (pPlaybackDeviceInfos[i].isDefault ? " (Default)" : ""));
+            }
+            pSelectedPlaybackDeviceID = &pPlaybackDeviceInfos[0].id;
+            aeStdOut("Using selected device: " + std::string(pPlaybackDeviceInfos[0].name));
+        } else {
+            aeStdOut("No playback devices found. Will attempt to use default device.");
+            // pSelectedPlaybackDeviceID는 nullptr로 유지됩니다.
+        }
+    }
+
     // Initialize the device
     deviceConfig = ma_device_config_init(ma_device_type_playback);
     deviceConfig.playback.format = ma_format_f32;
     deviceConfig.playback.channels = 2;
     deviceConfig.sampleRate = 44100;
+    deviceConfig.playback.pDeviceID = pSelectedPlaybackDeviceID; // 선택된 장치 ID 사용
 
     result = ma_device_init(&m_context, &deviceConfig, &m_device);
     if (result != MA_SUCCESS)
@@ -41,12 +71,11 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
     }
     m_deviceInitialized = true;
     aeStdOut("Audio device initialized successfully");
-
+    ma_device_start(&m_device); // 디바이스 시작
     // Initialize the engine
     ma_engine_config engineConfig;
     engineConfig = ma_engine_config_init();
     engineConfig.pDevice = &m_device; // 엔진에 디바이스 연결
-
     result = ma_engine_init(&engineConfig, &m_engine);
     if (result != MA_SUCCESS)
     {
@@ -58,6 +87,7 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
     }
     m_engineInitialized = true;
     aeStdOut("Audio engine initialized successfully");
+    ma_engine_start(&m_engine);
 }
 
 AudioEngineHelper::~AudioEngineHelper()
@@ -278,12 +308,33 @@ void AudioEngineHelper::playSound(const std::string &objectId, const std::string
     auto it = m_activeSounds.find(objectId);
     if (it != m_activeSounds.end())
     {
-        aeStdOut("Stopping and uninitializing existing sound for object: " + objectId);
-        uninitializeSound(it->second); // it->second는 ma_sound*
-        delete it->second;             // 이전 사운드 객체 메모리 해제
-        m_activeSounds.erase(it);      // 맵에서 이전 항목 제거
-    }
+        ma_sound* pOldSound = it->second;
+        // Removed problematic path logging. The objectId is sufficient for identification.
+        aeStdOut("Found existing sound for object: " + objectId + ". Attempting to stop it.");
 
+        if (ma_sound_is_playing(pOldSound) == MA_TRUE) {
+            aeStdOut("Old sound for " + objectId + " IS PLAYING before stop command.");
+        } else {
+            aeStdOut("Old sound for " + objectId + " is NOT PLAYING before stop command. At end: " + std::string(ma_sound_at_end(pOldSound) ? "true" : "false"));
+        }
+
+        ma_result stop_result = ma_sound_stop(pOldSound); // Stop first
+        if (stop_result != MA_SUCCESS) {
+            aeStdOut("WARNING: ma_sound_stop() failed for " + objectId + " with error: " + ma_result_description(stop_result));
+        }
+
+        if (ma_sound_is_playing(pOldSound) == MA_TRUE) { // Check immediately after stop
+            aeStdOut("WARNING: Old sound for " + objectId + " STILL reported as PLAYING after ma_sound_stop(). At end: " + std::string(ma_sound_at_end(pOldSound) ? "true" : "false"));
+        } else {
+            aeStdOut("Old sound for " + objectId + " successfully stopped (is_playing is false after stop command).");
+        }
+        
+        aeStdOut("Uninitializing and deleting old sound for object: " + objectId);
+        uninitializeSound(pOldSound); // Calls ma_sound_uninit
+        delete pOldSound;             // Then delete the ma_sound structure
+        m_activeSounds.erase(it);     // Finally, remove from map
+        aeStdOut("Old sound for " + objectId + " fully cleaned up from m_activeSounds.");
+    }
     ma_sound *pSoundInstance = new (std::nothrow) ma_sound();
     if (!pSoundInstance)
     {
@@ -291,10 +342,10 @@ void AudioEngineHelper::playSound(const std::string &objectId, const std::string
         return;
     }
 
-    ma_result result;
+    ma_result result = MA_ERROR; // Initialize to a non-success state
 
     auto cache_it = m_decodedSoundsCache.find(filePath);
-    if (cache_it != m_decodedSoundsCache.end())
+    if (cache_it != m_decodedSoundsCache.end()) // Check if found in cache
     {
         // 캐시에서 발견됨, 복사하여 사용
         // cache_it->second는 ma_sound*
@@ -306,10 +357,11 @@ void AudioEngineHelper::playSound(const std::string &objectId, const std::string
         else
         {
             aeStdOut("Failed to copy sound from cache: " + filePath + ". Error: " + ma_result_description(result) + ". Loading from file instead.");
-            // 복사 실패 시 파일에서 직접 로드
+            // result is already non-MA_SUCCESS, so it will fall through to load from file below
         }
     }
 
+    // If not found in cache (result is still MA_ERROR) or if cache copy failed (result is non-MA_SUCCESS)
     if (result != MA_SUCCESS)
     { // 캐시에 없거나 복사 실패 시 파일에서 직접 로드
         // MA_SOUND_FLAG_DECODE: 미리 디코딩하여 메모리에 로드 (짧은 효과음에 적합)
@@ -326,7 +378,17 @@ void AudioEngineHelper::playSound(const std::string &objectId, const std::string
     ma_sound_set_looping(pSoundInstance, loop ? MA_TRUE : MA_FALSE);
     ma_sound_set_volume(pSoundInstance, initialVolume);
     ma_sound_set_pitch(pSoundInstance, m_globalPlaybackSpeed); // 전역 재생 속도 적용
+
+    float current_engine_volume_debug = ma_engine_get_volume(&m_engine);
+    aeStdOut("Sound '" + filePath + "' for object '" + objectId + "' PRE-START details: EngineVol=" + std::to_string(current_engine_volume_debug) +
+             ", InstanceVol=" + std::to_string(initialVolume) + // initialVolume is what was set by ma_sound_set_volume
+             ", InstancePitch=" + std::to_string(m_globalPlaybackSpeed)); // m_globalPlaybackSpeed is what was set by ma_sound_set_pitch
+
     ma_sound_start(pSoundInstance);
+    // Add a post-start check
+    if (ma_sound_is_playing(pSoundInstance) == MA_FALSE) {
+        aeStdOut("WARNING: Sound '" + filePath + "' for object '" + objectId + "' reported as NOT PLAYING immediately after ma_sound_start. At end: " + (ma_sound_at_end(pSoundInstance) ? "true" : "false"));
+    }
 
     m_activeSounds[objectId] = pSoundInstance; // 맵에 포인터 저장
     aeStdOut("Sound started: " + filePath + " for object: " + objectId);
@@ -356,10 +418,10 @@ void AudioEngineHelper::playSoundForDuration(const std::string &objectId, const 
         return;
     }
 
-    ma_result result;
+    ma_result result = MA_ERROR; // Initialize to a non-success state
 
     auto cache_it = m_decodedSoundsCache.find(filePath);
-    if (cache_it != m_decodedSoundsCache.end())
+    if (cache_it != m_decodedSoundsCache.end()) // Check if found in cache
     {
         result = ma_sound_init_copy(&m_engine, cache_it->second, 0, nullptr, pSoundInstance);
         if (result == MA_SUCCESS)
@@ -372,7 +434,8 @@ void AudioEngineHelper::playSoundForDuration(const std::string &objectId, const 
         }
     }
 
-    if (result != MA_SUCCESS)
+    // If not found in cache (result is still MA_ERROR) or if cache copy failed (result is non-MA_SUCCESS)
+    if (result != MA_SUCCESS) 
     {
         result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, pSoundInstance);
         if (result != MA_SUCCESS)
@@ -424,10 +487,10 @@ void AudioEngineHelper::playSoundFromTo(const std::string &objectId, const std::
         return;
     }
 
-    ma_result result;
+    ma_result result = MA_ERROR; // Initialize to a non-success state
 
     auto cache_it = m_decodedSoundsCache.find(filePath);
-    if (cache_it != m_decodedSoundsCache.end())
+    if (cache_it != m_decodedSoundsCache.end()) // Check if found in cache
     {
         result = ma_sound_init_copy(&m_engine, cache_it->second, 0, nullptr, pSoundInstance);
         if (result == MA_SUCCESS)
@@ -440,7 +503,8 @@ void AudioEngineHelper::playSoundFromTo(const std::string &objectId, const std::
         }
     }
 
-    if (result != MA_SUCCESS)
+    // If not found in cache (result is still MA_ERROR) or if cache copy failed (result is non-MA_SUCCESS)
+    if (result != MA_SUCCESS) 
     {
         result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_DECODE, nullptr, nullptr, pSoundInstance);
         if (result != MA_SUCCESS)

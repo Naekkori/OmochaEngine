@@ -208,15 +208,6 @@ private:
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
     static const float LIST_RESIZE_HANDLE_SIZE; // 리스트 리사이즈 핸들 크기
-    static const float MIN_LIST_WIDTH;          // 리스트 최소 너비
-    static const float MIN_LIST_HEIGHT;         // 리스트 최소 높이
-    int mapEntryKeyToDxLibKey(const string &entryKey);
-    string getSafeStringFromJson(const rapidjson::Value &parentValue,
-                                 const string &fieldName,
-                                 const string &contextDescription,
-                                 const string &defaultValue,
-                                 bool isCritical,
-                                 bool allowEmpty);
 
     SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
 
@@ -224,6 +215,14 @@ private:
 
 public:
     // --- Engine Special Configuration ---
+    static const float MIN_LIST_WIDTH;          // 리스트 최소 너비
+    static const float MIN_LIST_HEIGHT;         // 리스트 최소 높이
+    string getSafeStringFromJson(const rapidjson::Value &parentValue,
+                                 const string &fieldName,
+                                 const string &contextDescription,
+                                 const string &defaultValue,
+                                 bool isCritical,
+                                 bool allowEmpty);
     struct SPECIAL_ENGINE_CONFIG
     {
         string BRAND_NAME = "";
