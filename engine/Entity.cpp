@@ -203,9 +203,9 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Function(block.type, *pEngineInstance, this->id, block, executionThreadId); // sceneIdAtDispatch는 Function 내부에서 사용되지 않음
             Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Flow(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch);
             // 여기서 scriptWaitState.isWaiting을 확인하고, true이고 방금 실행한 블록(block.id) 때문에 설정된 것이라면
             // 실제로 SDL_Delay 등을 사용해 기다려야 합니다.
 

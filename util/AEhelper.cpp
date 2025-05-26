@@ -88,6 +88,7 @@ AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackS
     m_engineInitialized = true;
     aeStdOut("Audio engine initialized successfully");
     ma_engine_start(&m_engine);
+    setGlobalVolume(1.0f);
 }
 
 AudioEngineHelper::~AudioEngineHelper()

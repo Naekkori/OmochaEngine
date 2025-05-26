@@ -40,8 +40,7 @@ struct OperandValue
 };
 
 // 블록 처리 함수 선언
-OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField);
-OperandValue processMathematicalBlock(Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
+OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField, const std::string& executionThreadId);
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
@@ -49,9 +48,8 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
 void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
-void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-    const std::string &executionThreadId);
-void executeBlocksSynchronously(Engine& engine, const std::string& objectId, const std::vector<Block>& blocks, const std::string& executionThreadId);
+void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string &executionThreadId, const std::string& sceneIdAtDispatch);
+void executeBlocksSynchronously(Engine& engine, const std::string& objectId, const std::vector<Block>& blocks, const std::string& executionThreadId, const std::string& sceneIdAtDispatch);
 // 스크립트를 실행하는 함수 선언 (Entity의 멤버 함수로 이동 예정이므로 주석 처리 또는 삭제)
 // void executeScript(Engine& engine, const std::string& objectId, const Script* script);
 #endif // OMOCHA_BLOCK_EXECUTOR_H

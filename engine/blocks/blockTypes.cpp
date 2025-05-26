@@ -37,7 +37,7 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"distance_something", BlockTypeEnum::DISTANCE_SOMETHING},
         {"length_of_string", BlockTypeEnum::LENGTH_OF_STRING},
         {"reverse_of_string", BlockTypeEnum::REVERSE_OF_STRING},
-        {"combie_something", BlockTypeEnum::COMBINE_SOMETHING}, // Assuming "combine"
+        {"combine_something", BlockTypeEnum::COMBINE_SOMETHING},
         {"char_at", BlockTypeEnum::CHAR_AT},
         {"substring", BlockTypeEnum::SUBSTRING},
         {"count_match_string", BlockTypeEnum::COUNT_MATCH_STRING},
