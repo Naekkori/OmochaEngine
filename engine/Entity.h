@@ -13,7 +13,6 @@
 class Engine;
 struct Script; // Forward declaration for Script
 class Block;   // Forward declaration for Block
-
 // 사용자 정의 예외: 스크립트 블록 실행 중 발생하는 오류를 위한 클래스
 class ScriptBlockExecutionError : public std::runtime_error
 {
@@ -56,24 +55,27 @@ class Entity
 public:
     // 스크립트 대기 유형 정의
     enum class WaitType
-    { // 또는 그냥 enum WaitType
-        NONE,
-        EXPLICIT_WAIT_SECOND,
-        BLOCK_INTERNAL,
-        TEXT_INPUT
-        // 필요한 다른 대기 유형 추가
+    {
+        NONE,                 // 대기 상태 아님
+        EXPLICIT_WAIT_SECOND, // 'wait_second' 블록에 의한 명시적 시간 대기
+        BLOCK_INTERNAL,       // 'move_xy_time' 등 시간 소요 블록 내부의 프레임 간 대기
+        TEXT_INPUT,           // 'ask_and_wait' 블록에 의한 사용자 입력 대기
+        // 필요에 따라 다른 대기 유형 추가 가능
     };
 
-    // 스크립트 스레드별 상태를 저장하는 구조체
+    // 각 스크립트 스레드의 상태를 관리하는 구조체
     struct ScriptThreadState
     {
+        // ... 기존 스레드 상태 변수들 (예: currentBlockIndex, scriptStack 등) ...
         bool isWaiting = false;
         Uint32 waitEndTime = 0;
-        std::string blockIdForWait = "";
-        WaitType currentWaitType = WaitType::NONE; // enum class WaitType 사용 시 Entity::WaitType::NONE으로 초기화
-        int resumeAtBlockIndex = -1;
-        // ... 기타 필요한 상태 변수 ...
+        std::string blockIdForWait = "";           // 어떤 블록에 의해 대기가 시작되었는지 식별
+        WaitType currentWaitType = WaitType::NONE; // 현재 대기 유형
+        int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
+
+        ScriptThreadState() : isWaiting(false), waitEndTime(0), currentWaitType(WaitType::NONE), resumeAtBlockIndex(-1) {}
     };
+    std::map<std::string, ScriptThreadState> scriptThreadStates;
     enum class RotationMethod
     {
         NONE,       // 회전 없음
@@ -97,33 +99,50 @@ public:
     struct TimedRotationState
     {
         bool isActive = false;
-        double totalFrames = 0;
-        double remainingFrames = 0;
-        double dAngle = 0.0; // Delta angle per frame
+        float totalDurationSeconds = 0.0f; // 총 회전 시간 (초)
+        float elapsedSeconds = 0.0f;       // 경과 시간 (초)
+        double totalAngleToRotate = 0.0;   // 총 회전해야 할 각도
+        double totalFrames = 0.0;          // 추가: 총 프레임 수
+        double remainingFrames = 0.0;      // 추가: 남은 프레임 수
+        double dAngle = 0.0;               // 추가: 프레임당 회전 각도
+        std::string blockIdForWait = ""; // 이 블록의 ID 저장
     };
-    struct TimedMoveToObjectState
-    {
-        bool isActive = false;
-        std::string targetObjectId; // 이동 목표 Entity ID
-        double totalFrames = 0;
-        double remainingFrames = 0;
-        // 시작 위치는 매 프레임 계산하므로 저장하지 않음
-        // 목표 위치는 매 프레임 얻어오므로 저장하지 않음
-        // (이전 TimedMoveState와 달리 대상이 동적으로 움직일 수 있음)
-    };
-
     // move_xy_time 블록과 같이 시간이 걸리는 이동을 위한 상태 저장 구조체
     struct TimedMoveState
     {
-        bool isActive = false;        // 현재 이 timed move가 활성 상태인지 여부
-        double targetX = 0.0;         // 목표 X 좌표
-        double targetY = 0.0;         // 목표 Y 좌표
-        double totalFrames = 0.0;     // 총 이동에 필요한 프레임 수
-        double remainingFrames = 0.0; // 남은 프레임 수
-        // 초기 위치 (dX, dY 계산 시 매 프레임 현재 위치 대신 사용 가능) - 선택 사항
-        // double startX = 0.0;
-        // double startY = 0.0;
+        bool isActive = false;               // 현재 이 timed move가 활성 상태인지 여부
+        double startX = 0.0, startY = 0.0;   // 시작 위치
+        double targetX = 0.0, targetY = 0.0; // 목표 위치
+        float totalDurationSeconds = 0.0f;   // 총 이동 시간 (초)
+        float elapsedSeconds = 0.0f;         // 경과 시간 (초)
+        double totalFrames = 0.0;            // 추가: 총 프레임 수
+        double remainingFrames = 0.0;        // 추가: 남은 프레임 수
+        std::string blockIdForWait = ""; // 이 블록의 ID 저장
     };
+    // locate_object_time 블록을 위한 상태 저장 구조체
+    struct TimedMoveToObjectState
+    {
+        bool isActive = false;
+        std::string targetObjectId;          // 이동 목표 Entity ID
+        float totalDurationSeconds = 0.0f;   // 총 이동 시간 (초)
+        float elapsedSeconds = 0.0f;         // 경과 시간 (초)
+        double startX = 0.0, startY = 0.0;   // 이 이동 시작 시점의 현재 엔티티 위치
+                                             // 목표 엔티티의 위치는 매 프레임 가져옴
+        double totalFrames = 0.0;             // 추가: 총 프레임 수
+        double remainingFrames = 0.0;         // 추가: 남은 프레임 수
+        std::string blockIdForWait = "";     // 이 블록의 ID 저장
+    };
+
+    // 스크립트 대기 설정 함수 (시그니처 변경)
+    void setScriptWait(const std::string &executionThreadId, Uint32 endTime, const std::string &blockId, WaitType type);
+
+    // 스크립트 대기 상태 확인 함수 (신규)
+    bool isScriptWaiting(const std::string &executionThreadId) const;
+
+    // (선택적) 대기를 유발한 블록 ID를 가져오는 함수
+    std::string getWaitingBlockId(const std::string &executionThreadId) const;
+    WaitType getCurrentWaitType(const std::string &executionThreadId) const;
+
     struct DialogState
     {
         bool isActive = false;
@@ -136,8 +155,9 @@ public:
         bool needsRedraw = true;
 
         Uint64 startTimeMs = 0;
-        Uint64 durationMs = 0;
-
+        // Uint64 durationMs = 0; // Changed to totalDurationMs and remainingDurationMs
+        Uint64 totalDurationMs = 0;    // The original duration set for the dialog
+        float remainingDurationMs = 0.0f; // Countdown timer, in milliseconds
         DialogState() = default;
 
         ~DialogState()
@@ -195,18 +215,16 @@ private:
     double m_effectHue;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
     CollisionSide lastCollisionSide = CollisionSide::NONE;
-    mutable std::mutex m_stateMutex;                             // Entity 상태 보호를 위한 뮤텍스
-    std::map<std::string, ScriptThreadState> scriptThreadStates; // 실행 스레드 ID별 스크립트 상태
-public:                                                          // Made brush and paint public for now for easier access from blocks
-    Engine *pEngineInstance;                                     // Store a pointer to the engine instance
+    mutable std::mutex m_stateMutex;
+
+public:                      // Made brush and paint public for now for easier access from blocks
+    Engine *pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
 
     TimedMoveState timedMoveState; // timed move 상태 변수 추가
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
     PenState paint;
-    DialogState m_currentDialog;
-
 public:
     Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
            double initial_x, double initial_y, double initial_regX, double initial_regY,
@@ -214,24 +232,21 @@ public:
            double initial_width, double initial_height, bool initial_visible, RotationMethod rotationMethod);
 
     ~Entity();
+    DialogState m_currentDialog;
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
     // 스크립트 실행 함수 (sceneIdAtDispatch 추가)
     // Thread-safe methods to manage script wait states
-    // In Entity.h, inside the Entity class public (or relevant access specifier) section:
-    void setScriptWait(const std::string &executionThreadId, Uint32 endTime, const std::string &blockId, WaitType type);
-    bool isScriptWaiting(const std::string& executionThreadId) const;
-    std::string getWaitingBlockId(const std::string& executionThreadId) const;
-    WaitType getCurrentWaitType(const std::string& executionThreadId) const; // 반환 타입도 Entity::WaitType
 private: // performActiveWait is an internal helper
     void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
-
+    
 public:
-    void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch);
+    void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime);
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();
-    void updateDialog(Uint64 currentTimeMs);
+    void update(float deltaTime);
+    void updateDialog(float deltaTime); // Changed from Uint64 currentTimeMs
     bool hasActiveDialog() const;
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;
@@ -275,3 +290,6 @@ public:
     void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds);
     void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to);
 };
+
+// Declare BlockTypeEnumToString as a free function
+std::string BlockTypeEnumToString(Entity::WaitType type);

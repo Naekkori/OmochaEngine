@@ -7,8 +7,6 @@
 #include "Engine.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
-// Forward declaration for the static helper function
-static std::string BlockTypeEnumToString(Entity::WaitType type);
 Entity::PenState::PenState(Engine *enginePtr)
     : pEngine(enginePtr),
       stop(false), // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
@@ -53,8 +51,9 @@ void Entity::DialogState::clear()
         textTexture = nullptr;
     }
     startTimeMs = 0;
-    durationMs = 0;
-    needsRedraw = true;
+    // durationMs = 0; // Old member
+    totalDurationMs = 0;     // Clear total duration
+    remainingDurationMs = 0.0f; // Clear remaining duration    needsRedraw = true;
     // bubbleScreenRect and tailVertices don't need explicit clearing here,
     // they are recalculated when the dialog becomes active.
 }
@@ -62,14 +61,14 @@ void Entity::DialogState::clear()
 Entity::Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
                double initial_x, double initial_y, double initial_regX, double initial_regY,
                double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
-               double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod)
+               double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod) // timedMoveState 추가
     : pEngineInstance(engine), id(entityId), name(entityName),
       x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
       scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
       width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
       brush(engine), paint(engine), timedMoveObjState(), timedRotationState(),
       m_effectBrightness(0.0), // 0: 원본 밝기
-      m_effectAlpha(1.0),      // 1.0: 완전 불투명
+      m_effectAlpha(1.0),      // 1.0: 완전 불투명,
       m_effectHue(0.0)         // 0: 색조 변경 없음
 {                              // Initialize PenState members
 }
@@ -78,13 +77,13 @@ Entity::~Entity()
 {
 }
 
-void Entity::setScriptWait(const std::string& executionThreadId, Uint32 endTime, const std::string& blockId, Entity::WaitType type) {
+void Entity::setScriptWait(const std::string& executionThreadId, Uint32 endTime, const std::string& blockId, WaitType type) {
     std::lock_guard<std::mutex> lock(m_stateMutex);
     auto& threadState = scriptThreadStates[executionThreadId]; // Get or create
     threadState.isWaiting = true;
     threadState.waitEndTime = endTime;
     threadState.blockIdForWait = blockId;
-    threadState.currentWaitType = type; // type is now Entity::WaitType
+    threadState.currentWaitType = type;
 }
 
 bool Entity::isScriptWaiting(const std::string& executionThreadId) const {
@@ -109,7 +108,7 @@ void Entity::performActiveWait(const std::string& executionThreadId, const std::
                 it_cleanup->second.isWaiting = false;
                 it_cleanup->second.waitEndTime = 0;
                 it_cleanup->second.blockIdForWait = "";
-                it_cleanup->second.currentWaitType = Entity::WaitType::NONE;
+                it_cleanup->second.currentWaitType = WaitType::NONE;
             }
             return; 
         }
@@ -130,7 +129,7 @@ void Entity::performActiveWait(const std::string& executionThreadId, const std::
                 it_cleanup->second.isWaiting = false;
                 it_cleanup->second.waitEndTime = 0;
                 it_cleanup->second.blockIdForWait = "";
-                it_cleanup->second.currentWaitType = Entity::WaitType::NONE;
+                it_cleanup->second.currentWaitType = WaitType::NONE;
             }
             return; // Exit wait
         }
@@ -157,14 +156,14 @@ void Entity::performActiveWait(const std::string& executionThreadId, const std::
         it_cleanup->second.isWaiting = false;
         it_cleanup->second.waitEndTime = 0;
         it_cleanup->second.blockIdForWait = "";
-        it_cleanup->second.currentWaitType = Entity::WaitType::NONE;
+        it_cleanup->second.currentWaitType = WaitType::NONE;
     }
 }
 
 // OperandValue 구조체 및 블록 처리 함수들은 BlockExecutor.h에 선언되어 있고,
 // BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
 
-void Entity::executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch)
+void Entity::executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime)
 {
     if (!pEngineInstance)
     {
@@ -182,7 +181,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
     // BLOCK_INTERNAL 대기에서 재개하는 경우, isWaiting을 false로 설정하여 해당 블록이 다시 실행될 수 있도록 함
     // 이 블록이 여전히 시간이 필요하면 다시 BLOCK_INTERNAL 대기를 설정할 것임.
-    if (threadState.isWaiting && threadState.currentWaitType == Entity::WaitType::BLOCK_INTERNAL) {
+    if (threadState.isWaiting && threadState.currentWaitType == WaitType::BLOCK_INTERNAL) {
         bool canClearWait = true;
         if (threadState.resumeAtBlockIndex >= 1 && threadState.resumeAtBlockIndex < scriptPtr->blocks.size()) {
             if (threadState.blockIdForWait != scriptPtr->blocks[threadState.resumeAtBlockIndex].id) {
@@ -193,7 +192,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         }
         if (canClearWait) {
             threadState.isWaiting = false;
-            // threadState.currentWaitType = Entity::WaitType::NONE; // BLOCK_INTERNAL 대기 해제 시 NONE으로 설정 고려
+            // threadState.currentWaitType = WaitType::NONE; // BLOCK_INTERNAL 대기 해제 시 NONE으로 설정 고려
                                                       // 또는 대기를 설정한 블록이 완료될 때 명시적으로 NONE으로 설정
         }
         // blockIdForWait는 유지하여 재개하는 블록이 자신인지 확인할 수 있도록 함
@@ -234,14 +233,14 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         
         try
         {
-            Moving(block.type, *pEngineInstance, this->id, block, executionThreadId);
+            Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
             Calculator(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch);
+            Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         }
         catch (const ScriptBlockExecutionError &sbee) { throw; }
         catch (const std::exception &e) {
@@ -256,41 +255,25 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             auto& currentThreadState = scriptThreadStates[executionThreadId]; 
 
             if (currentThreadState.isWaiting) {
-                if (currentThreadState.currentWaitType == Entity::WaitType::EXPLICIT_WAIT_SECOND) {
-                    // EXPLICIT_WAIT_SECOND는 performActiveWait에서 처리.
-                    // performActiveWait는 블로킹 호출이므로, 여기서 추가적인 return은 필요 없음.
-                    // 단, performActiveWait가 호출된 후에는 이 루프의 다음 반복으로 가야 함.
-                    // performActiveWait가 끝나면 isWaiting이 false로 설정되어야 함.
-                    // (performActiveWait 내부 로직에 따라 다름)
-                    // 여기서는 performActiveWait가 끝나면 다음 블록으로 진행한다고 가정.
-                    // 만약 performActiveWait가 스레드를 실제로 재우고 즉시 반환한다면, 여기서 return 필요.
-                    // 현재 performActiveWait는 while 루프로 블로킹하므로, 끝나면 isWaiting이 false가 될 것임.
-                    // 따라서, EXPLICIT_WAIT_SECOND의 경우, performActiveWait 호출 후 이 루프는 계속됨.
-                    // (주의: performActiveWait는 m_stateMutex를 잠그지 않은 상태에서 호출되어야 함)
-                    
-                    // performActiveWait를 호출하기 위해 뮤텍스 해제
-                    std::string waitedBlockId_local = currentThreadState.blockIdForWait;
-                    Uint32 waitEndTime_local = currentThreadState.waitEndTime;
-                    
-                    lock.unlock(); // performActiveWait 호출 전에 뮤텍스 해제
-                    performActiveWait(executionThreadId, waitedBlockId_local, waitEndTime_local, pEngineInstance, sceneIdAtDispatch);
-                    lock.lock(); // performActiveWait 후 다시 뮤텍스 잠금
+                // A block handler (Moving, Flow, Variable) has just set the wait state.
+                // We need to pause the script execution loop until the wait condition is met.
+                // For BLOCK_INTERNAL, this means pausing until the next frame.
+                // For EXPLICIT_WAIT_SECOND and TEXT_INPUT, the handler function itself
+                // (or a function it calls, like Engine::activateTextInput or performActiveWait)
+                // is responsible for blocking the thread.
+                // If the handler *didn't* block (e.g., BLOCK_INTERNAL), we set resume index and return.
+                // If the handler *did* block (e.g., EXPLICIT_WAIT_SECOND, TEXT_INPUT),
+                // then when we reach this point, isWaiting should ideally be false already
+                // because the blocking call completed.
+                // However, if the blocking call was interrupted (e.g., scene change during wait_second),
+                // isWaiting might still be true. In that case, we should also pause/return.
 
-                    // performActiveWait가 씬 변경 등으로 중단되어 여전히 isWaiting일 수 있음
-                    if (scriptThreadStates[executionThreadId].isWaiting) {
-                        scriptThreadStates[executionThreadId].resumeAtBlockIndex = i;
-                        // blockIdForWait는 이미 설정되어 있을 것임
-                        shouldReturnFromScript = true;
-                    }
-                    // 대기가 정상 종료되었다면 isWaiting은 false가 되고 루프는 다음 블록으로 진행
-
-                } else if (currentThreadState.currentWaitType == Entity::WaitType::BLOCK_INTERNAL) {
-                    // BLOCK_INTERNAL 대기가 설정됨. 현재 블록 인덱스 저장 후 즉시 반환.
+                // In all cases where isWaiting is true *after* a block handler returns,
+                // we should pause the script execution loop at the current block.
+                // The thread will resume in the next game loop tick (or after the wait expires).
                     currentThreadState.resumeAtBlockIndex = i; // 현재 실행 중인 블록 인덱스 'i'를 저장
                     // blockIdForWait는 setScriptWait에서 이미 설정됨.
                     pEngineInstance->EngineStdOut("Entity::executeScript: BLOCK_INTERNAL wait set by " + block.id + " for " + id + ". Pausing script at this block (index " + std::to_string(i) + ").", 1, executionThreadId);
-                    shouldReturnFromScript = true;
-                }
             }
         } // 뮤텍스 범위 끝
 
@@ -307,7 +290,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         threadState.isWaiting = false;
         threadState.resumeAtBlockIndex = -1; // 스크립트 완료 시 재개 인덱스 초기화
         threadState.blockIdForWait = "";
-        threadState.currentWaitType = Entity::WaitType::NONE;
+        threadState.currentWaitType = WaitType::NONE;
     }
     pEngineInstance->EngineStdOut("Script for object " + id + " completed all blocks.", 5, executionThreadId);
 }
@@ -315,7 +298,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 // ... (Entity.h에 추가할 BlockTypeEnumToString 헬퍼 함수 선언 예시)
 // namespace EntityHelper { std::string BlockTypeEnumToString(Entity::WaitType type); }
 // Entity.cpp에 구현:
-static std::string BlockTypeEnumToString(Entity::WaitType type) {
+string  BlockTypeEnumToString(Entity::WaitType type) {
     switch (type) {
         case Entity::WaitType::NONE: return "NONE";
         case Entity::WaitType::EXPLICIT_WAIT_SECOND: return "EXPLICIT_WAIT_SECOND";
@@ -722,8 +705,9 @@ void Entity::showDialog(const std::string &message, const std::string &dialogTyp
     m_currentDialog.text = message.empty() ? "    " : message;
     m_currentDialog.type = dialogType;
     m_currentDialog.isActive = true;
-    m_currentDialog.durationMs = duration;
-    m_currentDialog.startTimeMs = SDL_GetTicks();
+    // m_currentDialog.durationMs = duration; // Old member
+    m_currentDialog.totalDurationMs = duration;
+    m_currentDialog.remainingDurationMs = static_cast<float>(duration);    m_currentDialog.startTimeMs = SDL_GetTicks(); // Keep startTime for reference if needed
     m_currentDialog.needsRedraw = true;
 
     if (pEngineInstance)
@@ -741,18 +725,19 @@ void Entity::removeDialog()
     }
 }
 
-void Entity::updateDialog(Uint64 currentTimeMs)
+void Entity::updateDialog(float deltaTime) // deltaTime is in seconds
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
-    if (m_currentDialog.isActive && m_currentDialog.durationMs > 0)
+    if (m_currentDialog.isActive && m_currentDialog.totalDurationMs > 0) // Check totalDurationMs to see if it's a timed dialog
     {
-        if (currentTimeMs >= m_currentDialog.startTimeMs + m_currentDialog.durationMs)
+        m_currentDialog.remainingDurationMs -= (deltaTime * 1000.0f); // Convert deltaTime to ms and decrement
+        if (m_currentDialog.remainingDurationMs <= 0.0f)
         {
             // removeDialog()는 내부적으로 m_stateMutex를 다시 잠그려고 시도할 수 있습니다.
             // 이미 m_stateMutex가 잠겨있는 상태이므로, clear()를 직접 호출하거나
             // removeDialog()의 내부 로직을 여기에 직접 구현하는 것이 좋습니다.
             // 여기서는 clear()를 직접 호출하는 것으로 변경합니다.
-            m_currentDialog.clear();
+            m_currentDialog.clear(); // Time's up, clear the dialog
         }
     }
 }
@@ -777,7 +762,7 @@ Entity::WaitType Entity::getCurrentWaitType(const std::string& executionThreadId
     if (it != scriptThreadStates.end() && it->second.isWaiting) {
         return it->second.currentWaitType;
     }
-    return Entity::WaitType::NONE;
+    return WaitType::NONE;
 }
 
 // Effect Getters and Setters

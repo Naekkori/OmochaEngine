@@ -284,7 +284,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
  *
  */
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-            const std::string &executionThreadId) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
+            const std::string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -657,6 +657,11 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 //                     3, executionThreadId);
                 state.isActive = false; // 이동 완료
             }
+            else
+            {
+                // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
+                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+            }
         }
     }
     else if (BlockType == "locate_x")
@@ -856,6 +861,11 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                     entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 state.isActive = false;
             }
+            else
+            {
+                // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
+                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+            }
         }
     }
     else if (BlockType == "rotate_relative" || BlockType == "direction_relative")
@@ -904,6 +914,11 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
             if (state.remainingFrames <= 0)
             {
                 state.isActive = false;
+            }
+            else
+            {
+                // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
+                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
             }
         }
     }
@@ -3967,7 +3982,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
  *
  */
 void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-          const std::string &executionThreadId, const std::string& sceneIdAtDispatch)
+          const std::string &executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -4059,7 +4074,19 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
         for (int i = 0; i < iterCount; ++i)
         {
-            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch);
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
+
+            // --- LOGIC TO PREVENT TIGHT LOOP ---
+            // After executing the inner blocks, check if the script thread is now waiting.
+            // If it's NOT waiting, it means all executed blocks were instant.
+            // In this case, we must yield the thread until the next frame to avoid a tight loop.
+            Entity::WaitType currentWait = Entity::WaitType::NONE;
+            if (entity) {
+                 currentWait = entity->getCurrentWaitType(executionThreadId);
+            }
+            if (currentWait == Entity::WaitType::NONE) {
+                 // No wait was set by inner blocks. No need to force a wait in repeat_basic, it will just continue.
+            }
         }
     }
     else if (BlockType == "repeat_inf")
@@ -4115,7 +4142,23 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                 break; // 루프 종료
             }
 
-            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch);
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
+
+            // --- LOGIC TO PREVENT TIGHT LOOP ---
+            // After executing inner blocks, check the current wait state.
+            // If no wait was set by the inner blocks (or it completed instantly),
+            // force a BLOCK_INTERNAL wait for the next frame.
+            // This ensures the thread yields at least once per iteration of the infinite loop.
+            Entity::WaitType currentWait = Entity::WaitType::NONE;
+            if (entity) {
+                 currentWait = entity->getCurrentWaitType(executionThreadId);
+            }
+
+            if (currentWait == Entity::WaitType::NONE) {
+                 // No wait was set by inner blocks. Force a yield.
+                 if (entity) entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+            }
+
             // executeBlocksSynchronously 내부에서도 종료/씬 변경을 확인하므로,
             // 만약 해당 함수가 return으로 중단되었다면 이 while 루프도 다음 반복에서 위의 break 조건에 걸릴 것입니다.
         }
@@ -4123,6 +4166,57 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
     else if (BlockType == "repeat_while_true")
     {
         // 될때까지 반복
+        // params: [CONDITION_BLOCK]
+        // statements: [DO_SCRIPT]
+
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + ": Missing condition parameter.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("조건 파라미터가 부족합니다.", block.id, BlockType, objectId, "Missing condition parameter.");
+        }
+        if (block.statementScripts.empty())
+        {
+            engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + ": Missing DO statement script.", 1, executionThreadId);
+            return; // 반복할 내용이 없으면 바로 종료
+        }
+
+        const rapidjson::Value& conditionJson = block.paramsJson[0]; // Condition block JSON
+        const Script &doScript = block.statementScripts[0]; // First statementScript is the DO block
+
+        engine.EngineStdOut("repeat_while_true: " + objectId + " starting loop. Block ID: " + block.id, 0, executionThreadId);
+
+        while (true)
+        {
+            // Check for shutdown/scene change before evaluating condition or executing blocks
+            if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+            {
+                engine.EngineStdOut("repeat_while_true for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
+                break; // Exit loop
+            }
+            std::string currentEngineSceneId = engine.getCurrentSceneId();
+            const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
+            bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
+            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
+            {
+                engine.EngineStdOut("repeat_while_true for " + objectId + " halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+                break; // Exit loop
+            }
+
+            // Evaluate the condition
+            OperandValue conditionResult = getOperandValue(engine, objectId, conditionJson, executionThreadId);
+
+            // The loop continues AS LONG AS the condition is TRUE.
+            // So, if the condition is FALSE, we break the loop.
+            // The condition is evaluated *before* executing the inner blocks.
+            if (conditionResult.type != OperandValue::Type::BOOLEAN || !conditionResult.boolean_val)
+            {
+                engine.EngineStdOut("repeat_while_true for " + objectId + ": Condition is false or not boolean. Exiting loop. Block ID: " + block.id, 0, executionThreadId);
+                break; // Condition is false, exit the loop
+            }
+
+            // If condition is true, execute inner blocks
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
+        }
     }
 }
 
@@ -4218,7 +4312,8 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
 // 이 함수는 주어진 블록 목록을 순차적으로 실행하며, wait_second를 만나면 해당 스레드를 블록합니다.
 // 실제 게임 엔진에서는 비동기 실행 및 스레드 관리가 더 복잡하게 이루어집니다.
 void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks, 
-                                const std::string &executionThreadId, const std::string& sceneIdAtDispatch)
+                                // Entity::ScriptThreadState& currentThreadState, // This might be needed for more complex state management
+                                const std::string &executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime)
 {
     Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
     //engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + std::to_string(blocks.size()), 3, executionThreadId);
@@ -4256,14 +4351,14 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
         try
         {
             //engine.EngineStdOut("   Recursive Block "+block.type,3);
-            Moving(block.type, engine, objectId, block, executionThreadId);
+            Moving(block.type, engine, objectId, block, executionThreadId, deltaTime);
             Calculator(block.type, engine, objectId, block, executionThreadId);
             Looks(block.type, engine, objectId, block, executionThreadId);
             Sound(block.type, engine, objectId, block, executionThreadId);
             Variable(block.type, engine, objectId, block, executionThreadId);
             Function(block.type, engine, objectId, block, executionThreadId);
             Event(block.type, engine, objectId, block, executionThreadId);
-            Flow(block.type, engine, objectId, block, executionThreadId, sceneIdAtDispatch);
+            Flow(block.type, engine, objectId, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         } 
         catch (const ScriptBlockExecutionError &sbee)
         {
@@ -4276,6 +4371,25 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
             throw ScriptBlockExecutionError(
                 "Error during synchronous nested block execution.",
                 block.id, block.type, objectId, e.what());
+        }
+
+        // 방금 실행한 블록이 대기 상태를 설정했는지 확인합니다.
+        // Entity 포인터가 유효한지 먼저 확인합니다.
+        if (entity && entity->isScriptWaiting(executionThreadId)) {
+            // ScriptThreadState에 직접 접근하기보다는 Entity의 getter를 사용하는 것이 좋습니다.
+            // 여기서는 설명을 위해 직접 접근하는 것처럼 표현했지만, 실제로는 캡슐화를 고려해야 합니다.
+            Entity::WaitType typeOfWait = entity->getCurrentWaitType(executionThreadId);
+            std::string idOfWaitingBlock = entity->getWaitingBlockId(executionThreadId);
+
+            // 현재 실행된 블록(block.id)이 스스로 대기를 설정한 경우
+            if (idOfWaitingBlock == block.id) {
+                if (typeOfWait == Entity::WaitType::BLOCK_INTERNAL ||
+                    typeOfWait == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
+                    typeOfWait == Entity::WaitType::TEXT_INPUT) {
+                    engine.EngineStdOut("executeBlocksSynchronously: Block " + block.id + " (Type: " + block.type + ") set wait (" + BlockTypeEnumToString(typeOfWait) + "). Pausing synchronous execution chain for " + objectId + ".", 3, executionThreadId);
+                    return; // 동기적 블록 목록 실행을 여기서 중단합니다.
+                }
+            }
         }
     }
     //engine.EngineStdOut("Exit executeBlocksSynchronously for " + objectId + ". Loop " + (blocks.empty() ? "was not entered (empty blocks)." : "completed or exited."), 3, executionThreadId);

@@ -2873,7 +2873,7 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
     return true;
 }
 
-void Engine::processInput(const SDL_Event &event) {
+void Engine::processInput(const SDL_Event &event,float deltaTime) {
     if (m_textInputActive) {
         // 텍스트 입력 모드가 활성화된 경우
         if (event.type == SDL_EVENT_TEXT_INPUT) {
@@ -3021,7 +3021,7 @@ void Engine::processInput(const SDL_Event &event) {
                                     bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
                                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                     if (isInCurrentScene || isGlobal) {
-                                        this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId());
+                                        this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId(),0.0f);
                                     }
                                 } else {
                                     EngineStdOut(
@@ -3036,7 +3036,7 @@ void Engine::processInput(const SDL_Event &event) {
                 float stageMouseX = 0.0f, stageMouseY = 0.0f;
                 if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY)) // 윈도우 좌표를 스테이지 좌표로 변환
                 {
-                    for (int i = 0; i < objects_in_order.size(); ++i)  {
+                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)  {
                         const ObjectInfo &objInfo = objects_in_order[i];
                         const string &objectId = objInfo.id;
 
@@ -3060,7 +3060,7 @@ void Engine::processInput(const SDL_Event &event) {
                                 if (clickScriptPair.first == objectId) {
                                     EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 0);
                                     this->dispatchScriptForExecution(objectId, clickScriptPair.second,
-                                                                     getCurrentSceneId());
+                                                                     getCurrentSceneId(),deltaTime);
                                 }
                             }
                             break;
@@ -3087,7 +3087,7 @@ void Engine::processInput(const SDL_Event &event) {
                     EngineStdOut(
                         " -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " +
                         SDL_GetScancodeName(scancode) + ")", 0);
-                    this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId());
+                    this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId(),deltaTime);
                 }
             }
         }
@@ -3220,7 +3220,7 @@ void Engine::processInput(const SDL_Event &event) {
                                 bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
                                 bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                                 if (isInCurrentScene || isGlobal) {
-                                    this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext);
+                                    this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext,deltaTime);
                                 }
                             } else {
                                 EngineStdOut(
@@ -3242,7 +3242,7 @@ void Engine::processInput(const SDL_Event &event) {
                         std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
                         if (scriptPair.first == canceledObjectId) {
                             EngineStdOut("Dispatching 'when_object_click_canceled' for object: " + canceledObjectId, 0);
-                            this->dispatchScriptForExecution(canceledObjectId, scriptPair.second, sceneContext);
+                            this->dispatchScriptForExecution(canceledObjectId, scriptPair.second, sceneContext,deltaTime);
                         }
                     }
                 }
@@ -3420,7 +3420,7 @@ void Engine::runStartButtonScripts() {
         const Script *scriptPtr = scriptPair.second;
         EngineStdOut(" -> Running script for object: " + objectId, 3);
         std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
-        this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext);
+        this->dispatchScriptForExecution(objectId, scriptPtr, sceneContext,0.0);
         m_gameplayInputActive = true;
     }
     EngineStdOut("Finished running 'Start Button Clicked' scripts.", 0);
@@ -3972,7 +3972,7 @@ void Engine::triggerWhenSceneStartScripts() {
         if (executeForScene) {
             EngineStdOut(
                 "  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
-            this->dispatchScriptForExecution(objectId, scriptPtr, currentSceneId);
+            this->dispatchScriptForExecution(objectId, scriptPtr, currentSceneId,0.0);
         }
     }
 }
@@ -4438,7 +4438,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                             EngineStdOut(
                                 "Dispatching message-received script for object: " + listeningObjectId + " (Message: '"
                                 + messageId + "')", 0, executionThreadId);
-                            this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId);
+                            this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId,0.0);
                     } else {
                         EngineStdOut(
                             "Script for message '" + messageId + "' on object " + listeningObjectId +
@@ -4463,7 +4463,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
 }
 
 void Engine::dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr,
-                                        const std::string &sceneIdAtDispatch) {
+                                        const std::string &sceneIdAtDispatch, float deltaTime) {
     if (!scriptPtr) {
         EngineStdOut("dispatchScriptForExecution called with null script pointer for object: " + entityId, 2);
         return;
@@ -4475,7 +4475,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
         return;
     }
 
-    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr, sceneIdAtDispatch]() {
+    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr, sceneIdAtDispatch, deltaTime]() {
         std::string thread_id_str;
         try {
             std::thread::id current_thread_id = std::this_thread::get_id();
@@ -4493,7 +4493,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
             }
 
             if (entity) {
-                entity->executeScript(scriptPtr, thread_id_str, sceneIdAtDispatch);
+                entity->executeScript(scriptPtr, thread_id_str, sceneIdAtDispatch, deltaTime);
             } else {
                 EngineStdOut(
                     "Entity " + entityId + " not found when trying to execute script in worker thread " + thread_id_str,

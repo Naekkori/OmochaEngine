@@ -260,7 +260,7 @@ public:
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
     void showProjectTimer(bool show); // 프로젝트 타이머 표시 여부 설정
     void EngineStdOut(string s, int LEVEL = 0,string TREADID="") const;
-    void processInput(const SDL_Event &event);
+    void processInput(const SDL_Event &event, float deltaTime);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
@@ -314,7 +314,7 @@ public:
     void drawDialogs();
     bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
     bool setEntitychangeToNextCostume(const string& entityId, const string& asOption);
-    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch);
+    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch,float deltaTime);
     void raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId);
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스

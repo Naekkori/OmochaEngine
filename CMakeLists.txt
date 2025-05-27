@@ -19,7 +19,12 @@ endif()
 set(DEVELOPER_NAME "Naekkori")
 set(GITHUB "https://github.com/Naekkori/OmochaEngine")
 project("OmochaEngine" VERSION 1.0.0) 
-add_compile_options(-finput-charset=UTF-8)
+
+if(MSVC)
+    add_compile_options(/utf-8) # MSVC uses /utf-8 for UTF-8 source/execution charsets
+else()
+    add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8) # For GCC/Clang
+endif()
 
 if(WIN32)
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
