@@ -28,7 +28,7 @@ BEGIN
             VALUE "InternalName",     "OmochaEngine Runtime"
             VALUE "LegalCopyright",   "Copyright (C) 2025 " OMOCHA_DEVELOPER_NAME
             VALUE "OriginalFilename", "OmochaEngine.exe"
-            VALUE "ProductName",      OMOCHA_ENGINE_NAME
+            VALUE "ProductName",      OMOCHA_ENGINE_NAME " Runtime"
             VALUE "ProductVersion",   OMOCHA_ENGINE_VERSION
             VALUE "Copyright",        OMOCHA_DEVELOPER_NAME
         END
