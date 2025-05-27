@@ -114,7 +114,7 @@ void AudioEngineHelper::clearPreloadedSounds()
         delete pair.second; // 힙에 할당된 ma_sound 객체 해제
         soundsCleared++;
     }
-    aeStdOut("All preloaded sounds cleared.");
+    aeStdOut(std::to_string(soundsCleared)+" preloaded sounds cleared.");
 }
 void AudioEngineHelper::playSound(const std::string &objectId, const std::string &filePath, bool loop, float initialVolume)
 {
