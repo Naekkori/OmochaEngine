@@ -264,12 +264,13 @@ int main(int argc, char *argv[])
             bool quit = false;
             SDL_Event event;
             Uint64 loopStartTime = 0;
-            int targetFps = engine.getTargetFps();
-            int targetFrameTimeMillis = (targetFps > 0) ? (1000 / targetFps) : (1000 / 60);
+            const int targetFps = engine.getTargetFps();
+            // 목표 프레임 시간을 밀리초 단위로 계산합니다. targetFps가 0 이하면 기본 60FPS로 가정합니다.
+            const int targetFrameTimeMillis = (targetFps > 0) ? (1000 / targetFps) : (1000 / 60); 
+
             while (!quit)
             {                                  
                 loopStartTime = SDL_GetTicks();
-
                 // 엔진의 현재 마우스 스테이지 좌표 업데이트
                 float windowMouseX_main, windowMouseY_main;
                 SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main); 
@@ -311,14 +312,15 @@ int main(int argc, char *argv[])
                 engine.drawDialogs(); 
                 engine.drawHUD();
                 SDL_RenderPresent(engine.getRenderer()); // SDL: 화면에 최종 프레임 표시
-                engine.updateFps();
+                
                 long long elapsedTime = SDL_GetTicks() - loopStartTime;                
                 int waitTime = targetFrameTimeMillis - static_cast<int>(elapsedTime); 
                 if (waitTime > 0)
                 {
                     SDL_Delay(static_cast<Uint32>(waitTime));
                 }
-                
+                // SDL_Delay 후 또는 루프의 끝에서 FPS를 업데이트하여 실제 프레임 시간을 반영합니다.
+                engine.updateFps(); 
             }
             
 

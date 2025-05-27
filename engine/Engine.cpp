@@ -3036,7 +3036,7 @@ void Engine::processInput(const SDL_Event &event) {
                 float stageMouseX = 0.0f, stageMouseY = 0.0f;
                 if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY)) // 윈도우 좌표를 스테이지 좌표로 변환
                 {
-                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i) {
+                    for (int i = 0; i < objects_in_order.size(); ++i)  {
                         const ObjectInfo &objInfo = objects_in_order[i];
                         const string &objectId = objInfo.id;
 

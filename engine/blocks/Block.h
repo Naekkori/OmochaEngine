@@ -17,18 +17,22 @@ public:
 
     // 복사 생성자
     Block(const Block& other) : id(other.id), type(other.type), statementScripts(other.statementScripts) {
-        if (!other.paramsJson.IsNull()) {
-            if (other.paramsJson.IsArray()) {
-                paramsJson.SetArray(); 
-                for (const auto& item : other.paramsJson.GetArray()) {
-                    if (!item.IsNull()) { // null이 아닌 항목만 복사
-                        rapidjson::Value itemCopy(item, paramsJson.GetAllocator());
-                        paramsJson.PushBack(itemCopy, paramsJson.GetAllocator());
-                    }
-                }
-            } else {
-                paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
-            }
+        // paramsJson is a Document. other.paramsJson is also a Document.
+        // ParseBlockDataInternal ensures other.paramsJson is either a Null document (if no params)
+        // or a document whose root is an array.
+        if (!other.paramsJson.IsNull() && other.paramsJson.IsArray()) {
+            // Source is a valid array document, deep copy it.
+            // This correctly handles allocators and deep copies all elements.
+            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
+        } else {
+            // Source is null or not an array document (inconsistent with ParseBlockDataInternal).
+            // Initialize this->paramsJson as an empty array document for safety and consistency.
+            paramsJson.SetArray();
+            // Optionally, log a warning if other.paramsJson was non-null but not an array,
+            // as this indicates an unexpected state.
+            // if (!other.paramsJson.IsNull() && !other.paramsJson.IsArray()) {
+            //    std::cerr << "Warning: Copying Block where source paramsJson was not an array document." << std::endl;
+            // }
         }
     }
     // 이동 생성자 (권장)
@@ -44,18 +48,15 @@ public:
         id = other.id;
         type = other.type;
         statementScripts = other.statementScripts;
-        if (!other.paramsJson.IsNull()) {
-            if (other.paramsJson.IsArray()) {
-                paramsJson.SetArray(); // this->paramsJson을 빈 배열로 초기화 (기존 내용 삭제)
-                for (const auto& item : other.paramsJson.GetArray()) {
-                        rapidjson::Value itemCopy(item, paramsJson.GetAllocator());
-                        paramsJson.PushBack(itemCopy, paramsJson.GetAllocator());
-                }
-            } else {
-                paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
-            }
+        // Similar logic to the copy constructor.
+        if (!other.paramsJson.IsNull() && other.paramsJson.IsArray()) {
+            paramsJson.CopyFrom(other.paramsJson, paramsJson.GetAllocator());
         } else {
-            paramsJson.SetNull(); // 원본이 Null이면 대상도 Null로 설정
+            paramsJson.SetArray();
+            // Optionally, log a warning if other.paramsJson was non-null but not an array.
+            // if (!other.paramsJson.IsNull() && !other.paramsJson.IsArray()) {
+            //    std::cerr << "Warning: Assigning Block where source paramsJson was not an array document." << std::endl;
+            // }
         }
         return *this;
     }
