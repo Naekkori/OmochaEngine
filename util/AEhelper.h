@@ -9,15 +9,10 @@ class AudioEngineHelper
 {
 private:
     SimpleLogger logger;
-
     ma_engine m_engine;
-    ma_context m_context;
-    ma_device m_device;
 
     std::map<std::string, ma_sound*> m_activeSounds; // 오브젝트 ID와 ma_sound 매핑
 
-    bool m_contextInitialized = false;
-    bool m_deviceInitialized = false;
     bool m_engineInitialized = false;
     std::map<std::string, ma_sound*> m_decodedSoundsCache; // 미리 디코딩된 사운드 캐시
 
