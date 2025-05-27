@@ -113,19 +113,7 @@ void AudioEngineHelper::clearPreloadedSounds()
         aeStdOut("Deleted audio in Memory : "+pair.first);
         delete pair.second; // 힙에 할당된 ma_sound 객체 해제
         soundsCleared++;
-        if (hwndProgress)
-        {
-            int progressPercent = static_cast<int>((soundsCleared * 100) / totalSounds);
-            SendMessageW(hwndProgress, WM_USER + 1, progressPercent, 0); // 사용자 정의 메시지로 프로그레스 업데이트
-            MSG msg;
-            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-            {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
-        }
     }
-    m_decodedSoundsCache.clear();
     aeStdOut("All preloaded sounds cleared.");
 }
 void AudioEngineHelper::playSound(const std::string &objectId, const std::string &filePath, bool loop, float initialVolume)
