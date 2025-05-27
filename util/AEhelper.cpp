@@ -5,9 +5,6 @@
 #include <chrono>
 #include <iostream> // 프로그레스 바 출력을 위해 추가
 #include <condition_variable>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 AudioEngineHelper::AudioEngineHelper() : logger("hibiki.log"), m_globalPlaybackSpeed(1.0f)
 {
     aeStdOut("Audio Engine Helper initializing...");
@@ -107,93 +104,6 @@ void AudioEngineHelper::clearPreloadedSounds()
 
     size_t totalSounds = m_decodedSoundsCache.size();
     aeStdOut("Clearing all preloaded sounds (" + std::to_string(totalSounds) + " sounds)...");
-
-#ifdef _WIN32
-    // 간단한 Win32 프로그레스 창 생성 및 표시
-    HWND hwndProgress = NULL;
-    WNDCLASSW wc = {0};
-    HINSTANCE hInstance = GetModuleHandle(NULL);
-    const wchar_t CLASS_NAME[] = L"AudioEngineProgressWindowClass";
-
-    wc.lpfnWndProc = [](HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) -> LRESULT
-    {
-        static int progress = 0;
-        if (uMsg == WM_CREATE)
-        {
-            CREATESTRUCT *pCreate = reinterpret_cast<CREATESTRUCT *>(lParam);
-            SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
-            progress = 0;
-            return 0;
-        }
-        if (uMsg == WM_USER + 1)
-        { // 사용자 정의 메시지로 프로그레스 업데이트
-            progress = static_cast<int>(wParam);
-            InvalidateRect(hwnd, NULL, TRUE); // 창 다시 그리기 요청
-            return 0;
-        }
-        if (uMsg == WM_PAINT)
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-            RECT clientRect;
-            GetClientRect(hwnd, &clientRect);
-
-            // 배경 채우기
-            FillRect(hdc, &clientRect, (HBRUSH)(COLOR_WINDOW + 1));
-
-            // 프로그레스 바 그리기
-            RECT progressBarRect = clientRect;
-            progressBarRect.left += 10;
-            progressBarRect.right -= 10;
-            progressBarRect.top += 10;
-            progressBarRect.bottom = progressBarRect.top + 20;
-
-            // 테두리
-            FrameRect(hdc, &progressBarRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            // 진행 상태
-            RECT progressFillRect = progressBarRect;
-            progressFillRect.right = progressFillRect.left + ((progressBarRect.right - progressBarRect.left) * progress / 100);
-            FillRect(hdc, &progressFillRect, (HBRUSH)GetStockObject(DKGRAY_BRUSH)); // 파란색 브러시
-
-            // 텍스트
-            std::wstring text = L"Clearing Sounds: " + std::to_wstring(progress) + L"%";
-            RECT textRect = clientRect;
-            textRect.top = progressBarRect.bottom + 5;
-            DrawTextW(hdc, text.c_str(), -1, &textRect, DT_CENTER | DT_SINGLELINE);
-
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
-        if (uMsg == WM_DESTROY)
-        {
-            return 0;
-        }
-        return DefWindowProcW(hwnd, uMsg, wParam, lParam);
-    };
-    wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-
-    RegisterClassW(&wc);
-
-    hwndProgress = CreateWindowExW(
-        0, CLASS_NAME, L"Clearing Sounds...",
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
-        CW_USEDEFAULT, CW_USEDEFAULT, 300, 100,
-        NULL, NULL, hInstance, NULL);
-
-    if (hwndProgress == NULL)
-    {
-        aeStdOut("Failed to create progress window.");
-    }
-    else
-    {
-        ShowWindow(hwndProgress, SW_SHOW);
-        UpdateWindow(hwndProgress);
-    }
-#endif
     size_t soundsCleared = 0;
 
     for (auto &pair : m_decodedSoundsCache)
@@ -217,13 +127,6 @@ void AudioEngineHelper::clearPreloadedSounds()
     }
     m_decodedSoundsCache.clear();
     aeStdOut("All preloaded sounds cleared.");
-#ifdef _WIN32
-    if (hwndProgress)
-    {
-        DestroyWindow(hwndProgress);
-        UnregisterClassW(CLASS_NAME, hInstance);
-    }
-#endif
 }
 void AudioEngineHelper::playSound(const std::string &objectId, const std::string &filePath, bool loop, float initialVolume)
 {
