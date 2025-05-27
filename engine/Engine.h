@@ -190,6 +190,7 @@ private:
     // float m_resizeStartMouseX = 0.0f;
     // float m_resizeStartMouseY = 0.0f;
     // float m_resizeStartHUDWidth = 0.0f;
+    std::map<std::pair<std::string, int>, TTF_Font*> m_fontCache; // 폰트 캐시
     // float m_resizeStartHUDHeight = 0.0f;
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
@@ -250,6 +251,7 @@ public:
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
+    TTF_Font* getFont(const std::string& fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
     bool loadImages();
     bool loadSounds();
      // --- Cloud Variable Persistence ---

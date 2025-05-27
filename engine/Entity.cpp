@@ -293,6 +293,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         threadState.isWaiting = false;
         threadState.resumeAtBlockIndex = -1; // 스크립트 완료 시 재개 인덱스 초기화
         threadState.blockIdForWait = "";
+        threadState.loopCounter = 0; // Reset loop counter as well
         threadState.currentWaitType = WaitType::NONE;
     }
     pEngineInstance->EngineStdOut("Script for object " + id + " completed all blocks.", 5, executionThreadId);

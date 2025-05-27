@@ -280,22 +280,50 @@ Engine::~Engine()
     std::future<void> join_future = std::async(std::launch::async, [&]()
                                                { m_scriptThreadPool.join(); });
     EngineStdOut("Waiting for script threads to join...", 0);
+    // Entity 객체들 명시적 삭제
+    EngineStdOut("Deleting entity objects...", 0);
+    for (auto &pair : entities)
+    {
+        delete pair.second; // Entity 포인터 삭제
+    }
+    entities.clear(); // 이제 맵을 비워도 안전
+    EngineStdOut("Entity objects deleted.", 0);
+    objects_in_order.clear();
+    EngineStdOut("Waiting for script threads to join...", 0);
     std::chrono::seconds timeout_duration(3);
     if (join_future.wait_for(timeout_duration) == std::future_status::timeout)
+    {
+        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2);
+        // Try to show a message box, but it might not work if SDL is already partially shut down.
+        // Consider a more robust way to notify the user or log this critically if SDL_ShowMessageBox fails.
+        // For now, we attempt it.
+        SDL_MessageBoxData messageboxData = {
+            SDL_MESSAGEBOX_WARNING,
+            NULL, // window might be NULL or invalid at this point
+            "Engine Shutdown Warning",
+            "Engine shutdown timed out waiting for script threads.\nSome scripts might be unresponsive.",
+            0, NULL, NULL
+        };
+        int buttonid;
+        SDL_ShowMessageBox(&messageboxData, &buttonid); // Best effort
+        // quick_exit might be too abrupt, consider std::exit or allowing main to return.
+        // For now, keeping quick_exit as it was.
+        quick_exit(EXIT_FAILURE); // Or std::exit(EXIT_FAILURE);
+    }
+    else
     {
         EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2);
         showMessageBox("엔진 종료 중 스크립트 스레드 대기 시간이 초과되었습니다.\n일부 스크립트가 응답하지 않는 것 같습니다.", msgBoxIconType.ICON_WARNING);
         quick_exit(EXIT_FAILURE);
     }
-    else
-    {
-        EngineStdOut("Script threads joined successfully.", 0);
+    // TerminateGE 보다 먼저 폰트 캐시 정리
+    for (auto const& [key, val] : m_fontCache) {
+        TTF_CloseFont(val);
     }
+    m_fontCache.clear();
+    EngineStdOut("Font cache cleared.", 0);
+
     terminateGE();
-    EngineStdOut("Deleting entity objects...");
-    entities.clear();
-    objects_in_order.clear();
-    EngineStdOut("Entity objects deleted.");
     objectScripts.clear();
     EngineStdOut("Object Script Clear");
 }
@@ -953,12 +981,18 @@ bool Engine::loadProject(const string &projectFilePath)
                             if (objInfo.textContent == "<OMOCHA_ENGINE_NAME>")
                             {
                                 objInfo.textContent = string(OMOCHA_ENGINE_NAME);
-                            }else if(objInfo.textContent == "<OMOCHA_DEVELOPER>"){
-                                objInfo.textContent = "DEVELOPER: "+string(OMOCHA_DEVELOPER_NAME);
-                            }else if(objInfo.textContent == "<OMOCHA_SDL_VERSION>"){
-                                objInfo.textContent = "SDL VERSION: "+to_string(SDL_MAJOR_VERSION)+"."+to_string(SDL_MINOR_VERSION)+"."+to_string(SDL_MICRO_VERSION);
-                            }else if(objInfo.textContent == "<OMOCHA_VERSION>"){
-                                objInfo.textContent = "Engine Version: "+string(OMOCHA_ENGINE_VERSION);
+                            }
+                            else if (objInfo.textContent == "<OMOCHA_DEVELOPER>")
+                            {
+                                objInfo.textContent = "DEVELOPER: " + string(OMOCHA_DEVELOPER_NAME);
+                            }
+                            else if (objInfo.textContent == "<OMOCHA_SDL_VERSION>")
+                            {
+                                objInfo.textContent = "SDL VERSION: " + to_string(SDL_MAJOR_VERSION) + "." + to_string(SDL_MINOR_VERSION) + "." + to_string(SDL_MICRO_VERSION);
+                            }
+                            else if (objInfo.textContent == "<OMOCHA_VERSION>")
+                            {
+                                objInfo.textContent = "Engine Version: " + string(OMOCHA_ENGINE_VERSION);
                             }
                         }
                         else if (entityJson["text"].IsNumber())
@@ -1970,12 +2004,42 @@ void Engine::destroyTemporaryScreen()
         EngineStdOut("Temporary screen texture destroyed.", 0);
     }
 }
+TTF_Font* Engine::getFont(const std::string& fontPath, int fontSize) {
+    std::pair<std::string, int> key = {fontPath, fontSize};
+    auto it = m_fontCache.find(key);
+    if (it != m_fontCache.end()) {
+        return it->second; // 캐시된 폰트 반환
+    }
+
+    TTF_Font* font = TTF_OpenFont(fontPath.c_str(), fontSize);
+    if (!font) {
+        EngineStdOut("Failed to load font: " + fontPath + " at size " + std::to_string(fontSize) + ". SDL_ttf Error", 2);
+        // Fallback or handle error appropriately
+        // For example, try loading a default font if this one fails
+        std::string defaultFontPath = std::string(FONT_ASSETS) + "nanum_gothic.ttf";
+        if (fontPath != defaultFontPath) { // 무한 재귀 방지
+            return getFont(defaultFontPath, fontSize); // 기본 폰트 시도
+        }
+        return nullptr; // 기본 폰트도 실패하면 null 반환
+    }
+
+    m_fontCache[key] = font; // 새 폰트를 캐시에 추가
+    EngineStdOut("Loaded and cached font: " + fontPath + " at size " + std::to_string(fontSize), 0);
+    return font;
+}
 
 void Engine::terminateGE()
 {
     EngineStdOut("Terminating SDL and engine resources...", 0); // SDL 및 엔진 리소스 종료
 
     destroyTemporaryScreen();
+
+    // 폰트 캐시에 있는 모든 폰트 닫기
+    for (auto const& [key, val] : m_fontCache) {
+        TTF_CloseFont(val);
+    }
+    m_fontCache.clear();
+    EngineStdOut("Font cache cleared during terminateGE.", 0);
 
     if (hudFont)
     {
@@ -1988,6 +2052,15 @@ void Engine::terminateGE()
         TTF_CloseFont(loadingScreenFont);
         loadingScreenFont = nullptr;
         EngineStdOut("Loading screen font closed.", 0);
+    }
+    // Costume 텍스처 해제
+    for (auto& objInfo : objects_in_order) {
+        for (auto& costume : objInfo.costumes) {
+            if (costume.imageHandle) {
+                SDL_DestroyTexture(costume.imageHandle);
+                costume.imageHandle = nullptr;
+            }
+        }
     }
     TTF_Quit();
     EngineStdOut("SDL_ttf terminated.", 0);
@@ -2481,7 +2554,7 @@ void Engine::drawAllEntities()
                 }
                 if (!determinedFontPath.empty())
                 {
-                    Usefont = TTF_OpenFont(determinedFontPath.c_str(), fontSize);
+                    Usefont = getFont(determinedFontPath, fontSize); // 캐시된 폰트 사용
                     if (!Usefont)
                     {
                         EngineStdOut(
@@ -5310,12 +5383,23 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
             thread_id_str = existingExecutionThreadId;
             EngineStdOut("Worker thread resuming script for entity: " + entityId, 5, thread_id_str);
         } else {
-            // 새 스크립트 실행을 위한 ID 생성 (더 견고한 ID 생성 방식 고려 필요)
+            // 새 스크립트 실행을 위한 ID 생성
             std::thread::id physical_thread_id = std::this_thread::get_id();
-            std::stringstream ss;
-            ss << std::hash<std::thread::id>{}(physical_thread_id);
-            thread_id_str = "script_" + ss.str() + "_" + std::to_string(SDL_GetTicks()); // 고유성 향상
-            EngineStdOut("Worker thread starting new script for entity: " + entityId, 5, thread_id_str);
+            std::stringstream ss_full_hex;
+            ss_full_hex << std::hex << std::hash<std::thread::id>{}(physical_thread_id);
+            std::string full_hex_str = ss_full_hex.str();
+
+            // 4자리 해시로 조정
+            std::string short_hex_str;
+            if (full_hex_str.length() >= 4) {
+                short_hex_str = full_hex_str.substr(0, 4);
+            } else {
+                // 4자리보다 짧으면 앞에 0을 채움
+                short_hex_str = std::string(4 - full_hex_str.length(), '0') + full_hex_str;
+            }
+            
+            thread_id_str = "script_" + short_hex_str;
+            EngineStdOut("Worker thread starting new script for entity: " + entityId + " with 4-digit hex thread_id: " + short_hex_str, 5, thread_id_str);
         }
 
         try {

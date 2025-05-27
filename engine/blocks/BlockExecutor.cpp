@@ -1613,7 +1613,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
-        std::string action = block.paramsJson[0].GetString();
+        std::string action_original = block.paramsJson[0].GetString();
+        std::string action = action_original; // 복사본 생성
+        std::transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
         struct tm timeinfo_s; // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
 #ifdef _WIN32
@@ -4084,31 +4086,63 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
 
         // Debugging: Print the content of doScript
-        if (!doScript.blocks.empty())
-        {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
-            for (size_t j = 0; j < doScript.blocks.size(); ++j)
-            {
-                const Block &innerBlock = doScript.blocks[j];
-                rapidjson::StringBuffer buffer;
-                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                // paramsJson이 Null이 아닐 경우에만 Accept 호출
-                if (!innerBlock.paramsJson.IsNull())
-                {
-                    innerBlock.paramsJson.Accept(writer);
-                }
-                engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+        // if (!doScript.blocks.empty())
+        // {
+        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+        //     for (size_t j = 0; j < doScript.blocks.size(); ++j)
+        //     {
+        //         const Block &innerBlock = doScript.blocks[j];
+        //         rapidjson::StringBuffer buffer;
+        //         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        //         // paramsJson이 Null이 아닐 경우에만 Accept 호출
+        //         if (!innerBlock.paramsJson.IsNull())
+        //         {
+        //             innerBlock.paramsJson.Accept(writer);
+        //         }
+        //         engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+        //     }
+        // }
+        // else
+        // {
+        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+        // }
+        Entity::ScriptThreadState* pThreadState = nullptr;
+        if (entity) { // entity 포인터 유효성 검사
+            std::lock_guard<std::mutex> lock(entity->getStateMutex()); // public getter 사용
+            auto it = entity->scriptThreadStates.find(executionThreadId);
+            if (it != entity->scriptThreadStates.end()) {
+                pThreadState = &it->second;
             }
         }
-        else
-        {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+
+        if (!pThreadState) { // pThreadState가 여전히 nullptr이면 오류 처리
+            engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_basic, or entity is null.", 2, executionThreadId);
+            return; // 또는 예외 발생
         }
-        engine.EngineStdOut("repeat_basic: " + objectId + " starting synchronous loop for " + std::to_string(iterCount) + " iterations. Block ID: " + block.id, 0, executionThreadId);
+        // else // 이 else는 if(!pThreadState)에 대한 것이므로, 위의 if 블록 밖으로 이동하거나 제거해야 합니다.
+        // 아래 로직은 pThreadState가 유효할 때만 실행되어야 합니다.
+        {
+             engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+        }
+
+        int startIteration = 0;
+        // Check if we are resuming this specific repeat_basic block
+        // The wait state would have been set by an inner block, and Entity::executeScript
+        // would have set resumeAtBlockIndex to *this* repeat_basic block.
+        // The isWaiting flag on pThreadState might reflect the inner block's wait.
+        if (pThreadState->blockIdForWait == block.id && pThreadState->resumeAtBlockIndex != -1 && pThreadState->loopCounter > 0) {
+            // This condition means we are likely resuming this loop.
+            startIteration = pThreadState->loopCounter;
+        } else {
+            // Not resuming this specific loop, or it's the first time.
+            pThreadState->loopCounter = 0; // Ensure loopCounter is reset for a new execution of this block.
+        }
+        engine.EngineStdOut("repeat_basic: " + objectId + " loop. StartIter: " + std::to_string(startIteration) + "/" + std::to_string(iterCount) + ". Block ID: " + block.id, 0, executionThreadId);
 
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
-        for (int i = 0; i < iterCount; ++i)
+        for (int i = startIteration; i < iterCount; ++i)
         {
+            pThreadState->loopCounter = i; // Save current iteration *before* executing inner blocks
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
 
             // 내부 블록 실행 후 대기 상태 확인
@@ -4116,15 +4150,34 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             {
                 // Entity::isScriptWaiting은 해당 스레드가 어떤 종류의 대기 상태인지 확인합니다.
                 // Entity::getCurrentWaitType은 구체적인 대기 타입을 반환합니다.
-                if (entity->isScriptWaiting(executionThreadId))
+                bool innerBlockIsWaiting = false;
+                Entity::WaitType innerWaitType = Entity::WaitType::NONE;
+                std::string innerWaitingBlockId;
                 {
-                    // 내부 블록이 대기를 설정했으므로 (예: move_xy_time의 BLOCK_INTERNAL),
-                    // repeat_basic 블록의 실행도 여기서 일시 중단되어야 합니다.
-                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
-                    return; // Flow 함수를 빠져나가 Entity::executeScript가 이 repeat_basic 블록에서 대기하도록 함
+                    std::lock_guard<std::mutex> lock(entity->getStateMutex()); // public getter 사용
+                    auto it_check = entity->scriptThreadStates.find(executionThreadId);
+                    if (it_check != entity->scriptThreadStates.end() && it_check->second.isWaiting) {
+                        innerBlockIsWaiting = true;
+                        innerWaitType = it_check->second.currentWaitType;
+                        innerWaitingBlockId = it_check->second.blockIdForWait;
+                    }
+                }
+
+                if (innerBlockIsWaiting) {
+                    // An inner block is waiting. This repeat_basic block must also "wait".
+                    // Entity::executeScript will see the wait state (set by the inner block)
+                    // and set its resumeAtBlockIndex to *this* repeat_basic block.
+                    // The loopCounter 'i' is already saved in pThreadState->loopCounter.
+                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + std::to_string(i) +
+                                        " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
+                                        ". This repeat_basic block (" + block.id + ") will resume here.", 1, executionThreadId);
+                    return; // Exit Flow; Entity::executeScript will handle pausing this repeat_basic.
                 }
             }
         }
+        // Loop finished all iterations normally
+        pThreadState->loopCounter = 0; // Reset for the next time this repeat_basic block might run.
+        engine.EngineStdOut("repeat_basic: " + objectId + " loop completed. Block ID: " + block.id, 0, executionThreadId);
     }
     else if (BlockType == "repeat_inf")
     {

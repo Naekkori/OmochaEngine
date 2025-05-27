@@ -73,6 +73,7 @@ public:
         WaitType currentWaitType = WaitType::NONE; // 현재 대기 유형
         int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
         const Script* scriptPtrForResume = nullptr;      // BLOCK_INTERNAL 재개를 위한 스크립트 포인터
+        int loopCounter = 0; // For resuming loops like repeat_basic
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
 
         ScriptThreadState() : isWaiting(false), waitEndTime(0), currentWaitType(WaitType::NONE), resumeAtBlockIndex(-1) {}
@@ -215,7 +216,7 @@ private:
     double m_effectAlpha;
     // Hue: 0-359 degrees offset for color effect
     double m_effectHue;
-    // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동
+    // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동    
     CollisionSide lastCollisionSide = CollisionSide::NONE;
     mutable std::mutex m_stateMutex;
 
@@ -227,6 +228,10 @@ public:                      // Made brush and paint public for now for easier a
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
     PenState paint;
+    // m_stateMutex에 대한 public 접근자 추가 (주의해서 사용)
+    std::mutex& getStateMutex() const { return m_stateMutex; }
+
+
 public:
     Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
            double initial_x, double initial_y, double initial_regX, double initial_regY,
