@@ -242,7 +242,7 @@ SOFTWARE.
 - [x] wait_second (~초 기다리기)
 - [x] repeat_basic (~번 반복하기)
 - [x] repeat_inf (계속 반복하기)
-- [ ] repeat_while_true (~가 될 때까지/동안 반복하기)
+- [x] repeat_while_true (~가 될 때까지/동안 반복하기)
 - [ ] stop_repeat (반복 중단하기)
 - [ ] continue_repeat (반복 처음으로 돌아가기)
 - [ ] _if (만일 ~이라면)

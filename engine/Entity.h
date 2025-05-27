@@ -237,11 +237,7 @@ public:
     DialogState m_currentDialog;
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
-    // 스크립트 실행 함수 (sceneIdAtDispatch 추가)
-    // Thread-safe methods to manage script wait states
-private: // performActiveWait is an internal helper
     void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
-    
 public:
     void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime);
     void setLastCollisionSide(CollisionSide side);

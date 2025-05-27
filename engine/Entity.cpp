@@ -248,38 +248,41 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         }
 
         // 블록 실행 후 대기 상태 확인 (뮤텍스로 보호)
-        bool shouldReturnFromScript = false;
         {
-            std::unique_lock<std::mutex> lock(m_stateMutex); // Changed to unique_lock
+            // std::unique_lock<std::mutex> lock(m_stateMutex); // Use std::lock_guard if lock is held for the whole scope
+            std::lock_guard<std::mutex> lock(m_stateMutex);
             // scriptThreadStates에서 현재 스레드 상태를 다시 가져와야 할 수 있음 (setScriptWait에서 변경되었으므로)
             auto& currentThreadState = scriptThreadStates[executionThreadId]; 
 
             if (currentThreadState.isWaiting) {
-                // A block handler (Moving, Flow, Variable) has just set the wait state.
-                // We need to pause the script execution loop until the wait condition is met.
-                // For BLOCK_INTERNAL, this means pausing until the next frame.
-                // For EXPLICIT_WAIT_SECOND and TEXT_INPUT, the handler function itself
-                // (or a function it calls, like Engine::activateTextInput or performActiveWait)
-                // is responsible for blocking the thread.
-                // If the handler *didn't* block (e.g., BLOCK_INTERNAL), we set resume index and return.
-                // If the handler *did* block (e.g., EXPLICIT_WAIT_SECOND, TEXT_INPUT),
-                // then when we reach this point, isWaiting should ideally be false already
-                // because the blocking call completed.
-                // However, if the blocking call was interrupted (e.g., scene change during wait_second),
-                // isWaiting might still be true. In that case, we should also pause/return.
+                // 어떤 블록이든 대기 상태를 설정했고, 해당 대기 유형이 현재 프레임에서 스크립트 실행을 중단해야 하는 경우
+                currentThreadState.resumeAtBlockIndex = i; // 현재 실행 중인 블록에서 재개하도록 인덱스 저장
 
-                // In all cases where isWaiting is true *after* a block handler returns,
-                // we should pause the script execution loop at the current block.
-                // The thread will resume in the next game loop tick (or after the wait expires).
-                    currentThreadState.resumeAtBlockIndex = i; // 현재 실행 중인 블록 인덱스 'i'를 저장
-                    // blockIdForWait는 setScriptWait에서 이미 설정됨.
-                    pEngineInstance->EngineStdOut("Entity::executeScript: BLOCK_INTERNAL wait set by " + block.id + " for " + id + ". Pausing script at this block (index " + std::to_string(i) + ").", 1, executionThreadId);
+                if (currentThreadState.currentWaitType == WaitType::BLOCK_INTERNAL) {
+                    // BLOCK_INTERNAL 대기의 경우, 다음 프레임에 resumeInternalBlockScripts가
+                    // 이 스크립트를 다시 디스패치할 수 있도록 필요한 정보를 저장합니다.
+                    currentThreadState.scriptPtrForResume = scriptPtr; // 현재 실행 중인 스크립트의 포인터
+                    currentThreadState.sceneIdAtDispatchForResume = sceneIdAtDispatch; // 스크립트가 시작된 씬 ID
+                    
+                    pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId + 
+                                                  ") - Block " + block.id + " (Type: " + block.type + 
+                                                  ") set BLOCK_INTERNAL wait. Pausing script at index " + std::to_string(i) + ".", 
+                                                  1, executionThreadId);
+                    return; // 현재 프레임의 스크립트 실행을 여기서 중단
+                } else if (currentThreadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
+                           currentThreadState.currentWaitType == WaitType::TEXT_INPUT) {
+                    // EXPLICIT_WAIT_SECOND나 TEXT_INPUT의 경우, 해당 블록 핸들러(performActiveWait, activateTextInput)가
+                    // 스레드를 블로킹합니다. 정상 완료 시 isWaiting은 false가 됩니다.
+                    // 만약 isWaiting이 여전히 true라면, 이는 해당 대기가 외부 요인(예: 씬 변경, 엔진 종료)으로 중단되었음을 의미할 수 있습니다.
+                    // 이 경우에도 스크립트 실행을 중단하고 다음 틱에서 상태를 재평가합니다.
+                    pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId + 
+                                                  ") - Explicit wait (" + BlockTypeEnumToString(currentThreadState.currentWaitType) + 
+                                                  ") for block " + block.id + " is still active (likely interrupted). Pausing script at index " + std::to_string(i) + ".", 1, executionThreadId);
+                    return; // 현재 프레임의 스크립트 실행을 여기서 중단
+                }
+                // 다른 유형의 대기가 추가된다면 여기에 처리 로직 추가
             }
         } // 뮤텍스 범위 끝
-
-        if (shouldReturnFromScript) {
-            return; // 스크립트 실행을 현재 프레임에서 중단
-        }
         // 대기 상태가 아니거나, EXPLICIT_WAIT_SECOND가 완료된 경우 다음 블록으로 진행 (i++)
     }
 
