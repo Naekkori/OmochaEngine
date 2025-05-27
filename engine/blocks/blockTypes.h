@@ -137,7 +137,11 @@ namespace Omocha
         WAIT_SECOND,
         REPEAT_BASIC,
         REPEAT_INF,               // New
-        REPEAT_WHILE_TRUE         // New
+        REPEAT_WHILE_TRUE,        // New
+        STOP_REPEAT,              // New: To break loops
+        CONTINUE_REPEAT,          // New: To continue to next iteration of a loop
+        _IF,                      // New: Conditional execution
+        IF_ELSE                   // New: Conditional execution with else
     };
 
     /**

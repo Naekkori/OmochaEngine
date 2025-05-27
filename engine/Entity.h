@@ -75,6 +75,8 @@ public:
         const Script* scriptPtrForResume = nullptr;      // BLOCK_INTERNAL 재개를 위한 스크립트 포인터
         int loopCounter = 0; // For resuming loops like repeat_basic
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
+        bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
+        bool continueLoopRequested = false; // Flag to signal a 'continue_repeat'
 
         ScriptThreadState() : isWaiting(false), waitEndTime(0), currentWaitType(WaitType::NONE), resumeAtBlockIndex(-1) {}
     };

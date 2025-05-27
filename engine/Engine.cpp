@@ -293,28 +293,18 @@ Engine::~Engine()
     std::chrono::seconds timeout_duration(3);
     if (join_future.wait_for(timeout_duration) == std::future_status::timeout)
     {
-        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2);
         // Try to show a message box, but it might not work if SDL is already partially shut down.
         // Consider a more robust way to notify the user or log this critically if SDL_ShowMessageBox fails.
         // For now, we attempt it.
-        SDL_MessageBoxData messageboxData = {
-            SDL_MESSAGEBOX_WARNING,
-            NULL, // window might be NULL or invalid at this point
-            "Engine Shutdown Warning",
-            "Engine shutdown timed out waiting for script threads.\nSome scripts might be unresponsive.",
-            0, NULL, NULL
-        };
-        int buttonid;
-        SDL_ShowMessageBox(&messageboxData, &buttonid); // Best effort
+        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2); // M+2. This log is incorrect if it's not a timeout.
+        showMessageBox("엔진 종료 중 스크립트 스레드 대기 시간이 초과되었습니다.\n일부 스크립트가 응답하지 않는 것 같습니다.", msgBoxIconType.ICON_WARNING);
         // quick_exit might be too abrupt, consider std::exit or allowing main to return.
         // For now, keeping quick_exit as it was.
         quick_exit(EXIT_FAILURE); // Or std::exit(EXIT_FAILURE);
     }
     else
     {
-        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2);
-        showMessageBox("엔진 종료 중 스크립트 스레드 대기 시간이 초과되었습니다.\n일부 스크립트가 응답하지 않는 것 같습니다.", msgBoxIconType.ICON_WARNING);
-        quick_exit(EXIT_FAILURE);
+        EngineStdOut("Script threads joined successfully.", 0);
     }
     // TerminateGE 보다 먼저 폰트 캐시 정리
     for (auto const& [key, val] : m_fontCache) {

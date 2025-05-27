@@ -117,7 +117,11 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"wait_second", BlockTypeEnum::WAIT_SECOND},
         {"repeat_basic", BlockTypeEnum::REPEAT_BASIC},
         {"repeat_inf", BlockTypeEnum::REPEAT_INF},
-        {"repeat_while_true", BlockTypeEnum::REPEAT_WHILE_TRUE}
+        {"repeat_while_true", BlockTypeEnum::REPEAT_WHILE_TRUE},
+        {"stop_repeat", BlockTypeEnum::STOP_REPEAT},
+        {"continue_repeat", BlockTypeEnum::CONTINUE_REPEAT},
+        {"_if", BlockTypeEnum::_IF},
+        {"if_else", BlockTypeEnum::IF_ELSE}
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -231,6 +235,9 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::REPEAT_BASIC, "~번 반복하기"},
         {BlockTypeEnum::REPEAT_INF, "계속 반복하기"},
         {BlockTypeEnum::REPEAT_WHILE_TRUE, "~가 참일 때까지 반복하기"},
+        {BlockTypeEnum::STOP_REPEAT, "반복 중단하기"},
+        {BlockTypeEnum::CONTINUE_REPEAT, "반복 처음으로 돌아가기"},
+        {BlockTypeEnum::CONTINUE_REPEAT, "반복 처음으로 돌아가기"},
         // Variable/List Actions
         {BlockTypeEnum::SET_VISIBLE_ANSWER, "대답 보이기/숨기기"},
         {BlockTypeEnum::ASK_AND_WAIT, "묻고 기다리기"},
@@ -243,7 +250,9 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::INSERT_VALUE_TO_LIST, "리스트의 특정 위치에 항목 추가하기"},
         {BlockTypeEnum::CHANGE_VALUE_LIST_INDEX, "리스트의 특정 위치 항목 바꾸기"},
         {BlockTypeEnum::SHOW_LIST, "리스트 보이기"},
-        {BlockTypeEnum::HIDE_LIST, "리스트 숨기기"}
+        {BlockTypeEnum::HIDE_LIST, "리스트 숨기기"},
+        {BlockTypeEnum::_IF, "만약 ~이라면"},
+        {BlockTypeEnum::IF_ELSE, "만약 ~이라면, 아니면"}
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {
