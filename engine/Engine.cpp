@@ -950,6 +950,16 @@ bool Engine::loadProject(const string &projectFilePath)
                         {
                             objInfo.textContent = getSafeStringFromJson(entityJson, "text", "textBox " + objInfo.name,
                                                                         "[DEFAULT TEXT]", false, true);
+                            if (objInfo.textContent == "<OMOCHA_ENGINE_NAME>")
+                            {
+                                objInfo.textContent = string(OMOCHA_ENGINE_NAME);
+                            }else if(objInfo.textContent == "<OMOCHA_DEVELOPER>"){
+                                objInfo.textContent = "DEVELOPER: "+string(OMOCHA_DEVELOPER_NAME);
+                            }else if(objInfo.textContent == "<OMOCHA_SDL_VERSION>"){
+                                objInfo.textContent = "SDL VERSION: "+to_string(SDL_MAJOR_VERSION)+"."+to_string(SDL_MINOR_VERSION)+"."+to_string(SDL_MICRO_VERSION);
+                            }else if(objInfo.textContent == "<OMOCHA_VERSION>"){
+                                objInfo.textContent = "Engine Version: "+string(OMOCHA_ENGINE_VERSION);
+                            }
                         }
                         else if (entityJson["text"].IsNumber())
                         {
