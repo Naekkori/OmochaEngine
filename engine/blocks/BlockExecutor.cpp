@@ -4076,16 +4076,16 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         {
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
 
-            // --- LOGIC TO PREVENT TIGHT LOOP ---
-            // After executing the inner blocks, check if the script thread is now waiting.
-            // If it's NOT waiting, it means all executed blocks were instant.
-            // In this case, we must yield the thread until the next frame to avoid a tight loop.
-            Entity::WaitType currentWait = Entity::WaitType::NONE;
+            // 내부 블록 실행 후 대기 상태 확인
             if (entity) {
-                 currentWait = entity->getCurrentWaitType(executionThreadId);
-            }
-            if (currentWait == Entity::WaitType::NONE) {
-                 // No wait was set by inner blocks. No need to force a wait in repeat_basic, it will just continue.
+                // Entity::isScriptWaiting은 해당 스레드가 어떤 종류의 대기 상태인지 확인합니다.
+                // Entity::getCurrentWaitType은 구체적인 대기 타입을 반환합니다.
+                if (entity->isScriptWaiting(executionThreadId)) {
+                    // 내부 블록이 대기를 설정했으므로 (예: move_xy_time의 BLOCK_INTERNAL),
+                    // repeat_basic 블록의 실행도 여기서 일시 중단되어야 합니다.
+                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
+                    return; // Flow 함수를 빠져나가 Entity::executeScript가 이 repeat_basic 블록에서 대기하도록 함
+                }
             }
         }
     }
@@ -4144,21 +4144,22 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
 
-            // --- LOGIC TO PREVENT TIGHT LOOP ---
-            // After executing inner blocks, check the current wait state.
-            // If no wait was set by the inner blocks (or it completed instantly),
-            // force a BLOCK_INTERNAL wait for the next frame.
-            // This ensures the thread yields at least once per iteration of the infinite loop.
-            Entity::WaitType currentWait = Entity::WaitType::NONE;
             if (entity) {
-                 currentWait = entity->getCurrentWaitType(executionThreadId);
+                if (entity->isScriptWaiting(executionThreadId)) {
+                    // 내부 블록이 대기를 설정했음 (예: move_xy_time). Flow 함수 종료.
+                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
+                    return;
+                } else {
+                    // 내부 블록이 대기를 설정하지 않음 (모두 즉시 실행됨).
+                    // repeat_inf의 무한 루프가 CPU를 점유하지 않도록 강제로 1프레임 대기.
+                    entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant.", 1, executionThreadId);
+                    return; // Flow 함수를 빠져나가 Entity::executeScript가 이 repeat_inf 블록에서 대기하도록 함
+                }
+            } else {
+                // Entity가 null이 된 경우, 루프를 안전하게 종료합니다.
+                break;
             }
-
-            if (currentWait == Entity::WaitType::NONE) {
-                 // No wait was set by inner blocks. Force a yield.
-                 if (entity) entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
-            }
-
             // executeBlocksSynchronously 내부에서도 종료/씬 변경을 확인하므로,
             // 만약 해당 함수가 return으로 중단되었다면 이 while 루프도 다음 반복에서 위의 break 조건에 걸릴 것입니다.
         }
@@ -4216,6 +4217,21 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
             // If condition is true, execute inner blocks
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
+
+            // repeat_inf와 유사한 대기 처리 로직
+            if (entity) {
+                if (entity->isScriptWaiting(executionThreadId)) {
+                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
+                    return;
+                } else {
+                    // 조건이 계속 참이고 내부 블록이 즉시 실행되면 무한 루프 방지를 위해 강제 대기
+                    entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant and condition is true.", 1, executionThreadId);
+                    return;
+                }
+            } else {
+                break; // Entity가 null이 된 경우
+            }
         }
     }
 }

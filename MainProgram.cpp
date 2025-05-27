@@ -338,7 +338,8 @@ int main(int argc, char *argv[])
                 {
                     if (entity_ptr)
                     {                                     
-                        entity_ptr->updateDialog(deltaTime);
+                        entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
+                        entity_ptr->resumeInternalBlockScripts(deltaTime); // BLOCK_INTERNAL 상태 스크립트 재개
                     }
                 }
 

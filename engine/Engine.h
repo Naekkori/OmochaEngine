@@ -313,8 +313,8 @@ public:
     TTF_Font *getDialogFont();
     void drawDialogs();
     bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
-    bool setEntitychangeToNextCostume(const string& entityId, const string& asOption);
-    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch,float deltaTime);
+    bool setEntitychangeToNextCostume(const std::string& entityId, const std::string& asOption);    
+    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch, float deltaTime, const std::string& existingExecutionThreadId = "");
     void raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId);
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스

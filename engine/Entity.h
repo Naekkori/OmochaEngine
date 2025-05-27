@@ -72,6 +72,8 @@ public:
         std::string blockIdForWait = "";           // 어떤 블록에 의해 대기가 시작되었는지 식별
         WaitType currentWaitType = WaitType::NONE; // 현재 대기 유형
         int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
+        const Script* scriptPtrForResume = nullptr;      // BLOCK_INTERNAL 재개를 위한 스크립트 포인터
+        std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
 
         ScriptThreadState() : isWaiting(false), waitEndTime(0), currentWaitType(WaitType::NONE), resumeAtBlockIndex(-1) {}
     };
@@ -247,6 +249,7 @@ public:
     void removeDialog();
     void update(float deltaTime);
     void updateDialog(float deltaTime); // Changed from Uint64 currentTimeMs
+    void resumeInternalBlockScripts(float deltaTime); // 추가: BLOCK_INTERNAL 상태의 스크립트 재개
     bool hasActiveDialog() const;
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;

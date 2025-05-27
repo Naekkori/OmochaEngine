@@ -1139,3 +1139,36 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
         pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
     }
 }
+
+void Entity::resumeInternalBlockScripts(float deltaTime) {
+    if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    std::vector<std::tuple<std::string, const Script*, std::string>> tasksToDispatch;
+
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        for (auto& [execId, state] : scriptThreadStates) { // Iterate by reference
+            if (state.isWaiting && state.currentWaitType == WaitType::BLOCK_INTERNAL) {
+                if (state.scriptPtrForResume && !state.sceneIdAtDispatchForResume.empty()) {
+                    tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume);
+                } else {
+                    pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait but missing resume context.", 1, execId);
+                    state.isWaiting = false;
+                    state.currentWaitType = WaitType::NONE;
+                    state.scriptPtrForResume = nullptr;
+                    state.sceneIdAtDispatchForResume = "";
+                }
+            }
+        }
+    }
+
+    for (const auto& task : tasksToDispatch) {
+        const std::string& execId = std::get<0>(task);
+        const Script* scriptToRun = std::get<1>(task);
+        const std::string& sceneIdForRun = std::get<2>(task);
+
+        pEngineInstance->dispatchScriptForExecution(this->id, scriptToRun, sceneIdForRun, deltaTime, execId);
+    }
+}
