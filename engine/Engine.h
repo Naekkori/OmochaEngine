@@ -321,5 +321,9 @@ public:
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
     SimpleLogger logger;                           // 로거 인스턴스
     std::atomic<bool> m_isShuttingDown{false};     // 엔진 종료 상태 플래그
-    rapidjson::Document m_blockParamsAllocatorDoc; // Allocator for Block::paramsJson data - public으로 이동
+    boost::asio::thread_pool& getThreadPool() { return m_scriptThreadPool; } // 스레드 풀 접근자 추가
+private:
+    std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
+public:
+    uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환
 };

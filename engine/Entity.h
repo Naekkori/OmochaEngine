@@ -245,6 +245,10 @@ public:
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
     void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
+     void scheduleScriptExecutionOnPool(const Script* scriptPtr,
+                                       const std::string& sceneIdAtDispatch,
+                                       float deltaTime,
+                                       const std::string& existingExecutionThreadId);
 public:
     void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime);
     void setLastCollisionSide(CollisionSide side);

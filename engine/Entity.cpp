@@ -7,6 +7,8 @@
 #include "Engine.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
+#include <boost/asio/post.hpp> // Required for posting tasks to the thread pool
+
 Entity::PenState::PenState(Engine *enginePtr)
     : pEngine(enginePtr),
       stop(false), // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
@@ -249,7 +251,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         }
 
         const Block &block = scriptPtr->blocks[i];
-        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 5, executionThreadId);
+        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3, executionThreadId); // LEVEL 5 -> 3
         
         try
         {
@@ -1199,20 +1201,157 @@ void Entity::resumeInternalBlockScripts(float deltaTime) {
         }
     }
 
+    // Capture pEngineInstance by value (it's a pointer, so the pointer value is copied)
+    // to ensure the lambda uses the Engine instance that was valid at the time of posting.
     for (const auto& task : tasksToDispatch) {
         const std::string& execId = std::get<0>(task);
         const Script* scriptToRun = std::get<1>(task);
         const std::string& sceneIdForRun = std::get<2>(task);
+        Engine* capturedEnginePtr = pEngineInstance; // Capture for lambda
 
-        // Before dispatching, ensure the wait state for this specific BLOCK_INTERNAL is cleared.
-        // This was moved to the beginning of executeScript, which is better.
-        // {
-        //     std::lock_guard<std::mutex> lock(m_stateMutex);
-        //     auto it = scriptThreadStates.find(execId);
-        //     if (it != scriptThreadStates.end() && it->second.currentWaitType == WaitType::BLOCK_INTERNAL) {
-        //         it->second.isWaiting = false; // Clear the wait before re-dispatching
-        //     }
-        // }
-        pEngineInstance->dispatchScriptForExecution(this->id, scriptToRun, sceneIdForRun, deltaTime, execId);
+        boost::asio::post(capturedEnginePtr->getThreadPool(),
+            [this, scriptToRun, execId, sceneIdForRun, deltaTime, capturedEnginePtr]() {
+            if (capturedEnginePtr->m_isShuttingDown.load(std::memory_order_relaxed)) {
+                // capturedEnginePtr->EngineStdOut("Resume for " + this->getId() + " (Thread: " + execId + ") cancelled due to engine shutdown.", 1, execId);
+                return;
+            }
+
+            // Log that the entity is resuming this script thread.
+            // This log replaces the one that was in Engine::dispatchScriptForExecution for resumed scripts.
+            capturedEnginePtr->EngineStdOut("Worker thread (resumed by Entity) for entity: " + this->getId() + " (Thread: " + execId + ")", 5, execId);
+
+            try {
+                this->executeScript(scriptToRun, execId, sceneIdForRun, deltaTime);
+            } catch (const ScriptBlockExecutionError &sbee) {
+                // Replicate error handling from Engine::dispatchScriptForExecution
+                Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
+                std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
+
+                std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
+                                                   " 의 타입 " + koreanBlockTypeName +
+                                                   (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
+                                                        ? " (원본: " + sbee.blockType + ")"
+                                                        : "") +
+                                                   " 에서 사용 하는 객체 " + sbee.entityId +
+                                                   "\n원본 오류: " + sbee.originalMessage;
+
+                capturedEnginePtr->EngineStdOut("Script Execution Error (Thread " + execId + "): " + detailedErrorMessage, 2, execId);
+                capturedEnginePtr->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage, capturedEnginePtr->msgBoxIconType.ICON_ERROR);
+            } catch (const std::exception &e) {
+                capturedEnginePtr->EngineStdOut(
+                    "Generic exception caught in resumed script for entity " + this->getId() +
+                    " (Thread: " + execId + "): " + e.what(), 2, execId);
+            } catch (...) {
+                capturedEnginePtr->EngineStdOut(
+                    "Unknown exception caught in resumed script for entity " + this->getId() +
+                    " (Thread: " + execId + ")", 2, execId);
+            }
+        });
     }
+}
+
+void Entity::scheduleScriptExecutionOnPool(const Script* scriptPtr,
+                                           const std::string& sceneIdAtDispatch,
+                                           float deltaTime,
+                                           const std::string& existingExecutionThreadId)
+{
+    if (!pEngineInstance) {
+        // 이 오류는 Entity가 올바르게 생성되지 않았을 때 발생할 수 있습니다.
+        // 실제 프로덕션에서는 더 강력한 로깅/오류 처리 메커니즘이 필요할 수 있습니다.
+        std::cerr << "CRITICAL ERROR: Entity " << this->id 
+                  << " has no valid pEngineInstance. Cannot schedule script execution." << std::endl;
+        // 간단한 콘솔 출력 외에, Engine의 로거를 사용할 수 있다면 사용하는 것이 좋습니다.
+        // (단, pEngineInstance가 null이므로 직접 호출은 불가)
+        return;
+    }
+
+    if (!scriptPtr) {
+        pEngineInstance->EngineStdOut("Entity::scheduleScriptExecutionOnPool - null script pointer for entity: " + this->id, 2, existingExecutionThreadId);
+        return;
+    }
+
+    // 새 스크립트의 경우, 실행할 블록이 있는지 확인합니다.
+    // (첫 번째 블록은 보통 이벤트 트리거이므로, 1개 초과여야 실행 가능)
+    if (existingExecutionThreadId.empty() && (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1)) {
+        pEngineInstance->EngineStdOut(
+            "Entity::scheduleScriptExecutionOnPool - Script for entity " + this->id + " has no executable blocks. Skipping.", 1, existingExecutionThreadId);
+        return;
+    }
+
+    std::string execIdToUse;
+    bool isResumedScript = !existingExecutionThreadId.empty();
+
+    if (isResumedScript) {
+        execIdToUse = existingExecutionThreadId;
+    } else {
+        // 새 스크립트 실행을 위한 ID 생성
+        // 이전 Engine::dispatchScriptForExecution의 ID 생성 로직을 따르되, Engine의 카운터를 추가하여 고유성을 강화합니다.
+        // 참고: 이 ID 생성 방식은 호출 스레드의 ID 해시를 사용하므로, 동시에 여러 스크립트가 시작될 경우 완벽한 고유성을 보장하지 않을 수 있습니다.
+        // 더 강력한 고유 ID가 필요하다면 UUID 등의 사용을 고려해야 합니다.
+        std::thread::id physical_thread_id = std::this_thread::get_id();
+        std::stringstream ss_full_hex;
+        ss_full_hex << std::hex << std::hash<std::thread::id>{}(physical_thread_id);
+        std::string full_hex_str = ss_full_hex.str();
+        std::string short_hex_str;
+
+        if (full_hex_str.length() >= 4) {
+            short_hex_str = full_hex_str.substr(0, 4);
+        } else {
+            short_hex_str = std::string(4 - full_hex_str.length(), '0') + full_hex_str;
+        }
+        // Engine의 카운터를 사용하여 ID의 고유성을 더욱 강화합니다.
+        execIdToUse = "script_" + short_hex_str + "_" + std::to_string(pEngineInstance->getNextScriptExecutionCounter());
+    }
+
+    // 스레드 풀에 작업을 게시합니다.
+    // 람다 함수는 필요한 변수들을 캡처합니다. pEngineInstance는 this를 통해 접근 가능합니다.
+    boost::asio::post(pEngineInstance->getThreadPool(),
+        [this, scriptPtr, sceneIdAtDispatch, deltaTime, execIdToUse, isResumedScript]() {
+        
+        if (this->pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
+            // 엔진 종료 중이면 스크립트 실행을 취소합니다. (선택적 로깅)
+            // this->pEngineInstance->EngineStdOut("Script execution for " + this->id + " (Thread: " + execIdToUse + ") cancelled due to engine shutdown.", 1, execIdToUse);
+            return;
+        }
+
+        // 스크립트 시작 또는 재개 로깅
+        if (isResumedScript) {
+            this->pEngineInstance->EngineStdOut("Entity " + this->id + " resuming script (Thread: " + execIdToUse + ")", 5, execIdToUse);
+        } else {
+            this->pEngineInstance->EngineStdOut("Entity " + this->id + " starting new script (Thread: " + execIdToUse + ")", 5, execIdToUse);
+        }
+
+        try {
+            // 실제 스크립트 실행
+            this->executeScript(scriptPtr, execIdToUse, sceneIdAtDispatch, deltaTime);
+        } catch (const ScriptBlockExecutionError &sbee) {
+            // 스크립트 블록 실행 오류 처리
+            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
+
+            // 오류 메시지 구성 (sbee.entityId는 오류가 발생한 블록이 참조하는 엔티티일 수 있으므로,
+            // 현재 스크립트를 실행하는 엔티티는 this->id로 명시하는 것이 더 명확할 수 있습니다.)
+            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + this->id + 
+                                               ") 블럭ID " + sbee.blockId +
+                                               " 의 타입 " + koreanBlockTypeName +
+                                               (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
+                                                    ? " (원본: " + sbee.blockType + ")"
+                                                    : "") +
+                                               " 에서 사용 하는 객체 " + sbee.entityId + // 오류 블록이 직접 참조한 객체 ID
+                                               "\n원본 오류: " + sbee.originalMessage;
+
+            this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
+            this->pEngineInstance->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+        } catch (const std::exception &e) {
+            // 일반 C++ 예외 처리
+            this->pEngineInstance->EngineStdOut(
+                "Generic exception caught in script for entity " + this->id +
+                " (Thread: " + execIdToUse + "): " + e.what(), 2, execIdToUse);
+        } catch (...) {
+            // 그 외 알 수 없는 예외 처리
+            this->pEngineInstance->EngineStdOut(
+                "Unknown exception caught in script for entity " + this->id +
+                " (Thread: " + execIdToUse + ")", 2, execIdToUse);
+        }
+    });
 }

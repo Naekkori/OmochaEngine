@@ -411,8 +411,6 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
  */
 bool Engine::loadProject(const string &projectFilePath)
 {
-    m_blockParamsAllocatorDoc = rapidjson::Document();
-
     EngineStdOut("Initial Project JSON file parsing...", 0);
 
     ifstream projectFile(projectFilePath);
@@ -751,8 +749,8 @@ bool Engine::loadProject(const string &projectFilePath)
 
             this->m_HUDVariables.push_back(currentVarDisplay); // 완전히 채워진 표시 객체 추가
             EngineStdOut(
-                string("  Parsed variable: ") + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " +
-                currentVarDisplay.variableType + ")");
+                "  Parsed variable: " + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " +
+                currentVarDisplay.variableType + ")", 3); // LEVEL 0 -> 3
         }
     }
     /**
@@ -793,8 +791,8 @@ bool Engine::loadProject(const string &projectFilePath)
             if (objectJson.HasMember("sprite") && objectJson["sprite"].IsObject() &&
                 objectJson["sprite"].HasMember("pictures") && objectJson["sprite"]["pictures"].IsArray())
             {
-                const rapidjson::Value &picturesJson = objectJson["sprite"]["pictures"];
-                EngineStdOut("Found " + to_string(picturesJson.Size()) + " pictures for object " + objInfo.name, 0);
+                const rapidjson::Value &picturesJson = objectJson["sprite"]["pictures"]; // LEVEL 0 -> 3 (아래 상세로그와 중복될 수 있음)
+                EngineStdOut("Found " + to_string(picturesJson.Size()) + " pictures for object " + objInfo.name, 3);
                 for (rapidjson::SizeType j = 0; j < picturesJson.Size(); ++j)
                 {
                     const auto &pictureJson = picturesJson[j];
@@ -830,7 +828,7 @@ bool Engine::loadProject(const string &projectFilePath)
 
                         objInfo.costumes.push_back(ctu);
                         EngineStdOut(
-                            "  Parsed costume: " + ctu.name + " (ID: " + ctu.id + ", File: " + ctu.filename + ")", 0);
+                            "  Parsed costume: " + ctu.name + " (ID: " + ctu.id + ", File: " + ctu.filename + ")", 3); // LEVEL 0 -> 3
                     }
                     else
                     {
@@ -849,9 +847,8 @@ bool Engine::loadProject(const string &projectFilePath)
             if (objectJson.HasMember("sprite") && objectJson["sprite"].IsObject() &&
                 objectJson["sprite"].HasMember("sounds") && objectJson["sprite"]["sounds"].IsArray())
             {
-                const rapidjson::Value &soundsJson = objectJson["sprite"]["sounds"];
-                EngineStdOut(
-                    "Found " + to_string(soundsJson.Size()) + " sounds for object " + objInfo.name + ". Parsing...", 0);
+                const rapidjson::Value &soundsJson = objectJson["sprite"]["sounds"]; // LEVEL 0 -> 3 (아래 상세로그와 중복될 수 있음)
+                EngineStdOut("Found " + to_string(soundsJson.Size()) + " sounds for object " + objInfo.name + ". Parsing...", 3);
 
                 for (rapidjson::SizeType j = 0; j < soundsJson.Size(); ++j)
                 {
@@ -902,8 +899,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         sound.duration = soundDuration;
                         objInfo.sounds.push_back(sound);
                         EngineStdOut(
-                            "  Parsed sound: " + sound.name + " (ID: " + sound.id + ", File: " + sound.filename + ")",
-                            0);
+                            "  Parsed sound: " + sound.name + " (ID: " + sound.id + ", File: " + sound.filename + ")", 3); // LEVEL 0 -> 3
                     }
                     else
                     {
@@ -950,8 +946,7 @@ bool Engine::loadProject(const string &projectFilePath)
             if (selectedCostumeFound)
             {
                 objInfo.selectedCostumeId = tempSelectedCostumeId;
-                EngineStdOut(
-                    "Object '" + objInfo.name + "' (ID: " + objInfo.id + ") selected costume ID: " + objInfo.selectedCostumeId, 0);
+                EngineStdOut("Object '" + objInfo.name + "' (ID: " + objInfo.id + ") selected costume ID: " + objInfo.selectedCostumeId, 3); // LEVEL 0 -> 3
             }
             else
             {
@@ -1006,10 +1001,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         else if (entityJson["text"].IsNumber())
                         {
                             objInfo.textContent = to_string(entityJson["text"].GetDouble());
-                            EngineStdOut(
-                                "INFO: textBox '" + objInfo.name + "' 'text' field is numeric. Converted to string: " +
-                                    objInfo.textContent,
-                                0);
+                            EngineStdOut("INFO: textBox '" + objInfo.name + "' 'text' field is numeric. Converted to string: " + objInfo.textContent, 3); // LEVEL 0 -> 3
                         }
                         else
                         {
@@ -1038,8 +1030,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                 unsigned int g = stoul(hexColor.substr(3, 2), nullptr, 16);
                                 unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
                                 objInfo.textColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
-                                EngineStdOut(
-                                    "INFO: textBox '" + objInfo.name + "' text color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 0);
+                                EngineStdOut("INFO: textBox '" + objInfo.name + "' text color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 3); // LEVEL 0 -> 3
                             }
                             catch (const exception &e)
                             {
@@ -1134,7 +1125,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         // 폰트 이름 앞뒤 공백 제거
                         objInfo.fontName.erase(0, objInfo.fontName.find_first_not_of(" \t\n\r\f\v"));
                         objInfo.fontName.erase(objInfo.fontName.find_last_not_of(" \t\n\r\f\v") + 1);
-                        EngineStdOut("INFO: textBox '" + objInfo.name + "' parsed font size: " + std::to_string(objInfo.fontSize) + ", name: '" + objInfo.fontName + "'", 0);
+                        EngineStdOut("INFO: textBox '" + objInfo.name + "' parsed font size: " + std::to_string(objInfo.fontSize) + ", name: '" + objInfo.fontName + "'", 3); // LEVEL 0 -> 3
                     }
                     else
                     {
@@ -1162,8 +1153,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                     to_string(parsedAlign) + ". Using default alignment 0 (left).",
                                 1);
                         }
-                        EngineStdOut(
-                            "INFO: textBox '" + objInfo.name + "' text alignment parsed: " + to_string(objInfo.textAlign), 0);
+                        EngineStdOut("INFO: textBox '" + objInfo.name + "' text alignment parsed: " + to_string(objInfo.textAlign), 3); // LEVEL 0 -> 3
                     }
                     else
                     {
@@ -1286,7 +1276,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 newEntity->paint.reset(initial_x, initial_y);
                 lock_guard<mutex> lock(m_engineDataMutex);
                 entities[objectId] = newEntity;
-                // newEntity->startLogicThread();
+                // newEntity->startLogicThread(); // This seems to be commented out already
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
             else
@@ -1318,14 +1308,14 @@ bool Engine::loadProject(const string &projectFilePath)
 
                     if (!scriptDocument.HasParseError())
                     {
-                        EngineStdOut("Script JSON string parsed successfully for object: " + objInfo.name, 0);
+                        EngineStdOut("Script JSON string parsed successfully for object: " + objInfo.name, 3); // LEVEL 0 -> 3
 
                         if (scriptDocument.IsArray())
                         {
                             vector<Script> scriptsForObject;
                             for (rapidjson::SizeType j = 0; j < scriptDocument.Size(); ++j)
                             {
-                                const auto &scriptStackJson = scriptDocument[j];
+                                const auto &scriptStackJson = scriptDocument[j]; // 이 줄이 누락되었습니다. 복원합니다.
                                 if (scriptStackJson.IsArray())
                                 {
                                     Script currentScript;
@@ -1351,8 +1341,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                                 // Consider if this specific log is still needed or if the one inside ParseBlockDataInternal is sufficient.
                                                 // For now, keeping it to match the original log structure.
                                                 EngineStdOut(
-                                                    "    Parsed block: id='" + currentScript.blocks.back().id + "', type='" + currentScript.blocks.back().type + "'",
-                                                    0);
+                                                    "    Parsed block: id='" + currentScript.blocks.back().id + "', type='" + currentScript.blocks.back().type + "'", 3); // LEVEL 0 -> 3
                                             } else {
                                                 EngineStdOut(
                                                     "WARN: Skipping top-level block in " + blockContext +
@@ -1388,8 +1377,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                 }
                             }
                             objectScripts[objectId] = scriptsForObject;
-                            EngineStdOut(
-                                "INFO: Parsed " + to_string(scriptsForObject.size()) + " script stacks for object ID: " + objectId, 0);
+                            EngineStdOut("INFO: Parsed " + to_string(scriptsForObject.size()) + " script stacks for object ID: " + objectId, 3); // LEVEL 0 -> 3
                         }
                         else
                         {
@@ -1464,7 +1452,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene",
                                                          false, true);
                 scenes[sceneId] = sceneName;
-                m_sceneOrder.push_back(sceneId);
+                m_sceneOrder.push_back(sceneId); // LEVEL 0 -> 3
                 EngineStdOut("  Parsed scene: " + sceneName + " (ID: " + sceneId + ")", 0);
             }
             else
@@ -1542,7 +1530,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         startButtonScripts.push_back({objectId, &script});
-                        EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 0);
+                        EngineStdOut("  -> Found valid 'Start Button Clicked' script for object ID: " + objectId, 3); // LEVEL 0 -> 3
                     }
                     else
                     {
@@ -1598,7 +1586,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         m_mouseClickedScripts.push_back({objectId, &script});
-                        EngineStdOut("  -> object ID " + objectId + " found 'mouse clicked' script.", 0);
+                        EngineStdOut("  -> object ID " + objectId + " found 'mouse clicked' script.", 3); // LEVEL 0 -> 3
                     }
                 }
                 else if (firstBlock.type == "mouse_click_cancled")
@@ -1606,7 +1594,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         m_mouseClickCanceledScripts.push_back({objectId, &script});
-                        EngineStdOut("  -> object ID " + objectId + " found 'mouse click canceled' script.", 0);
+                        EngineStdOut("  -> object ID " + objectId + " found 'mouse click canceled' script.", 3); // LEVEL 0 -> 3
                     }
                 }
                 else if (firstBlock.type == "when_object_click")
@@ -1614,7 +1602,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         m_whenObjectClickedScripts.push_back({objectId, &script});
-                        EngineStdOut("  -> object ID " + objectId + " found 'click an object' script.", 0);
+                        EngineStdOut("  -> object ID " + objectId + " found 'click an object' script.", 3); // LEVEL 0 -> 3
                     }
                 }
                 else if (firstBlock.type == "when_object_click_canceled")
@@ -1622,8 +1610,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         m_whenObjectClickCanceledScripts.push_back({objectId, &script});
-                        EngineStdOut(
-                            "  -> object ID " + objectId + " found 'When I release the click on an object' script.", 0);
+                        EngineStdOut("  -> object ID " + objectId + " found 'When I release the click on an object' script.", 3); // LEVEL 0 -> 3
                     }
                 }
                 else if (firstBlock.type == "when_message_cast")
@@ -1655,8 +1642,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         if (messageParamFound && !messageIdToReceive.empty())
                         {
                             m_messageReceivedScripts[messageIdToReceive].push_back({objectId, &script});
-                            EngineStdOut("  -> object ID " + objectId + " " + messageIdToReceive + " message found.",
-                                         0);
+                            EngineStdOut("  -> object ID " + objectId + " " + messageIdToReceive + " message found.", 3); // LEVEL 0 -> 3
                         }
                         else
                         {
@@ -1675,7 +1661,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     if (script.blocks.size() > 1)
                     {
                         m_whenStartSceneLoadedScripts.push_back({objectId, &script});
-                        EngineStdOut("  -> object ID " + objectId + " found 'when scene start' script.", 0);
+                        EngineStdOut("  -> object ID " + objectId + " found 'when scene start' script.", 3); // LEVEL 0 -> 3
                     }
                 }
             }
@@ -2039,7 +2025,7 @@ TTF_Font* Engine::getFont(const std::string& fontPath, int fontSize) {
     }
 
     m_fontCache[key] = font; // 새 폰트를 캐시에 추가
-    EngineStdOut("Loaded and cached font: " + fontPath + " at size " + std::to_string(fontSize), 0);
+    EngineStdOut("Loaded and cached font: " + fontPath + " at size " + std::to_string(fontSize), 3); // LEVEL 0 -> 3
     return font;
 }
 
@@ -2197,9 +2183,7 @@ bool Engine::loadImages()
                 if (costume.imageHandle)
                 {
                     loadedCount++;
-                    EngineStdOut(
-                        "  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.",
-                        0);
+                    EngineStdOut("  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.", 3); // LEVEL 0 -> 3
                 }
                 else
                 {
@@ -3630,7 +3614,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                             m_draggedHUDVariableMouseOffsetY =
                                 static_cast<float>(mouseY) - (itemScreenY + var_item.height);
                             uiClicked = true;
-                            EngineStdOut("Started resizing HUD list: " + var_item.name, 0); // HUD 리스트 크기 조절 시작
+                            EngineStdOut("Started resizing HUD list: " + var_item.name, 3); // LEVEL 0 -> 3
                             break;
                         }
                     }
@@ -3660,10 +3644,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         m_draggedHUDVariableMouseOffsetY = static_cast<float>(mouseY) - itemScreenY;
                         // 마우스 스크린 위치 - 아이템 스크린 좌상단 Y
                         uiClicked = true;
-                        EngineStdOut(
-                            "Started dragging HUD variable: " + var_item.name + " (Type: " + var_item.variableType +
-                                ")",
-                            0); // HUD 변수 드래그 시작
+                        EngineStdOut("Started dragging HUD variable: " + var_item.name + " (Type: " + var_item.variableType + ")", 3); // LEVEL 0 -> 3
                         break;
                     }
                 }
@@ -3735,8 +3716,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
                                 if (clickScriptPair.first == objectId)
-                                {
-                                    EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 0);
+                                { // LEVEL 0 -> 3
+                                    EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 3);
                                     this->dispatchScriptForExecution(objectId, clickScriptPair.second,
                                                                      getCurrentSceneId(), deltaTime);
                                 }
@@ -3770,10 +3751,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 {
                     const string &objectId = scriptPair.first;
                     const Script *scriptPtr = scriptPair.second;
-                    EngineStdOut(
-                        " -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " +
-                            SDL_GetScancodeName(scancode) + ")",
-                        0);
+                    EngineStdOut(" -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " +
+                            SDL_GetScancodeName(scancode) + ")", 3); // LEVEL 0 -> 3
                     this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId(), deltaTime);
                 }
             }
@@ -3898,13 +3877,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             {
                 if (m_currentHUDDragState == HUDDragState::MOVING)
                 {
-                    EngineStdOut("Stopped dragging HUD variable: " + m_HUDVariables[m_draggedHUDVariableIndex].name,
-                                 0); // HUD 변수 드래그 중지
+                    EngineStdOut("Stopped dragging HUD variable: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 3); // LEVEL 0 -> 3
                 }
                 else if (m_currentHUDDragState == HUDDragState::RESIZING)
                 {
-                    EngineStdOut("Stopped resizing HUD list: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 0);
-                    // HUD 리스트 크기 조절 중지
+                    EngineStdOut("Stopped resizing HUD list: " + m_HUDVariables[m_draggedHUDVariableIndex].name, 3); // LEVEL 0 -> 3
                 }
                 m_draggedHUDVariableIndex = -1;
                 m_currentHUDDragState = HUDDragState::NONE;
@@ -3964,7 +3941,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         std::string sceneContext = getCurrentSceneId(); // 현재 씬 컨텍스트 가져오기
                         if (scriptPair.first == canceledObjectId)
                         {
-                            EngineStdOut("Dispatching 'when_object_click_canceled' for object: " + canceledObjectId, 0);
+                            EngineStdOut("Dispatching 'when_object_click_canceled' for object: " + canceledObjectId, 3); // LEVEL 0 -> 3
                             this->dispatchScriptForExecution(canceledObjectId, scriptPair.second, sceneContext, deltaTime);
                         }
                     }
@@ -4807,8 +4784,7 @@ void Engine::triggerWhenSceneStartScripts()
 
         if (executeForScene)
         {
-            EngineStdOut(
-                "  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 0);
+            EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 3); // LEVEL 0 -> 3
             this->dispatchScriptForExecution(objectId, scriptPtr, currentSceneId, 0.0);
         }
     }
@@ -5337,8 +5313,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                     bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
                     if (isInCurrentScene || isGlobal)
                     {
-                        EngineStdOut(
-                            "Dispatching message-received script for object: " + listeningObjectId + " (Message: '" + messageId + "')", 0, executionThreadId);
+                        EngineStdOut("Dispatching message-received script for object: " + listeningObjectId + " (Message: '" + messageId + "')", 3, executionThreadId); // LEVEL 0 -> 3
                         this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId, 0.0);
                     }
                     else
@@ -5378,11 +5353,32 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
                                         const std::string &existingExecutionThreadId)
 {
     if (!scriptPtr)
-    {
+    { // 스크립트 포인터가 null이면 오류 로깅 후 반환
         EngineStdOut("dispatchScriptForExecution called with null script pointer for object: " + entityId, 2);
         return;
     }
-    // For new scripts, check block size. For resumed scripts, this check might not be appropriate if resumeAtBlockIndex is valid.
+
+    // Entity 객체를 찾습니다.
+    Entity* entity = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
+        entity = getEntityById_nolock(entityId);
+    }
+
+    if (!entity) { // 엔티티를 찾을 수 없으면 오류 로깅 후 반환
+        EngineStdOut("dispatchScriptForExecution: Entity " + entityId + " not found. Cannot schedule script.", 2, existingExecutionThreadId);
+        return;
+    }
+
+    // Entity가 자신의 스크립트 실행을 스레드 풀에 직접 스케줄링하도록 요청합니다.
+    // 이 변경은 Entity 클래스에 scheduleScriptExecutionOnPool (가칭)과 같은 새 메소드 구현을 필요로 합니다.
+    // 해당 메소드는 이전에 dispatchScriptForExecution의 람다가 수행하던 로직 (스레드 ID 생성, 로깅, executeScript 호출, 오류 처리)을 포함해야 합니다.
+    entity->scheduleScriptExecutionOnPool(scriptPtr, sceneIdAtDispatch, deltaTime, existingExecutionThreadId);
+
+    // --- 아래 로직은 Entity 클래스의 새로운 메소드로 이동되어야 합니다 ---
+    // 주석 처리된 부분은 Engine이 직접 스레드 풀에 작업을 게시하던 기존 방식입니다.
+    // 사용자의 요청에 따라, 이 책임은 Entity로 이전됩니다.
+    /*
     if (existingExecutionThreadId.empty() && (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1))
     {
         // 첫번째 블록은 이벤트 트리거
@@ -5391,8 +5387,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
         return;
     }
 
-    boost::asio::post(m_scriptThreadPool, [this, entityId, scriptPtr, sceneIdAtDispatch, deltaTime, existingExecutionThreadId]()
-                      {
+    boost::asio::post(m_scriptThreadPool, [this, entity, scriptPtr, sceneIdAtDispatch, deltaTime, existingExecutionThreadId]() { // entityId 대신 entity 포인터 직접 사용
         std::string thread_id_str;
         if (!existingExecutionThreadId.empty()) {
             thread_id_str = existingExecutionThreadId;
@@ -5418,18 +5413,11 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
         }
 
         try {
-
-            Entity *entity = nullptr; {
-                std::lock_guard<std::mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
-                entity = getEntityById_nolock(entityId);
-            }
-
             if (entity) {
                 entity->executeScript(scriptPtr, thread_id_str, sceneIdAtDispatch, deltaTime);
             } else {
-                EngineStdOut(
-                    "Entity " + entityId + " not found when trying to execute script in worker thread " + thread_id_str,
-                    1, thread_id_str);
+                // 이 경우는 위에서 entity 포인터를 이미 확인했으므로 발생하지 않아야 합니다.
+                // EngineStdOut("Entity not found (should not happen here) for script in worker thread " + thread_id_str, 1, thread_id_str);
             }
         } catch (const ScriptBlockExecutionError &sbee) {
             // ScriptBlockExecutionError를 여기서 처리하여 상세 한글 오류 메시지 생성
@@ -5441,22 +5429,23 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.
                                                 empty()
                                                     ? " (원본: " + sbee.blockType + ")"
-                                                    : "") +
-                                               " 에서 사용 하는 객체 " + sbee.entityId +
+                                                    : "") + 
+                                               " 에서 사용 하는 객체 " + (entity ? entity->getId() : sbee.entityId) + // entityId 대신 entity->getId() 사용
                                                "\n원본 오류: " + sbee.originalMessage;
 
             EngineStdOut("Script Execution Error (Thread " + thread_id_str + "): " + detailedErrorMessage, 2,
                          thread_id_str);
             this->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage,SDL_MESSAGEBOX_ERROR);
         } catch (const std::exception &e) {
-            EngineStdOut(
+            EngineStdOut( // entityId 대신 entity->getId() 사용
                 "Generic exception caught in worker thread " + thread_id_str + " executing script for entity " +
-                entityId + ": " + e.what(), 2, thread_id_str);
+                (entity ? entity->getId() : "UNKNOWN_ENTITY") + ": " + e.what(), 2, thread_id_str);
         } catch (...) {
-            EngineStdOut(
+            EngineStdOut( // entityId 대신 entity->getId() 사용
                 "Unknown exception caught in worker thread " + thread_id_str + " executing script for entity " +
-                entityId, 2, thread_id_str);
+                (entity ? entity->getId() : "UNKNOWN_ENTITY"), 2, thread_id_str);
         } });
+    */
 }
 
 /**
