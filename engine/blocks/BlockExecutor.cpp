@@ -4601,7 +4601,11 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             }
         }
         // 조건에 따라 해당 스택이 없거나, 있었지만 내부 블록 실행이 (대기 없이) 완료된 경우, 이 블록의 실행은 완료.
+    }else if (BlockType == "wait_until_true")
+    {
+        
     }
+    
 }
 
 /**
