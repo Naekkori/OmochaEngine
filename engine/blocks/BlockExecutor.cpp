@@ -120,7 +120,7 @@ std::string OperandValue::asString() const
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField, const std::string &executionThreadId)
 {
     // paramField 내용을 로깅하여 문제 파악
-    /*rapidjson::StringBuffer paramField_buffer_debug;
+   /* rapidjson::StringBuffer paramField_buffer_debug;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> paramField_writer_debug(paramField_buffer_debug); // PrettyWriter 사용
     paramField.Accept(paramField_writer_debug);
     engine.EngineStdOut("getOperandValue (obj: " + objectId +", thread: " + executionThreadId + ") processing paramField: " + std::string(paramField_buffer_debug.GetString()), 3, executionThreadId);*/

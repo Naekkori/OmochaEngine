@@ -57,12 +57,20 @@ namespace
         Block newBlock; // Default constructor initializes paramsJson to kNullType
 
         // Parse ID
-        newBlock.id = engine.getSafeStringFromJson(blockJson, "id", contextForLog, "", true, false);
-        if (newBlock.id.empty())
+    std::string tempId = engine.getSafeStringFromJson(blockJson, "id", contextForLog, "", true, false);
+    // Parse Type
+    std::string tempType = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + tempId + ")", "", true, false);
+
+    if (tempId.empty() || tempType.empty())
         {
-            // engine.EngineStdOut("ERROR: Block " + contextForLog + " has missing or empty 'id'. Cannot parse block.", 2); // getSafeStringFromJson logs critical
+        // Log an error if critical information is missing. getSafeStringFromJson might already log.
+        // This additional log ensures we know why the block is considered invalid here.
+        engine.EngineStdOut("ERROR: Block " + contextForLog + " is invalid due to missing id ('" + tempId + "') or type ('" + tempType + "'). Cannot parse block.", 2);
             return Block(); // Return an empty/invalid block (its id will be empty)
         }
+    newBlock.id = tempId;
+    newBlock.type = tempType;
+    // engine.EngineStdOut("DEBUG: Successfully parsed id='" + newBlock.id + "', type='" + newBlock.type + "' for " + contextForLog, 3, ""); // Optional: debug log for successful basic parse
 
         // Parse Type
         newBlock.type = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + newBlock.id + ")", "", true, false);
@@ -109,9 +117,19 @@ namespace
                         if (innerBlockJsonVal.IsObject())
                         {
                             Block parsedInnerBlock = ParseBlockDataInternal(innerBlockJsonVal, engine, innerScriptContext + " inner_block " + std::to_string(innerBlockIdx));
-                            if (!parsedInnerBlock.id.empty())
+                            // Ensure both id and type are valid before adding
+                            if (!parsedInnerBlock.id.empty() && !parsedInnerBlock.type.empty())
                             {
                                 innerScript.blocks.push_back(std::move(parsedInnerBlock));
+                                // Log only if successfully parsed and added
+                                // engine.EngineStdOut(
+                                //    "    Parsed block: id='" + parsedInnerBlock.id + "', type='" + parsedInnerBlock.type + "'",
+                                //    0); // This log might be too verbose if ParseBlockDataInternal already logs.
+                            }
+                            else
+                            {
+                                engine.EngineStdOut("WARN: Skipping block in " + innerScriptContext + " inner_block " + std::to_string(innerBlockIdx) +
+                                                    " due to missing id ('" + parsedInnerBlock.id + "') or type ('" + parsedInnerBlock.type + "'). Content: " + RapidJsonValueToString(innerBlockJsonVal), 2, ""); // Error level
                             }
                         }
                         else
@@ -1324,14 +1342,21 @@ bool Engine::loadProject(const string &projectFilePath)
                                         if (blockJsonValue.IsObject())
                                         {
                                             // Use the new helper function to parse the block, including its statements
-                                            Block parsedBlock = ParseBlockDataInternal(blockJsonValue, *this, blockContext);
-                                            if (!parsedBlock.id.empty())
+                                            Block parsedTopLevelBlock = ParseBlockDataInternal(blockJsonValue, *this, blockContext); // Renamed to avoid confusion
+                                            if (!parsedTopLevelBlock.id.empty() && !parsedTopLevelBlock.type.empty())
                                             { // Check if parsing was successful (id is a good indicator)
-                                                currentScript.blocks.push_back(std::move(parsedBlock));
+                                                currentScript.blocks.push_back(std::move(parsedTopLevelBlock));
                                                 // Log for the successfully parsed top-level block
+                                                // This log is now potentially redundant if ParseBlockDataInternal itself logs verbosely on success.
+                                                // Consider if this specific log is still needed or if the one inside ParseBlockDataInternal is sufficient.
+                                                // For now, keeping it to match the original log structure.
                                                 EngineStdOut(
-                                                    "    Parsed block: id='" + parsedBlock.id + "', type='" + parsedBlock.type + "'",
+                                                    "    Parsed block: id='" + currentScript.blocks.back().id + "', type='" + currentScript.blocks.back().type + "'",
                                                     0);
+                                            } else {
+                                                EngineStdOut(
+                                                    "WARN: Skipping top-level block in " + blockContext +
+                                                    " due to missing id ('" + parsedTopLevelBlock.id + "') or type ('" + parsedTopLevelBlock.type + "'). Content: " + RapidJsonValueToString(blockJsonValue), 2, "");
                                             }
                                         }
                                         else
