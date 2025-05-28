@@ -5,20 +5,19 @@ set(VCPKG_USER_DOCS_INSTALLED_PATH "C:/Users/Administrator/Documents/vcpkg/insta
 if(EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
     list(APPEND CMAKE_PREFIX_PATH "${VCPKG_USER_DOCS_INSTALLED_PATH}")
 endif()
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.12...3.28) # Require 3.12+, adopt policies up to 3.28
 
 # Set policies to suppress warnings and use modern behavior
-cmake_policy(SET CMP0074 NEW) # find_package uses <PackageName>_ROOT variables as CMake variables.
-cmake_policy(SET CMP0167 NEW) # The FindBoost module is removed.
+# CMP0074 (introduced 3.12), CMP0167 (introduced 3.28), and CMP0141 (introduced 3.24)
+# are automatically set to NEW by 'cmake_minimum_required' with policy version 3.28.
 
+# The CMAKE_MSVC_DEBUG_INFORMATION_FORMAT variable is used when CMP0141 is NEW.
+# This setting controls the debug information format for MSVC.
+set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
 set(DEVELOPER_NAME "Naekkori")
 set(GITHUB "https://github.com/Naekkori/OmochaEngine")
-project("OmochaEngine" VERSION 1.0.0) 
+project("OmochaEngine" VERSION 1.0.0)
 
 if(MSVC)
     add_compile_options(/utf-8) # MSVC uses /utf-8 for UTF-8 source/execution charsets
