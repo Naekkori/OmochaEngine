@@ -57,20 +57,20 @@ namespace
         Block newBlock; // Default constructor initializes paramsJson to kNullType
 
         // Parse ID
-    std::string tempId = engine.getSafeStringFromJson(blockJson, "id", contextForLog, "", true, false);
-    // Parse Type
-    std::string tempType = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + tempId + ")", "", true, false);
+        std::string tempId = engine.getSafeStringFromJson(blockJson, "id", contextForLog, "", true, false);
+        // Parse Type
+        std::string tempType = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + tempId + ")", "", true, false);
 
-    if (tempId.empty() || tempType.empty())
+        if (tempId.empty() || tempType.empty())
         {
-        // Log an error if critical information is missing. getSafeStringFromJson might already log.
-        // This additional log ensures we know why the block is considered invalid here.
-        engine.EngineStdOut("ERROR: Block " + contextForLog + " is invalid due to missing id ('" + tempId + "') or type ('" + tempType + "'). Cannot parse block.", 2);
+            // Log an error if critical information is missing. getSafeStringFromJson might already log.
+            // This additional log ensures we know why the block is considered invalid here.
+            engine.EngineStdOut("ERROR: Block " + contextForLog + " is invalid due to missing id ('" + tempId + "') or type ('" + tempType + "'). Cannot parse block.", 2);
             return Block(); // Return an empty/invalid block (its id will be empty)
         }
-    newBlock.id = tempId;
-    newBlock.type = tempType;
-    // engine.EngineStdOut("DEBUG: Successfully parsed id='" + newBlock.id + "', type='" + newBlock.type + "' for " + contextForLog, 3, ""); // Optional: debug log for successful basic parse
+        newBlock.id = tempId;
+        newBlock.type = tempType;
+        // engine.EngineStdOut("DEBUG: Successfully parsed id='" + newBlock.id + "', type='" + newBlock.type + "' for " + contextForLog, 3, ""); // Optional: debug log for successful basic parse
 
         // Parse Type
         newBlock.type = engine.getSafeStringFromJson(blockJson, "type", contextForLog + " (id: " + newBlock.id + ")", "", true, false);
@@ -129,7 +129,8 @@ namespace
                             else
                             {
                                 engine.EngineStdOut("WARN: Skipping block in " + innerScriptContext + " inner_block " + std::to_string(innerBlockIdx) +
-                                                    " due to missing id ('" + parsedInnerBlock.id + "') or type ('" + parsedInnerBlock.type + "'). Content: " + RapidJsonValueToString(innerBlockJsonVal), 2, ""); // Error level
+                                                        " due to missing id ('" + parsedInnerBlock.id + "') or type ('" + parsedInnerBlock.type + "'). Content: " + RapidJsonValueToString(innerBlockJsonVal),
+                                                    2, ""); // Error level
                             }
                         }
                         else
@@ -325,7 +326,8 @@ Engine::~Engine()
         EngineStdOut("Script threads joined successfully.", 0);
     }
     // TerminateGE 보다 먼저 폰트 캐시 정리
-    for (auto const& [key, val] : m_fontCache) {
+    for (auto const &[key, val] : m_fontCache)
+    {
         TTF_CloseFont(val);
     }
     m_fontCache.clear();
@@ -750,7 +752,8 @@ bool Engine::loadProject(const string &projectFilePath)
             this->m_HUDVariables.push_back(currentVarDisplay); // 완전히 채워진 표시 객체 추가
             EngineStdOut(
                 "  Parsed variable: " + currentVarDisplay.name + " = " + currentVarDisplay.value + " (Type: " +
-                currentVarDisplay.variableType + ")", 3); // LEVEL 0 -> 3
+                    currentVarDisplay.variableType + ")",
+                3); // LEVEL 0 -> 3
         }
     }
     /**
@@ -1342,10 +1345,13 @@ bool Engine::loadProject(const string &projectFilePath)
                                                 // For now, keeping it to match the original log structure.
                                                 EngineStdOut(
                                                     "    Parsed block: id='" + currentScript.blocks.back().id + "', type='" + currentScript.blocks.back().type + "'", 3); // LEVEL 0 -> 3
-                                            } else {
+                                            }
+                                            else
+                                            {
                                                 EngineStdOut(
                                                     "WARN: Skipping top-level block in " + blockContext +
-                                                    " due to missing id ('" + parsedTopLevelBlock.id + "') or type ('" + parsedTopLevelBlock.type + "'). Content: " + RapidJsonValueToString(blockJsonValue), 2, "");
+                                                        " due to missing id ('" + parsedTopLevelBlock.id + "') or type ('" + parsedTopLevelBlock.type + "'). Content: " + RapidJsonValueToString(blockJsonValue),
+                                                    2, "");
                                             }
                                         }
                                         else
@@ -2005,26 +2011,30 @@ void Engine::destroyTemporaryScreen()
         EngineStdOut("Temporary screen texture destroyed.", 0);
     }
 }
-TTF_Font* Engine::getFont(const std::string& fontPath, int fontSize) {
+TTF_Font *Engine::getFont(const std::string &fontPath, int fontSize)
+{
     std::pair<std::string, int> key = {fontPath, fontSize};
     auto it = m_fontCache.find(key);
-    if (it != m_fontCache.end()) {
+    if (it != m_fontCache.end())
+    {
         return it->second; // 캐시된 폰트 반환
     }
 
-    TTF_Font* font = TTF_OpenFont(fontPath.c_str(), fontSize);
-    if (!font) {
+    TTF_Font *font = TTF_OpenFont(fontPath.c_str(), fontSize);
+    if (!font)
+    {
         EngineStdOut("Failed to load font: " + fontPath + " at size " + std::to_string(fontSize) + ". SDL_ttf Error", 2);
         // Fallback or handle error appropriately
         // For example, try loading a default font if this one fails
         std::string defaultFontPath = std::string(FONT_ASSETS) + "nanum_gothic.ttf";
-        if (fontPath != defaultFontPath) { // 무한 재귀 방지
+        if (fontPath != defaultFontPath)
+        {                                              // 무한 재귀 방지
             return getFont(defaultFontPath, fontSize); // 기본 폰트 시도
         }
         return nullptr; // 기본 폰트도 실패하면 null 반환
     }
 
-    m_fontCache[key] = font; // 새 폰트를 캐시에 추가
+    m_fontCache[key] = font;                                                                         // 새 폰트를 캐시에 추가
     EngineStdOut("Loaded and cached font: " + fontPath + " at size " + std::to_string(fontSize), 3); // LEVEL 0 -> 3
     return font;
 }
@@ -2036,7 +2046,8 @@ void Engine::terminateGE()
     destroyTemporaryScreen();
 
     // 폰트 캐시에 있는 모든 폰트 닫기
-    for (auto const& [key, val] : m_fontCache) {
+    for (auto const &[key, val] : m_fontCache)
+    {
         TTF_CloseFont(val);
     }
     m_fontCache.clear();
@@ -2055,9 +2066,12 @@ void Engine::terminateGE()
         EngineStdOut("Loading screen font closed.", 0);
     }
     // Costume 텍스처 해제
-    for (auto& objInfo : objects_in_order) {
-        for (auto& costume : objInfo.costumes) {
-            if (costume.imageHandle) {
+    for (auto &objInfo : objects_in_order)
+    {
+        for (auto &costume : objInfo.costumes)
+        {
+            if (costume.imageHandle)
+            {
                 SDL_DestroyTexture(costume.imageHandle);
                 costume.imageHandle = nullptr;
             }
@@ -3752,7 +3766,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                     const string &objectId = scriptPair.first;
                     const Script *scriptPtr = scriptPair.second;
                     EngineStdOut(" -> Dispatching 'Key Pressed' script for object: " + objectId + " (Key: " +
-                            SDL_GetScancodeName(scancode) + ")", 3); // LEVEL 0 -> 3
+                                     SDL_GetScancodeName(scancode) + ")",
+                                 3); // LEVEL 0 -> 3
                     this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId(), deltaTime);
                 }
             }
@@ -5359,13 +5374,14 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
     }
 
     // Entity 객체를 찾습니다.
-    Entity* entity = nullptr;
+    Entity *entity = nullptr;
     {
         std::lock_guard<std::mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
         entity = getEntityById_nolock(entityId);
     }
 
-    if (!entity) { // 엔티티를 찾을 수 없으면 오류 로깅 후 반환
+    if (!entity)
+    { // 엔티티를 찾을 수 없으면 오류 로깅 후 반환
         EngineStdOut("dispatchScriptForExecution: Entity " + entityId + " not found. Cannot schedule script.", 2, existingExecutionThreadId);
         return;
     }
@@ -5407,7 +5423,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
                 // 4자리보다 짧으면 앞에 0을 채움
                 short_hex_str = std::string(4 - full_hex_str.length(), '0') + full_hex_str;
             }
-            
+
             thread_id_str = "script_" + short_hex_str;
             EngineStdOut("Worker thread starting new script for entity: " + entityId + " with 4-digit hex thread_id: " + short_hex_str, 5, thread_id_str);
         }
@@ -5429,7 +5445,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.
                                                 empty()
                                                     ? " (원본: " + sbee.blockType + ")"
-                                                    : "") + 
+                                                    : "") +
                                                " 에서 사용 하는 객체 " + (entity ? entity->getId() : sbee.entityId) + // entityId 대신 entity->getId() 사용
                                                "\n원본 오류: " + sbee.originalMessage;
 
