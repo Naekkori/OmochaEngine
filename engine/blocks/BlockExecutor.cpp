@@ -239,6 +239,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
                  fieldType == "get_sound_volume" || fieldType == "get_sound_speed" || fieldType == "get_sound_duration" ||
                  fieldType == "get_canvas_input_value" || fieldType == "length_of_list" || fieldType == "is_included_in_list" ||
                  fieldType == "coordinate_mouse" || fieldType == "coordinate_object" || fieldType == "get_variable" ||
+                 fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" || // 판단 블록들 추가
                  fieldType == "value_of_index_from_list")
         {
             Block subBlock;
@@ -267,48 +268,6 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             }
             // Route to the main Calculator function, passing an empty string for executionThreadId as it's not available here.
             return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
-        }
-        else if (fieldType == "is_clicked")
-        {
-            // 이 블록은 특정 파라미터에 의존하지 않고 엔진의 상태를 직접 조회합니다.
-            return OperandValue(engine.getStageWasClickedThisFrame());
-        }
-        else if (fieldType == "is_object_clicked") // 블록 타입 "is_object_clicked" 처리
-        {
-            // 이 블록은 현재 실행 중인 오브젝트(objectId)가 엔진에 의해 마지막으로 눌린 오브젝트 ID와 일치하는지 확인합니다.
-            // engine.getPressedObjectId()는 m_pressedObjectId를 반환하며, 이 값은 마우스 버튼 다운 이벤트 시 설정됩니다.
-            return OperandValue(engine.getPressedObjectId() == objectId);
-        }
-        else if (fieldType == "is_press_some_key") // 특정 키 눌림 판단 블록
-        {
-            // paramsKeyMap: { VALUE: 0 }
-            // paramField가 'is_press_some_key' 블록 자체를 나타냅니다.
-            // 이 블록의 파라미터는 paramField["params"]에 있습니다.
-            if (!paramField.HasMember("params") || !paramField["params"].IsArray() || paramField["params"].Empty())
-            {
-                engine.EngineStdOut("is_press_some_key block (used as param) for " + objectId + " has invalid or missing 'params' array.", 2, executionThreadId);
-                return OperandValue(false); // 오류 시 false 반환
-            }
-
-            // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
-            // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
-            // getOperandValue를 사용하여 최종 문자열 값을 얻습니다.
-            // 'is_press_some_key' 블록의 첫 번째 파라미터는 paramField["params"][0]에 있습니다.
-            const rapidjson::Value &keyParamValue = paramField["params"][0];
-            OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
-
-            if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty())
-            {
-                engine.EngineStdOut("is_press_some_key block (used as param) for " + objectId +
-                                        ": key identifier parameter (from its own params[0]) did not resolve to a non-empty string. Value: " +
-                                        keyIdentifierOp.asString(),
-                                    2, executionThreadId);
-                return OperandValue(false);
-            }
-            std::string keyIdentifierStr = keyIdentifierOp.asString();
-
-            SDL_Scancode scancode = engine.mapStringToSDLScancode(keyIdentifierStr);
-            return OperandValue(engine.isKeyPressed(scancode));
         }
         else if (fieldType == "get_pictures")
         {
@@ -2127,6 +2086,46 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             return OperandValue();
         }
         return OperandValue(boolOp.boolean_val);
+    }
+    else if (BlockType == "is_clicked")
+    {
+        // 이 블록은 현재 프레임에서 스테이지가 클릭되었는지 여부를 반환합니다.
+        // block.paramsJson에서 별도의 파라미터를 사용하지 않습니다.
+        return OperandValue(engine.getStageWasClickedThisFrame());
+    }
+    else if (BlockType == "is_object_clicked")
+    {
+        // 이 블록은 현재 스크립트를 실행 중인 오브젝트(objectId)가
+        // 엔진에 마지막으로 눌린 오브젝트 ID와 일치하는지 확인합니다.
+        // block.paramsJson에서 별도의 파라미터를 사용하지 않습니다.
+        return OperandValue(engine.getPressedObjectId() == objectId);
+    }
+    else if (BlockType == "is_press_some_key")
+    {
+        // 파라미터: [KEY_IDENTIFIER_STRING (키 식별자 문자열), null]
+        // paramsKeyMap: { VALUE: 0 }
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut("is_press_some_key block for " + objectId + " has invalid or missing params array. Expected key identifier at index 0.", 2, executionThreadId);
+            return OperandValue(false); // 오류 시 false 반환
+        }
+
+        // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
+        // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
+        const rapidjson::Value& keyParamValue = block.paramsJson[0];
+        OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
+
+        if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty()) {
+            engine.EngineStdOut("is_press_some_key block for " + objectId +
+                                ": key identifier parameter did not resolve to a non-empty string. Value: " +
+                                keyIdentifierOp.asString(),
+                                2, executionThreadId);
+            return OperandValue(false);
+        }
+        std::string keyIdentifierStr = keyIdentifierOp.asString();
+
+        SDL_Scancode scancode = engine.mapStringToSDLScancode(keyIdentifierStr);
+        return OperandValue(engine.isKeyPressed(scancode));
     }
     else if (BlockType == "choose_project_timer_action")
     {
