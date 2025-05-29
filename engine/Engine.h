@@ -11,9 +11,9 @@
 #include "SDL3_image/SDL_image.h" //SDL 이미지
 #include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
 #include "util/AEhelper.h"
-#include "SDL3/SDL_stdinc.h"      // For SDL_PI_D
-#include "SDL3/SDL_render.h"      // SDL 렌더링
-#include "SDL3/SDL_scancode.h"    // For SDL_Scancode
+#include "SDL3/SDL_stdinc.h"   // For SDL_PI_D
+#include "SDL3/SDL_render.h"   // SDL 렌더링
+#include "SDL3/SDL_scancode.h" // For SDL_Scancode
 #include "blocks/Block.h"
 #include "blocks/blockTypes.h"
 #include "util/fontName.h"
@@ -21,7 +21,7 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
-#include <memory> // For std::unique_ptr
+#include <memory>                     // For std::unique_ptr
 #include <boost/asio/thread_pool.hpp> // 추가
 #include <boost/asio/post.hpp>
 using namespace std;
@@ -95,7 +95,7 @@ struct ListItem
 // HUD에 표시될 일반 변수의 정보를 담는 구조체
 struct HUDVariableDisplay
 {
-    string id;                             // 변수 ID
+    string id;                           // 변수 ID
     string name;                         // 변수 이름
     string value;                        // 변수 값 (문자열로 표시)
     string objectId;                     // 변수를 표시할 오브젝트 ID 가 null 이면 public 변수
@@ -121,7 +121,7 @@ private:
     SDL_Window *window;          // SDL Window
     SDL_Renderer *renderer;      // SDL Renderer
     string currentSceneId;
-    TTF_Font *hudFont = nullptr;           // HUD용 폰트
+    TTF_Font *hudFont = nullptr; // HUD용 폰트
     TTF_Font *percentFont = nullptr;
     TTF_Font *loadingScreenFont = nullptr; // 로딩 화면용 폰트
     map<string, string> scenes;
@@ -133,21 +133,21 @@ private:
     vector<pair<string, const Script *>> m_whenObjectClickedScripts;
     vector<pair<string, const Script *>> m_whenObjectClickCanceledScripts;
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
-    vector<pair<string, const Script *>> m_whenCloneStartScripts; // 복제본 생성 시 실행될 스크립트
-    map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름    
-    std::unique_ptr<boost::asio::thread_pool> m_scriptThreadPoolPtr; // 스크립트 실행을 위한 스레드 풀 (unique_ptr로 변경)
+    vector<pair<string, const Script *>> m_whenCloneStartScripts;               // 복제본 생성 시 실행될 스크립트
+    map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
+    std::unique_ptr<boost::asio::thread_pool> m_scriptThreadPoolPtr;            // 스크립트 실행을 위한 스레드 풀 (unique_ptr로 변경)
     // --- Text Input Members (for ask_and_wait) ---
-    std::string m_currentTextInputBuffer;      // 현재 입력 중인 텍스트 버퍼
-    bool m_textInputActive = false;            // 텍스트 입력 모드 활성화 여부
-    std::string m_textInputRequesterObjectId;  // 텍스트 입력을 요청한 오브젝트 ID
-    std::string m_textInputQuestionMessage;    // 텍스트 입력 시 표시될 질문 메시지
-    std::string m_lastAnswer;                  // 마지막으로 입력된 답변
+    std::string m_currentTextInputBuffer;     // 현재 입력 중인 텍스트 버퍼
+    bool m_textInputActive = false;           // 텍스트 입력 모드 활성화 여부
+    std::string m_textInputRequesterObjectId; // 텍스트 입력을 요청한 오브젝트 ID
+    std::string m_textInputQuestionMessage;   // 텍스트 입력 시 표시될 질문 메시지
+    std::string m_lastAnswer;                 // 마지막으로 입력된 답변
     mutable std::mutex m_textInputMutex;
     std::condition_variable m_textInputCv;
     mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
     std::string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
-    SDL_Texture* LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID);
+    SDL_Texture *LoadTextureFromSvgResource(SDL_Renderer *renderer, int resourceID);
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
     const string ANSI_COLOR_YELLOW = "\x1b[33m";
@@ -185,26 +185,27 @@ private:
     float m_draggedHUDVariableMouseOffsetY = 0.0f;           // 드래그 중인 변수의 마우스 오프셋 Y
     // 리사이즈 관련 변수 (리사이즈 시작 시점의 마우스 위치와 HUD 크기를 저장할 수도 있으나,
     // --- Cursor Blink Members ---
-    Uint64 m_cursorBlinkToggleTime = 0; // 마지막으로 커서 상태가 변경된 시간
-    bool m_cursorCharVisible = true;    // 현재 커서 문자('|')가 보여야 하는지 여부
+    Uint64 m_cursorBlinkToggleTime = 0;                 // 마지막으로 커서 상태가 변경된 시간
+    bool m_cursorCharVisible = true;                    // 현재 커서 문자('|')가 보여야 하는지 여부
     static const Uint32 CURSOR_BLINK_INTERVAL_MS = 500; // 커서 깜빡임 간격 (밀리초)
     // 여기서는 MOVING과 RESIZING 상태를 구분하고, 오프셋은 공유하되 계산 방식을 달리합니다.)
     // float m_resizeStartMouseX = 0.0f;
     // float m_resizeStartMouseY = 0.0f;
     // float m_resizeStartHUDWidth = 0.0f;
-    std::map<std::pair<std::string, int>, TTF_Font*> m_fontCache; // 폰트 캐시
+    std::map<std::pair<std::string, int>, TTF_Font *> m_fontCache; // 폰트 캐시
     // float m_resizeStartHUDHeight = 0.0f;
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
     std::mutex m_commandQueueMutex;
     std::condition_variable m_commandQueueCV; // 엔티티 스레드가 커맨드를 추가했음을 알리기 위함 (선택적)
-    void processCommands(); // 메인 루프에서 커맨드를 처리하는 함수
+    void processCommands();                   // 메인 루프에서 커맨드를 처리하는 함수
 
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
     int framecount;
     float currentFps;
+    map<string, int> m_cloneCounters;
     int totalItemsToLoad;
     int loadedItemCount; // 로드된 아이템 수
     float zoomFactor;    // 현재 줌 배율 저장
@@ -213,13 +214,12 @@ private:
     static const float LIST_RESIZE_HANDLE_SIZE; // 리스트 리사이즈 핸들 크기
 
     SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
-
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
 
 public:
     // --- Engine Special Configuration ---
-    static const float MIN_LIST_WIDTH;          // 리스트 최소 너비
-    static const float MIN_LIST_HEIGHT;         // 리스트 최소 높이
+    static const float MIN_LIST_WIDTH;  // 리스트 최소 너비
+    static const float MIN_LIST_HEIGHT; // 리스트 최소 높이
     string getSafeStringFromJson(const rapidjson::Value &parentValue,
                                  const string &fieldName,
                                  const string &contextDescription,
@@ -253,17 +253,17 @@ public:
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     void terminateGE();
-    TTF_Font* getFont(const std::string& fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
+    TTF_Font *getFont(const std::string &fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
     bool loadImages();
     bool loadSounds();
-     // --- Cloud Variable Persistence ---
-     bool saveCloudVariablesToJson();
-     bool loadCloudVariablesFromJson();
+    // --- Cloud Variable Persistence ---
+    bool saveCloudVariablesToJson();
+    bool loadCloudVariablesFromJson();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
     void showProjectTimer(bool show); // 프로젝트 타이머 표시 여부 설정
-    void EngineStdOut(string s, int LEVEL = 0,string TREADID="") const;
+    void EngineStdOut(string s, int LEVEL = 0, string TREADID = "") const;
     void processInput(const SDL_Event &event, float deltaTime);
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
@@ -289,7 +289,7 @@ public:
     void triggerWhenSceneStartScripts();
     void startProjectTimer();
     void stopProjectTimer();
-    void activateTextInput(const std::string& requesterObjectId, const std::string& question, const std::string& executionThreadId);
+    void activateTextInput(const std::string &requesterObjectId, const std::string &question, const std::string &executionThreadId);
     std::string getLastAnswer() const;
     void resetProjectTimer();
     void setProjectTimerVisibility(bool show); // 이름 변경 및 기능 수정
@@ -299,12 +299,12 @@ public:
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
-    double getAngle(double x1, double y1, double x2, double y2) const; // 두 점 사이의 각도 계산
+    double getAngle(double x1, double y1, double x2, double y2) const;      // 두 점 사이의 각도 계산
     double getCurrentStageMouseAngle(double entityX, double entityY) const; // Angle to mouse from entity
     const ObjectInfo *getObjectInfoById(const string &id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     // HUD에 표시할 변수 목록을 설정하는 메서드
-    map<string, Entity*>& getEntities_Modifiable() { return entities; }
+    map<string, Entity *> &getEntities_Modifiable() { return entities; }
     void loadHUDVariablesFromJson(const rapidjson::Value &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
@@ -316,18 +316,22 @@ public:
     int getTotalBlockCount() const;
     TTF_Font *getDialogFont();
     void drawDialogs();
-    bool setEntitySelectedCostume(const std::string& entityId, const std::string& costumeId);
-    bool setEntitychangeToNextCostume(const std::string& entityId, const std::string& asOption);    
-    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch, float deltaTime, const std::string& existingExecutionThreadId = "");
-    void raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId);
-    void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
-    void requestStopObject(const std::string& callingEntityId, const std::string& callingThreadId, const std::string& targetOption);
+    bool setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId);
+    bool setEntitychangeToNextCostume(const std::string &entityId, const std::string &asOption);
+    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string &sceneIdAtDispatch, float deltaTime, const std::string &existingExecutionThreadId = "");
+    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);
+    Entity *createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts);
+    int getNextCloneIdSuffix(const std::string &originalId);
+    void deleteEntity(const std::string& entityIdToDelete);
+    void deleteAllClonesOf(const std::string& originalEntityId);
+    void changeObjectIndex(const std::string &entityId, Omocha::ObjectIndexChangeType changeType);
+    void requestStopObject(const std::string &callingEntityId, const std::string &callingThreadId, const std::string &targetOption);
     void requestProjectRestart(); // 프로젝트 다시 시작 요청
     void performProjectRestart();
-    SimpleLogger logger;                           // 로거 인스턴스
-    std::atomic<bool> m_isShuttingDown{false};     // 엔진 종료 상태 플래그
-    std::atomic<bool> m_restartRequested{false};   // 프로젝트 다시 시작 요청 플래그
-    boost::asio::thread_pool& getThreadPool();     // 스레드 풀 접근자 수정
+    SimpleLogger logger;                         // 로거 인스턴스
+    std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
+    std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
+    boost::asio::thread_pool &getThreadPool();   // 스레드 풀 접근자 수정
 private:
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:

@@ -222,7 +222,8 @@ private:
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동    
     CollisionSide lastCollisionSide = CollisionSide::NONE;
     mutable std::mutex m_stateMutex;
-
+    bool m_isClone = false;
+    std::string m_originalClonedFromId = "";
 public:                      // Made brush and paint public for now for easier access from blocks
     Engine *pEngineInstance; // Store a pointer to the engine instance
     PenState brush;
@@ -233,7 +234,11 @@ public:                      // Made brush and paint public for now for easier a
     PenState paint;
     // m_stateMutex에 대한 public 접근자 추가 (주의해서 사용)
     std::mutex& getStateMutex() const { return m_stateMutex; }
-
+    bool getIsClone() const { return m_isClone; }
+    void setIsClone(bool isClone, const std::string& originalId=""){
+        m_isClone = isClone;
+        m_originalClonedFromId = originalId;
+    };
 
 public:
     Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
@@ -292,6 +297,7 @@ public:
     void setEffectBrightness(double brightness);
     double getEffectAlpha() const;
     void setEffectAlpha(double alpha);
+    std::string getOriginalClonedFromId() const { return m_originalClonedFromId; }
     double getEffectHue() const;
     void setEffectHue(double hue);
     void playSound(const std::string &soundId);

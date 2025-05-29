@@ -88,31 +88,39 @@ namespace
             { // paramsJson은 Document이므로 자체 Allocator 사용
                 // newBlock.paramsJson.CopyFrom(paramsVal, newBlock.paramsJson.GetAllocator()); // 이전 방식
                 newBlock.paramsJson.SetArray(); // Initialize as an array
-                rapidjson::Document::AllocatorType& allocator = newBlock.paramsJson.GetAllocator();
+                rapidjson::Document::AllocatorType &allocator = newBlock.paramsJson.GetAllocator();
 
-                for (const auto& paramEntryJson : paramsVal.GetArray()) { // Iterate over original params
-                    if (paramEntryJson.IsNull()) {
+                for (const auto &paramEntryJson : paramsVal.GetArray())
+                { // Iterate over original params
+                    if (paramEntryJson.IsNull())
+                    {
                         // 최상위 null 값은 FilterNullsInParamsJsonArray가 나중에 처리하도록 그대로 추가
                         newBlock.paramsJson.PushBack(rapidjson::Value(rapidjson::kNullType), allocator);
-                    } else if (paramEntryJson.IsObject() && paramEntryJson.HasMember("type") && paramEntryJson.HasMember("params") && paramEntryJson["params"].IsArray()) {
+                    }
+                    else if (paramEntryJson.IsObject() && paramEntryJson.HasMember("type") && paramEntryJson.HasMember("params") && paramEntryJson["params"].IsArray())
+                    {
                         // 블록과 유사한 파라미터입니다. 내부 'params'를 필터링하기 위해 복사본을 만듭니다.
                         rapidjson::Value subBlockCopy(paramEntryJson, allocator); // sub-block 객체 깊은 복사
 
                         // 복사본 내의 'params' 배열에 대한 참조를 가져옵니다.
-                        rapidjson::Value& subBlockParamsArray = subBlockCopy["params"];
-                        
+                        rapidjson::Value &subBlockParamsArray = subBlockCopy["params"];
+
                         rapidjson::Value filteredNestedParams(rapidjson::kArrayType); // 필터링된 params를 위한 새 배열 생성
-                        for (const auto& nestedParam : subBlockParamsArray.GetArray()) {
-                            if (!nestedParam.IsNull()) {
+                        for (const auto &nestedParam : subBlockParamsArray.GetArray())
+                        {
+                            if (!nestedParam.IsNull())
+                            {
                                 // null이 아닌 중첩된 파라미터만 깊은 복사합니다.
                                 filteredNestedParams.PushBack(rapidjson::Value(nestedParam, allocator), allocator);
                             }
                         }
                         // subBlockCopy의 'params' 배열을 필터링된 버전으로 교체합니다.
-                        subBlockCopy["params"] = filteredNestedParams; 
-                        
+                        subBlockCopy["params"] = filteredNestedParams;
+
                         newBlock.paramsJson.PushBack(subBlockCopy, allocator); // 수정된 sub-block을 newBlock의 params에 추가합니다.
-                    } else {
+                    }
+                    else
+                    {
                         // null도 아니고 수정 가능한 sub-block도 아니면, 그대로 복사합니다.
                         newBlock.paramsJson.PushBack(rapidjson::Value(paramEntryJson, allocator), allocator);
                     }
@@ -128,7 +136,7 @@ namespace
         {
             // 'params' 멤버가 없으면 빈 배열로 초기화합니다.
             newBlock.paramsJson.SetArray();
-        } 
+        }
         // Filter nulls for the current block's paramsJson
         newBlock.FilterNullsInParamsJsonArray();
 
@@ -201,8 +209,7 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                    logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
                    m_scriptThreadPoolPtr(make_unique<boost::asio::thread_pool>(
-                       max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)
-                   )) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
+                       max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2))) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -326,10 +333,13 @@ Engine::~Engine()
 {
     EngineStdOut("Engine shutting down...");
     m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
-    EngineStdOut("Shutting down script thread pool...");    
-    if (m_scriptThreadPoolPtr) { // Check if pool exists
+    EngineStdOut("Shutting down script thread pool...");
+    if (m_scriptThreadPoolPtr)
+    { // Check if pool exists
         m_scriptThreadPoolPtr->stop();
-    }    std::future<void> join_future = std::async(std::launch::async, [&]() { if (m_scriptThreadPoolPtr) m_scriptThreadPoolPtr->join(); });
+    }
+    std::future<void> join_future = std::async(std::launch::async, [&]()
+                                               { if (m_scriptThreadPoolPtr) m_scriptThreadPoolPtr->join(); });
     EngineStdOut("Waiting for script threads to join...", 0);
     // Entity 객체들 명시적 삭제
     EngineStdOut("Deleting entity objects...", 0);
@@ -1714,11 +1724,12 @@ bool Engine::loadProject(const string &projectFilePath)
                     {
                         m_whenCloneStartScripts.push_back({objectId, &script});
                         EngineStdOut("  -> Found 'when_clone_start' script for object ID: " + objectId, 3);
-                    } else {
+                    }
+                    else
+                    {
                         EngineStdOut("  -> Found 'when_clone_start' script for object ID: " + objectId + " but it has no subsequent blocks. Skipping.", 1);
                     }
                 }
-
             }
         }
     }
@@ -5721,43 +5732,50 @@ bool Engine::loadCloudVariablesFromJson()
     return true;
 }
 
-void Engine::requestProjectRestart() {
+void Engine::requestProjectRestart()
+{
     EngineStdOut("Project restart requested. Flag set.", 0);
     m_restartRequested.store(true, std::memory_order_relaxed);
 }
 
-void Engine::performProjectRestart() {
+void Engine::performProjectRestart()
+{
     EngineStdOut("Project restart sequence initiated...", 0);
 
     // 1. Stop all current script activities
     EngineStdOut("Stopping all scripts and activities...", 0);
     m_isShuttingDown.store(true, std::memory_order_relaxed); // Signal script threads to terminate
-    
+
     SDL_Delay(50); // Give threads a moment to acknowledge shutdown
 
-    if (m_scriptThreadPoolPtr) {
-        m_scriptThreadPoolPtr->stop(); 
-        m_scriptThreadPoolPtr->join(); 
+    if (m_scriptThreadPoolPtr)
+    {
+        m_scriptThreadPoolPtr->stop();
+        m_scriptThreadPoolPtr->join();
     }
 
     // Clear script states from entities
-    for (auto& pair : entities) {
-        if (pair.second) {
+    for (auto &pair : entities)
+    {
+        if (pair.second)
+        {
             std::lock_guard<std::mutex> lock(pair.second->getStateMutex());
-            pair.second->scriptThreadStates.clear(); 
+            pair.second->scriptThreadStates.clear();
         }
     }
-    
+
     m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
-    
+
     // Re-create the thread pool
     m_scriptThreadPoolPtr = std::make_unique<boost::asio::thread_pool>(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
 
     resetProjectTimer();
     m_gameplayInputActive = false;
     m_pressedObjectId = "";
-    for (auto& pair : entities) {
-        if (pair.second) {
+    for (auto &pair : entities)
+    {
+        if (pair.second)
+        {
             pair.second->removeDialog();
         }
     }
@@ -5765,19 +5783,21 @@ void Engine::performProjectRestart() {
 
     // 2. Reload project data
     EngineStdOut("Reloading project data...", 0);
-    if (m_currentProjectFilePath.empty()) {
+    if (m_currentProjectFilePath.empty())
+    {
         EngineStdOut("Error: Current project file path is empty. Cannot restart project.", 2);
-        m_restartRequested.store(false, std::memory_order_relaxed); 
+        m_restartRequested.store(false, std::memory_order_relaxed);
         return;
     }
 
     // Clear existing entity objects before reloading
-    for (auto& pair : entities) {
+    for (auto &pair : entities)
+    {
         delete pair.second;
     }
     entities.clear();
-    objects_in_order.clear(); 
-    objectScripts.clear();    
+    objects_in_order.clear();
+    objectScripts.clear();
     startButtonScripts.clear();
     keyPressedScripts.clear();
     m_mouseClickedScripts.clear();
@@ -5786,92 +5806,345 @@ void Engine::performProjectRestart() {
     m_whenObjectClickCanceledScripts.clear();
     m_messageReceivedScripts.clear();
     m_whenStartSceneLoadedScripts.clear();
-    m_HUDVariables.clear(); 
+    m_HUDVariables.clear();
     scenes.clear(); // Clear scenes map as well, loadProject will repopulate it
 
-    if (!loadProject(m_currentProjectFilePath)) {
+    if (!loadProject(m_currentProjectFilePath))
+    {
         EngineStdOut("Error: Failed to reload project during restart. Restart aborted.", 2);
         showMessageBox("프로젝트를 다시 시작하는 중 오류가 발생했습니다: 프로젝트 파일을 다시 로드할 수 없습니다.", msgBoxIconType.ICON_ERROR);
-        m_restartRequested.store(false, std::memory_order_relaxed); 
+        m_restartRequested.store(false, std::memory_order_relaxed);
         return;
     }
-    
+
     // Reload assets
     EngineStdOut("Reloading assets...", 0);
-    if (!loadImages()) { // loadImages should handle clearing old textures
+    if (!loadImages())
+    { // loadImages should handle clearing old textures
         EngineStdOut("Warning: Failed to reload images during restart.", 1);
     }
-    if (!loadSounds()) { // loadSounds should handle clearing old sounds if necessary
+    if (!loadSounds())
+    { // loadSounds should handle clearing old sounds if necessary
         EngineStdOut("Warning: Failed to reload sounds during restart.", 1);
     }
-    
+
     // 3. Start project execution
     EngineStdOut("Restarting project execution...", 0);
     // currentSceneId should be correctly set by loadProject via firstSceneIdInOrder logic
-    if (scenes.count(firstSceneIdInOrder)) { // Ensure the start scene ID from loadProject is valid
+    if (scenes.count(firstSceneIdInOrder))
+    { // Ensure the start scene ID from loadProject is valid
         currentSceneId = firstSceneIdInOrder;
-    } else if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front())) { // Fallback if firstSceneIdInOrder was not set
+    }
+    else if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front()))
+    { // Fallback if firstSceneIdInOrder was not set
         currentSceneId = m_sceneOrder.front();
-         EngineStdOut("Warning: firstSceneIdInOrder was not set, falling back to the first scene in m_sceneOrder for restart.", 1);
-    } else {
+        EngineStdOut("Warning: firstSceneIdInOrder was not set, falling back to the first scene in m_sceneOrder for restart.", 1);
+    }
+    else
+    {
         EngineStdOut("Error: No valid start scene found after reloading project. Cannot start execution.", 2);
         m_restartRequested.store(false, std::memory_order_relaxed);
         return;
     }
 
-    triggerWhenSceneStartScripts(); 
+    triggerWhenSceneStartScripts();
     runStartButtonScripts();
-    m_gameplayInputActive = true; 
+    m_gameplayInputActive = true;
 
-    m_restartRequested.store(false, std::memory_order_relaxed); 
+    m_restartRequested.store(false, std::memory_order_relaxed);
     EngineStdOut("Project restart sequence complete.", 0);
 }
 
-void Engine::requestStopObject(const std::string& callingEntityId, const std::string& callingThreadId, const std::string& targetOption) {
+void Engine::requestStopObject(const std::string &callingEntityId, const std::string &callingThreadId, const std::string &targetOption)
+{
     EngineStdOut("Engine::requestStopObject called by Entity: " + callingEntityId + ", Thread: " + callingThreadId + ", Option: " + targetOption, 0, callingThreadId);
 
-    if (targetOption == "all") {
+    if (targetOption == "all")
+    {
         std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
-        for (auto& pair : entities) {
-            if (pair.second) {
+        for (auto &pair : entities)
+        {
+            if (pair.second)
+            {
                 pair.second->terminateAllScriptThread(""); // Terminate all threads for this entity
             }
         }
         EngineStdOut("Requested to stop ALL scripts for ALL objects.", 0, callingThreadId);
-    } else if (targetOption == "thisOnly" || targetOption == "thisObject") { // "thisObject" is from Entry.js, seems to mean the current Entity
-        Entity* currentEntity = getEntityById(callingEntityId); // Mutex handled by getEntityById if needed, or use _nolock if outer lock exists
-        if (currentEntity) {
+    }
+    else if (targetOption == "thisOnly" || targetOption == "thisObject")
+    {                                                           // "thisObject" is from Entry.js, seems to mean the current Entity
+        Entity *currentEntity = getEntityById(callingEntityId); // Mutex handled by getEntityById if needed, or use _nolock if outer lock exists
+        if (currentEntity)
+        {
             currentEntity->terminateAllScriptThread(""); // Terminate all threads for the calling entity
             EngineStdOut("Requested to stop ALL scripts for THIS object: " + callingEntityId, 0, callingThreadId);
         }
-    } else if (targetOption == "thisThread") {
-        Entity* currentEntity = getEntityById(callingEntityId);
-        if (currentEntity) {
+    }
+    else if (targetOption == "thisThread")
+    {
+        Entity *currentEntity = getEntityById(callingEntityId);
+        if (currentEntity)
+        {
             currentEntity->terminateScriptThread(callingThreadId); // Terminate only the current thread
             EngineStdOut("Requested to stop THIS script thread: " + callingThreadId + " for object: " + callingEntityId, 0, callingThreadId);
         }
-    } else if (targetOption == "otherThread") {
-        Entity* currentEntity = getEntityById(callingEntityId);
-        if (currentEntity) {
+    }
+    else if (targetOption == "otherThread")
+    {
+        Entity *currentEntity = getEntityById(callingEntityId);
+        if (currentEntity)
+        {
             currentEntity->terminateAllScriptThread(callingThreadId); // Terminate all threads for this entity EXCEPT the current one
             EngineStdOut("Requested to stop OTHER script threads for object: " + callingEntityId + " (excluding " + callingThreadId + ")", 0, callingThreadId);
         }
-    } else if (targetOption == "other_objects") {
+    }
+    else if (targetOption == "other_objects")
+    {
         std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
-        for (auto& pair : entities) {
-            if (pair.first != callingEntityId && pair.second) { // If it's not the calling entity
+        for (auto &pair : entities)
+        {
+            if (pair.first != callingEntityId && pair.second)
+            {                                              // If it's not the calling entity
                 pair.second->terminateAllScriptThread(""); // Terminate all threads for this other entity
             }
         }
         EngineStdOut("Requested to stop ALL scripts for OTHER objects (excluding " + callingEntityId + ")", 0, callingThreadId);
-    } else {
+    }
+    else
+    {
         EngineStdOut("Unknown targetOption for stop_object: " + targetOption, 1, callingThreadId);
     }
 }
 
-boost::asio::thread_pool& Engine::getThreadPool() {
-    if (!m_scriptThreadPoolPtr) {
+boost::asio::thread_pool &Engine::getThreadPool()
+{
+    if (!m_scriptThreadPoolPtr)
+    {
         throw std::runtime_error("Thread pool not initialized!");
     }
     return *m_scriptThreadPoolPtr;
+}
+int Engine::getNextCloneIdSuffix(const std::string &originalId)
+{
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // m_cloneCounters 접근 보호
+    return ++m_cloneCounters[originalId];
+}
+
+Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts)
+{
+    EngineStdOut("Attempting to create clone of entity: " + originalEntityId, 0);
+
+    if (entities.size() >= static_cast<size_t>(specialConfig.MAX_ENTITY))
+    {
+        EngineStdOut("Cannot create clone: Maximum entity limit (" + std::to_string(specialConfig.MAX_ENTITY) + ") reached.", 1);
+        return nullptr;
+    }
+
+    const ObjectInfo *originalObjInfo = nullptr;
+    Entity *originalEntity = nullptr;
+
+    {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        originalObjInfo = getObjectInfoById(originalEntityId);
+        auto it_orig_entity = entities.find(originalEntityId);
+        if (it_orig_entity != entities.end())
+        {
+            originalEntity = it_orig_entity->second;
+        }
+    }
+
+    if (!originalObjInfo || !originalEntity)
+    {
+        EngineStdOut("Cannot create clone: Original entity or ObjectInfo not found for ID: " + originalEntityId, 2);
+        return nullptr;
+    }
+
+    // 1. Generate unique ID for the clone
+    std::string cloneId = originalEntityId + "_clone_" + std::to_string(getNextCloneIdSuffix(originalEntityId));
+
+    // 2. Create new ObjectInfo for the clone
+    ObjectInfo cloneObjInfo = *originalObjInfo; // Copy original ObjectInfo
+    cloneObjInfo.id = cloneId;
+    cloneObjInfo.name = originalObjInfo->name + " (복제본)"; // Append to name
+    // sceneId, objectType, costumes, sounds, textContent, etc., are copied.
+    // Importantly, SDL_Texture* in costumes should point to the *same* shared textures.
+    // The ObjectInfo copy is a shallow copy for SDL_Texture*, which is correct.
+
+    // 3. Create new Entity for the clone
+    Entity *cloneEntity = new Entity(
+        this,
+        cloneId,
+        cloneObjInfo.name,
+        originalEntity->getX(), originalEntity->getY(), // Clones start at original's current position
+        originalEntity->getRegX(), originalEntity->getRegY(),
+        originalEntity->getScaleX(), originalEntity->getScaleY(),
+        originalEntity->getRotation(), originalEntity->getDirection(),
+        originalEntity->getWidth(), originalEntity->getHeight(),
+        originalEntity->isVisible(), // Clones are visible by default if original is, or follow original's visibility
+        originalEntity->getRotateMethod());
+
+    cloneEntity->setIsClone(true, originalEntityId);
+
+    // Copy effects
+    cloneEntity->setEffectBrightness(originalEntity->getEffectBrightness());
+    cloneEntity->setEffectAlpha(originalEntity->getEffectAlpha());
+    cloneEntity->setEffectHue(originalEntity->getEffectHue());
+
+    // Pen state: Clones typically start with a clean pen state (pen up, default color)
+    // The Entity constructor already initializes PenState (brush, paint) to default.
+    // If specific pen properties need to be inherited, copy them here.
+    // For now, default initialization is fine.
+    // cloneEntity->brush = originalEntity->brush; // If deep copy of pen state is needed
+    // cloneEntity->paint = originalEntity->paint;
+
+    // Timed states (move, rotation) should be default/inactive for a new clone.
+    // Dialog state should be default/inactive.
+
+    // 4. Add clone to engine collections
+    {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        objects_in_order.push_back(cloneObjInfo); // Add to rendering order (usually on top initially)
+                                                  // Consider Z-order: clones often appear on top of the original.
+                                                  // The default push_back adds to the end, which is rendered first (bottom).
+                                                  // To put on top (rendered last):
+                                                  // objects_in_order.insert(objects_in_order.begin(), cloneObjInfo);
+                                                  // For now, let's add to the end and it can be reordered by blocks.
+
+        entities[cloneId] = cloneEntity;
+
+        // Copy scripts from the original object type to the clone's entry in objectScripts
+        // This ensures the clone can respond to events if its original type had scripts.
+        auto originalScriptsIt = objectScripts.find(originalEntityId);
+        if (originalScriptsIt != objectScripts.end())
+        {
+            objectScripts[cloneId] = originalScriptsIt->second; // Copy the vector of Scripts
+        }
+    }
+
+    EngineStdOut("Successfully created clone: " + cloneId + " from " + originalEntityId, 0);
+
+    // 5. Trigger "when_clone_start" scripts for the new clone
+    // These scripts are associated with the *original object's ID* in m_whenCloneStartScripts
+    bool foundCloneStartScript = false;
+    for (const auto &scriptPair : m_whenCloneStartScripts)
+    {
+        if (scriptPair.first == originalEntityId)
+        { // Does the original object type have a "when_clone_start"?
+            const Script *scriptToRunOnClone = scriptPair.second;
+            if (scriptToRunOnClone && !scriptToRunOnClone->blocks.empty())
+            {
+                EngineStdOut("Dispatching 'when_clone_start' for new clone: " + cloneEntity->getId() +
+                                 " (original type: " + originalEntityId + ")",
+                             0);
+                // Dispatch the script for the *new clone's ID*
+                // The sceneIdForScripts is the scene where the create_clone block was executed.
+                this->dispatchScriptForExecution(cloneEntity->getId(), scriptToRunOnClone, sceneIdForScripts, 0.0f);
+                foundCloneStartScript = true;
+            }
+            else
+            {
+                EngineStdOut("Found 'when_clone_start' for original type " + originalEntityId + " but script is empty. Clone: " + cloneEntity->getId(), 1);
+            }
+        }
+    }
+    if (!foundCloneStartScript)
+    {
+        EngineStdOut("No 'when_clone_start' script found for original type: " + originalEntityId + " for clone " + cloneEntity->getId(), 0);
+    }
+
+    // If the original was part of a specific scene, the clone should also be.
+    // This is handled by copying ObjectInfo which includes sceneId.
+    // If the original was global, the clone is also global.
+
+    return cloneEntity;
+}
+
+void Engine::deleteEntity(const std::string &entityIdToDelete)
+{
+    EngineStdOut("Attempting to delete entity: " + entityIdToDelete, 0);
+
+    Entity *entityPtr = nullptr;
+    // First, mark scripts for termination and get the pointer
+    {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Lock for entities map access
+        auto it = entities.find(entityIdToDelete);
+        if (it == entities.end())
+        {
+            EngineStdOut("Cannot delete entity: Entity ID '" + entityIdToDelete + "' not found in 'entities' map.", 1);
+            return;
+        }
+        entityPtr = it->second;
+
+        if (entityPtr)
+        {
+            EngineStdOut("Marking all scripts for entity " + entityIdToDelete + " for termination.", 0);
+            entityPtr->terminateAllScriptThread(""); // Signal all its scripts to stop
+        }
+    }
+
+    // Now, perform removals from collections and delete the object.
+    // This assumes that script threads will see the termination flag and exit cleanly
+    // before any major issues arise from the entity being removed from collections.
+    // A more robust system might defer the actual deletion of 'entityPtr' and removal
+    // from collections to the end of the game loop's update cycle.
+    if (entityPtr)
+    {                                                        // Check if entityPtr was successfully retrieved
+        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Lock for all collection modifications
+
+        // Remove from entities map
+        auto it_map = entities.find(entityIdToDelete);
+        if (it_map != entities.end())
+        {
+            entities.erase(it_map);
+        }
+
+        // Remove from objects_in_order
+        objects_in_order.erase(
+            std::remove_if(objects_in_order.begin(), objects_in_order.end(),
+                           [&entityIdToDelete](const ObjectInfo &oi)
+                           { return oi.id == entityIdToDelete; }),
+            objects_in_order.end());
+        EngineStdOut("Removed ObjectInfo for " + entityIdToDelete + " from rendering order.", 0);
+
+        // Remove from objectScripts
+        auto scriptIt = objectScripts.find(entityIdToDelete);
+        if (scriptIt != objectScripts.end())
+        {
+            objectScripts.erase(scriptIt);
+            EngineStdOut("Removed script entries for " + entityIdToDelete + ".", 0);
+        }
+
+        // Finally, delete the Entity object itself
+        delete entityPtr;
+        EngineStdOut("Entity object " + entityIdToDelete + " deleted from memory.", 0);
+    }
+    EngineStdOut("Entity deletion process for " + entityIdToDelete + " completed.", 0);
+}
+
+void Engine::deleteAllClonesOf(const std::string& originalEntityId) {
+    EngineStdOut("Attempting to delete all clones of entity: " + originalEntityId, 0);
+    std::vector<std::string> cloneIdsToDelete;
+
+    // 1. Collect IDs of all clones originating from originalEntityId
+    // Lock entities for reading, but don't modify it yet to avoid iterator invalidation.
+    {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        for (const auto& pair : entities) {
+            Entity* entity = pair.second;
+            if (entity && entity->getIsClone() && entity->getOriginalClonedFromId() == originalEntityId) {
+                cloneIdsToDelete.push_back(pair.first);
+            }
+        }
+    }
+
+    if (cloneIdsToDelete.empty()) {
+        EngineStdOut("No clones found for original entity ID: " + originalEntityId, 0);
+        return;
+    }
+
+    EngineStdOut("Found " + std::to_string(cloneIdsToDelete.size()) + " clones of " + originalEntityId + " to delete.", 0);
+    for (const std::string& cloneId : cloneIdsToDelete) {
+        deleteEntity(cloneId); // This will handle script termination and removal from collections
+    }
+    EngineStdOut("Finished deleting all clones of entity: " + originalEntityId, 0);
 }
