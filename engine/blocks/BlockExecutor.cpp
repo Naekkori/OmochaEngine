@@ -4613,11 +4613,10 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             conditionIsTrue = !conditionResult.string_val.empty() &&
                               conditionResult.string_val != "0" &&
                               conditionResult.string_val != "false";
-        }
-        // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
-
+        }else{
+             // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
         engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
-        engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
+        }
         if (conditionIsTrue)
         {
             if (block.statementScripts.empty())
