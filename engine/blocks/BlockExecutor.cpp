@@ -4672,10 +4672,9 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             conditionIsTrue = !conditionResult.string_val.empty() &&
                               conditionResult.string_val != "0" &&
                               conditionResult.string_val != "false";
+        }else{
+               engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
         }
-
-        engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
-
         const Script *scriptToExecute = nullptr;
         std::string stackToExecuteName;
 
