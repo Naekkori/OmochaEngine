@@ -61,7 +61,7 @@
               "scaleY": 0.24791603655730163
             },
             "filename": "설정 버튼_2.png",
-            "fileurl": "menu/설정 버튼_2.png",
+            "fileurl": "menu/settings.png",
             "name": "설정 버튼_2",
             "imageType": "svg"
           }
@@ -363,7 +363,7 @@
               "scaleY": 0.30152736478218256
             },
             "filename": "다음 버튼_1.png",
-            "fileurl": "settings/다음 버튼_1.png",
+            "fileurl": "settings/nextbtn.png",
             "name": "다음 버튼_1",
             "imageType": "svg"
           }

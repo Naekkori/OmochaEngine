@@ -120,10 +120,30 @@ std::string OperandValue::asString() const
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField, const std::string &executionThreadId)
 {
     // paramField 내용을 로깅하여 문제 파악
-   /* rapidjson::StringBuffer paramField_buffer_debug;
-    rapidjson::PrettyWriter<rapidjson::StringBuffer> paramField_writer_debug(paramField_buffer_debug); // PrettyWriter 사용
-    paramField.Accept(paramField_writer_debug);
-    engine.EngineStdOut("getOperandValue (obj: " + objectId +", thread: " + executionThreadId + ") processing paramField: " + std::string(paramField_buffer_debug.GetString()), 3, executionThreadId);*/
+    std::string paramField_summary = "Unknown Type";
+    if (paramField.IsNull()) {
+        paramField_summary = "Null";
+    } else if (paramField.IsString()) {
+        std::string str_val = paramField.GetString();
+        if (str_val.length() > 50) { // 너무 긴 문자열은 자르기
+            paramField_summary = "String (len=" + std::to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
+        } else {
+            paramField_summary = "String: \"" + str_val + "\"";
+        }
+    } else if (paramField.IsNumber()) {
+        paramField_summary = "Number: " + std::to_string(paramField.GetDouble());
+    } else if (paramField.IsBool()) {
+        paramField_summary = "Boolean: " + std::string(paramField.GetBool() ? "true" : "false");
+    } else if (paramField.IsObject()) {
+        if (paramField.HasMember("type") && paramField["type"].IsString()) {
+            paramField_summary = "Object (block type: " + std::string(paramField["type"].GetString()) + ")";
+        } else {
+            paramField_summary = "Object (structure unknown or missing 'type' field)";
+        }
+    } else if (paramField.IsArray()) {
+        paramField_summary = "Array (size: " + std::to_string(paramField.Size()) + ")";
+    }
+    engine.EngineStdOut("getOperandValue (obj: " + objectId +", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + std::to_string(paramField.GetType()), 3, executionThreadId);
 
     // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 IsObject(), IsString() 등에서 문제를 일으킬 수 있습니다.
     if (paramField.IsNull())
@@ -4044,7 +4064,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // Set the wait state *before* performing the active wait
         entity->setScriptWait(executionThreadId, waitEndTime, block.id, Entity::WaitType::EXPLICIT_WAIT_SECOND);
 
-        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 0, executionThreadId);
+        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 3, executionThreadId);
 
         // Perform the active wait - this will block the current script thread
         entity->performActiveWait(executionThreadId, block.id, waitEndTime, &engine, sceneIdAtDispatch); // Pass necessary info
@@ -4496,7 +4516,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
 
         engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
-
+        engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
         if (conditionIsTrue)
         {
             if (block.statementScripts.empty())
@@ -4512,7 +4532,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             }
             else
             {
-                engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition true, executing STACK (statement). Block ID: " + block.id, 0, executionThreadId);
+                engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition true, executing STACK (statement). Block ID: " + block.id, 3, executionThreadId);
                 executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime);
 
                 // 내부 블록 실행 후 대기 상태 확인
@@ -4553,7 +4573,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                               conditionResult.string_val != "false";
         }
 
-        engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
+        engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
 
         const Script* scriptToExecute = nullptr;
         std::string stackToExecuteName;
@@ -4587,7 +4607,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             }
             else
             {
-                engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Executing " + stackToExecuteName + ". Block ID: " + block.id, 0, executionThreadId);
+                engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Executing " + stackToExecuteName + ". Block ID: " + block.id, 3, executionThreadId);
                 executeBlocksSynchronously(engine, objectId, scriptToExecute->blocks, executionThreadId, sceneIdAtDispatch, deltaTime);
 
                 if (entity && entity->isScriptWaiting(executionThreadId))
@@ -4630,14 +4650,14 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
         if (conditionIsTrue)
         {
-            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id, 0, executionThreadId);
+            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id, 3, executionThreadId);
             // 조건이 참이므로, 이 블록은 완료되고 다음 블록으로 넘어갑니다.
             // 특별한 대기 설정 없이 Flow 함수를 반환합니다.
         }
         else
         {
             // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
-            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 0, executionThreadId);
+            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 3, executionThreadId);
             entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
             // Flow 함수를 반환하여 Entity::executeScript가 이 블록에서 대기하도록 합니다.
         }
