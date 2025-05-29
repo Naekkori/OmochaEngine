@@ -133,8 +133,9 @@ private:
     vector<pair<string, const Script *>> m_whenObjectClickedScripts;
     vector<pair<string, const Script *>> m_whenObjectClickCanceledScripts;
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
-    map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
-    boost::asio::thread_pool m_scriptThreadPool; // 스크립트 실행을 위한 스레드 풀
+    vector<pair<string, const Script *>> m_whenCloneStartScripts; // 복제본 생성 시 실행될 스크립트
+    map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름    
+    std::unique_ptr<boost::asio::thread_pool> m_scriptThreadPoolPtr; // 스크립트 실행을 위한 스레드 풀 (unique_ptr로 변경)
     // --- Text Input Members (for ask_and_wait) ---
     std::string m_currentTextInputBuffer;      // 현재 입력 중인 텍스트 버퍼
     bool m_textInputActive = false;            // 텍스트 입력 모드 활성화 여부
@@ -145,6 +146,7 @@ private:
     std::condition_variable m_textInputCv;
     mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
+    std::string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
     SDL_Texture* LoadTextureFromSvgResource(SDL_Renderer* renderer, int resourceID);
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -319,9 +321,13 @@ public:
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string& sceneIdAtDispatch, float deltaTime, const std::string& existingExecutionThreadId = "");
     void raiseMessage(const std::string& messageId, const std::string& senderObjectId, const std::string& executionThreadId);
     void changeObjectIndex(const std::string& entityId, Omocha::ObjectIndexChangeType changeType);
+    void requestStopObject(const std::string& callingEntityId, const std::string& callingThreadId, const std::string& targetOption);
+    void requestProjectRestart(); // 프로젝트 다시 시작 요청
+    void performProjectRestart();
     SimpleLogger logger;                           // 로거 인스턴스
     std::atomic<bool> m_isShuttingDown{false};     // 엔진 종료 상태 플래그
-    boost::asio::thread_pool& getThreadPool() { return m_scriptThreadPool; } // 스레드 풀 접근자 추가
+    std::atomic<bool> m_restartRequested{false};   // 프로젝트 다시 시작 요청 플래그
+    boost::asio::thread_pool& getThreadPool();     // 스레드 풀 접근자 수정
 private:
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:

@@ -141,7 +141,11 @@ namespace Omocha
         STOP_REPEAT,              // New: To break loops
         CONTINUE_REPEAT,          // New: To continue to next iteration of a loop
         _IF,                      // New: Conditional execution
-        IF_ELSE                   // New: Conditional execution with else
+        IF_ELSE,                  // New: Conditional execution with else
+        WAIT_UNTIL_TRUE,          // New: Wait until a condition is true
+        STOP_OBJECT,              // New: Stop script execution (from user request)
+        RESTART_PROJECT,          // New: Restart the entire project
+        WHEN_CLONE_START          // New: Event when a clone is created
     };
 
     /**

@@ -86,7 +86,37 @@ namespace
             const rapidjson::Value &paramsVal = blockJson["params"];
             if (paramsVal.IsArray())
             { // paramsJson은 Document이므로 자체 Allocator 사용
-                newBlock.paramsJson.CopyFrom(paramsVal, newBlock.paramsJson.GetAllocator());
+                // newBlock.paramsJson.CopyFrom(paramsVal, newBlock.paramsJson.GetAllocator()); // 이전 방식
+                newBlock.paramsJson.SetArray(); // Initialize as an array
+                rapidjson::Document::AllocatorType& allocator = newBlock.paramsJson.GetAllocator();
+
+                for (const auto& paramEntryJson : paramsVal.GetArray()) { // Iterate over original params
+                    if (paramEntryJson.IsNull()) {
+                        // 최상위 null 값은 FilterNullsInParamsJsonArray가 나중에 처리하도록 그대로 추가
+                        newBlock.paramsJson.PushBack(rapidjson::Value(rapidjson::kNullType), allocator);
+                    } else if (paramEntryJson.IsObject() && paramEntryJson.HasMember("type") && paramEntryJson.HasMember("params") && paramEntryJson["params"].IsArray()) {
+                        // 블록과 유사한 파라미터입니다. 내부 'params'를 필터링하기 위해 복사본을 만듭니다.
+                        rapidjson::Value subBlockCopy(paramEntryJson, allocator); // sub-block 객체 깊은 복사
+
+                        // 복사본 내의 'params' 배열에 대한 참조를 가져옵니다.
+                        rapidjson::Value& subBlockParamsArray = subBlockCopy["params"];
+                        
+                        rapidjson::Value filteredNestedParams(rapidjson::kArrayType); // 필터링된 params를 위한 새 배열 생성
+                        for (const auto& nestedParam : subBlockParamsArray.GetArray()) {
+                            if (!nestedParam.IsNull()) {
+                                // null이 아닌 중첩된 파라미터만 깊은 복사합니다.
+                                filteredNestedParams.PushBack(rapidjson::Value(nestedParam, allocator), allocator);
+                            }
+                        }
+                        // subBlockCopy의 'params' 배열을 필터링된 버전으로 교체합니다.
+                        subBlockCopy["params"] = filteredNestedParams; 
+                        
+                        newBlock.paramsJson.PushBack(subBlockCopy, allocator); // 수정된 sub-block을 newBlock의 params에 추가합니다.
+                    } else {
+                        // null도 아니고 수정 가능한 sub-block도 아니면, 그대로 복사합니다.
+                        newBlock.paramsJson.PushBack(rapidjson::Value(paramEntryJson, allocator), allocator);
+                    }
+                }
             }
             else
             {                                                                                                                                                                                                                                 // params가 있지만 배열이 아닌 경우
@@ -96,8 +126,10 @@ namespace
         }
         else
         {
+            // 'params' 멤버가 없으면 빈 배열로 초기화합니다.
             newBlock.paramsJson.SetArray();
-        } // params 필드가 없으면 빈 배열로 초기화
+        } 
+        // Filter nulls for the current block's paramsJson
         newBlock.FilterNullsInParamsJsonArray();
 
         // Parse Statements (Inner Scripts)
@@ -118,6 +150,8 @@ namespace
                         {
                             Block parsedInnerBlock = ParseBlockDataInternal(innerBlockJsonVal, engine, innerScriptContext + " inner_block " + std::to_string(innerBlockIdx));
                             // Ensure both id and type are valid before adding
+                            // Also, ensure that FilterNullsInParamsJsonArray has been called for parsedInnerBlock's paramsJson
+                            // This is handled because ParseBlockDataInternal calls FilterNullsInParamsJsonArray before returning.
                             if (!parsedInnerBlock.id.empty() && !parsedInnerBlock.type.empty())
                             {
                                 innerScript.blocks.push_back(std::move(parsedInnerBlock));
@@ -162,17 +196,15 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0),
                    zoomFactor((this->specialConfig.setZoomfactor <= 0.0)
                                   ? 1.0f
-                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM,
-                                               Engine::MAX_ZOOM)),
-                   m_isDraggingZoomSlider(false), m_pressedObjectId(""),
+                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)),
+                   m_isDraggingZoomSlider(false), m_pressedObjectId(""), // m_scriptThreadPoolPtr 초기화 추가
                    logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
-                   m_scriptThreadPool(max(1u, std::thread::hardware_concurrency() > 0
-                                                  ? std::thread::hardware_concurrency()
-                                                  : 2)) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
+                   m_scriptThreadPoolPtr(make_unique<boost::asio::thread_pool>(
+                       max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2)
+                   )) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
 {
-    EngineStdOut(
-        string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
+    EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
 }
 
@@ -294,10 +326,10 @@ Engine::~Engine()
 {
     EngineStdOut("Engine shutting down...");
     m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
-    EngineStdOut("Shutting down script thread pool...");
-    m_scriptThreadPool.stop();
-    std::future<void> join_future = std::async(std::launch::async, [&]()
-                                               { m_scriptThreadPool.join(); });
+    EngineStdOut("Shutting down script thread pool...");    
+    if (m_scriptThreadPoolPtr) { // Check if pool exists
+        m_scriptThreadPoolPtr->stop();
+    }    std::future<void> join_future = std::async(std::launch::async, [&]() { if (m_scriptThreadPoolPtr) m_scriptThreadPoolPtr->join(); });
     EngineStdOut("Waiting for script threads to join...", 0);
     // Entity 객체들 명시적 삭제
     EngineStdOut("Deleting entity objects...", 0);
@@ -414,6 +446,7 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
 bool Engine::loadProject(const string &projectFilePath)
 {
     EngineStdOut("Initial Project JSON file parsing...", 0);
+    this->m_currentProjectFilePath = projectFilePath; // Store the path for potential restart
 
     ifstream projectFile(projectFilePath);
     if (!projectFile.is_open())
@@ -445,7 +478,9 @@ bool Engine::loadProject(const string &projectFilePath)
     m_whenObjectClickedScripts.clear();
     m_whenObjectClickCanceledScripts.clear();
     m_messageReceivedScripts.clear();
+    m_whenCloneStartScripts.clear(); // 복제본 시작 스크립트 목록 초기화
     m_pressedObjectId = "";
+    firstSceneIdInOrder = ""; // Reset for new project load
     m_sceneOrder.clear();
     PROJECT_NAME = getSafeStringFromJson(document, "name", "project root", "Omocha Project", false, false);
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
@@ -1500,6 +1535,7 @@ bool Engine::loadProject(const string &projectFilePath)
     {
         currentSceneId = startSceneId;
         EngineStdOut(
+
             "Initial scene set to explicit start scene: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")",
             0);
     }
@@ -1508,12 +1544,14 @@ bool Engine::loadProject(const string &projectFilePath)
         if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front()))
         {
             currentSceneId = m_sceneOrder.front();
+            firstSceneIdInOrder = currentSceneId; // Store the determined start scene
             EngineStdOut(
                 "Initial scene set to first scene in array order: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
         }
         else
         {
             EngineStdOut("No valid starting scene found in project.json or no scenes were loaded.", 2);
+            firstSceneIdInOrder = ""; // No valid start scene
             currentSceneId = "";
             return false;
         }
@@ -1670,6 +1708,17 @@ bool Engine::loadProject(const string &projectFilePath)
                         EngineStdOut("  -> object ID " + objectId + " found 'when scene start' script.", 3); // LEVEL 0 -> 3
                     }
                 }
+                else if (firstBlock.type == "when_clone_start") // 복제본 생성 이벤트
+                {
+                    if (script.blocks.size() > 1)
+                    {
+                        m_whenCloneStartScripts.push_back({objectId, &script});
+                        EngineStdOut("  -> Found 'when_clone_start' script for object ID: " + objectId, 3);
+                    } else {
+                        EngineStdOut("  -> Found 'when_clone_start' script for object ID: " + objectId + " but it has no subsequent blocks. Skipping.", 1);
+                    }
+                }
+
             }
         }
     }
@@ -5670,4 +5719,159 @@ bool Engine::loadCloudVariablesFromJson()
                      ", Not found/applicable: " + std::to_string(notFoundCount),
                  0);
     return true;
+}
+
+void Engine::requestProjectRestart() {
+    EngineStdOut("Project restart requested. Flag set.", 0);
+    m_restartRequested.store(true, std::memory_order_relaxed);
+}
+
+void Engine::performProjectRestart() {
+    EngineStdOut("Project restart sequence initiated...", 0);
+
+    // 1. Stop all current script activities
+    EngineStdOut("Stopping all scripts and activities...", 0);
+    m_isShuttingDown.store(true, std::memory_order_relaxed); // Signal script threads to terminate
+    
+    SDL_Delay(50); // Give threads a moment to acknowledge shutdown
+
+    if (m_scriptThreadPoolPtr) {
+        m_scriptThreadPoolPtr->stop(); 
+        m_scriptThreadPoolPtr->join(); 
+    }
+
+    // Clear script states from entities
+    for (auto& pair : entities) {
+        if (pair.second) {
+            std::lock_guard<std::mutex> lock(pair.second->getStateMutex());
+            pair.second->scriptThreadStates.clear(); 
+        }
+    }
+    
+    m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
+    
+    // Re-create the thread pool
+    m_scriptThreadPoolPtr = std::make_unique<boost::asio::thread_pool>(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+
+    resetProjectTimer();
+    m_gameplayInputActive = false;
+    m_pressedObjectId = "";
+    for (auto& pair : entities) {
+        if (pair.second) {
+            pair.second->removeDialog();
+        }
+    }
+    // Any other state resets (e.g., pen drawings) would go here.
+
+    // 2. Reload project data
+    EngineStdOut("Reloading project data...", 0);
+    if (m_currentProjectFilePath.empty()) {
+        EngineStdOut("Error: Current project file path is empty. Cannot restart project.", 2);
+        m_restartRequested.store(false, std::memory_order_relaxed); 
+        return;
+    }
+
+    // Clear existing entity objects before reloading
+    for (auto& pair : entities) {
+        delete pair.second;
+    }
+    entities.clear();
+    objects_in_order.clear(); 
+    objectScripts.clear();    
+    startButtonScripts.clear();
+    keyPressedScripts.clear();
+    m_mouseClickedScripts.clear();
+    m_mouseClickCanceledScripts.clear();
+    m_whenObjectClickedScripts.clear();
+    m_whenObjectClickCanceledScripts.clear();
+    m_messageReceivedScripts.clear();
+    m_whenStartSceneLoadedScripts.clear();
+    m_HUDVariables.clear(); 
+    scenes.clear(); // Clear scenes map as well, loadProject will repopulate it
+
+    if (!loadProject(m_currentProjectFilePath)) {
+        EngineStdOut("Error: Failed to reload project during restart. Restart aborted.", 2);
+        showMessageBox("프로젝트를 다시 시작하는 중 오류가 발생했습니다: 프로젝트 파일을 다시 로드할 수 없습니다.", msgBoxIconType.ICON_ERROR);
+        m_restartRequested.store(false, std::memory_order_relaxed); 
+        return;
+    }
+    
+    // Reload assets
+    EngineStdOut("Reloading assets...", 0);
+    if (!loadImages()) { // loadImages should handle clearing old textures
+        EngineStdOut("Warning: Failed to reload images during restart.", 1);
+    }
+    if (!loadSounds()) { // loadSounds should handle clearing old sounds if necessary
+        EngineStdOut("Warning: Failed to reload sounds during restart.", 1);
+    }
+    
+    // 3. Start project execution
+    EngineStdOut("Restarting project execution...", 0);
+    // currentSceneId should be correctly set by loadProject via firstSceneIdInOrder logic
+    if (scenes.count(firstSceneIdInOrder)) { // Ensure the start scene ID from loadProject is valid
+        currentSceneId = firstSceneIdInOrder;
+    } else if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front())) { // Fallback if firstSceneIdInOrder was not set
+        currentSceneId = m_sceneOrder.front();
+         EngineStdOut("Warning: firstSceneIdInOrder was not set, falling back to the first scene in m_sceneOrder for restart.", 1);
+    } else {
+        EngineStdOut("Error: No valid start scene found after reloading project. Cannot start execution.", 2);
+        m_restartRequested.store(false, std::memory_order_relaxed);
+        return;
+    }
+
+    triggerWhenSceneStartScripts(); 
+    runStartButtonScripts();
+    m_gameplayInputActive = true; 
+
+    m_restartRequested.store(false, std::memory_order_relaxed); 
+    EngineStdOut("Project restart sequence complete.", 0);
+}
+
+void Engine::requestStopObject(const std::string& callingEntityId, const std::string& callingThreadId, const std::string& targetOption) {
+    EngineStdOut("Engine::requestStopObject called by Entity: " + callingEntityId + ", Thread: " + callingThreadId + ", Option: " + targetOption, 0, callingThreadId);
+
+    if (targetOption == "all") {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+        for (auto& pair : entities) {
+            if (pair.second) {
+                pair.second->terminateAllScriptThread(""); // Terminate all threads for this entity
+            }
+        }
+        EngineStdOut("Requested to stop ALL scripts for ALL objects.", 0, callingThreadId);
+    } else if (targetOption == "thisOnly" || targetOption == "thisObject") { // "thisObject" is from Entry.js, seems to mean the current Entity
+        Entity* currentEntity = getEntityById(callingEntityId); // Mutex handled by getEntityById if needed, or use _nolock if outer lock exists
+        if (currentEntity) {
+            currentEntity->terminateAllScriptThread(""); // Terminate all threads for the calling entity
+            EngineStdOut("Requested to stop ALL scripts for THIS object: " + callingEntityId, 0, callingThreadId);
+        }
+    } else if (targetOption == "thisThread") {
+        Entity* currentEntity = getEntityById(callingEntityId);
+        if (currentEntity) {
+            currentEntity->terminateScriptThread(callingThreadId); // Terminate only the current thread
+            EngineStdOut("Requested to stop THIS script thread: " + callingThreadId + " for object: " + callingEntityId, 0, callingThreadId);
+        }
+    } else if (targetOption == "otherThread") {
+        Entity* currentEntity = getEntityById(callingEntityId);
+        if (currentEntity) {
+            currentEntity->terminateAllScriptThread(callingThreadId); // Terminate all threads for this entity EXCEPT the current one
+            EngineStdOut("Requested to stop OTHER script threads for object: " + callingEntityId + " (excluding " + callingThreadId + ")", 0, callingThreadId);
+        }
+    } else if (targetOption == "other_objects") {
+        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+        for (auto& pair : entities) {
+            if (pair.first != callingEntityId && pair.second) { // If it's not the calling entity
+                pair.second->terminateAllScriptThread(""); // Terminate all threads for this other entity
+            }
+        }
+        EngineStdOut("Requested to stop ALL scripts for OTHER objects (excluding " + callingEntityId + ")", 0, callingThreadId);
+    } else {
+        EngineStdOut("Unknown targetOption for stop_object: " + targetOption, 1, callingThreadId);
+    }
+}
+
+boost::asio::thread_pool& Engine::getThreadPool() {
+    if (!m_scriptThreadPoolPtr) {
+        throw std::runtime_error("Thread pool not initialized!");
+    }
+    return *m_scriptThreadPoolPtr;
 }

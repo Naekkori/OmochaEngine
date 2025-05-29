@@ -73,7 +73,8 @@ public:
         WaitType currentWaitType = WaitType::NONE; // 현재 대기 유형
         int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
         const Script* scriptPtrForResume = nullptr;      // BLOCK_INTERNAL 재개를 위한 스크립트 포인터
-        int loopCounter = 0; // For resuming loops like repeat_basic
+        int loopCounter = 0; // For resuming loops like repeat_basic        
+        bool terminateRequested  = false;
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
         bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
         bool continueLoopRequested = false; // Flag to signal a 'continue_repeat'
@@ -299,6 +300,11 @@ public:
     void waitforPlaysound(const std::string &soundId);
     void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds);
     void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to);
+    void terminateScriptThread(const std::string& threadId);
+    void terminateAllScriptThread(const std::string& execeptThreadId);
+    // void terminateAllScriptThread(const std::string& exceptThreadId = ""); // Declaration with default argument
+
+    void cleanupTerminatedScriptThreads(Engine* enginePtr);
 };
 
 // Declare BlockTypeEnumToString as a free function

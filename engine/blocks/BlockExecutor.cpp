@@ -219,6 +219,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
                 {
                     // subBlock.paramsJson의 자체 할당자를 사용하도록 변경
                     subBlock.paramsJson.CopyFrom(paramsMember, subBlock.paramsJson.GetAllocator());
+                    subBlock.FilterNullsInParamsJsonArray(); // subBlock의 paramsJson에 대해서도 null 제거
                 }
                 else
                 {
@@ -1106,18 +1107,18 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     else if (BlockType == "coordinate_mouse")
     {
         // paramsKeyMap: { VALUE: 1 }
-        // 드롭다운 값 ("x" 또는 "y")은 paramsJson[1]에 있습니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() <= 1)
+        // 드롭다운 값 ("x" 또는 "y")은 null 필터링 후 paramsJson[0]에 있습니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         {
-            // 인덱스 1은 크기가 최소 2여야 함
+            // 인덱스 0에 접근하려면 크기가 최소 1이어야 함
             engine.EngineStdOut(
                 "coordinate_mouse block for " + objectId +
-                    " has invalid params structure. Expected param at index 1 for VALUE.",
+                    " has invalid params structure. Expected param at index 0 for VALUE.",
                 2, executionThreadId);
             return OperandValue(0.0);
         }
 
-        OperandValue coordTypeOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        OperandValue coordTypeOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         std::string coord_type_str;
 
         if (coordTypeOp.type == OperandValue::Type::STRING)
@@ -1127,7 +1128,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         else
         {
             engine.EngineStdOut(
-                "coordinate_mouse block for " + objectId + ": VALUE parameter (index 1) is not a string.", 2,
+                "coordinate_mouse block for " + objectId + ": VALUE parameter (index 0) is not a string.", 2,
                 executionThreadId);
             return OperandValue(0.0);
         }
@@ -1171,40 +1172,36 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     }
     else if (BlockType == "coordinate_object")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 4)
+        // FilterNullsInParamsJsonArray가 null을 제거하므로, 유효한 파라미터는 2개여야 합니다.
+        // (원래 params: [null, TARGET_OBJECT_ID, null, COORDINATE_TYPE])
+        // 필터링 후: [TARGET_OBJECT_ID_VALUE, COORDINATE_TYPE_VALUE]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
         {
             engine.EngineStdOut(
                 "coordinate_object block for object " + objectId +
-                    " has invalid params structure. Expected at least 4 params.",
+                    " has invalid params structure. Expected at least 2 params after filtering.",
                 2, executionThreadId);
             return OperandValue(0.0);
         }
 
-        OperandValue targetIdOpVal;
-        if (block.paramsJson[1].IsNull())
-        {
-            targetIdOpVal = OperandValue("self");
-        }
-        else
-        {
-            targetIdOpVal = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
-        }
+        // 필터링 후 첫 번째 파라미터 (원래 인덱스 1)가 대상 객체 ID입니다.
+        OperandValue targetIdOpVal = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
         if (targetIdOpVal.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
-                "coordinate_object block for " + objectId + ": target object ID parameter (VALUE) is not a string.", 2,
+                "coordinate_object block for " + objectId + ": target object ID parameter (original index 1) did not resolve to a string. Value: " + targetIdOpVal.asString(), 2,
                 executionThreadId);
             return OperandValue(0.0);
         }
         std::string targetObjectIdStr = targetIdOpVal.asString();
 
-        OperandValue coordinateTypeOpVal = getOperandValue(engine, objectId, block.paramsJson[3], executionThreadId);
+        // 필터링 후 두 번째 파라미터 (원래 인덱스 3)가 좌표 유형입니다.
+        OperandValue coordinateTypeOpVal = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         if (coordinateTypeOpVal.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
-                "coordinate_object block for " + objectId + ": coordinate type parameter (COORDINATE) is not a string.",
-                2, executionThreadId);
+                "coordinate_object block for " + objectId + ": coordinate type parameter (original index 3) did not resolve to a string. Value: " + coordinateTypeOpVal.asString(), 2, executionThreadId);
             return OperandValue(0.0);
         }
         std::string coordinateTypeStr = coordinateTypeOpVal.asString();
@@ -4603,7 +4600,66 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // 조건에 따라 해당 스택이 없거나, 있었지만 내부 블록 실행이 (대기 없이) 완료된 경우, 이 블록의 실행은 완료.
     }else if (BlockType == "wait_until_true")
     {
+        // params: [CONDITION_BLOCK (BOOL), Indicator]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
+            throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
+        }
+
+        const rapidjson::Value& conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
+        OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
+
+        bool conditionIsTrue = false;
+        if (conditionResult.type == OperandValue::Type::BOOLEAN)
+        {
+            conditionIsTrue = conditionResult.boolean_val;
+        }
+        else if (conditionResult.type == OperandValue::Type::NUMBER)
+        {
+            conditionIsTrue = (conditionResult.number_val != 0.0); // 0이 아니면 참
+        }
+        else if (conditionResult.type == OperandValue::Type::STRING)
+        {
+            // 엔트리JS는 빈 문자열, "0", "false"를 거짓으로 간주. 그 외는 참.
+            conditionIsTrue = !conditionResult.string_val.empty() &&
+                              conditionResult.string_val != "0" &&
+                              conditionResult.string_val != "false";
+        }
+        // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
+
+        if (conditionIsTrue)
+        {
+            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id, 0, executionThreadId);
+            // 조건이 참이므로, 이 블록은 완료되고 다음 블록으로 넘어갑니다.
+            // 특별한 대기 설정 없이 Flow 함수를 반환합니다.
+        }
+        else
+        {
+            // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
+            engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 0, executionThreadId);
+            entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+            // Flow 함수를 반환하여 Entity::executeScript가 이 블록에서 대기하도록 합니다.
+        }
+    } else if (BlockType == "stop_object") {
+        // params: [TARGET_DROPDOWN (string), Indicator]
+        // paramsKeyMap: { TARGET: 0 }
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || !block.paramsJson[0].IsString()) {
+            engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Missing or invalid TARGET parameter. Block ID: " + block.id, 2, executionThreadId);
+            throw ScriptBlockExecutionError("TARGET 파라미터가 누락되었거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid TARGET parameter.");
+        }
+        std::string targetOption = block.paramsJson[0].GetString();
+        engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Option='" + targetOption + "'. Block ID: " + block.id, 0, executionThreadId);
         
+        engine.requestStopObject(objectId, executionThreadId, targetOption);
+        // The engine.requestStopObject will set terminateRequested flags on the appropriate ScriptThreadStates.        
+        // The Entity::executeScript loop will check this flag after this Flow function returns and handle the actual termination of the thread(s).
+        // No explicit "return this.die()" equivalent is needed here in Flow; the flag mechanism handles it.
+    } else if (BlockType == "restart_project") {
+        engine.EngineStdOut("Flow 'restart_project': Requesting project restart for " + objectId, 0, executionThreadId);
+        engine.requestProjectRestart();
+        // The Entity::executeScript loop will check this flag after this Flow function returns and handle the actual termination of the thread(s).
+        // No explicit "return this.die()" equivalent is needed here in Flow; the flag mechanism handles it.
     }
     
 }

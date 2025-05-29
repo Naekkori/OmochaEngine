@@ -104,6 +104,18 @@ void Entity::performActiveWait(const std::string& executionThreadId, const std::
     pEngine->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") now actively waiting due to block " + waitedBlockId + " (Type: wait_second) until " + std::to_string(waitEndTime), 0, executionThreadId);
     
     while (SDL_GetTicks() < waitEndTime) {
+        { // Check terminateRequested
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            auto it_thread_state = scriptThreadStates.find(executionThreadId);
+            if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested) {
+                pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " (Thread: " + executionThreadId + ") cancelled due to script termination request.", 1, executionThreadId);
+                // No need to reset state here, executeScript will handle it upon return
+                // The isWaiting flag will remain true, and executeScript will see terminateRequested.
+                return; // Exit wait
+            }
+        }
+
+
         if (pEngine->m_isShuttingDown.load(std::memory_order_relaxed)) {
             pEngine->EngineStdOut("Wait for block " + waitedBlockId + " cancelled due to engine shutdown for entity: " + this->getId(), 1, executionThreadId);
             std::lock_guard<std::mutex> lock(m_stateMutex);
@@ -232,6 +244,25 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
     for (size_t i = startIndex; i < scriptPtr->blocks.size(); ++i)
     {
+        { // Scope for checking terminateRequested before executing any block
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            auto it_thread_state = scriptThreadStates.find(executionThreadId);
+            if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested) {
+                pEngineInstance->EngineStdOut("Script thread " + executionThreadId + " for entity " + this->id + " is terminating as requested before block " + scriptPtr->blocks[i].id, 0, executionThreadId);
+                // Clean up the state for this thread before returning
+                it_thread_state->second.isWaiting = false;
+                it_thread_state->second.resumeAtBlockIndex = -1;
+                it_thread_state->second.blockIdForWait = "";
+                it_thread_state->second.loopCounter = 0;
+                it_thread_state->second.currentWaitType = WaitType::NONE;
+                it_thread_state->second.scriptPtrForResume = nullptr;
+                it_thread_state->second.sceneIdAtDispatchForResume = "";
+                // The terminateRequested flag remains true.
+                return; // Stop executing this script
+            }
+        }
+
+        
         // 엔진 종료 또는 씬 변경 시 스크립트 중단 로직 (기존과 동일)
         std::string currentEngineSceneId = pEngineInstance->getCurrentSceneId();
         const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
@@ -1177,6 +1208,39 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
     }
 }
 
+void Entity::terminateScriptThread(const std::string& threadId) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    auto it = scriptThreadStates.find(threadId);
+    if (it != scriptThreadStates.end()) {
+        it->second.terminateRequested = true;
+        if (pEngineInstance) { // Check pEngineInstance before using
+            pEngineInstance->EngineStdOut("Entity " + id + " marked script thread " + threadId + " for termination.", 0, threadId);
+        }
+    } else {
+        if (pEngineInstance) {
+            pEngineInstance->EngineStdOut("Entity " + id + " could not find script thread " + threadId + " to mark for termination.", 1, threadId);
+        }
+    }
+}
+
+void Entity::terminateAllScriptThread(const std::string& exceptThreadId) {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    int markedCount = 0;
+    for (auto& pair : scriptThreadStates) {
+        if (exceptThreadId.empty() || pair.first != exceptThreadId) {
+            if (!pair.second.terminateRequested) { // Only mark if not already marked
+                pair.second.terminateRequested = true;
+                markedCount++;
+                 if (pEngineInstance) {
+                     pEngineInstance->EngineStdOut("Entity " + id + " marked script thread " + pair.first + " for termination (all/other).", 0, pair.first);
+                }
+            }
+        }
+    }
+    if (pEngineInstance && markedCount > 0) { // Log only if any threads were actually marked now
+        pEngineInstance->EngineStdOut("Entity " + id + " marked " + std::to_string(markedCount) + " script threads for termination" + (exceptThreadId.empty() ? "" : " (excluding " + exceptThreadId + ")") + ".", 0);
+    }
+}
 void Entity::resumeInternalBlockScripts(float deltaTime) {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;

@@ -121,7 +121,12 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"stop_repeat", BlockTypeEnum::STOP_REPEAT},
         {"continue_repeat", BlockTypeEnum::CONTINUE_REPEAT},
         {"_if", BlockTypeEnum::_IF},
-        {"if_else", BlockTypeEnum::IF_ELSE}
+        {"if_else", BlockTypeEnum::IF_ELSE},
+        {"wait_until_true", BlockTypeEnum::WAIT_UNTIL_TRUE},
+        {"stop_object", BlockTypeEnum::STOP_OBJECT}, // Added
+        {"restart_project", BlockTypeEnum::RESTART_PROJECT}, // Added
+        {"when_clone_start", BlockTypeEnum::WHEN_CLONE_START} // Added
+
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -252,7 +257,11 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::SHOW_LIST, "리스트 보이기"},
         {BlockTypeEnum::HIDE_LIST, "리스트 숨기기"},
         {BlockTypeEnum::_IF, "만약 ~이라면"},
-        {BlockTypeEnum::IF_ELSE, "만약 ~이라면, 아니면"}
+        {BlockTypeEnum::IF_ELSE, "만약 ~이라면, 아니면"},
+        {BlockTypeEnum::WAIT_UNTIL_TRUE, "~가 될 때까지 기다리기"},
+        {BlockTypeEnum::STOP_OBJECT, "멈추기"}, // Added
+        {BlockTypeEnum::RESTART_PROJECT, "다시 시작하기"}, // Added
+        {BlockTypeEnum::WHEN_CLONE_START, "복제되었을 때"} // Added
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {
