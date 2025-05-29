@@ -268,6 +268,48 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             // Route to the main Calculator function, passing an empty string for executionThreadId as it's not available here.
             return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
         }
+        else if (fieldType == "is_clicked")
+        {
+            // 이 블록은 특정 파라미터에 의존하지 않고 엔진의 상태를 직접 조회합니다.
+            return OperandValue(engine.getStageWasClickedThisFrame());
+        }
+        else if (fieldType == "is_object_clicked") // 블록 타입 "is_object_clicked" 처리
+        {
+            // 이 블록은 현재 실행 중인 오브젝트(objectId)가 엔진에 의해 마지막으로 눌린 오브젝트 ID와 일치하는지 확인합니다.
+            // engine.getPressedObjectId()는 m_pressedObjectId를 반환하며, 이 값은 마우스 버튼 다운 이벤트 시 설정됩니다.
+            return OperandValue(engine.getPressedObjectId() == objectId);
+        }
+        else if (fieldType == "is_press_some_key") // 특정 키 눌림 판단 블록
+        {
+            // paramsKeyMap: { VALUE: 0 }
+            // paramField가 'is_press_some_key' 블록 자체를 나타냅니다.
+            // 이 블록의 파라미터는 paramField["params"]에 있습니다.
+            if (!paramField.HasMember("params") || !paramField["params"].IsArray() || paramField["params"].Empty())
+            {
+                engine.EngineStdOut("is_press_some_key block (used as param) for " + objectId + " has invalid or missing 'params' array.", 2, executionThreadId);
+                return OperandValue(false); // 오류 시 false 반환
+            }
+
+            // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
+            // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
+            // getOperandValue를 사용하여 최종 문자열 값을 얻습니다.
+            // 'is_press_some_key' 블록의 첫 번째 파라미터는 paramField["params"][0]에 있습니다.
+            const rapidjson::Value &keyParamValue = paramField["params"][0];
+            OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
+
+            if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty())
+            {
+                engine.EngineStdOut("is_press_some_key block (used as param) for " + objectId +
+                                        ": key identifier parameter (from its own params[0]) did not resolve to a non-empty string. Value: " +
+                                        keyIdentifierOp.asString(),
+                                    2, executionThreadId);
+                return OperandValue(false);
+            }
+            std::string keyIdentifierStr = keyIdentifierOp.asString();
+
+            SDL_Scancode scancode = engine.mapStringToSDLScancode(keyIdentifierStr);
+            return OperandValue(engine.isKeyPressed(scancode));
+        }
         else if (fieldType == "get_pictures")
         {
             // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
@@ -1647,8 +1689,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
-        std::string action_original = block.paramsJson[0].GetString();
-        std::string action = action_original;                                    // 복사본 생성
+        OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        std::string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
         std::transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
         struct tm timeinfo_s;                                                    // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
@@ -1692,7 +1734,13 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
     }
     else if (BlockType == "distance_something")
     {
-        string targetId = block.paramsJson[0].GetString();
+        OperandValue targetIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (targetIdOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("distance_something block for " + objectId + ": target parameter is not a string. Value: " + targetIdOp.asString(), 2, executionThreadId);
+            return OperandValue(0.0);
+        }
+        string targetId = targetIdOp.asString();
         if (targetId == "mouse")
         {
             if (engine.isMouseCurrentlyOnStage())
@@ -2095,8 +2143,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
-        // getOperandValue를 사용할 수도 있지만, 여기서는 직접 사용합니다.
-        std::string action = block.paramsJson[0].GetString();
+        OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        std::string action = actionOp.asString();
 
         if (action == "START")
         {
@@ -2317,11 +2365,10 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        if (!block.paramsJson[0].IsString())
+        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (listIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut(
-                "value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string.", 2,
-                executionThreadId);
+            engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string. Value: " + listIdOp.asString(), 2, executionThreadId);
             return OperandValue("");
         }
         std::string listIdToFind = block.paramsJson[0].GetString();
@@ -3344,13 +3391,13 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
 
         // 1. 변수 ID 가져오기 (항상 문자열 드롭다운)
-        if (!block.paramsJson[0].IsString())
+        OperandValue variableIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (variableIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
-                                executionThreadId);
+            engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string. Value: " + variableIdOp.asString(), 2, executionThreadId);
             return;
         }
-        std::string variableIdToFind = block.paramsJson[0].GetString();
+        std::string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4727,12 +4774,18 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
     {
         // params: [TARGET_DROPDOWN (string), Indicator]
         // paramsKeyMap: { TARGET: 0 }
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || !block.paramsJson[0].IsString())
-        {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        { // Check for array and emptiness first
             engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Missing or invalid TARGET parameter. Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("TARGET 파라미터가 누락되었거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid TARGET parameter.");
         }
-        std::string targetOption = block.paramsJson[0].GetString();
+        OperandValue targetOptionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (targetOptionOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": TARGET parameter is not a string. Value: " + targetOptionOp.asString() + ". Block ID: " + block.id, 2, executionThreadId);
+            throw ScriptBlockExecutionError("TARGET 파라미터가 문자열이 아닙니다.", block.id, BlockType, objectId, "TARGET parameter is not a string.");
+        }
+        std::string targetOption = targetOptionOp.asString();
         engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Option='" + targetOption + "'. Block ID: " + block.id, 0, executionThreadId);
 
         engine.requestStopObject(objectId, executionThreadId, targetOption);
@@ -4814,7 +4867,6 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // 이 블록은 실행 흐름을 중단시키지 않고, 다음 블록으로 계속 진행됩니다.
     }
 }
-
 /**
  * @brief 함수블럭
  *
@@ -4833,18 +4885,16 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
 {
     if (BlockType == "message_cast")
     {
-        // params: [message_id_string, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1 || !block.paramsJson[0].IsString())
+        // params: [MESSAGE_ID_INPUT_OR_BLOCK, null, null]
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
         {
-            engine.EngineStdOut(
-                "message_cast block for object " + objectId + " has invalid or missing message ID parameter.", 2,
-                executionThreadId);
-            throw ScriptBlockExecutionError(
-                "메시지 ID 파라미터가 유효하지 않습니다.",
-                block.id, BlockType, objectId, "Invalid or missing message ID parameter.");
+            engine.EngineStdOut("message_cast block for object " + objectId + " has insufficient parameters. Expected message ID.", 2, executionThreadId);
+            throw ScriptBlockExecutionError("메시지 ID 파라미터가 부족합니다.", block.id, BlockType, objectId, "Insufficient parameters for message_cast.");
         }
 
-        std::string messageId = block.paramsJson[0].GetString();
+        OperandValue messageIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        // messageIdOp.asString() will handle conversion if messageIdOp is a number or boolean.
+        std::string messageId = messageIdOp.asString();
         engine.EngineStdOut("DEBUG_MSG: Object " + objectId + " (Thread " + executionThreadId + ") is RAISING message: '" + messageId + "'", 3, executionThreadId);
 
         if (messageId.empty() || messageId == "null")

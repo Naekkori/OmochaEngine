@@ -25,6 +25,7 @@
 #include <boost/asio/thread_pool.hpp> // 추가
 #include <boost/asio/post.hpp>
 using namespace std;
+#include <set>      // For std::set
 #include <atomic> // For std::atomic
 
 const int WINDOW_WIDTH = 480 * 3;
@@ -141,10 +142,10 @@ private:
     bool m_textInputActive = false;           // 텍스트 입력 모드 활성화 여부
     std::string m_textInputRequesterObjectId; // 텍스트 입력을 요청한 오브젝트 ID
     std::string m_textInputQuestionMessage;   // 텍스트 입력 시 표시될 질문 메시지
-    std::string m_lastAnswer;                 // 마지막으로 입력된 답변
+    std::string m_lastAnswer;                 // 마지막으로 입력된 답변 (ask_and_wait 블록용)
     mutable std::mutex m_textInputMutex;
     std::condition_variable m_textInputCv;
-    mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
+    mutable mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     string firstSceneIdInOrder;
     std::string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
     SDL_Texture *LoadTextureFromSvgResource(SDL_Renderer *renderer, int resourceID);
@@ -212,8 +213,10 @@ private:
     static const float MIN_ZOOM;
     static const float MAX_ZOOM;
     static const float LIST_RESIZE_HANDLE_SIZE; // 리스트 리사이즈 핸들 크기
-
-    SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
+    // --- Keyboard State ---
+    std::set<SDL_Scancode> m_pressedKeys; // Set of currently pressed keys
+    mutable std::mutex m_pressedKeysMutex;  // Mutex for m_pressedKeys
+    atomic<bool> m_stageWasClickedThisFrame{false};
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
 
 public:
@@ -261,6 +264,7 @@ public:
     bool loadCloudVariablesFromJson();
     void drawAllEntities();
     const string &getCurrentSceneId() const;
+    SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;
     void showProjectTimer(bool show); // 프로젝트 타이머 표시 여부 설정
     void EngineStdOut(string s, int LEVEL = 0, string TREADID = "") const;
@@ -299,10 +303,14 @@ public:
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
+    std::string getPressedObjectId() const;
     double getAngle(double x1, double y1, double x2, double y2) const;      // 두 점 사이의 각도 계산
     double getCurrentStageMouseAngle(double entityX, double entityY) const; // Angle to mouse from entity
     const ObjectInfo *getObjectInfoById(const string &id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
+    bool getStageWasClickedThisFrame() const;
+    bool isKeyPressed(SDL_Scancode scancode) const; // New: Check if a key is pressed
+    void setStageClickedThisFrame(bool clicked);
     // HUD에 표시할 변수 목록을 설정하는 메서드
     map<string, Entity *> &getEntities_Modifiable() { return entities; }
     void loadHUDVariablesFromJson(const rapidjson::Value &variablesArrayJson);        // JSON에서 직접 로드하도록 변경

@@ -3616,6 +3616,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
         // 텍스트 입력 중에는 다른 키 입력(예: keyPressedScripts)을 무시할 수 있도록 return 또는 플래그 사용
         return; // 텍스트 입력 중에는 다른 게임플레이 입력 처리 방지
     }
+    // --- General Key State Update (Happens regardless of m_gameplayInputActive for isKeyPressed) ---
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+        std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
+        m_pressedKeys.insert(event.key.scancode);
+    }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
     {
         // 마우스 버튼 누름 이벤트
@@ -3726,7 +3731,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             if (!uiClicked && m_gameplayInputActive)
             {
                 // UI 클릭이 아니고 게임플레이 입력이 활성화된 경우
-
+                this->setStageClickedThisFrame(true);
                 if (!m_mouseClickedScripts.empty())
                 {
                     for (const auto &scriptPair : m_mouseClickedScripts)
@@ -3814,6 +3819,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
     }
     else if (event.type == SDL_EVENT_KEY_DOWN)
     {
+        // This part is for triggering "when_some_key_pressed" scripts.
+        // The actual state of m_pressedKeys is updated above, outside the m_gameplayInputActive check.
+        // std::lock_guard<std::mutex> lock(m_pressedKeysMutex); // Lock for m_pressedKeys
+        // m_pressedKeys.insert(event.key.scancode);
+
         if (m_gameplayInputActive) // 키 누름 이벤트
         {
             SDL_Scancode scancode = event.key.scancode;
@@ -3832,6 +3842,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 }
             }
         }
+    }
+    else if (event.type == SDL_EVENT_KEY_UP)
+    {
+        std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
+        m_pressedKeys.erase(event.key.scancode);
     }
     else if (event.type == SDL_EVENT_MOUSE_MOTION)
     {
@@ -6147,4 +6162,25 @@ void Engine::deleteAllClonesOf(const std::string& originalEntityId) {
         deleteEntity(cloneId); // This will handle script termination and removal from collections
     }
     EngineStdOut("Finished deleting all clones of entity: " + originalEntityId, 0);
+}
+bool Engine::getStageWasClickedThisFrame() const
+{
+    return m_stageWasClickedThisFrame.load(std::memory_order_relaxed);
+}
+
+void Engine::setStageClickedThisFrame(bool clicked)
+{
+    m_stageWasClickedThisFrame.store(clicked, std::memory_order_relaxed);
+}
+
+std::string Engine::getPressedObjectId() const
+{
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // m_pressedObjectId 접근 보호
+    return m_pressedObjectId;
+}
+
+bool Engine::isKeyPressed(SDL_Scancode scancode) const
+{
+    std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
+    return m_pressedKeys.count(scancode) > 0;
 }

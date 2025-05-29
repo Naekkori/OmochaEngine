@@ -125,8 +125,10 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"wait_until_true", BlockTypeEnum::WAIT_UNTIL_TRUE},
         {"stop_object", BlockTypeEnum::STOP_OBJECT}, // Added
         {"restart_project", BlockTypeEnum::RESTART_PROJECT}, // Added
-        {"when_clone_start", BlockTypeEnum::WHEN_CLONE_START} // Added
-
+        {"when_clone_start", BlockTypeEnum::WHEN_CLONE_START}, // Added
+        {"is_clicked", BlockTypeEnum::IS_CLICKED}, // 일반 마우스 클릭 판단
+        {"is_object_clicked", BlockTypeEnum::IS_OBJECT_CLICKED_JUDGE}, // 특정 오브젝트 클릭 판단
+        {"is_press_some_key", BlockTypeEnum::IS_KEY_PRESSED_JUDGE}     // 특정 키 눌림 판단
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -261,7 +263,10 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::WAIT_UNTIL_TRUE, "~가 될 때까지 기다리기"},
         {BlockTypeEnum::STOP_OBJECT, "멈추기"}, // Added
         {BlockTypeEnum::RESTART_PROJECT, "다시 시작하기"}, // Added
-        {BlockTypeEnum::WHEN_CLONE_START, "복제되었을 때"} // Added
+        {BlockTypeEnum::WHEN_CLONE_START, "복제되었을 때"}, // Added
+        {BlockTypeEnum::IS_CLICKED, "마우스를 클릭했는가?"}, // 일반 마우스 클릭
+        {BlockTypeEnum::IS_OBJECT_CLICKED_JUDGE, "오브젝트를 클릭했는가?"}, // 특정 오브젝트 클릭
+        {BlockTypeEnum::IS_KEY_PRESSED_JUDGE, "키가 눌려있는가?"}      // 특정 키 눌림 판단
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {

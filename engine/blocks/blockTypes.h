@@ -145,7 +145,11 @@ namespace Omocha
         WAIT_UNTIL_TRUE,          // New: Wait until a condition is true
         STOP_OBJECT,              // New: Stop script execution (from user request)
         RESTART_PROJECT,          // New: Restart the entire project
-        WHEN_CLONE_START          // New: Event when a clone is created
+        WHEN_CLONE_START,          // New: Event when a clone is created
+        // Judge (판단)
+        IS_CLICKED,               // 마우스를 클릭했는가? (일반 클릭)
+        IS_OBJECT_CLICKED_JUDGE,  // 특정 오브젝트를 클릭했는가? (is_object_clicked)
+        IS_KEY_PRESSED_JUDGE      // 특정 키가 눌렸는가? (is_press_some_key)
     };
 
     /**
