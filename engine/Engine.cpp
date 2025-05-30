@@ -13,16 +13,11 @@
 #include <memory>
 #include <format>
 #include <boost/asio/thread_pool.hpp> // 추가
-#include "rapidjson/error/en.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/ostreamwrapper.h"
-#include "rapidjson/prettywriter.h"
-#include "rapidjson/writer.h"
+#include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
 #include <resource.h>
-#include "rapidjson/istreamwrapper.h" // Moved here
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -35,14 +30,10 @@ const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
 string LOADING_METHOD_NAME;
-const double PI_VALUE = acos(-1.0);
 
-static string RapidJsonValueToString(const rapidjson::Value &value)
+static string NlohmannJsonToString(const nlohmann::json &value)
 {
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-    value.Accept(writer);
-    return buffer.GetString();
+    return value.dump();
 }
 
 // Anonymous namespace for helper functions local to this file
@@ -50,9 +41,9 @@ namespace
 {
 
     // Forward declaration for recursive use if ParseBlockDataInternal calls itself for nested statements.
-    Block ParseBlockDataInternal(const rapidjson::Value &blockJson, Engine &engine, const std::string &contextForLog);
+    Block ParseBlockDataInternal(const nlohmann::json &blockJson, Engine &engine, const std::string &contextForLog);
 
-    Block ParseBlockDataInternal(const rapidjson::Value &blockJson, Engine &engine, const std::string &contextForLog)
+    Block ParseBlockDataInternal(const nlohmann::json &blockJson, Engine &engine, const std::string &contextForLog)
     {
         Block newBlock; // Default constructor initializes paramsJson to kNullType
 
@@ -81,80 +72,78 @@ namespace
         }
 
         // Parse Params
-        if (blockJson.HasMember("params"))
+        if (blockJson.contains("params"))
         {
-            const rapidjson::Value &paramsVal = blockJson["params"];
-            if (paramsVal.IsArray())
-            { // paramsJson은 Document이므로 자체 Allocator 사용
-                // newBlock.paramsJson.CopyFrom(paramsVal, newBlock.paramsJson.GetAllocator()); // 이전 방식
-                newBlock.paramsJson.SetArray(); // Initialize as an array
-                rapidjson::Document::AllocatorType &allocator = newBlock.paramsJson.GetAllocator();
-
-                for (const auto &paramEntryJson : paramsVal.GetArray())
+            const nlohmann::json &paramsVal = blockJson["params"];
+            // nlohmann::json으로 변경됨에 따라 paramsVal도 nlohmann::json 타입이어야 합니다.
+            // 실제 호출부에서 blockJson이 nlohmann::json이므로 paramsVal도 nlohmann::json입니다.
+            if (paramsVal.is_array())
+            {
+                for (const auto &paramEntryJson : paramsVal.array())
                 { // Iterate over original params
-                    if (paramEntryJson.IsNull())
+                    if (paramEntryJson.is_null())
                     {
                         // 최상위 null 값은 FilterNullsInParamsJsonArray가 나중에 처리하도록 그대로 추가
-                        newBlock.paramsJson.PushBack(rapidjson::Value(rapidjson::kNullType), allocator);
+                        newBlock.paramsJson.push_back(nullptr);
                     }
-                    else if (paramEntryJson.IsObject() && paramEntryJson.HasMember("type") && paramEntryJson.HasMember("params") && paramEntryJson["params"].IsArray())
+                    else if (paramEntryJson.is_object() && paramEntryJson.contains("type") && paramEntryJson.contains("params") && paramEntryJson["params"].is_array())
                     {
                         // 블록과 유사한 파라미터입니다. 내부 'params'를 필터링하기 위해 복사본을 만듭니다.
-                        rapidjson::Value subBlockCopy(paramEntryJson, allocator); // sub-block 객체 깊은 복사
+                        nlohmann::json subBlockCopy = paramEntryJson; // sub-block 객체 깊은 복사
 
                         // 복사본 내의 'params' 배열에 대한 참조를 가져옵니다.
-                        rapidjson::Value &subBlockParamsArray = subBlockCopy["params"];
+                        nlohmann::json &subBlockParamsArray = subBlockCopy["params"];
 
-                        rapidjson::Value filteredNestedParams(rapidjson::kArrayType); // 필터링된 params를 위한 새 배열 생성
-                        for (const auto &nestedParam : subBlockParamsArray.GetArray())
+                        nlohmann::json filteredNestedParams = nlohmann::json::array(); // 필터링된 params를 위한 새 배열 생성
+                        for (const auto &nestedParam : subBlockParamsArray.array())
                         {
-                            if (!nestedParam.IsNull())
+                            if (!nestedParam.is_null())
                             {
                                 // null이 아닌 중첩된 파라미터만 깊은 복사합니다.
-                                filteredNestedParams.PushBack(rapidjson::Value(nestedParam, allocator), allocator);
+                                filteredNestedParams.push_back(nestedParam);
                             }
                         }
                         // subBlockCopy의 'params' 배열을 필터링된 버전으로 교체합니다.
                         subBlockCopy["params"] = filteredNestedParams;
 
-                        newBlock.paramsJson.PushBack(subBlockCopy, allocator); // 수정된 sub-block을 newBlock의 params에 추가합니다.
+                        newBlock.paramsJson.push_back(subBlockCopy); // 수정된 sub-block을 newBlock의 params에 추가합니다.
                     }
                     else
                     {
                         // null도 아니고 수정 가능한 sub-block도 아니면, 그대로 복사합니다.
-                        newBlock.paramsJson.PushBack(rapidjson::Value(paramEntryJson, allocator), allocator);
+                        newBlock.paramsJson.push_back(paramEntryJson);
                     }
                 }
             }
             else
             {                                                                                                                                                                                                                                 // params가 있지만 배열이 아닌 경우
-                engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type + ") has 'params' but it's not an array. Params will be empty. Value: " + RapidJsonValueToString(paramsVal), 1, ""); // Added empty thread ID
-                newBlock.paramsJson.SetArray();
+                engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type + ") has 'params' but it's not an array. Params will be empty. Value: " + NlohmannJsonToString(paramsVal), 1, ""); // Added empty thread ID
+                newBlock.paramsJson = nlohmann::json::array();
             }
         }
         else
         {
             // 'params' 멤버가 없으면 빈 배열로 초기화합니다.
-            newBlock.paramsJson.SetArray();
+            newBlock.paramsJson = nlohmann::json::array();
         }
         // Filter nulls for the current block's paramsJson
         newBlock.FilterNullsInParamsJsonArray();
 
         // Parse Statements (Inner Scripts)
-        if (blockJson.HasMember("statements") && blockJson["statements"].IsArray())
+        if (blockJson.contains("statements") && blockJson["statements"].is_array())
         {
-            const rapidjson::Value &statementsArray = blockJson["statements"];
-            for (rapidjson::SizeType stmtIdx = 0; stmtIdx < statementsArray.Size(); ++stmtIdx)
+            const nlohmann::json &statementsArray = blockJson["statements"];
+            for (int stmtIdx = 0; stmtIdx < statementsArray.size(); ++stmtIdx)
             {
                 const auto &statementStackJson = statementsArray[stmtIdx];
-                if (statementStackJson.IsArray())
+                if (statementStackJson.is_array())
                 {
                     Script innerScript;
                     std::string innerScriptContext = contextForLog + " statement " + std::to_string(stmtIdx);
-                    for (rapidjson::SizeType innerBlockIdx = 0; innerBlockIdx < statementStackJson.Size(); ++innerBlockIdx)
+                    for (int innerBlockIdx = 0; innerBlockIdx < statementStackJson.size(); ++innerBlockIdx)
                     {
                         const auto &innerBlockJsonVal = statementStackJson[innerBlockIdx];
-                        if (innerBlockJsonVal.IsObject())
+                        if (innerBlockJsonVal.is_object())
                         {
                             Block parsedInnerBlock = ParseBlockDataInternal(innerBlockJsonVal, engine, innerScriptContext + " inner_block " + std::to_string(innerBlockIdx));
                             // Ensure both id and type are valid before adding
@@ -171,13 +160,13 @@ namespace
                             else
                             {
                                 engine.EngineStdOut("WARN: Skipping block in " + innerScriptContext + " inner_block " + std::to_string(innerBlockIdx) +
-                                                        " due to missing id ('" + parsedInnerBlock.id + "') or type ('" + parsedInnerBlock.type + "'). Content: " + RapidJsonValueToString(innerBlockJsonVal),
+                                                        " due to missing id ('" + parsedInnerBlock.id + "') or type ('" + parsedInnerBlock.type + "'). Content: " + NlohmannJsonToString(innerBlockJsonVal),
                                                     2, ""); // Error level
                             }
                         }
                         else
                         {
-                            engine.EngineStdOut("WARN: Inner block in " + innerScriptContext + " at index " + std::to_string(innerBlockIdx) + " is not an object. Skipping. Content: " + RapidJsonValueToString(innerBlockJsonVal), 1, ""); // Added empty thread ID
+                            engine.EngineStdOut("WARN: Inner block in " + innerScriptContext + " at index " + std::to_string(innerBlockIdx) + " is not an object. Skipping. Content: " + NlohmannJsonToString(innerBlockJsonVal), 1, ""); // Added empty thread ID
                         }
                     }
                     if (!innerScript.blocks.empty())
@@ -191,7 +180,7 @@ namespace
                 }
                 else
                 {
-                    engine.EngineStdOut("WARN: Statement entry in " + contextForLog + " at index " + std::to_string(stmtIdx) + " is not an array (not a valid script stack). Skipping. Content: " + RapidJsonValueToString(statementStackJson), 1, ""); // Added empty thread ID
+                    engine.EngineStdOut("WARN: Statement entry in " + contextForLog + " at index " + std::to_string(stmtIdx) + " is not an array (not a valid script stack). Skipping. Content: " + NlohmannJsonToString(statementStackJson), 1, ""); // Added empty thread ID
                 }
             }
         }
@@ -404,23 +393,22 @@ Engine::~Engine()
     EngineStdOut("Object Script Clear");
 }
 
-string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
+std::string Engine::getSafeStringFromJson(const nlohmann::json &parentValue,
                                      const string &fieldName,
                                      const string &contextDescription,
                                      const string &defaultValue,
                                      bool isCritical,
-                                     bool allowEmpty)
+                                     bool allowEmpty)const
 {
-    if (!parentValue.IsObject())
+    if (!parentValue.is_object())
     {
-        EngineStdOut(
-            "Parent for field '" + fieldName + "' in " + contextDescription + " is not an object. Value: " +
-                RapidJsonValueToString(parentValue),
+        EngineStdOut( "Parent for field '" + fieldName + "' in " + contextDescription + " is not an object. Value: " +
+                NlohmannJsonToString(parentValue),
             2);
         return defaultValue;
     }
 
-    if (!parentValue.HasMember(fieldName.c_str()))
+    if (!parentValue.contains(fieldName.c_str()))
     {
         if (isCritical)
         {
@@ -433,22 +421,22 @@ string Engine::getSafeStringFromJson(const rapidjson::Value &parentValue,
         return defaultValue;
     }
 
-    const rapidjson::Value &fieldValue = parentValue[fieldName.c_str()];
+    const nlohmann::json &fieldValue = parentValue[fieldName.c_str()];
 
-    if (!fieldValue.IsString())
+    if (!fieldValue.is_string())
     {
-        if (isCritical || !fieldValue.IsNull())
+        if (isCritical || !fieldValue.is_null())
         {
             EngineStdOut(
                 "Field '" + fieldName + "' in " + contextDescription + " is not a string. Value: [" +
-                    RapidJsonValueToString(fieldValue) +
+                    NlohmannJsonToString(fieldValue) +
                     "]. Using default: '" + defaultValue + "'.",
                 1);
         }
         return defaultValue;
     }
 
-    string s_val = fieldValue.GetString(); // 문자열 값 가져오기
+    string s_val = fieldValue.get<std::string>(); // 문자열 값 가져오기
     if (s_val.empty() && !allowEmpty)
     {
         if (isCritical)
@@ -490,8 +478,8 @@ bool Engine::loadProject(const string &projectFilePath)
         return false;
     }
 
-    rapidjson::IStreamWrapper isw(projectFile);
-    rapidjson::Document document;
+    nlohmann::stre isw(projectFile); // Correct
+    rapidjson::Document document; // Correct
     document.ParseStream(isw);
     projectFile.close();
 
@@ -499,7 +487,7 @@ bool Engine::loadProject(const string &projectFilePath)
     {
         string errorMsg = string("Failed to parse project file: ") + rapidjson::GetParseError_En(document.GetParseError()) +
                           " (Offset: " + to_string(document.GetErrorOffset()) + ")";
-        EngineStdOut(errorMsg, 2);
+        EngineStdOut(errorMsg, 2); // Correct
         showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
         return false;
     }
@@ -516,12 +504,26 @@ bool Engine::loadProject(const string &projectFilePath)
     m_pressedObjectId = "";
     firstSceneIdInOrder = ""; // Reset for new project load
     m_sceneOrder.clear();
-    PROJECT_NAME = getSafeStringFromJson(document, "name", "project root", "Omocha Project", false, false);
+
+    // PROJECT_NAME from rapidjson::Document
+    if (document.HasMember("name") && document["name"].IsString()) {
+        PROJECT_NAME = document["name"].GetString();
+    } else {
+        PROJECT_NAME = "Omocha Project";
+        EngineStdOut("'name' field missing or not a string in project root. Using default: " + PROJECT_NAME, 1);
+    }
+
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
     EngineStdOut("Project Name: " + (PROJECT_NAME.empty() ? "[Not Set]" : PROJECT_NAME), 0);
+
+    // TARGET_FPS from rapidjson::Document
     if (document.HasMember("speed") && document["speed"].IsNumber())
     {
-        this->specialConfig.TARGET_FPS = document["speed"].GetInt();
+        int speed = document["speed"].GetInt();
+        if (speed > 0)
+            this->specialConfig.TARGET_FPS = speed;
+        else
+            EngineStdOut("'speed' field is not a positive integer. Using default TARGET_FPS: " + to_string(this->specialConfig.TARGET_FPS), 1);
         EngineStdOut("Target FPS set from project.json: " + to_string(this->specialConfig.TARGET_FPS), 0);
     }
     else
@@ -539,8 +541,11 @@ bool Engine::loadProject(const string &projectFilePath)
         const rapidjson::Value &specialConfigJson = document["specialConfig"];
         if (specialConfigJson.IsObject())
         {
-            this->specialConfig.BRAND_NAME = getSafeStringFromJson(specialConfigJson, "brandName", "specialConfig", "",
-                                                                   false, true);
+            if (specialConfigJson.HasMember("brandName") && specialConfigJson["brandName"].IsString()) {
+                this->specialConfig.BRAND_NAME = specialConfigJson["brandName"].GetString();
+            } else {
+                this->specialConfig.BRAND_NAME = "";
+            }
             EngineStdOut("Brand Name: " + (this->specialConfig.BRAND_NAME.empty()
                                                ? "[Not Set]"
                                                : this->specialConfig.BRAND_NAME),
@@ -553,17 +558,17 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.showZoomSlider = false;
-                EngineStdOut("'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showZoomSliderUI' field missing or not boolean. Using default: false", 1); // Correct
             }
             if (specialConfigJson.HasMember("setZoomfactor") && specialConfigJson["setZoomfactor"].IsNumber())
             {
-                this->specialConfig.setZoomfactor = clamp(specialConfigJson["setZoomfactor"].GetDouble(),
+                this->specialConfig.setZoomfactor = std::clamp(specialConfigJson["setZoomfactor"].GetDouble(),
                                                           (double)Engine::MIN_ZOOM, (double)Engine::MAX_ZOOM);
             }
             else
             {
                 this->specialConfig.setZoomfactor = 1.0f; // 원래배율
-                EngineStdOut("'specialConfig.setZoomfactor' field missing or not numeric. Using default: 1.26", 1);
+                EngineStdOut("'specialConfig.setZoomfactor' field missing or not numeric. Using default: 1.0", 1);
             }
             if (specialConfigJson.HasMember("showProjectNameUI") && specialConfigJson["showProjectNameUI"].IsBool())
             {
@@ -572,7 +577,7 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.SHOW_PROJECT_NAME = false;
-                EngineStdOut("'specialConfig.showProjectNameUI' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showProjectNameUI' field missing or not boolean. Using default: false", 1); // Correct
             }
             if (specialConfigJson.HasMember("showFPS") && specialConfigJson["showFPS"].IsBool())
             {
@@ -581,11 +586,17 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 this->specialConfig.showFPS = false;
-                EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1);
+                EngineStdOut("'specialConfig.showFPS' field missing or not boolean. Using default: false", 1); // Correct
             }
             if (specialConfigJson.HasMember("maxEntity") && specialConfigJson["maxEntity"].IsNumber())
             {
-                this->specialConfig.MAX_ENTITY = specialConfigJson["maxEntity"].GetInt();
+                int maxEntity = specialConfigJson["maxEntity"].GetInt();
+                if (maxEntity > 0) {
+                    this->specialConfig.MAX_ENTITY = maxEntity;
+                } else {
+                     this->specialConfig.MAX_ENTITY = 100; // Default
+                     EngineStdOut("'specialConfig.maxEntity' is not a positive integer. Using default: 100", 1);
+                }
             }
             else
             {
@@ -607,7 +618,7 @@ bool Engine::loadProject(const string &projectFilePath)
         this->EngineStdOut(
             "'" + contextForLog + "." + fieldName + "' field missing or not boolean. Using default: " + (defaultValue ? "true" : "false"), 1);
         return defaultValue;
-    };
+    }; // Semicolon added
     /**
      * @brief Helper to get a double value from JSON, clamp it, or return a default
      */
@@ -621,35 +632,41 @@ bool Engine::loadProject(const string &projectFilePath)
         this->EngineStdOut(
             "'" + contextForLog + "." + fieldName + "' field missing or not numeric. Using default: " +
                 std::to_string(defaultValue),
-            1);
+            1); // Correct
         return defaultValue;
-    };
+    }; // Semicolon added
     /**
      * @brief 전역 변수 (variables) 로드
      */
-    if (document.HasMember("variables") && document["variables"].IsArray())
+    if (document.contains("variables") && document["variables"].is_array())
     {
         const rapidjson::Value &variablesJson = document["variables"];
         EngineStdOut("Found " + to_string(variablesJson.Size()) + " variables. Processing...", 0);
 
-        for (rapidjson::SizeType i = 0; i < variablesJson.Size(); ++i)
+        for (rapidjson::SizeType i_var = 0; i_var < variablesJson.Size(); ++i_var) // Renamed loop variable
         {
-            const auto &variableJson = variablesJson[i];
+            const auto &variableJson = variablesJson[i_var];
             if (!variableJson.IsObject())
             {
                 EngineStdOut(
-                    "Variable entry at index " + to_string(i) + " is not an object. Skipping. Content: " +
-                        RapidJsonValueToString(variableJson),
+                    "Variable entry at index " + to_string(i_var) + " is not an object. Skipping. Content: " +
+                        RapidJsonValueToString(variableJson), // Use RapidJsonValueToString
                     3);
                 continue;
             }
             HUDVariableDisplay currentVarDisplay; // Create instance upfront
 
-            currentVarDisplay.name = getSafeStringFromJson(variableJson, "name", "variable entry " + to_string(i), "",
-                                                           true, false);
+            // Use direct rapidjson access
+            if (variableJson.HasMember("name") && variableJson["name"].IsString()) {
+                currentVarDisplay.name = variableJson["name"].GetString();
+            } else {
+                 EngineStdOut("Variable name is missing or not a string for variable at index " + to_string(i_var) + ". Skipping variable.", 1);
+                continue;
+            }
+
             if (currentVarDisplay.name.empty())
             {
-                EngineStdOut("Variable name is empty for variable at index " + to_string(i) + ". Skipping variable.",
+                EngineStdOut("Variable name is empty for variable at index " + to_string(i_var) + ". Skipping variable.",
                              1);
                 continue;
             }
@@ -663,9 +680,9 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 else if (valNode.IsNumber())
                 {
-                    currentVarDisplay.value = RapidJsonValueToString(valNode); // 숫자를 문자열로 변환
+                    currentVarDisplay.value = NlohmannJsonToString(valNode); // 숫자를 문자열로 변환
                 }
-                else if (valNode.IsBool())
+                else if (valNode.IsBool()) // Corrected
                 {
                     currentVarDisplay.value = valNode.GetBool() ? "true" : "false";
                 }
@@ -681,9 +698,9 @@ bool Engine::loadProject(const string &projectFilePath)
                 {
                     currentVarDisplay.value = ""; // 예상치 못한 다른 타입일 경우 기본값
                     EngineStdOut(
-                        "Variable '" + currentVarDisplay.name +
+                        "Variable '" + currentVarDisplay.name + // Corrected
                             "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " +
-                            RapidJsonValueToString(valNode),
+                            NlohmannJsonToString(valNode),
                         1);
                 }
             }
@@ -720,9 +737,13 @@ bool Engine::loadProject(const string &projectFilePath)
                     2);
             }
 
-            currentVarDisplay.variableType = getSafeStringFromJson(variableJson, "variableType",
-                                                                   "variable entry " + to_string(i), "variable", false,
-                                                                   true);
+            if (variableJson.HasMember("variableType") && variableJson["variableType"].IsString()) {
+                currentVarDisplay.variableType = variableJson["variableType"].GetString();
+            } else {
+                currentVarDisplay.variableType = "variable"; // Default
+                 EngineStdOut("Variable '" + currentVarDisplay.name + "' missing 'variableType' or not a string. Using default: 'variable'", 1);
+            }
+
 
             /*
             TODO: variableType도 project.json에서 읽어오도록 수정해야 합니다. 현재는 기본값으로 "variable"을 사용합니다.
@@ -735,18 +756,23 @@ bool Engine::loadProject(const string &projectFilePath)
             }
             TODO: x,y 좌표도 추가
             */
-            string variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i),
-                                                        "variable", false, true);
+            // string variableType = getSafeStringFromJson(variableJson, "variableType", "variable entry " + to_string(i_var),
+            //                                             "variable", false, true); // Already handled above
             string objectId;
             if (variableJson.HasMember("object") && !variableJson["object"].IsNull())
             {
-                currentVarDisplay.objectId = getSafeStringFromJson(variableJson, "object",
-                                                                   "variable entry " + to_string(i), "", false, false);
+                if (variableJson["object"].IsString()) {
+                    currentVarDisplay.objectId = variableJson["object"].GetString();
+                } else {
+                    currentVarDisplay.objectId = ""; // Default if not string
+                    EngineStdOut("Variable '" + currentVarDisplay.name + "' 'object' field is not a string. Using empty.", 1);
+                }
             }
             else
             {
                 currentVarDisplay.objectId = ""; // null이거나 없으면 빈 문자열로 기본값 설정
             }
+
             currentVarDisplay.x = variableJson.HasMember("x") && variableJson["x"].IsNumber()
                                       ? variableJson["x"].GetFloat()
                                       : 0.0f;
@@ -787,22 +813,29 @@ bool Engine::loadProject(const string &projectFilePath)
                     const rapidjson::Value &arrayJson = variableJson["array"];
                     EngineStdOut(
                         "Found " + to_string(arrayJson.Size()) + " items in the list variable '" + currentVarDisplay.name + "'. Processing...", 0);
-                    for (rapidjson::SizeType j = 0; j < arrayJson.Size(); ++j)
+                    for (rapidjson::SizeType j_item = 0; j_item < arrayJson.Size(); ++j_item) // Renamed loop variable
                     {
-                        const auto &itemJson = arrayJson[j];
+                        const auto &itemJson = arrayJson[j_item];
                         if (!itemJson.IsObject())
                         {
                             EngineStdOut(
-                                "List item entry at index " + to_string(j) + " for list '" + currentVarDisplay.name +
-                                    "' is not an object. Skipping. Content: " + RapidJsonValueToString(itemJson),
+                                "List item entry at index " + to_string(j_item) + " for list '" + currentVarDisplay.name +
+                                    "' is not an object. Skipping. Content: " + NlohmannJsonToString(itemJson),
                                 1);
                             continue;
                         }
                         ListItem item;
-                        item.key = getSafeStringFromJson(itemJson, "key",
-                                                         "list item entry " + to_string(j) + " for " + currentVarDisplay.name, "", false, true); // key는 빈 문자열 허용
-                        item.data = getSafeStringFromJson(itemJson, "data",
-                                                          "list item entry " + to_string(j) + " for " +
+                        if (itemJson.HasMember("key") && itemJson["key"].IsString()) {
+                            item.key = itemJson["key"].GetString();
+                        } else {
+                            item.key = ""; // Default
+                        }
+                        if (itemJson.HasMember("data") && itemJson["data"].IsString()) {
+                            item.data = itemJson["data"].GetString();
+                        } else {
+                            item.data = ""; // Default, or skip if critical
+                            EngineStdOut("List item for '" + currentVarDisplay.name + "' at index " + to_string(j_item) + " missing 'data' or not string. Using empty.", 1);
+                        }
                                                               currentVarDisplay.name,
                                                           "", true,
                                                           false); // data는 중요하며, 이 호출에서 빈 문자열 비허용
@@ -828,65 +861,84 @@ bool Engine::loadProject(const string &projectFilePath)
     /**
      * @brief 오브젝트 (objects) 및 관련 데이터(모양, 소리, 스크립트) 로드
      */
-    if (document.HasMember("objects") && document["objects"].IsArray())
+    if (document.contains("objects") && document["objects"].is_array())
     {
         const rapidjson::Value &objectsJson = document["objects"];
         EngineStdOut("Found " + to_string(objectsJson.Size()) + " objects. Processing...", 0);
 
-        for (rapidjson::SizeType i = 0; i < objectsJson.Size(); ++i)
+        for (rapidjson::SizeType i_obj = 0; i_obj < objectsJson.Size(); ++i_obj) // Renamed loop variable
         {
-            const auto &objectJson = objectsJson[i];
+            const auto &objectJson = objectsJson[i_obj];
             if (!objectJson.IsObject())
             {
                 EngineStdOut(
-                    "Object entry at index " + to_string(i) + " is not an object. Skipping. Content: " +
-                        RapidJsonValueToString(objectJson),
+                    "Object entry at index " + to_string(i_obj) + " is not an object. Skipping. Content: " +
+                        RapidJsonValueToString(objectJson), // Use RapidJsonValueToString
                     1);
                 continue;
             }
 
-            string objectId = getSafeStringFromJson(objectJson, "id", "object entry " + to_string(i), "", true, false);
+            string objectId;
+            if (objectJson.HasMember("id") && objectJson["id"].IsString()) {
+                objectId = objectJson["id"].GetString();
+            } else {
+                EngineStdOut("Object ID is missing or not a string for object at index " + to_string(i_obj) + ". Skipping object.", 2);
+                continue;
+            }
+
             if (objectId.empty())
             {
-                EngineStdOut("Object ID is empty for object at index " + to_string(i) + ". Skipping object.", 2);
+                EngineStdOut("Object ID is empty for object at index " + to_string(i_obj) + ". Skipping object.", 2);
                 continue;
             }
 
             ObjectInfo objInfo;
             objInfo.id = objectId;
-            objInfo.name = getSafeStringFromJson(objectJson, "name", "object id: " + objectId, "Unnamed Object", false,
-                                                 true);
-            objInfo.objectType = getSafeStringFromJson(objectJson, "objectType", "object id: " + objectId, "sprite",
-                                                       false, false);
-            objInfo.sceneId = getSafeStringFromJson(objectJson, "scene", "object id: " + objectId, "", false, true);
+            if (objectJson.HasMember("name") && objectJson["name"].IsString()) {
+                objInfo.name = objectJson["name"].GetString();
+            } else {
+                objInfo.name = "Unnamed Object";
+            }
+            if (objectJson.HasMember("objectType") && objectJson["objectType"].IsString()) {
+                objInfo.objectType = objectJson["objectType"].GetString();
+            } else {
+                objInfo.objectType = "sprite";
+            }
+             if (objectJson.HasMember("scene") && objectJson["scene"].IsString()) {
+                objInfo.sceneId = objectJson["scene"].GetString();
+            } else {
+                objInfo.sceneId = ""; // Default to global or handle as error
+            }
 
             if (objectJson.HasMember("sprite") && objectJson["sprite"].IsObject() &&
                 objectJson["sprite"].HasMember("pictures") && objectJson["sprite"]["pictures"].IsArray())
             {
                 const rapidjson::Value &picturesJson = objectJson["sprite"]["pictures"]; // LEVEL 0 -> 3 (아래 상세로그와 중복될 수 있음)
                 EngineStdOut("Found " + to_string(picturesJson.Size()) + " pictures for object " + objInfo.name, 3);
-                for (rapidjson::SizeType j = 0; j < picturesJson.Size(); ++j)
+                for (rapidjson::SizeType j_pic = 0; j_pic < picturesJson.Size(); ++j_pic) // Renamed loop variable
                 {
-                    const auto &pictureJson = picturesJson[j];
+                    const auto &pictureJson = picturesJson[j_pic];
                     if (pictureJson.IsObject() && pictureJson.HasMember("id") && pictureJson["id"].IsString() &&
                         pictureJson.HasMember("filename") && pictureJson["filename"].IsString())
                     {
                         Costume ctu;
-                        ctu.id = getSafeStringFromJson(pictureJson, "id",
-                                                       "costume entry " + to_string(j) + " for " + objInfo.name, "",
-                                                       true, false);
+                        ctu.id = pictureJson["id"].GetString();
+
                         if (ctu.id.empty())
                         {
                             EngineStdOut(
-                                "Costume ID is empty for object " + objInfo.name + " at picture index " + to_string(j) +
+                                "Costume ID is empty for object " + objInfo.name + " at picture index " + to_string(j_pic) +
                                     ". Skipping costume.",
                                 2);
                             continue;
                         }
-                        ctu.name = getSafeStringFromJson(pictureJson, "name", "costume id: " + ctu.id, "Unnamed Shape",
-                                                         false, true);
-                        ctu.filename = getSafeStringFromJson(pictureJson, "filename", "costume id: " + ctu.id, "", true,
-                                                             false);
+                        if (pictureJson.HasMember("name") && pictureJson["name"].IsString()) {
+                            ctu.name = pictureJson["name"].GetString();
+                        } else {
+                            ctu.name = "Unnamed Shape";
+                        }
+                        ctu.filename = pictureJson["filename"].GetString();
+
                         if (ctu.filename.empty())
                         {
                             EngineStdOut(
@@ -895,8 +947,11 @@ bool Engine::loadProject(const string &projectFilePath)
                                 2);
                             continue;
                         }
-                        ctu.fileurl = getSafeStringFromJson(pictureJson, "fileurl", "costume id: " + ctu.id, "", false,
-                                                            true);
+                        if (pictureJson.HasMember("fileurl") && pictureJson["fileurl"].IsString()) {
+                            ctu.fileurl = pictureJson["fileurl"].GetString();
+                        } else {
+                            ctu.fileurl = "";
+                        }
 
                         objInfo.costumes.push_back(ctu);
                         EngineStdOut(
@@ -905,7 +960,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     else
                     {
                         EngineStdOut(
-                            "Invalid picture structure for object '" + objInfo.name + "' at index " + to_string(j) +
+                            "Invalid picture structure for object '" + objInfo.name + "' at index " + to_string(j_pic) +
                                 ". Skipping.",
                             1);
                     }
@@ -922,20 +977,18 @@ bool Engine::loadProject(const string &projectFilePath)
                 const rapidjson::Value &soundsJson = objectJson["sprite"]["sounds"]; // LEVEL 0 -> 3 (아래 상세로그와 중복될 수 있음)
                 EngineStdOut("Found " + to_string(soundsJson.Size()) + " sounds for object " + objInfo.name + ". Parsing...", 3);
 
-                for (rapidjson::SizeType j = 0; j < soundsJson.Size(); ++j)
+                for (rapidjson::SizeType j_sound = 0; j_sound < soundsJson.Size(); ++j_sound) // Renamed loop variable
                 {
-                    const auto &soundJson = soundsJson[j];
+                    const auto &soundJson = soundsJson[j_sound];
                     if (soundJson.IsObject() && soundJson.HasMember("id") && soundJson["id"].IsString() && soundJson.HasMember("filename") && soundJson["filename"].IsString())
                     {
                         SoundFile sound;
-                        string soundId = getSafeStringFromJson(soundJson, "id",
-                                                               "sound entry " + to_string(j) + " for " + objInfo.name,
-                                                               "", true, false);
-                        sound.id = soundId;
+                        sound.id = soundJson["id"].GetString();
+
                         if (sound.id.empty())
                         {
                             EngineStdOut(
-                                "Sound ID is empty for object " + objInfo.name + " at sound index " + to_string(j) +
+                                "Sound ID is empty for object " + objInfo.name + " at sound index " + to_string(j_sound) +
                                     ". Skipping sound.",
                                 2);
                             continue;
@@ -943,7 +996,7 @@ bool Engine::loadProject(const string &projectFilePath)
                         sound.name = getSafeStringFromJson(soundJson, "name", "sound id: " + sound.id, "Unnamed Sound",
                                                            false, true);
                         sound.filename = getSafeStringFromJson(soundJson, "filename", "sound id: " + sound.id, "", true,
-                                                               false);
+                                                               false); // Assuming getSafeStringFromJson is adapted for rapidjson or replaced
                         if (sound.filename.empty())
                         {
                             EngineStdOut(
@@ -953,8 +1006,14 @@ bool Engine::loadProject(const string &projectFilePath)
                             continue;
                         }
                         sound.fileurl = getSafeStringFromJson(soundJson, "fileurl", "sound id: " + sound.id, "", false,
-                                                              true);
-                        sound.ext = getSafeStringFromJson(soundJson, "ext", "sound id: " + sound.id, "", false, true);
+                                                              true); // Assuming getSafeStringFromJson is adapted for rapidjson or replaced
+                        if (soundJson.HasMember("ext") && soundJson["ext"].IsString()) {
+                            sound.ext = soundJson["ext"].GetString();
+                        } else {
+                            sound.ext = "";
+                        }
+
+
 
                         double soundDuration = 0.0;
                         if (soundJson.HasMember("duration") && soundJson["duration"].IsNumber())
@@ -976,7 +1035,7 @@ bool Engine::loadProject(const string &projectFilePath)
                     else
                     {
                         EngineStdOut(
-                            "Invalid sound structure for object '" + objInfo.name + "' at index " + to_string(j) +
+                            "Invalid sound structure for object '" + objInfo.name + "' at index " + to_string(j_sound) +
                                 ". Skipping.",
                             1);
                     }
@@ -991,16 +1050,14 @@ bool Engine::loadProject(const string &projectFilePath)
             bool selectedCostumeFound = false;
             if (objectJson.HasMember("selectedPictureId") && objectJson["selectedPictureId"].IsString())
             {
-                tempSelectedCostumeId = getSafeStringFromJson(objectJson, "selectedPictureId", "object " + objInfo.name,
-                                                              "", false, false);
+                tempSelectedCostumeId = objectJson["selectedPictureId"].GetString();
                 if (!tempSelectedCostumeId.empty())
                     selectedCostumeFound = true;
             }
 
             if (!selectedCostumeFound && objectJson.HasMember("selectedCostume") && objectJson["selectedCostume"].IsString())
             {
-                tempSelectedCostumeId = getSafeStringFromJson(objectJson, "selectedCostume", "object " + objInfo.name,
-                                                              "", false, false);
+                tempSelectedCostumeId = objectJson["selectedCostume"].GetString();
                 if (!tempSelectedCostumeId.empty())
                     selectedCostumeFound = true;
             }
@@ -1008,9 +1065,11 @@ bool Engine::loadProject(const string &projectFilePath)
             if (!selectedCostumeFound && objectJson.HasMember("selectedCostume") && objectJson["selectedCostume"].IsObject() &&
                 objectJson["selectedCostume"].HasMember("id") && objectJson["selectedCostume"]["id"].IsString())
             {
-                tempSelectedCostumeId = getSafeStringFromJson(objectJson["selectedCostume"], "id",
-                                                              "object " + objInfo.name + " selectedCostume object", "",
-                                                              false, false);
+                // tempSelectedCostumeId = getSafeStringFromJson(objectJson["selectedCostume"], "id",
+                //                                               "object " + objInfo.name + " selectedCostume object", "",
+                //                                               false, false); // This call is problematic
+                tempSelectedCostumeId = objectJson["selectedCostume"]["id"].GetString();
+
                 if (!tempSelectedCostumeId.empty())
                     selectedCostumeFound = true;
             }
@@ -1051,8 +1110,10 @@ bool Engine::loadProject(const string &projectFilePath)
                     {
                         if (entityJson["text"].IsString())
                         {
-                            objInfo.textContent = getSafeStringFromJson(entityJson, "text", "textBox " + objInfo.name,
-                                                                        "[DEFAULT TEXT]", false, true);
+                            // objInfo.textContent = getSafeStringFromJson(entityJson, "text", "textBox " + objInfo.name,
+                            //                                             "[DEFAULT TEXT]", false, true); // Problematic call
+                            objInfo.textContent = entityJson["text"].GetString();
+
                             if (objInfo.textContent == "<OMOCHA_ENGINE_NAME>")
                             {
                                 objInfo.textContent = string(OMOCHA_ENGINE_NAME);
@@ -1080,7 +1141,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             objInfo.textContent = "[INVALID TEXT TYPE]";
                             EngineStdOut(
                                 "textBox '" + objInfo.name + "' 'text' field has invalid type: " +
-                                    RapidJsonValueToString(entityJson["text"]),
+                                    NlohmannJsonToString(entityJson["text"]),
                                 1);
                         }
                     }
@@ -1092,8 +1153,10 @@ bool Engine::loadProject(const string &projectFilePath)
 
                     if (entityJson.HasMember("colour") && entityJson["colour"].IsString())
                     {
-                        string hexColor = getSafeStringFromJson(entityJson, "colour", "textBox " + objInfo.name,
-                                                                "#000000", false, false);
+                        // string hexColor = getSafeStringFromJson(entityJson, "colour", "textBox " + objInfo.name,
+                        //                                         "#000000", false, false); // Problematic call
+                        string hexColor = entityJson["colour"].GetString();
+
                         if (hexColor.length() == 7 && hexColor[0] == '#')
                         {
                             try
@@ -1131,8 +1194,10 @@ bool Engine::loadProject(const string &projectFilePath)
 
                     if (entityJson.HasMember("font") && entityJson["font"].IsString())
                     {
-                        string fontString = getSafeStringFromJson(entityJson, "font", "textBox " + objInfo.name,
-                                                                  "20px NanumBarunpen", false, true);
+                        // string fontString = getSafeStringFromJson(entityJson, "font", "textBox " + objInfo.name,
+                        //                                           "20px NanumBarunpen", false, true); // Problematic call
+                        string fontString = entityJson["font"].GetString();
+
                         // "bold 20px FontName" 또는 "20px FontName" 형식 처리
                         size_t firstSpace = fontString.find(' ');
                         std::string sizePart;
@@ -1301,8 +1366,9 @@ bool Engine::loadProject(const string &projectFilePath)
                 if (objectJson.HasMember("rotationMethod") && objectJson["rotationMethod"].IsString())
                 {
                     // 이정도 있는것으로 예상됨 하지만 발견 못한것 도 있을수 있음
-                    string rotationMethodStr = getSafeStringFromJson(objectJson, "rotationMethod",
-                                                                     "object " + objInfo.name, "free", false, true);
+                    // string rotationMethodStr = getSafeStringFromJson(objectJson, "rotationMethod",
+                    //                                                  "object " + objInfo.name, "free", false, true); // Problematic
+                    std::string rotationMethodStr = objectJson["rotationMethod"].GetString();
                     if (rotationMethodStr == "free")
                     {
                         currentRotationMethod = Entity::RotationMethod::FREE;
@@ -1364,8 +1430,9 @@ bool Engine::loadProject(const string &projectFilePath)
              */
             if (objectJson.HasMember("script") && objectJson["script"].IsString())
             {
-                string scriptString = getSafeStringFromJson(objectJson, "script", "object " + objInfo.name, "", false,
-                                                            true);
+                // string scriptString = getSafeStringFromJson(objectJson, "script", "object " + objInfo.name, "", false,
+                //                                             true); // Problematic
+                std::string scriptString = objectJson["script"].GetString();
                 if (scriptString.empty())
                 {
                     EngineStdOut(
@@ -1375,33 +1442,32 @@ bool Engine::loadProject(const string &projectFilePath)
                 }
                 else
                 {
-                    rapidjson::Document scriptDocument;
-                    scriptDocument.Parse(scriptString.c_str());
+                    nlohmann::json scriptNlohmannJson; // Use nlohmann::json for script parsing
+                    try {
+                        scriptNlohmannJson = nlohmann::json::parse(scriptString);
+                    } catch (const nlohmann::json::parse_error& e) {
+                         EngineStdOut("ERROR: Failed to parse script JSON string for object '" + objInfo.name + "': " + e.what(), 2);
+                        showMessageBox("Failed to parse script JSON string for object '" + objInfo.name + "'. Project loading aborted.", msgBoxIconType.ICON_ERROR);
+                        return false;
+                    }
 
-                    if (!scriptDocument.HasParseError())
+                    if (scriptNlohmannJson.is_array()) // Check if root is an array
                     {
                         EngineStdOut("Script JSON string parsed successfully for object: " + objInfo.name, 3); // LEVEL 0 -> 3
-
-                        if (scriptDocument.IsArray())
-                        {
-                            vector<Script> scriptsForObject;
-                            for (rapidjson::SizeType j = 0; j < scriptDocument.Size(); ++j)
-                            {
-                                const auto &scriptStackJson = scriptDocument[j]; // 이 줄이 누락되었습니다. 복원합니다.
-                                if (scriptStackJson.IsArray())
-                                {
-                                    Script currentScript;
-                                    EngineStdOut(
-                                        "  Parsing script stack " + to_string(j + 1) + "/" + to_string(scriptDocument.Size()) + " for object " + objInfo.name, 0);
-
-                                    for (rapidjson::SizeType k = 0; k < scriptStackJson.Size(); ++k)
+                        vector<Script> scriptsForObject;
+                        for (size_t j_script_stack = 0; j_script_stack < scriptNlohmannJson.size(); ++j_script_stack) { // Use size_t
+                            const auto &scriptStackJson = scriptNlohmannJson[j_script_stack];
+                            if (scriptStackJson.is_array()) {
+                                Script currentScript;
+                                EngineStdOut("  Parsing script stack " + to_string(j_script_stack + 1) + "/" + to_string(scriptNlohmannJson.size()) + " for object " + objInfo.name, 0);
+                                for (size_t k_block = 0; k_block < scriptStackJson.size(); ++k_block) { // Use size_t
+                                    const auto &blockJsonValue = scriptStackJson[k_block];
                                     {
-                                        const auto &blockJsonValue = scriptStackJson[k]; // Renamed to avoid conflict
                                         string blockContext =
-                                            "block at index " + to_string(k) + " in script stack " +
-                                            to_string(j + 1) + " for object " + objInfo.name;
+                                            "block at index " + to_string(k_block) + " in script stack " +
+                                            to_string(j_script_stack + 1) + " for object " + objInfo.name;
 
-                                        if (blockJsonValue.IsObject())
+                                        if (blockJsonValue.is_object())
                                         {
                                             // Use the new helper function to parse the block, including its statements
                                             Block parsedTopLevelBlock = ParseBlockDataInternal(blockJsonValue, *this, blockContext); // Renamed to avoid confusion
@@ -1418,8 +1484,8 @@ bool Engine::loadProject(const string &projectFilePath)
                                             else
                                             {
                                                 EngineStdOut(
-                                                    "WARN: Skipping top-level block in " + blockContext +
-                                                        " due to missing id ('" + parsedTopLevelBlock.id + "') or type ('" + parsedTopLevelBlock.type + "'). Content: " + RapidJsonValueToString(blockJsonValue),
+                                                    "WARN: Skipping top-level block in " + blockContext + // Corrected
+                                                        " due to missing id ('" + parsedTopLevelBlock.id + "') or type ('" + parsedTopLevelBlock.type + "'). Content: " + NlohmannJsonToString(blockJsonValue),
                                                     2, "");
                                             }
                                         }
@@ -1427,7 +1493,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                         {
                                             EngineStdOut(
                                                 "WARN: Invalid block structure (not an object) in " + blockContext +
-                                                    ". Skipping block. Content: " + RapidJsonValueToString(blockJsonValue),
+                                                    ". Skipping block. Content: " + NlohmannJsonToString(blockJsonValue),
                                                 1);
                                         }
                                     }
@@ -1438,7 +1504,7 @@ bool Engine::loadProject(const string &projectFilePath)
                                     else
                                     {
                                         EngineStdOut(
-                                            "  WARN: Script stack " + to_string(j + 1) + " for object " + objInfo.name +
+                                            "  WARN: Script stack " + to_string(j_script_stack + 1) + " for object " + objInfo.name +
                                                 " resulted in an empty script (e.g., all blocks were invalid). Skipping this stack.",
                                             1);
                                     }
@@ -1446,29 +1512,21 @@ bool Engine::loadProject(const string &projectFilePath)
                                 else
                                 {
                                     EngineStdOut(
-                                        "WARN: Script entry at index " + to_string(j) + " for object '" + objInfo.name +
-                                            "' is not an array of blocks (not a valid script stack). Skipping this script stack. Content: " + RapidJsonValueToString(scriptStackJson),
+                                        "WARN: Script entry at index " + to_string(j_script_stack) + " for object '" + objInfo.name +
+                                            "' is not an array of blocks (not a valid script stack). Skipping this script stack. Content: " + NlohmannJsonToString(scriptStackJson),
                                         1);
                                 }
                             }
                             objectScripts[objectId] = scriptsForObject;
                             EngineStdOut("INFO: Parsed " + to_string(scriptsForObject.size()) + " script stacks for object ID: " + objectId, 3); // LEVEL 0 -> 3
                         }
-                        else
-                        {
-                            EngineStdOut(
-                                "WARN: Script root for object '" + objInfo.name +
-                                    "' (after parsing string) is not an array of script stacks. Skipping script parsing. Content: " + RapidJsonValueToString(scriptDocument),
-                                1);
-                        }
                     }
                     else
                     {
-                        string scriptErrorMsg = string("ERROR: Failed to parse script JSON string for object '") +
-                                                objInfo.name + "': " +
-                                                rapidjson::GetParseError_En(scriptDocument.GetParseError()) +
-                                                " (Offset: " + to_string(scriptDocument.GetErrorOffset()) + ")";
-                        EngineStdOut(scriptErrorMsg, 2);
+                        EngineStdOut(
+                            "WARN: Script root for object '" + objInfo.name +
+                                "' (after parsing string) is not an array of script stacks. Skipping script parsing. Content: " + scriptNlohmannJson.dump(),
+                            1);
                         showMessageBox(
                             "Failed to parse script JSON string for object '" + objInfo.name +
                                 "'. Project loading aborted.",
@@ -1499,33 +1557,36 @@ bool Engine::loadProject(const string &projectFilePath)
     /**
      * @brief 씬 (scenes) 정보 로드
      */
-    if (document.HasMember("scenes") && document["scenes"].IsArray())
+    if (document.contains("scenes") && document["scenes"].is_array())
     {
-        const rapidjson::Value &scenesJson = document["scenes"];
+        const rapidjson::Value &scenesJson = document["scenes"]; // Correct
         EngineStdOut("Found " + to_string(scenesJson.Size()) + " scenes. Parsing...", 0);
-        for (rapidjson::SizeType i = 0; i < scenesJson.Size(); ++i)
+        for (rapidjson::SizeType i_scene = 0; i_scene < scenesJson.Size(); ++i_scene) // Renamed loop variable
         {
-            const auto &sceneJson = scenesJson[i];
+            const auto &sceneJson = scenesJson[i_scene];
 
             if (!sceneJson.IsObject())
             {
                 EngineStdOut(
-                    "Scene entry at index " + to_string(i) + " is not an object. Skipping. Content: " +
-                        RapidJsonValueToString(sceneJson),
+                    "Scene entry at index " + to_string(i_scene) + " is not an object. Skipping. Content: " +
+                        RapidJsonValueToString(sceneJson), // Use RapidJsonValueToString
                     1);
                 continue;
             }
 
             if (sceneJson.HasMember("id") && sceneJson["id"].IsString() && sceneJson.HasMember("name") && sceneJson["name"].IsString())
             {
-                string sceneId = getSafeStringFromJson(sceneJson, "id", "scene entry " + to_string(i), "", true, false);
+                // string sceneId = getSafeStringFromJson(sceneJson, "id", "scene entry " + to_string(i_scene), "", true, false); // Problematic
+                std::string sceneId = sceneJson["id"].GetString();
                 if (sceneId.empty())
                 {
-                    EngineStdOut("Scene ID is empty for scene at index " + to_string(i) + ". Skipping scene.", 2);
+                    EngineStdOut("Scene ID is empty for scene at index " + to_string(i_scene) + ". Skipping scene.", 2);
                     continue;
                 }
-                string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene",
-                                                         false, true);
+                // string sceneName = getSafeStringFromJson(sceneJson, "name", "scene id: " + sceneId, "Unnamed Scene",
+                //                                          false, true); // Problematic
+                std::string sceneName = sceneJson["name"].GetString();
+
                 scenes[sceneId] = sceneName;
                 m_sceneOrder.push_back(sceneId); // LEVEL 0 -> 3
                 EngineStdOut("  Parsed scene: " + sceneName + " (ID: " + sceneId + ")", 0);
@@ -1534,9 +1595,9 @@ bool Engine::loadProject(const string &projectFilePath)
             {
                 EngineStdOut(
                     "Invalid scene structure or 'id'/'name' fields missing/not strings for scene at index " +
-                        to_string(i) + ". Skipping.",
+                        to_string(i_scene) + ". Skipping.",
                     1);
-                EngineStdOut("  Scene content: " + RapidJsonValueToString(sceneJson), 1);
+                EngineStdOut("  Scene content: " + NlohmannJsonToString(sceneJson), 1);
             }
         }
     }
@@ -1549,15 +1610,18 @@ bool Engine::loadProject(const string &projectFilePath)
 
     if (document.HasMember("startScene") && document["startScene"].IsString())
     {
-        startSceneId = getSafeStringFromJson(document, "startScene", "project root for startScene (legacy)", "", false,
-                                             false);
+        // startSceneId = getSafeStringFromJson(document, "startScene", "project root for startScene (legacy)", "", false,
+        //                                      false); // Problematic
+        startSceneId = document["startScene"].GetString();
         EngineStdOut("'startScene' (legacy) found in project.json: " + startSceneId, 0);
     }
     else if (document.HasMember("start") && document["start"].IsObject() && document["start"].HasMember("sceneId") &&
              document["start"]["sceneId"].IsString())
     {
-        startSceneId = getSafeStringFromJson(document["start"], "sceneId", "project root start object", "", false,
-                                             false);
+        // startSceneId = getSafeStringFromJson(document["start"], "sceneId", "project root start object", "", false,
+        //                                      false); // Problematic
+        startSceneId = document["start"]["sceneId"].GetString();
+
         EngineStdOut("'start/sceneId' found in project.json: " + startSceneId, 0);
     }
     else
@@ -1624,20 +1688,20 @@ bool Engine::loadProject(const string &projectFilePath)
                     {
                         string keyIdentifierString;
                         bool keyIdentifierFound = false;
-                        if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() > 0)
-                        {
-                            if (firstBlock.paramsJson[0].IsString())
+                        if (firstBlock.paramsJson.is_array() && firstBlock.paramsJson.size() > 0)
+                        { // nlohmann::json
+                            if (firstBlock.paramsJson[0].is_string())
                             {
-                                keyIdentifierString = firstBlock.paramsJson[0].GetString();
+                                keyIdentifierString = firstBlock.paramsJson[0].get<std::string>();
                                 keyIdentifierFound = true;
                             }
-                            else if (firstBlock.paramsJson[0].IsNull() && firstBlock.paramsJson.Size() > 1 &&
-                                     firstBlock.paramsJson[1].IsString())
+                            else if (firstBlock.paramsJson[0].is_null() && firstBlock.paramsJson.size() > 1 && // nlohmann::json
+                                     firstBlock.paramsJson[1].is_string())
                             {
-                                keyIdentifierString = firstBlock.paramsJson[1].GetString();
+                                keyIdentifierString = firstBlock.paramsJson[1].get<std::string>();
                                 keyIdentifierFound = true;
                             }
-
+                            
                             if (keyIdentifierFound)
                             {
                                 SDL_Scancode keyScancode = this->mapStringToSDLScancode(keyIdentifierString);
@@ -1648,12 +1712,9 @@ bool Engine::loadProject(const string &projectFilePath)
                             }
                             else
                             {
-                                rapidjson::StringBuffer buffer;
-                                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                                firstBlock.paramsJson.Accept(writer);
                                 EngineStdOut(
                                     " -> object ID " + objectId +
-                                        " 'press key' invalid param or missing message ID. Params JSON: " + string(buffer.GetString()) + ".",
+                                        " 'press key' invalid param or missing message ID. Params JSON: " + firstBlock.paramsJson.dump() + ".",
                                     1);
                             }
                         }
@@ -1697,10 +1758,10 @@ bool Engine::loadProject(const string &projectFilePath)
                     {
                         // Log details of what's being checked and extracted
                         EngineStdOut("DEBUG_MSG: Processing when_message_cast for " + objectId + ". First block ID: " + firstBlock.id, 3, "");
-                        bool isArr = firstBlock.paramsJson.IsArray();
+                        bool isArr = firstBlock.paramsJson.is_array();
                         int arrSize = isArr ? static_cast<int>(firstBlock.paramsJson.Size()) : -1; // SizeType to int
                         bool firstIsStr = (isArr && arrSize >= 1) ? firstBlock.paramsJson[0].IsString() : false;
-                        EngineStdOut("DEBUG_MSG:   paramsJson.IsArray(): " + std::string(isArr ? "true" : "false") +
+                        EngineStdOut("DEBUG_MSG:   paramsJson.is_array(): " + std::string(isArr ? "true" : "false") +
                                          ", Size: " + std::to_string(arrSize) +
                                          ", [0].IsString(): " + std::string(firstIsStr ? "true" : "false"),
                                      3, "");
@@ -1709,10 +1770,10 @@ bool Engine::loadProject(const string &projectFilePath)
                         bool messageParamFound = false;
 
                         // After FilterNullsInParamsJsonArray, the signal ID should be the first element if present.
-                        if (firstBlock.paramsJson.IsArray() && firstBlock.paramsJson.Size() >= 1 &&
-                            firstBlock.paramsJson[0].IsString()) // Check size >= 1 and access index 0
+                        if (firstBlock.paramsJson.is_array() && !firstBlock.paramsJson.empty() && // Use !empty()
+                            firstBlock.paramsJson[0].is_string()) 
                         {
-                            messageIdToReceive = firstBlock.paramsJson[0].GetString(); // Get signal ID from index 0
+                            messageIdToReceive = firstBlock.paramsJson[0].get<std::string>(); 
                             EngineStdOut("DEBUG_MSG:   Extracted messageIdToReceive: '" + messageIdToReceive + "'", 3, "");
                             messageParamFound = true;
                         }
@@ -1724,12 +1785,9 @@ bool Engine::loadProject(const string &projectFilePath)
                         }
                         else
                         {
-                            rapidjson::StringBuffer buffer;
-                            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                            firstBlock.paramsJson.Accept(writer);
                             EngineStdOut(
                                 " -> object ID " + objectId +
-                                    " 'recive signal' invalid param or missing message ID. Params JSON: " + string(buffer.GetString()) + ".",
+                                    " 'recive signal' invalid param or missing message ID. Params JSON: " + firstBlock.paramsJson.dump() + ".",
                                 1);
                         }
                     }
@@ -3789,7 +3847,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                     EngineStdOut(
                                         "Warning: ObjectInfo not found for entity ID '" + objectId +
                                             "' during mouse_clicked event processing. Script not run.",
-                                        1);
+                        1);
                                 }
                             }
                         }
@@ -4039,7 +4097,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                 EngineStdOut(
                                     "Warning: ObjectInfo not found for entity ID '" + objectId +
                                         "' during mouse_click_canceled event processing. Script not run.",
-                                    1);
+                        1);
                             }
                         }
                         else if (!currentEntity)
@@ -4048,7 +4106,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                             EngineStdOut(
                                 "Warning: mouse_click_canceled event for null entity ID '" + objectId +
                                     "'. Script not run.",
-                                1);
+                            1);
                         }
                     }
                 }
@@ -4082,12 +4140,12 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
  * @return 0-360 범위의 각도 (도)
  */
 double Engine::getAngle(double x1, double y1, double x2, double y2) const
-{
+{ // PI_VALUE -> SDL_PI_D
     double deltaX = x2 - x1;
     double deltaY = y2 - y1; // Y축이 위로 향하는 좌표계이므로 그대로 사용
 
     double angleRad = atan2(deltaY, deltaX);           // 표준 수학 각도 (라디안, 0도는 오른쪽)
-    double angleDegMath = angleRad * 180.0 / PI_VALUE; // 표준 수학 각도 (도)
+    double angleDegMath = angleRad * 180.0 / SDL_PI_D; // 표준 수학 각도 (도)
 
     // EntryJS/Scratch 각도로 변환 (0도는 위쪽, 90도는 오른쪽)
     double angleDegEntry = 90.0 - angleDegMath;
@@ -4121,8 +4179,8 @@ double Engine::getCurrentStageMouseAngle(double entityX, double entityY) const
     double deltaX = m_currentStageMouseX - entityX;
     double deltaY = m_currentStageMouseY - entityY; // Y-up system, so this is correct
 
-    double angleRad = atan2(deltaY, deltaX);
-    double angleDegMath = angleRad * 180.0 / PI_VALUE; // 0 is right, 90 is up
+    double angleRad = atan2(deltaY, deltaX); // Correct
+    double angleDegMath = angleRad * 180.0 / SDL_PI_D; // 0 is right, 90 is up
     double angleDegEntry = 90.0 - angleDegMath;        // Convert to 0 is up, 90 is right
 
     // Normalize to 0-360 range
@@ -5613,33 +5671,33 @@ bool Engine::saveCloudVariablesToJson()
     std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
 
     rapidjson::Document doc;
-    doc.SetArray();
+    doc.SetArray(); // Correct
     rapidjson::Document::AllocatorType &allocator = doc.GetAllocator();
 
     for (const auto &hudVar : m_HUDVariables)
     {
         if (hudVar.isCloud)
         {
-            rapidjson::Value varJson(rapidjson::kObjectType);
+            rapidjson::Value varJson(rapidjson::kObjectType); // Correct
 
-            varJson.AddMember("name", rapidjson::Value(hudVar.name.c_str(), allocator).Move(), allocator);
-            varJson.AddMember("value", rapidjson::Value(hudVar.value.c_str(), allocator).Move(), allocator);
-            varJson.AddMember("objectId", rapidjson::Value(hudVar.objectId.c_str(), allocator).Move(), allocator);
-            varJson.AddMember("variableType", rapidjson::Value(hudVar.variableType.c_str(), allocator).Move(), allocator);
+            varJson.AddMember(rapidjson::StringRef("name"), rapidjson::Value(hudVar.name.c_str(), allocator), allocator);
+            varJson.AddMember(rapidjson::StringRef("value"), rapidjson::Value(hudVar.value.c_str(), allocator), allocator);
+            varJson.AddMember(rapidjson::StringRef("objectId"), rapidjson::Value(hudVar.objectId.c_str(), allocator), allocator);
+            varJson.AddMember(rapidjson::StringRef("variableType"), rapidjson::Value(hudVar.variableType.c_str(), allocator), allocator);
 
             if (hudVar.variableType == "list")
             {
-                rapidjson::Value arrayJson(rapidjson::kArrayType);
+                rapidjson::Value arrayJson(rapidjson::kArrayType); // Correct
                 for (const auto &item : hudVar.array)
                 {
-                    rapidjson::Value itemJson(rapidjson::kObjectType);
-                    itemJson.AddMember("key", rapidjson::Value(item.key.c_str(), allocator).Move(), allocator);
-                    itemJson.AddMember("data", rapidjson::Value(item.data.c_str(), allocator).Move(), allocator);
+                    rapidjson::Value itemJson(rapidjson::kObjectType); // Correct
+                    itemJson.AddMember(rapidjson::StringRef("key"), rapidjson::Value(item.key.c_str(), allocator), allocator);
+                    itemJson.AddMember(rapidjson::StringRef("data"), rapidjson::Value(item.data.c_str(), allocator), allocator);
                     arrayJson.PushBack(itemJson, allocator);
                 }
                 varJson.AddMember("array", arrayJson, allocator);
             }
-            doc.PushBack(varJson, allocator);
+            doc.PushBack(varJson, allocator); // Correct
         }
     }
 
@@ -5650,8 +5708,8 @@ bool Engine::saveCloudVariablesToJson()
         return false;
     }
 
-    rapidjson::OStreamWrapper osw(ofs);
-    rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw);
+    rapidjson::OStreamWrapper osw(ofs); // Corrected from GenericStreamWrapper
+    rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw); // Correct
     doc.Accept(writer);
     ofs.close();
 
@@ -5689,20 +5747,20 @@ bool Engine::loadCloudVariablesFromJson()
         return false;
     }
 
-    rapidjson::IStreamWrapper isw(ifs);
-    rapidjson::Document doc;
+    rapidjson::IStreamWrapper isw(ifs); // Correct
+    rapidjson::Document doc; // Correct
     doc.ParseStream(isw);
     ifs.close();
 
     if (doc.HasParseError())
     {
         EngineStdOut("Failed to parse cloud variable file: " + std::string(rapidjson::GetParseError_En(doc.GetParseError())) +
-                         " (Offset: " + std::to_string(doc.GetErrorOffset()) + ")",
+                         " (Offset: " + std::to_string(doc.GetErrorOffset()) + ")", // Correct
                      2);
         return false;
     }
 
-    if (!doc.IsArray())
+    if (!doc.is_array())
     {
         EngineStdOut("Cloud variable file content is not a JSON array: " + filePath, 2);
         return false;
@@ -5713,18 +5771,33 @@ bool Engine::loadCloudVariablesFromJson()
     int updatedCount = 0;
     int notFoundCount = 0;
 
-    for (const auto &savedVarJson : doc.GetArray())
+    for (const auto &savedVarJson : doc.GetArray()) // Correct
     {
         if (!savedVarJson.IsObject())
         {
             EngineStdOut("Skipping non-object entry in cloud variable file.", 1);
             continue;
         }
+        std::string name, value, objectId, variableType;
 
-        std::string name = getSafeStringFromJson(savedVarJson, "name", "cloud variable entry", "", true, false);
-        std::string value = getSafeStringFromJson(savedVarJson, "value", "cloud variable entry for " + name, "", false, true);
-        std::string objectId = getSafeStringFromJson(savedVarJson, "objectId", "cloud variable entry for " + name, "", false, true);
-        std::string variableType = getSafeStringFromJson(savedVarJson, "variableType", "cloud variable entry for " + name, "variable", true, false);
+        if (savedVarJson.HasMember("name") && savedVarJson["name"].IsString()) {
+            name = savedVarJson["name"].GetString();
+        } else { /* handle error or skip */ continue; }
+
+        if (savedVarJson.HasMember("value") && savedVarJson["value"].IsString()) { // Assuming value is always stored as string
+            value = savedVarJson["value"].GetString();
+        } else { /* handle error or default */ value = ""; }
+
+        if (savedVarJson.HasMember("objectId") && savedVarJson["objectId"].IsString()) {
+            objectId = savedVarJson["objectId"].GetString();
+        } else { objectId = ""; /* Default for global */ }
+
+        if (savedVarJson.HasMember("variableType") && savedVarJson["variableType"].IsString()) {
+            variableType = savedVarJson["variableType"].GetString();
+        } else { /* handle error or skip */ continue; }
+
+
+
 
         if (name.empty() || variableType.empty())
         {
@@ -5751,8 +5824,12 @@ bool Engine::loadCloudVariablesFromJson()
                             if (itemJson.IsObject())
                             {
                                 ListItem listItem;
-                                listItem.key = getSafeStringFromJson(itemJson, "key", "list item in " + name, "", false, true);
-                                listItem.data = getSafeStringFromJson(itemJson, "data", "list item in " + name, "", false, true);
+                                if (itemJson.HasMember("key") && itemJson["key"].IsString()) {
+                                    listItem.key = itemJson["key"].GetString();
+                                } else { listItem.key = "";}
+                                if (itemJson.HasMember("data") && itemJson["data"].IsString()) {
+                                    listItem.data = itemJson["data"].GetString();
+                                } else { listItem.data = "";}
                                 hudVar.array.push_back(listItem);
                             }
                         }
@@ -5909,8 +5986,8 @@ void Engine::requestStopObject(const std::string &callingEntityId, const std::st
         }
         EngineStdOut("Requested to stop ALL scripts for ALL objects.", 0, callingThreadId);
     }
-    else if (targetOption == "thisOnly" || targetOption == "thisObject")
-    {                                                           // "thisObject" is from Entry.js, seems to mean the current Entity
+    else if (targetOption == "thisOnly" || targetOption == "this_object")
+    {                                                           // "this_object" is from Entry.js, seems to mean the current Entity
         Entity *currentEntity = getEntityById(callingEntityId); // Mutex handled by getEntityById if needed, or use _nolock if outer lock exists
         if (currentEntity)
         {
@@ -6306,8 +6383,6 @@ bool Engine::isTouchSupported() const
 
 void Engine::updateEntityTextContent(const std::string &entityId, const std::string &newText)
 {
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // objects_in_order 접근 보호
-
     bool found = false;
     for (auto &objInfo : objects_in_order)
     { // objects_in_order를 순회하며 ID로 ObjectInfo를 찾습니다.

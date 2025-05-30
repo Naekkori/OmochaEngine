@@ -1536,6 +1536,7 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
 
 void Entity::setText(const std::string& newText) {
     if (pEngineInstance) {
+         std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 업데이트합니다.
         pEngineInstance->updateEntityTextContent(this->id, newText);
     } else {

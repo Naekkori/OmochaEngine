@@ -13,7 +13,7 @@
 #include "blockTypes.h"
 #include "rapidjson/prettywriter.h"
 // Helper function to check if a string can be parsed as a number
-static bool isNumber(const string &s)
+static bool is_number(const string &s)
 {
     if (s.empty())
     {
@@ -139,17 +139,17 @@ bool OperandValue::asBool() const
 // processVariableBlock 선언이 누락된 것 같아 추가 (필요하다면)
 // OperandValue processVariableBlock(Engine &engine, const string &objectId, const Block &block);
 
-OperandValue getOperandValue(Engine &engine, const string &objectId, const rapidjson::Value &paramField, const string &executionThreadId)
+OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohmann::json &paramField, const string &executionThreadId)
 {
     // paramField 내용을 로깅하여 문제 파악
     string paramField_summary = "Unknown Type";
-    if (paramField.IsNull())
+    if (paramField.is_null())
     {
         paramField_summary = "Null";
     }
-    else if (paramField.IsString())
+    else if (paramField.is_string())
     {
-        string str_val = paramField.GetString();
+        string str_val = paramField.get<std::string>();
         if (str_val.length() > 50)
         { // 너무 긴 문자열은 자르기
             paramField_summary = "String (len=" + to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
@@ -159,80 +159,72 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
             paramField_summary = "String: \"" + str_val + "\"";
         }
     }
-    else if (paramField.IsNumber())
+    else if (paramField.is_number())
     {
-        paramField_summary = "Number: " + to_string(paramField.GetDouble());
+        paramField_summary = "Number: " + to_string(paramField.get<double>());
     }
-    else if (paramField.IsBool())
+    else if (paramField.is_boolean())
     {
-        paramField_summary = "Boolean: " + string(paramField.GetBool() ? "true" : "false");
+        paramField_summary = "Boolean: " + string(paramField.get<bool>() ? "true" : "false");
     }
-    else if (paramField.IsObject())
+    else if (paramField.is_object())
     {
-        if (paramField.HasMember("type") && paramField["type"].IsString())
+        if (paramField.contains("type") && paramField["type"].is_string())
         {
-            paramField_summary = "Object (block type: " + string(paramField["type"].GetString()) + ")";
+            paramField_summary = "Object (block type: " + paramField["type"].get<std::string>() + ")";
         }
         else
         {
             paramField_summary = "Object (structure unknown or missing 'type' field)";
         }
     }
-    else if (paramField.IsArray())
+    else if (paramField.is_array())
     {
-        paramField_summary = "Array (size: " + to_string(paramField.Size()) + ")";
+        paramField_summary = "Array (size: " + to_string(paramField.size()) + ")";
     }
-    engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + to_string(paramField.GetType()), 3, executionThreadId);
+    engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + paramField.type_name(), 3, executionThreadId);
 
-    // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 IsObject(), IsString() 등에서 문제를 일으킬 수 있습니다.
-    if (paramField.IsNull())
+    // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 is_object(), is_string() 등에서 문제를 일으킬 수 있습니다.
+    if (paramField.is_null())
     {
         engine.EngineStdOut("getOperandValue received a Null paramField for object " + objectId + ". Returning empty OperandValue.", 1, executionThreadId);
         return OperandValue(); // Null 값은 빈 OperandValue로 처리
     }
 
-    if (paramField.IsString())
+    if (paramField.is_string())
     {
-        string str_val_for_op = paramField.GetString();
+        string str_val_for_op = paramField.get<std::string>();
         return OperandValue(str_val_for_op);
     }
-    else if (paramField.IsObject()) // paramField가 Null이 아님을 위에서 확인했으므로 IsObject() 호출이 좀 더 안전해집니다.
+    else if (paramField.is_object()) // paramField가 Null이 아님을 위에서 확인했으므로 is_object() 호출이 좀 더 안전해집니다.
     {
         // 추가 디버깅: 객체의 모든 키가 문자열인지 확인
-        for (auto it = paramField.MemberBegin(); it != paramField.MemberEnd(); ++it)
-        {
-            if (!it->name.IsString())
-            {
-                rapidjson::StringBuffer key_buffer_debug;
-                rapidjson::Writer<rapidjson::StringBuffer> key_writer_debug(key_buffer_debug); // 일반 Writer 사용 가능
-                it->name.Accept(key_writer_debug);
-                engine.EngineStdOut("!!! Non-string key found in paramField for object " + objectId +
-                                        ". Key details: " + string(key_buffer_debug.GetString()) +
-                                        ", Key Type: " + to_string(it->name.GetType()),
-                                    2, executionThreadId);
-            }
-        }
+        // nlohmann::json object keys are always strings, so this check is less critical
+        // but can be kept for robustness if paramField might not be a valid JSON object structure
+        // from an external source before parsing.
+        // For nlohmann::json, iterating items():
+        // for (auto& [key, value] : paramField.items()) { /* key is std::string */ }
 
-        if (!paramField.HasMember("type") || !paramField["type"].IsString())
+        if (!paramField.contains("type") || !paramField["type"].is_string())
         {
             engine.EngineStdOut("Parameter field is object but missing 'type' for object " + objectId, 2);
             return nan("");
         }
-        string fieldType = paramField["type"].GetString();
+        string fieldType = paramField["type"].get<std::string>();
 
         if (fieldType == "number" || fieldType == "text_reporter_number")
         {
-            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
-                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty() && paramField["params"][0].is_string())
             {
                 try
                 {
-                    return OperandValue(stod(paramField["params"][0].GetString()));
+                    return OperandValue(stod(paramField["params"][0].get<std::string>()));
                 }
                 catch (const exception &e)
                 {
                     engine.EngineStdOut(
-                        "Error converting number param: " + string(paramField["params"][0].GetString()) + " for " +
+                        "Error converting number param: " + paramField["params"][0].get<std::string>() + " for " +
                             objectId + " - " + e.what(),
                         2);
                     return nan("");
@@ -243,10 +235,10 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
         }
         else if (fieldType == "text" || fieldType == "text_reporter_string")
         {
-            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
-                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                return OperandValue(paramField["params"][0].GetString());
+                return OperandValue(paramField["params"][0].get<std::string>());
             }
             engine.EngineStdOut("Invalid 'text' block structure in parameter field for " + objectId, 1);
             return nan("");
@@ -269,24 +261,24 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
         {
             Block subBlock;
             subBlock.type = fieldType;
-            if (paramField.HasMember("id") && paramField["id"].IsString())
-                subBlock.id = paramField["id"].GetString();
+            if (paramField.contains("id") && paramField["id"].is_string())
+                subBlock.id = paramField["id"].get<std::string>();
             // paramsJson은 Document 타입이므로 CopyFrom 사용
             // engine.m_blockParamsAllocatorDoc.GetAllocator()를 사용하여 할당
 
             // Ensure "params" exists and is an array before attempting to copy
-            if (paramField.HasMember("params"))
+            if (paramField.contains("params"))
             {
                 const auto &paramsMember = paramField["params"];
-                if (paramsMember.IsArray())
+                if (paramsMember.is_array())
                 {
                     // subBlock.paramsJson의 자체 할당자를 사용하도록 변경
-                    subBlock.paramsJson.CopyFrom(paramsMember, subBlock.paramsJson.GetAllocator());
+                    subBlock.paramsJson = paramsMember; // Direct assignment for nlohmann::json
                     subBlock.FilterNullsInParamsJsonArray(); // subBlock의 paramsJson에 대해서도 null 제거
                 }
                 else
                 {
-                    engine.EngineStdOut("Error: 'params' member in paramField for block type " + fieldType + " (object " + objectId + ") is not an array. Actual type: " + to_string(paramsMember.GetType()), 2, executionThreadId);
+                    engine.EngineStdOut("Error: 'params' member in paramField for block type " + fieldType + " (object " + objectId + ") is not an array. Actual type: " + paramsMember.type_name(), 2, executionThreadId);
                     // Handle error: return an empty/error OperandValue or throw
                     return nan("");
                 }
@@ -297,10 +289,10 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
         else if (fieldType == "get_pictures")
         {
             // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
-            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
-                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                string temp_image_id = paramField["params"][0].GetString();
+                string temp_image_id = paramField["params"][0].get<std::string>();
                 // temp_image_id로 안전하게 복사된 문자열을 사용하여 OperandValue 직접 반환
                 return OperandValue(temp_image_id);
             }
@@ -313,10 +305,10 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
         else if (fieldType == "get_sounds") // Handle get_sounds block type
         {
             // Similar to get_pictures, params[0] should be the sound ID string
-            if (paramField.HasMember("params") && paramField["params"].IsArray() &&
-                paramField["params"].Size() > 0 && paramField["params"][0].IsString())
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                string tem_sound_id = paramField["params"][0].GetString();
+                string tem_sound_id = paramField["params"][0].get<std::string>();
                 return OperandValue(tem_sound_id);
             }
             engine.EngineStdOut(
@@ -330,28 +322,28 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
         return OperandValue();
     }
     // NEW: Check for other literal types before the final default
-    else if (paramField.IsNumber()) // If the param is a direct number literal
+    else if (paramField.is_number()) // If the param is a direct number literal
     {
-        double getNumber = paramField.GetDouble();
+        double getNumber = paramField.get<double>();
         return OperandValue(getNumber); // Returns NUMBER
     }
-    else if (paramField.IsBool()) // If the param is a direct boolean literal
+    else if (paramField.is_boolean()) // If the param is a direct boolean literal
     {
-        bool val = paramField.GetBool();
+        bool val = paramField.get<bool>();
         engine.EngineStdOut(
             "Parameter field for " + objectId + " is a direct boolean literal: " + (val ? "true" : "false") +
                 ". This might be unexpected if a block (e.g., get_pictures) was intended.",
             1);
         return OperandValue(val); // Returns BOOLEAN
     }
-    else if (paramField.IsNull()) // If the param is a direct null literal
+    else if (paramField.is_null()) // If the param is a direct null literal
     {
         engine.EngineStdOut("Parameter field is null for " + objectId, 1);
         return OperandValue(); // Returns EMPTY
     }
 
     // Fallback if not string, object, number, bool, or null
-    engine.EngineStdOut("Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " + to_string(paramField.GetType()), 1);
+    engine.EngineStdOut("Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " + paramField.type_name(), 1);
     return OperandValue();
 }
 
@@ -373,7 +365,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 
     if (BlockType == "move_direction")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "move_direction block for object " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -603,7 +595,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     }
     else if (BlockType == "move_x")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
                 "move_x block for object " + objectId + " has invalid params structure. Expected 1 param after filtering.", 2,
@@ -625,7 +617,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     }
     else if (BlockType == "move_y")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
                 "move_y block for object " + objectId + " has invalid params structure. Expected 1 param after filtering.", 2,
@@ -655,7 +647,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         if (!state.isActive)
         {
             // 블록 처음 실행 시 초기화
-            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+            if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
             {
                 engine.EngineStdOut(
                     "move_xy_time block for " + objectId + " is missing parameters. Expected TIME, X, Y.", 2,
@@ -831,7 +823,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         if (!state.isActive)
         {
             // 블록 처음 실행 시 초기화
-            if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+            if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
             {
                 // time, target 필요
                 engine.EngineStdOut(
@@ -1085,7 +1077,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 {
     if (BlockType == "calc_basic")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
         {
             engine.EngineStdOut(
                 "calc_basic block for object " + objectId + " has invalid params structure. Expected 3 params.", 2,
@@ -1111,8 +1103,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         {
             // If both can be strictly interpreted as numbers, add them. Otherwise, concatenate as strings.
             // This mimics Scratch/EntryJS behavior where "1" + "2" is 3, but "1" + "a" is "1a".
-            bool leftIsNumeric = (leftOp.type == OperandValue::Type::NUMBER || (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && isNumber(leftOp.string_val)));
-            bool rightIsNumeric = (rightOp.type == OperandValue::Type::NUMBER || (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && isNumber(rightOp.string_val)));
+            bool leftIsNumeric = (leftOp.type == OperandValue::Type::NUMBER || (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && is_number(leftOp.string_val)));
+            bool rightIsNumeric = (rightOp.type == OperandValue::Type::NUMBER || (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && is_number(rightOp.string_val)));
 
             if (leftIsNumeric && rightIsNumeric)
             {
@@ -1146,7 +1138,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "calc_rand")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "calc_rand block for object " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -1175,7 +1167,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     {
         // paramsKeyMap: { VALUE: 1 }
         // 드롭다운 값 ("x" 또는 "y")은 null 필터링 후 paramsJson[0]에 있습니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             // 인덱스 0에 접근하려면 크기가 최소 1이어야 함
             engine.EngineStdOut(
@@ -1242,7 +1234,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // FilterNullsInParamsJsonArray가 null을 제거하므로, 유효한 파라미터는 2개여야 합니다.
         // (원래 params: [null, TARGET_OBJECT_ID, null, COORDINATE_TYPE])
         // 필터링 후: [TARGET_OBJECT_ID_VALUE, COORDINATE_TYPE_VALUE]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "coordinate_object block for object " + objectId +
@@ -1388,7 +1380,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "quotient_and_mod")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.",
                                 2, executionThreadId);
@@ -1491,7 +1483,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             return MathOperationType::UNKNOWN;
         };
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "calc_operation block for " + objectId + " has invalid params. Expected 2 params (LEFTHAND, OPERATOR).",
@@ -1672,7 +1664,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         time_t now = time(nullptr);
         // paramsKeyMap: { VALUE: 0 }
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty() || !block.paramsJson[0].is_string())
         {
             engine.EngineStdOut("get_date block for " + objectId + " has invalid or missing action parameter.", 2,
                                 executionThreadId);
@@ -1764,7 +1756,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "length_of_string")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1)
         {
             engine.EngineStdOut(
                 "length_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2,
@@ -1782,7 +1774,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "reverse_of_string")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1)
         {
             engine.EngineStdOut(
                 "reverse_of_string block for " + objectId + " has invalid params structure. Expected 1 param.", 2,
@@ -1802,7 +1794,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "combine_something") // Corrected typo
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "combie_something block for " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -1817,7 +1809,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "char_at")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut("char_at block for " + objectId + " has invalid params structure. Expected 2 params.",
                                 2, executionThreadId);
@@ -1841,7 +1833,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "substring")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
         {
             engine.EngineStdOut("substring block for " + objectId + " has invalid params structure. Expected 3 params.",
                                 2, executionThreadId);
@@ -1867,7 +1859,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "count_match_string")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "count_match_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -1895,7 +1887,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "index_of_string")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "index_of_string block for " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -1924,7 +1916,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "replace_string")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
         {
             engine.EngineStdOut(
                 "replace_string block for " + objectId + " has invalid params structure. Expected 3 params.", 2,
@@ -1956,7 +1948,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "change_string_case")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2)
         {
             engine.EngineStdOut(
                 "change_string_case block for " + objectId + " has invalid params structure. Expected 2 params.", 2,
@@ -1991,7 +1983,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "get_block_count")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1)
         {
             engine.EngineStdOut(
                 "get_block_count block for " + objectId + " has invalid params structure. Expected 1 param (OBJECT).",
@@ -2047,7 +2039,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "change_rgb_to_hex")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
         {
             engine.EngineStdOut(
                 "change_rgb_to_hex block for " + objectId + " has invalid params structure. Expected 3 params.", 2,
@@ -2074,7 +2066,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "change_hex_to_rgb")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1)
         {
             engine.EngineStdOut(
                 "change_hex_to_rgb block for " + objectId + " has invalid params structure. Expected 1 param.", 2,
@@ -2120,7 +2112,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "get_boolean_value")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() != 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1)
         {
             engine.EngineStdOut(
                 "get_boolean_value block for " + objectId + " has invalid params structure. Expected 1 param.", 2,
@@ -2153,15 +2145,15 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     {
         // 파라미터: [KEY_IDENTIFIER_STRING (키 식별자 문자열), null]
         // paramsKeyMap: { VALUE: 0 }
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("is_press_some_key block for " + objectId + " has invalid or missing params array. Expected key identifier at index 0.", 2, executionThreadId);
             return OperandValue(false); // 오류 시 false 반환
         }
 
         // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
-        // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
-        const rapidjson::Value &keyParamValue = block.paramsJson[0];
+        // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.        
+        const nlohmann::json &keyParamValue = block.paramsJson[0];
         OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
 
         if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty())
@@ -2182,8 +2174,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // paramsKeyMap: { ACTION: 0 }
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
         // Block.h에서 paramsJson이 rapidjson::Value 타입이고,
-        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0 || !block.paramsJson[0].IsString())
+        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.        
+        if (!block.paramsJson.is_array() || block.paramsJson.empty() || !block.paramsJson[0].is_string())
         {
             engine.EngineStdOut(
                 "choose_project_timer_action block for " + objectId + " has invalid or missing action parameter.", 2,
@@ -2214,7 +2206,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "set_visible_project_timer")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() == 0)
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut(
                 "set_visible_project_timer block for " + objectId +
@@ -2276,7 +2268,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "get_sound_duration")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "get_sound_duration block for " + objectId + " has insufficient parameters. Expected sound ID.", 2,
@@ -2334,7 +2326,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     {
         // EntryJS: get_variable
         // params: [VARIABLE_ID_STRING, null, null] (VARIABLE_ID_STRING 는 드롭다운 메뉴 항목이다.)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "get_variable block for " + objectId + " has insufficient parameters. Expected VARIABLE_ID.", 2,
@@ -2404,7 +2396,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     else if (BlockType == "value_of_index_from_list")
     {
         // params: [LIST_ID_STRING, INDEX_VALUE_OR_BLOCK, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "value_of_index_from_list block for " + objectId +
@@ -2420,7 +2412,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string. Value: " + listIdOp.asString(), 2, executionThreadId);
             return OperandValue("");
         }
-        string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].get<std::string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -2569,7 +2561,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // 리스트의 길이를 반환
         OperandValue listId = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         // params: [LIST_ID_STRING, INDEX_VALUE_OR_BLOCK, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "value_of_index_from_list block for " + objectId +
@@ -2621,7 +2613,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 executionThreadId);
             return OperandValue(0.0);
         }
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "is_included_in_list block for " + objectId +
@@ -2695,7 +2687,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
           // return OperandValue(false); // 엔트리 동작과 맞추려면 이 줄 주석 처리
         }
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("reach_something block for " + objectId + " has invalid or missing params array. Expected target ID at index 0.", 2, executionThreadId);
             return OperandValue(false);
@@ -2830,7 +2822,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // params: [VALUE_TO_CHECK (any type), TYPE_STRING_DROPDOWN (string: "number", "en", "ko")]
         // paramsKeyMap: { VALUE: 0, TYPE: 1 } (가정)
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut("is_type block for " + objectId + " has insufficient parameters. Expected VALUE and TYPE.", 2, executionThreadId);
             return OperandValue(false);
@@ -2850,7 +2842,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 
         if (typeStr == "number")
         {
-            return OperandValue(isNumber(valueStr));
+            return OperandValue(is_number(valueStr));
         }
         else if (typeStr == "en")
         {
@@ -2890,7 +2882,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // params: [LEFTHAND (any type), OPERATOR (string), RIGHTHAND (any type)]
         // paramsKeyMap: { LEFTHAND: 0, OPERATOR: 1, RIGHTHAND: 2 }
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             engine.EngineStdOut("boolean_basic_operator block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
             return OperandValue(false);
@@ -2917,7 +2909,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             leftNum = leftOp.number_val;
             leftIsStrictlyNumeric = true;
         }
-        else if (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && isNumber(leftOp.string_val))
+        else if (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && is_number(leftOp.string_val))
         {
             leftNum = leftOp.asNumber(); // asNumber() handles stod
             leftIsStrictlyNumeric = true;
@@ -2928,7 +2920,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             rightNum = rightOp.number_val;
             rightIsStrictlyNumeric = true;
         }
-        else if (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && isNumber(rightOp.string_val))
+        else if (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && is_number(rightOp.string_val))
         {
             rightNum = rightOp.asNumber();
             rightIsStrictlyNumeric = true;
@@ -2954,8 +2946,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         {
             // 하나라도 엄격한 숫자가 아니면 문자열로 비교 (EQUAL, NOT_EQUAL만 해당)
             // EntryJS는 GREATER, LESS 등의 경우 문자열을 숫자로 강제 변환 (0으로) 후 비교하므로,
-            // 위에서 isNumber()로 체크된 경우 이미 leftNum, rightNum에 변환된 값이 들어있거나,
-            // isNumber()가 false였다면 0.0이 들어있을 것입니다.
+            // 위에서 is_number()로 체크된 경우 이미 leftNum, rightNum에 변환된 값이 들어있거나,
+            // is_number()가 false였다면 0.0이 들어있을 것입니다.
             // 따라서, 숫자 비교가 실패하면 문자열 비교로 넘어가는 로직은 EQUAL, NOT_EQUAL에만 적용하고,
             // 나머지 연산자는 이미 위에서 처리된 숫자 값을 사용합니다.
 
@@ -2968,7 +2960,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 return OperandValue(leftStr != rightStr);
 
             // GREATER, LESS, GREATER_OR_EQUAL, LESS_OR_EQUAL의 경우,
-            // isNumber()를 통과하지 못한 문자열은 asNumber() 호출 시 0.0으로 변환됩니다.
+            // is_number()를 통과하지 못한 문자열은 asNumber() 호출 시 0.0으로 변환됩니다.
             // 따라서, 위에서 leftIsStrictlyNumeric, rightIsStrictlyNumeric이 false였더라도
             // leftNum, rightNum은 0.0 또는 변환된 숫자 값을 가집니다.
             // 이 값들을 사용하여 비교합니다.
@@ -3004,7 +2996,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     }
                 },
         */
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             engine.EngineStdOut("boolean_and_or block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
             return OperandValue(false);
@@ -3024,7 +3016,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "boolean_not")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut("boolean_not block for " + objectId + " has insufficient parameters. Expected VALUE.", 2, executionThreadId);
             return OperandValue(false);
@@ -3041,7 +3033,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     {
         // params: [DEVICE_TYPE_DROPDOWN (string: "desktop", "tablet", "mobile")]
         // paramsKeyMap: { DEVICE: 0 }
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut("is_current_device_type block for " + objectId + " has insufficient parameters. Expected DEVICE type.", 2, executionThreadId);
             return OperandValue(false); // 오류 시 false 반환
@@ -3075,7 +3067,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     {
         // paramsKeyMap: { VALUE: 0 }
         // 파라미터는 글상자 ID 또는 "self"를 가리키는 드롭다운입니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("text_read block for " + objectId + " has invalid or missing params. Expected target textBox ID.", 2, executionThreadId);
             return OperandValue(""); // 오류 시 빈 문자열 반환
@@ -3153,7 +3145,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "dialog_time")
     {
         // params: VALUE (message), SECOND, OPTION (speak/think)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             // 인디케이터 포함하면 4개일 수 있음
             engine.EngineStdOut(
@@ -3187,7 +3179,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "dialog")
     {
         // params: VALUE (message), OPTION (speak/think)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             // 인디케이터 포함하면 3개일 수 있음
             engine.EngineStdOut(
@@ -3218,14 +3210,15 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     {
         // 이미지 url 묶음에서 해당 모양의 ID를 (사용자 는 모양의 이름이 정의된 드롭다운이 나온다) 선택 한 것으로 바꾼다.
         // --- DEBUG START ---
-        if (block.paramsJson.IsArray() && !block.paramsJson.Empty())
+        if (block.paramsJson.is_array() && !block.paramsJson.empty())
         {
-            rapidjson::StringBuffer buffer;
-            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-            block.paramsJson[0].Accept(writer);
+            std::string params_json_dump = "null";
+            if (!block.paramsJson[0].is_null()) {
+                params_json_dump = block.paramsJson[0].dump();
+            }
             engine.EngineStdOut(
                 "DEBUG: change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
-                    string(buffer.GetString()),
+                    params_json_dump,
                 3, executionThreadId);
         }
         else
@@ -3302,7 +3295,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "add_effect_amount")
     {
         // params: EFFECT (dropdown: "color", "brightness", "transparency"), VALUE (number)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             // 인디케이터 포함 시 3개일 수 있음
             engine.EngineStdOut(
@@ -3357,7 +3350,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     }
     else if (BlockType == "change_effect_amount")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "change_effect_amount block for " + objectId + " has insufficient parameters. Expected EFFECT, VALUE.",
@@ -3610,7 +3603,7 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "sound_volume_change")
     {
         // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             // VALUE 파라미터 확인
             engine.EngineStdOut(
@@ -3646,7 +3639,7 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "sound_volume_set")
     {
         // 파라미터는 하나 (VALUE) - 볼륨 변경량 (예: 10, -20)
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             // VALUE 파라미터 확인
             engine.EngineStdOut(
@@ -3704,14 +3697,14 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "sound_silent_all")
     {
         // 파라미터는 하나 (TARGET) - "all", "thisOnly", "other_objects"
-        if (block.paramsJson.Empty() || !block.paramsJson[0].IsString())
+        if (block.paramsJson.empty() || !block.paramsJson[0].is_string())
         {
             engine.EngineStdOut(
                 "sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2,
                 executionThreadId);
             return;
         }
-        string target = block.paramsJson[0].GetString();
+        string target = block.paramsJson[0].get<std::string>();
 
         if (target == "all")
         {
@@ -3832,7 +3825,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     else if (BlockType == "ask_and_wait")
     {
         // params: [VALUE (question_string_block), null (indicator)]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "ask_and_wait block for " + objectId + " has insufficient parameters. Expected question.", 2,
@@ -3873,7 +3866,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     else if (BlockType == "change_variable")
     {
         // params: [VARIABLE_ID_STRING, VALUE_TO_ADD_OR_CONCAT, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "change_variable block for " + objectId +
@@ -3988,7 +3981,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     else if (BlockType == "set_variable")
     {
         // params: [VARIABLE_ID_STRING, VALUE_TO_ADD_OR_CONCAT, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "change_variable block for " + objectId +
@@ -3998,13 +3991,13 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 1. 변수 ID 가져오기 (항상 문자열 드롭다운)
-        if (!block.paramsJson[0].IsString())
+        if (!block.paramsJson[0].is_string())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].get<std::string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4061,7 +4054,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     }
     else if (BlockType == "show_variable")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "change_variable block for " + objectId +
@@ -4070,13 +4063,13 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             return;
         }
 
-        if (!block.paramsJson[0].IsString())
+        if (!block.paramsJson[0].is_string())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].get<std::string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4108,7 +4101,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     }
     else if (BlockType == "hide_variable")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "change_variable block for " + objectId +
@@ -4117,13 +4110,13 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             return;
         }
 
-        if (!block.paramsJson[0].IsString())
+        if (!block.paramsJson[0].is_string())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].get<std::string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4157,7 +4150,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     {
         // 리스트에 항목을 추가합니다.
         // 파라미터: [LIST_ID_STRING (드롭다운), VALUE_TO_ADD (모든 타입 가능)]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             // LIST_ID와 VALUE, 총 2개의 파라미터 필요
             engine.EngineStdOut(
@@ -4167,14 +4160,14 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        if (!block.paramsJson[0].IsString())
+        if (!block.paramsJson[0].is_string())
         {
             engine.EngineStdOut(
                 "add_value_to_list block for " + objectId + ": LIST_ID parameter (index 0) is not a string.", 2,
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].get<std::string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("add_value_to_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4241,7 +4234,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     {
         // 리스트에서 특정 인덱스의 항목을 삭제합니다.
         // 파라미터: [LIST_ID_STRING (드롭다운), INDEX_TO_REMOVE (숫자 또는 숫자 반환 블록)]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
         {
             engine.EngineStdOut(
                 "remove_value_from_list block for " + objectId +
@@ -4251,14 +4244,14 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        if (!block.paramsJson[0].IsString())
+        if (!block.paramsJson[0].is_string())
         {
             engine.EngineStdOut(
                 "remove_value_from_list block for " + objectId + ": LIST_ID parameter (index 0) is not a string.", 2,
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].get<std::string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("remove_value_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4369,7 +4362,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     else if (BlockType == "insert_value_to_list")
     {
         // 특정 인덱스에 항목 삽입
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
@@ -4441,7 +4434,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     else if (BlockType == "change_value_list_index")
     {
         // 특정 인덱스에 항목 변경
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
@@ -4507,7 +4500,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     }
     else if (BlockType == "show_list")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
@@ -4542,7 +4535,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
     }
     else if (BlockType == "hide_list")
     {
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
             return;
@@ -4595,7 +4588,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         // Flow 함수는 Entity의 setScriptWait를 호출하여 대기 상태 설정을 요청합니다.
         // 실제 대기(SDL_Delay)는 Entity::executeScript의 메인 루프에서 처리됩니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null())
         {
             engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": Missing or invalid time parameter.", 2, executionThreadId);
             // engine.terminateScriptExecution(executionThreadId);
@@ -4630,7 +4623,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     {
         // 기본 반복 블록 구현
         // 반복 횟수 파라미터 가져오기
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty() || block.paramsJson[0].IsNull())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null())
         {
             engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Missing or invalid iteration count parameter.", 2, executionThreadId);
             throw ScriptBlockExecutionError("반복 횟수 파라미터가 부족하거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid iteration count parameter.");
@@ -4665,14 +4658,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         //     for (size_t j = 0; j < doScript.blocks.size(); ++j)
         //     {
         //         const Block &innerBlock = doScript.blocks[j];
-        //         rapidjson::StringBuffer buffer;
-        //         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        //         // paramsJson이 Null이 아닐 경우에만 Accept 호출
-        //         if (!innerBlock.paramsJson.IsNull())
-        //         {
-        //             innerBlock.paramsJson.Accept(writer);
+        //         std::string inner_params_dump = "null";
+        //         if (!innerBlock.paramsJson.is_null()) {
+        //            inner_params_dump = innerBlock.paramsJson.dump();
         //         }
-        //         engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+        //         engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + inner_params_dump, 3, executionThreadId);
         //     }
         // }
         // else
@@ -4816,14 +4806,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             for (size_t j = 0; j < doScript.blocks.size(); ++j)
             {
                 const Block &innerBlock = doScript.blocks[j];
-                rapidjson::StringBuffer buffer;
-                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                // paramsJson이 Null이 아닐 경우에만 Accept 호출
-                if (!innerBlock.paramsJson.IsNull())
-                {
-                    innerBlock.paramsJson.Accept(writer);
+                std::string inner_params_dump = "null";
+                if (!innerBlock.paramsJson.is_null()) {
+                    inner_params_dump = innerBlock.paramsJson.dump();
                 }
-                engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+                engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + inner_params_dump, 3, executionThreadId);
             }
         }
         else
@@ -4923,7 +4910,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // params: [CONDITION_BLOCK]
         // statements: [DO_SCRIPT]
 
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + ": Missing condition parameter.", 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 부족합니다.", block.id, BlockType, objectId, "Missing condition parameter.");
@@ -4934,7 +4921,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             return; // 반복할 내용이 없으면 바로 종료
         }
 
-        const rapidjson::Value &conditionJson = block.paramsJson[0]; // Condition block JSON
+        const nlohmann::json &conditionJson = block.paramsJson[0]; // Condition block JSON
         const Script &doScript = block.statementScripts[0];          // First statementScript is the DO block
 
         engine.EngineStdOut("repeat_while_true: " + objectId + " starting loop. Block ID: " + block.id, 0, executionThreadId);
@@ -5082,13 +5069,13 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     {
         // params: [CONDITION_BLOCK (BOOL), Indicator]
         // statements: [DO_SCRIPT (STACK)]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow '_if' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        const rapidjson::Value &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
+        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
         OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
 
         bool conditionIsTrue = false;
@@ -5144,13 +5131,13 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     {
         // params: [CONDITION_BLOCK (BOOL), Indicator, LineBreak]
         // statements: [DO_SCRIPT_IF (STACK_IF), DO_SCRIPT_ELSE (STACK_ELSE)]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        const rapidjson::Value &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
+        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
         OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
 
         bool conditionIsTrue = false;
@@ -5223,13 +5210,13 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     else if (BlockType == "wait_until_true")
     {
         // params: [CONDITION_BLOCK (BOOL), Indicator]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        const rapidjson::Value &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
+        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
         OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
 
         bool conditionIsTrue = false;
@@ -5268,7 +5255,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     {
         // params: [TARGET_DROPDOWN (string), Indicator]
         // paramsKeyMap: { TARGET: 0 }
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         { // Check for array and emptiness first
             engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Missing or invalid TARGET parameter. Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("TARGET 파라미터가 누락되었거나 유효하지 않습니다.", block.id, BlockType, objectId, "Missing or invalid TARGET parameter.");
@@ -5298,7 +5285,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     {
         // params: [VALUE (DropdownDynamic with menuName 'clone'), Indicator]
         // VALUE will be the ID of the object to clone, or "self"
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow 'create_clone' for " + objectId + ": Missing target parameter. Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("복제할 대상 파라미터가 없습니다.", block.id, BlockType, objectId, "Missing target parameter.");
@@ -5383,7 +5370,7 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
     {
         // paramsKeyMap: { VALUE: 0 }
         // 파라미터는 쓰여질 텍스트 값입니다.
-        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut(
                 "text_write block for " + objectId + " has invalid or missing params. Expected text VALUE.",
@@ -5417,7 +5404,7 @@ void Event(string BlockType, Engine &engine, const string &objectId, const Block
     if (BlockType == "message_cast")
     {
         // params: [MESSAGE_ID_INPUT_OR_BLOCK, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut("message_cast block for object " + objectId + " has insufficient parameters. Expected message ID.", 2, executionThreadId);
             throw ScriptBlockExecutionError("메시지 ID 파라미터가 부족합니다.", block.id, BlockType, objectId, "Insufficient parameters for message_cast.");
@@ -5444,7 +5431,7 @@ void Event(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "start_scene")
     {
         // params: [scene_id_string, null, null]
-        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
                 "start_scene block for object " + objectId + " has invalid or missing scene ID parameter.", 2,
@@ -5525,14 +5512,12 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
         // 해당 블록의 로직에 따라 재귀적으로 이 함수를 호출하거나 다른 처리를 해야 합니다.
         // 여기서는 간단히 카테고리 함수만 호출합니다. 실제로는 더 복잡한 실행기 로직이 필요합니다.
         try
-        {
-            // engine.EngineStdOut("   Recursive Block "+block.type,3);
+        {            
             Moving(block.type, engine, objectId, block, executionThreadId, deltaTime);
-            Calculator(block.type, engine, objectId, block, executionThreadId);
+            /*OperandValue calcResult =*/ Calculator(block.type, engine, objectId, block, executionThreadId); // 반환 값은 현재 사용되지 않음
             Looks(block.type, engine, objectId, block, executionThreadId);
             Sound(block.type, engine, objectId, block, executionThreadId);
             Variable(block.type, engine, objectId, block, executionThreadId);
-            Function(block.type, engine, objectId, block, executionThreadId);
             Event(block.type, engine, objectId, block, executionThreadId);
             Flow(block.type, engine, objectId, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         }

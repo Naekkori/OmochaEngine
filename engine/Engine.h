@@ -4,8 +4,6 @@
 #include <map>
 #include <Windows.h>
 #include <vector>
-#include <rapidjson/rapidjson.h> // Added for RapidJSON forward declaration if needed, or full include
-#include <rapidjson/document.h>
 #include "Entity.h"
 #include "SDL3/SDL.h"             // SDL 코어
 #include "SDL3/SDL_touch.h"
@@ -16,6 +14,7 @@
 #include "SDL3/SDL_render.h"   // SDL 렌더링
 #include "SDL3/SDL_scancode.h" // For SDL_Scancode
 #include "blocks/Block.h"
+#include <nlohmann/json.hpp>
 #include "blocks/blockTypes.h"
 #include "util/fontName.h"
 #include "../util/Logger.h"
@@ -228,12 +227,12 @@ public:
     // --- Engine Special Configuration ---
     static const float MIN_LIST_WIDTH;  // 리스트 최소 너비
     static const float MIN_LIST_HEIGHT; // 리스트 최소 높이
-    string getSafeStringFromJson(const rapidjson::Value &parentValue,
+    string getSafeStringFromJson(const nlohmann::json &parentValue,
                                  const string &fieldName,
                                  const string &contextDescription,
                                  const string &defaultValue,
                                  bool isCritical,
-                                 bool allowEmpty);
+                                 bool allowEmpty) const;
     struct SPECIAL_ENGINE_CONFIG
     {
         string BRAND_NAME = "";
@@ -328,7 +327,7 @@ public:
     void setStageClickedThisFrame(bool clicked);
     // HUD에 표시할 변수 목록을 설정하는 메서드
     map<string, Entity *> &getEntities_Modifiable() { return entities; }
-    void loadHUDVariablesFromJson(const rapidjson::Value &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
+    void loadHUDVariablesFromJson(const nlohmann::json &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
     void engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness);

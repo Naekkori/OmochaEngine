@@ -93,6 +93,7 @@
         "shared_mutex": "cpp",
         "source_location": "cpp",
         "resumable": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "valarray": "cpp"
     }
 }
