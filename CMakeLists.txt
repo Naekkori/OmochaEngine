@@ -273,7 +273,7 @@ if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LI
     endif()
 
     set(VCPKG_LIC_PORTS
-        "rapidjson"     # From find_package
+        "nlohmann_json"     # From find_package
         "sdl3"          # From find_package
         "sdl3-image"    # From find_package
         "sdl3-ttf"      # From find_package
@@ -297,6 +297,7 @@ if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LI
 
     # --- 사용자 정의: 다운로드할 라이선스 URL ---
     set(LICENSE_URL_boost "https://www.boost.org/LICENSE_1_0.txt")
+    set(LICENSE_URL_nlohmann_json "https://github.com/nlohmann/json/blob/master/LICENSE.MIT")
     set(LICENSE_URL_libtiff "https://gitlab.com/libtiff/libtiff/-/raw/master/LICENSE.md") # 실제 URL 확인 필요
     set(LICENSE_URL_miniaudio "https://raw.githubusercontent.com/mackron/miniaudio/refs/heads/master/LICENSE")
     set(LICENSE_URL_xz_utils "https://git.tukaani.org/?p=xz.git;a=blob_plain;f=COPYING;hb=HEAD")
