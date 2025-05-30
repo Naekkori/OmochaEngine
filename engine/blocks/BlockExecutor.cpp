@@ -5456,10 +5456,31 @@ void Event(string BlockType, Engine &engine, const string &objectId, const Block
     }
     else if (BlockType == "start_neighbor_scene")
     {
+        // 1. paramsJson 자체가 null인지 명시적으로 확인
+        if (block.paramsJson.is_null())
+        {
+            engine.EngineStdOut(
+                "start_neighbor_scene block for object " + objectId + " has null paramsJson. Expected one parameter (next/prev).", 2,
+                executionThreadId);
+            throw ScriptBlockExecutionError(
+                "다음/이전 장면 시작하기 블록의 파라미터가 존재하지 않습니다 (null).",
+                block.id, BlockType, objectId, "paramsJson is null for start_neighbor_scene block.");
+        }
+        // 2. null이 아니라면, 배열이 아니거나 비어있는지 확인
+        else if (!block.paramsJson.is_array() || block.paramsJson.empty())
+        {
+            engine.EngineStdOut(
+                "start_neighbor_scene block for object " + objectId + " has invalid (not an array or empty) paramsJson. Expected one parameter (next/prev). Type: " + block.paramsJson.type_name(), 2,
+                executionThreadId);
+            throw ScriptBlockExecutionError(
+                "다음/이전 장면 시작하기 블록의 파라미터가 유효하지 않습니다.",
+                block.id, BlockType, objectId, "Invalid or non-array/empty paramsJson for start_neighbor_scene block.");
+        }
+
         OperandValue o = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (o.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("start_neighbor_scene block for object ");
+            engine.EngineStdOut("start_neighbor_scene block for object " + objectId + ": parameter is not a string. Value: " + o.asString(), 2, executionThreadId);
             return;
         }
         if (o.string_val == "next")

@@ -80,7 +80,8 @@ namespace
             // 실제 호출부에서 blockJson이 nlohmann::json이므로 paramsVal도 nlohmann::json입니다.
             if (paramsVal.is_array())
             {
-                for (const auto &paramEntryJson : paramsVal.array())
+                newBlock.paramsJson = nlohmann::json::array(); // 명시적으로 빈 배열로 초기화
+                for (const auto &paramEntryJson : paramsVal)
                 { // Iterate over original params
                     if (paramEntryJson.is_null())
                     {
@@ -96,7 +97,7 @@ namespace
                         nlohmann::json &subBlockParamsArray = subBlockCopy["params"];
 
                         nlohmann::json filteredNestedParams = nlohmann::json::array(); // 필터링된 params를 위한 새 배열 생성
-                        for (const auto &nestedParam : subBlockParamsArray.array())
+                        for (const auto &nestedParam : subBlockParamsArray)
                         {
                             if (!nestedParam.is_null())
                             {
@@ -4692,6 +4693,11 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     else
     {
         SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window); // 단순 메시지 박스 (OK 버튼만)
+        if (flags == SDL_MESSAGEBOX_ERROR)
+        {
+           quick_exit(EXIT_FAILURE); //오류면 종료함
+        }
+        
         return true;
     }
     // If showYesNo was true and SDL_ShowMessageBox failed, this path might be reached.
@@ -6415,7 +6421,7 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
             { // 글상자 타입인지 확인
                 objInfo.textContent = newText;
                 found = true;
-                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 0);
+                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
 
                 // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
                 // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.

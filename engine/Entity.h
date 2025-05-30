@@ -22,14 +22,16 @@ public:
     std::string entityId;
     std::string originalMessage; // 원본 std::exception의 what() 메시지
 
-    ScriptBlockExecutionError(const std::string &msg, // runtime_error 기본 생성자용 메시지
+    // 생성자: 예외 상태만 초기화
+    ScriptBlockExecutionError(const std::string &shortErrorDescription, // 사용자에게 표시될 간략한 오류 메시지
                               const std::string &bId,
                               const std::string &bType,
                               const std::string &eId,
-                              const std::string &origMsg)
-        : std::runtime_error(msg),
-          blockId(bId), blockType(bType), entityId(eId), originalMessage(origMsg)
+                              const std::string &detailedOrigMsg) // 내부/원본 오류 메시지 (runtime_error 기본 생성자용 메시지)
+        : std::runtime_error(detailedOrigMsg), // Pass detailedOrigMsg or a combination to base
+          blockId(bId), blockType(bType), entityId(eId), originalMessage(detailedOrigMsg)
     {
+        // 생성자 내에서 showMessageBox 및 exit 호출 제거
     }
 };
 struct ScriptWaitState

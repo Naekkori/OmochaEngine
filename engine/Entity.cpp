@@ -1504,8 +1504,11 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                                                                  " 에서 사용 하는 객체 " + sbee.entityId + // Object ID directly referenced by the error block
                                                                  "\n원본 오류: " + sbee.originalMessage;
 
-                              this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
-                              this->pEngineInstance->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              // EngineStdOut은 이미 상세 메시지를 포함하므로, 여기서는 요약된 메시지 또는 상세 메시지 그대로 사용
+                              this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);                              
+                              // showMessageBox 호출 후 프로그램 종료
+                              this->pEngineInstance->showMessageBox("스크립트 실행 중 오류가 발생했습니다.\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              exit(EXIT_FAILURE); // 프로그램 종료
                           }
                           catch (const std::length_error &le)
                           { // Specifically catch std::length_error
