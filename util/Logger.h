@@ -4,6 +4,8 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <codecvt> // For std::codecvt_utf8_utf16
+#include <locale> // For std::wstring_convert
 
 #if defined(_DEBUG) && defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -67,8 +69,10 @@ public:
         }
 
 #if defined(_DEBUG) && defined(_WIN32) // 조건 확인 시에도 _WIN32 사용
-        OutputDebugStringA(message.c_str());
-        OutputDebugStringA("\n");
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        std::wstring wideMessage = converter.from_bytes(message);
+        std::wstring wideMessageWithNewline = wideMessage + L"\n";
+        OutputDebugStringW(wideMessageWithNewline.c_str());
 #endif
 
         auto now = std::chrono::system_clock::now();

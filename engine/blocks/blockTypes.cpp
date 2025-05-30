@@ -131,7 +131,11 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"is_press_some_key", BlockTypeEnum::IS_KEY_PRESSED_JUDGE},     // 특정 키 눌림 판단
         {"reach_something", BlockTypeEnum::REACH_SOMETHING}, // ~에 닿았는가?
         {"is_type", BlockTypeEnum::IS_TYPE}, // ~ 타입인가?
-        {"boolean_basic_operator", BlockTypeEnum::BOOLEAN_BASIC_OPERATOR} // 두 값의 관계 비교
+        {"boolean_basic_operator", BlockTypeEnum::BOOLEAN_BASIC_OPERATOR}, // 두 값의 관계 비교
+        {"boolean_and_or", BlockTypeEnum::BOOLEAN_AND_OR}, // 논리곱 또는 논리합
+        {"boolean_not", BlockTypeEnum::BOOLEAN_NOT}, // 논리 부정
+        {"is_boost_mode", BlockTypeEnum::IS_BOOST_MODE}, // 부스트 모드인가?
+        {"is_current_device_type", BlockTypeEnum::IS_CURRENT_DEVICE_TYPE}
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -272,7 +276,11 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::IS_KEY_PRESSED_JUDGE, "키가 눌려있는가?"},      // 특정 키 눌림 판단
         {BlockTypeEnum::REACH_SOMETHING, "~에 닿았는가?"},
         {BlockTypeEnum::IS_TYPE, "~ 타입인가?"},
-        {BlockTypeEnum::BOOLEAN_BASIC_OPERATOR, "두 값 비교"}
+        {BlockTypeEnum::BOOLEAN_BASIC_OPERATOR, "두 값 비교"},
+        {BlockTypeEnum::BOOLEAN_AND_OR, "논리곱 또는 논리합"}, // 논리곱 또는 논리합
+        {BlockTypeEnum::BOOLEAN_NOT, "논리 부정"}, // 논리 부정
+        {BlockTypeEnum::IS_BOOST_MODE, "부스트 모드인가?"}, // 부스트 모드인가?
+        {BlockTypeEnum::IS_CURRENT_DEVICE_TYPE, "현재 장치 유형 확인"}
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {

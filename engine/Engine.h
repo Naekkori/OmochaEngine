@@ -8,6 +8,7 @@
 #include <rapidjson/document.h>
 #include "Entity.h"
 #include "SDL3/SDL.h"             // SDL 코어
+#include "SDL3/SDL_touch.h"
 #include "SDL3_image/SDL_image.h" //SDL 이미지
 #include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
 #include "util/AEhelper.h"
@@ -254,6 +255,13 @@ public:
     bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const;
     MsgBoxIconType msgBoxIconType;
     Engine();
+    // Explicitly delete copy constructor and copy assignment operator
+    // to prevent copying of Engine objects, which contain non-copyable std::mutex members.
+    Engine(const Engine&) = delete;
+    Engine& operator=(const Engine&) = delete;
+    // Optionally, define or default move constructor and move assignment operator if needed
+    Engine(Engine&&) = default;
+    Engine& operator=(Engine&&) = default;
     ~Engine();
     bool IsSysMenu = false;
     bool IsScriptStart = false; // 스크립트 시작 여부
@@ -314,6 +322,9 @@ public:
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     bool getStageWasClickedThisFrame() const;
     bool isKeyPressed(SDL_Scancode scancode) const; // New: Check if a key is pressed
+    std::string getDeviceType() const;
+    bool isTouchSupported() const;
+    void updateEntityTextContent(const std::string &entityId, const std::string &newText);
     void setStageClickedThisFrame(bool clicked);
     // HUD에 표시할 변수 목록을 설정하는 메서드
     map<string, Entity *> &getEntities_Modifiable() { return entities; }
@@ -347,7 +358,7 @@ public:
     std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
     std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
     mutable std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
-private:
+private: // LCOV_EXCL_LINE
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
     uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환

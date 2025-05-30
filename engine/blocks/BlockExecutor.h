@@ -37,6 +37,7 @@ struct OperandValue
 
     double asNumber() const;
     std::string asString() const;
+    bool asBool() const;
 };
 
 // 블록 처리 함수 선언
@@ -49,6 +50,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string &executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime);
+void TextBox(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string &executionThreadId);
 void executeBlocksSynchronously(Engine& engine, const std::string& objectId, const std::vector<Block>& blocks, const std::string& executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime);
 // 스크립트를 실행하는 함수 선언 (Entity의 멤버 함수로 이동 예정이므로 주석 처리 또는 삭제)
 // void executeScript(Engine& engine, const std::string& objectId, const Script* script);

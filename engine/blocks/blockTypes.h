@@ -152,7 +152,11 @@ namespace Omocha
         IS_KEY_PRESSED_JUDGE,     // 특정 키가 눌렸는가? (is_press_some_key)
         REACH_SOMETHING,           // ~에 닿았는가?
         IS_TYPE,                   // ~ 타입인가?
-        BOOLEAN_BASIC_OPERATOR     // 두 값의 관계 비교
+        BOOLEAN_BASIC_OPERATOR,    // 두 값의 관계 비교
+        BOOLEAN_AND_OR, //논리곱 또는 논리합
+        BOOLEAN_NOT, //논리 부정
+        IS_BOOST_MODE, //부스트 모드인가?
+        IS_CURRENT_DEVICE_TYPE // 현재 장치 유형 확인
     };
 
     /**

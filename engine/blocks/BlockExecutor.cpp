@@ -50,7 +50,7 @@ OperandValue::OperandValue(double val) : type(Type::NUMBER), number_val(val), bo
 }
 
 OperandValue::OperandValue(const string &val) : type(Type::STRING), string_val(val), boolean_val(false),
-                                                     number_val(0.0)
+                                                number_val(0.0)
 {
 }
 
@@ -113,6 +113,27 @@ string OperandValue::asString() const
         return boolean_val ? "true" : "false";
     }
     return ""; // Default for EMPTY or unhandled types
+}
+
+bool OperandValue::asBool() const
+{
+    if (type == Type::BOOLEAN)
+        return boolean_val;
+    if (type == Type::NUMBER)
+        return number_val != 0.0; // 0 is false, non-zero is true
+    if (type == Type::STRING)
+    {
+        // Mimic JavaScript-like truthiness:
+        // Empty string is false.
+        // "false" (case-insensitive) is false.
+        // "0" is false.
+        // Otherwise, true.
+        std::string lower_str = string_val;
+        std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(), ::tolower);
+        return !string_val.empty() && lower_str != "false" && string_val != "0";
+    }
+    // EMPTY or unhandled types are false
+    return false;
 }
 
 // processVariableBlock 선언이 누락된 것 같아 추가 (필요하다면)
@@ -311,7 +332,8 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
     // NEW: Check for other literal types before the final default
     else if (paramField.IsNumber()) // If the param is a direct number literal
     {
-        return OperandValue(paramField.GetDouble()); // Returns NUMBER
+        double getNumber = paramField.GetDouble();
+        return OperandValue(getNumber); // Returns NUMBER
     }
     else if (paramField.IsBool()) // If the param is a direct boolean literal
     {
@@ -335,8 +357,8 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const rapid
 
 /* 여기에 있던 excuteBlock 함수는 Entity.cpp 로 이동*/
 /**
- * @brief 움직이기 블럭
- *
+ * @brief 움직이기 블록
+ * 
  */
 void Moving(string BlockType, Engine &engine, const string &objectId, const Block &block,
             const string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
@@ -1055,8 +1077,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 }
 
 /**
- * @brief 계산 블록
- *
+ * @brief 계산 블록 
+ * 
  */
 OperandValue Calculator(string BlockType, Engine &engine, const string &objectId, const Block &block,
                         const string &executionThreadId)
@@ -1661,7 +1683,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
         transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
-        struct tm timeinfo_s;                                                    // localtime_s 및 localtime_r을 위한 구조체
+        struct tm timeinfo_s;                                               // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
 #ifdef _WIN32
         localtime_s(&timeinfo_s, &now);
@@ -2963,13 +2985,152 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": Unknown OPERATOR '" + opStr + "'.", 2, executionThreadId);
         return OperandValue(false);
     }
+    else if (BlockType == "boolean_and_or")
+    {
+        /*
+         func(sprite, script) {
+                    const operator = script.getField('OPERATOR', script);
+                    let [leftValue, rightValue] = script.getValues(
+                        ['LEFTHAND', 'RIGHTHAND'],
+                        script
+                    );
+                    leftValue = Boolean(leftValue);
+                    rightValue = Boolean(rightValue);
 
+                    if (operator === 'AND') {
+                        return leftValue && rightValue;
+                    } else {
+                        return leftValue || rightValue;
+                    }
+                },
+        */
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        {
+            engine.EngineStdOut("boolean_and_or block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+
+        OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue operatorOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId); // This should be a direct string from Dropdown
+        OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
+        if (operatorOp.asString() == "AND")
+        {
+            return OperandValue(leftOp.asBool() && rightOp.asBool());
+        }
+        else
+        {
+            return OperandValue(leftOp.asBool() || rightOp.asBool());
+        }
+    }
+    else if (BlockType == "boolean_not")
+    {
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("boolean_not block for " + objectId + " has insufficient parameters. Expected VALUE.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+        OperandValue ValueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        return OperandValue(!ValueOp.asBool());
+    }
+    else if (BlockType == "is_boost_mode")
+    {
+        // C++ 기반 엔진 은 SDL 을 사용합니다 (하드코딩)
+        return OperandValue(true);
+    }
+    else if (BlockType == "is_current_device_type")
+    {
+        // params: [DEVICE_TYPE_DROPDOWN (string: "desktop", "tablet", "mobile")]
+        // paramsKeyMap: { DEVICE: 0 }
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 1)
+        {
+            engine.EngineStdOut("is_current_device_type block for " + objectId + " has insufficient parameters. Expected DEVICE type.", 2, executionThreadId);
+            return OperandValue(false); // 오류 시 false 반환
+        }
+
+        OperandValue deviceParamOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (deviceParamOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("is_current_device_type block for " + objectId + ": DEVICE parameter is not a string. Value: " + deviceParamOp.asString(), 2, executionThreadId);
+            return OperandValue(false);
+        }
+        string selectedDeviceType = deviceParamOp.asString(); // 드롭다운에서 선택된 값 ("desktop", "tablet", "mobile")
+
+        string actualDeviceType = engine.getDeviceType(); // Engine에서 실제 장치 유형 가져오기
+
+        if (selectedDeviceType != "desktop")
+        {
+            return OperandValue(actualDeviceType == selectedDeviceType);
+        }
+        else // selectedDeviceType이 "desktop"인 경우
+        {
+            return OperandValue(actualDeviceType != "mobile" && actualDeviceType != "tablet");
+        }
+    }
+    else if (BlockType == "is_touch_supported")
+    {
+        // 미지원
+        return OperandValue(engine.isTouchSupported());
+    }
+    else if (BlockType == "text_read")
+    {
+        // paramsKeyMap: { VALUE: 0 }
+        // 파라미터는 글상자 ID 또는 "self"를 가리키는 드롭다운입니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut("text_read block for " + objectId + " has invalid or missing params. Expected target textBox ID.", 2, executionThreadId);
+            return OperandValue(""); // 오류 시 빈 문자열 반환
+        }
+
+        OperandValue targetIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (targetIdOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("text_read block for " + objectId + ": target ID parameter is not a string. Value: " + targetIdOp.asString(), 2, executionThreadId);
+            return OperandValue("");
+        }
+        string targetIdStr = targetIdOp.asString();
+
+        const ObjectInfo *targetObjInfo = nullptr;
+        if (targetIdStr == "self")
+        {
+            targetObjInfo = engine.getObjectInfoById(objectId); // 현재 스크립트를 실행하는 오브젝트
+            if (targetObjInfo && targetObjInfo->objectType != "textBox")
+            {
+                engine.EngineStdOut("text_read: 'self' (object ID: " + objectId + ") is not a textBox.", 2, executionThreadId);
+                return OperandValue(""); // 'self'가 textBox가 아니면 빈 문자열 반환
+            }
+        }
+        else
+        {
+            targetObjInfo = engine.getObjectInfoById(targetIdStr);
+            if (targetObjInfo && targetObjInfo->objectType != "textBox")
+            {
+                engine.EngineStdOut("text_read: Target object '" + targetIdStr + "' is not a textBox.", 1, executionThreadId);
+                return OperandValue(""); // 대상이 textBox가 아니면 빈 문자열 반환
+            }
+        }
+
+        if (!targetObjInfo)
+        {
+            engine.EngineStdOut("text_read: Target textBox '" + targetIdStr + "' not found.", 1, executionThreadId);
+            return OperandValue(""); // 대상을 찾을 수 없으면 빈 문자열 반환
+        }
+
+        string textValue = targetObjInfo->textContent;
+        // JavaScript의 value.replace(/\n/gim, ' ')와 동일하게 처리
+        size_t pos = 0;
+        while ((pos = textValue.find('\n', pos)) != std::string::npos)
+        {
+            textValue.replace(pos, 1, " ");
+            pos += 1;
+        }
+        return OperandValue(textValue);
+    }
     return OperandValue();
 }
 
 /**
- * @brief 모양새
- *
+ * @brief 모양새 블록
+ * 
  */
 void Looks(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
@@ -3294,8 +3455,8 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
 }
 
 /**
- * @brief 사운드블럭
- *
+ * @brief 사운드 블록
+ * 
  */
 void Sound(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
@@ -3641,8 +3802,8 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
 }
 
 /**
- * @brief 변수블럭
- *
+ * @brief 변수 블록
+ * 
  */
 void Variable(string BlockType, Engine &engine, const string &objectId, const Block &block,
               const string &executionThreadId)
@@ -4417,8 +4578,8 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
 }
 
 /**
- * @brief 흐름
- *
+ * @brief 흐름 블록
+ * 
  */
 void Flow(string BlockType, Engine &engine, const string &objectId, const Block &block,
           const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
@@ -4520,8 +4681,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // }
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
-        {                                                              // entity 포인터 유효성 검사
-            lock_guard<mutex> lock(entity->getStateMutex()); // public getter 사용
+        {                                                    // entity 포인터 유효성 검사
+            lock_guard<recursive_mutex> lock(entity->getStateMutex()); // public getter 사용
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -4568,7 +4729,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             {
                 bool shouldBreakLoop = false;
                 { // Scope for lock
-                    lock_guard<mutex> lock(entity->getStateMutex());
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_break != entity->scriptThreadStates.end())
                     {
@@ -4589,7 +4750,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
                 bool shouldContinue = false;
                 { // Scope for lock
-                    lock_guard<mutex> lock(entity->getStateMutex());
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                     {
@@ -4608,7 +4769,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 Entity::WaitType innerWaitType = Entity::WaitType::NONE;
                 string innerWaitingBlockId;
                 {
-                    lock_guard<mutex> lock(entity->getStateMutex()); // public getter 사용
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex()); // public getter 사용
                     auto it_check = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check != entity->scriptThreadStates.end() && it_check->second.isWaiting)
                     {
@@ -4703,7 +4864,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     // 내부 블록이 대기를 설정했음 (예: move_xy_time). Flow 함수 종료.
                     bool shouldBreakLoop = false;
                     { // Scope for lock
-                        lock_guard<mutex> lock(entity->getStateMutex());
+                        lock_guard<recursive_mutex> lock(entity->getStateMutex());
                         auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                         if (it_check_break != entity->scriptThreadStates.end())
                         {
@@ -4722,7 +4883,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
                     bool shouldContinue = false;
                     { // Scope for lock
-                        lock_guard<mutex> lock(entity->getStateMutex());
+                        lock_guard<recursive_mutex> lock(entity->getStateMutex());
                         auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                         if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                         {
@@ -4815,7 +4976,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             {
                 bool shouldBreakLoop = false;
                 { // Scope for lock
-                    lock_guard<mutex> lock(entity->getStateMutex());
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_break != entity->scriptThreadStates.end())
                     {
@@ -4834,7 +4995,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
                 bool shouldContinue = false;
                 { // Scope for lock
-                    lock_guard<mutex> lock(entity->getStateMutex());
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                     {
@@ -4872,7 +5033,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
         { // entity pointer 유효성 검사
-            lock_guard<mutex> lock(entity->getStateMutex());
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -4898,7 +5059,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
         { // entity 포인터 유효성 검사
-            lock_guard<mutex> lock(entity->getStateMutex());
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -5200,9 +5361,46 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 이 블록은 실행 흐름을 중단시키지 않고, 다음 블록으로 계속 진행됩니다.
     }
 }
+
+void TextBox(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
+             const std::string &executionThreadId)
+{
+    Entity *entity = engine.getEntityById(objectId);
+    if (!entity)
+    {
+        engine.EngineStdOut("TextBox block: Entity " + objectId + " not found for block type " + BlockType, 2, executionThreadId);
+        return;
+    }
+
+    const ObjectInfo *objInfo = engine.getObjectInfoById(objectId); // getObjectInfoById는 내부적으로 뮤텍스 처리 가정
+    if (!objInfo || objInfo->objectType != "textBox")
+    {
+        engine.EngineStdOut("TextBox block: Entity " + objectId + " is not a textBox. Block type: " + BlockType, 1, executionThreadId);
+        return;
+    }
+
+    if (BlockType == "text_write")
+    {
+        // paramsKeyMap: { VALUE: 0 }
+        // 파라미터는 쓰여질 텍스트 값입니다.
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut(
+                "text_write block for " + objectId + " has invalid or missing params. Expected text VALUE.",
+                2, executionThreadId);
+            return;
+        }
+
+        OperandValue textValueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        std::string textToWrite = textValueOp.asString(); // 모든 타입을 문자열로 변환
+
+        entity->setText(textToWrite); // 새로 추가된 Entity::setText 메소드 호출
+        engine.EngineStdOut("TextBox " + objectId + " executed text_write with: \"" + textToWrite + "\"", 3, executionThreadId);
+    }
+}
 /**
- * @brief 함수블럭
- *
+ * @brief 함수 블록
+ * 
  */
 void Function(string BlockType, Engine &engine, const string &objectId, const Block &block,
               const string &executionThreadId)
@@ -5210,8 +5408,8 @@ void Function(string BlockType, Engine &engine, const string &objectId, const Bl
 }
 
 /**
- * @brief 이벤트 (기타 제어)
- *
+ * @brief 이벤트 (기타 제어) 블록
+ * 
  */
 void Event(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)

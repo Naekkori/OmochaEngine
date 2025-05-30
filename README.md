@@ -282,8 +282,22 @@ SOFTWARE.
 - [x] **`reach_something`**: 특정 대상(벽, 마우스 포인터, 다른 오브젝트)에 닿았는지 판단
 - [x] **`is_type`**: 주어진 값의 타입(숫자, 영어, 한글)이 일치하는지 판단
 - [x] **`boolean_basic_operator`**: 두 값의 관계(같음, 다름, 큼, 작음, 크거나 같음, 작거나 같음)를 판단
-- [ ] **`boolean_and_or`**: 두 불리언 값에 대해 AND 또는 OR 연산을 수행
-- [ ] **`boolean_not`**: 불리언 값에 대해 NOT 연산을 수행
-- [ ] **`is_boost_mode`**: 현재 부스트 모드(WebGL 사용 여부)인지 판단
-- [ ] **`is_current_device_type`**: 현재 장치 유형(데스크톱, 태블릿, 스마트폰)이 일치하는지 판단
+- [x] **`boolean_and_or`**: 두 불리언 값에 대해 AND 또는 OR 연산을 수행
+- [x] **`boolean_not`**: 불리언 값에 대해 NOT 연산을 수행
+- [x] **`is_boost_mode`**: 현재 부스트 모드(WebGL 사용 여부)인지 판단
+- [x] **`is_current_device_type`**: 현재 장치 유형(데스크톱, 태블릿, 스마트폰)이 일치하는지 판단
+## 구현불가
+###### 미지원 기능
 - [ ] **`is_touch_supported`**: 현재 장치가 터치를 지원하는지 판단
+
+## 텍스트 블록 구현 체크리스트
+
+- [x] **`text_read`**: (글상자)의 글 내용
+- [x] **`text_write`**: (글상자)에 (내용) 쓰기
+- [ ] **`text_append`**: (글상자)에 (내용) 이어 쓰기
+- [ ] **`text_prepend`**: (글상자)에 (내용) 앞에 이어 쓰기
+- [ ] **`text_change_effect`**: (글상자)에 (효과) (적용/해제)하기
+- [ ] **`text_change_font`**: (글상자)의 글꼴을 (글꼴)로 바꾸기
+- [ ] **`text_change_font_color`**: (글상자)의 글자 색을 (색)으로 바꾸기
+- [ ] **`text_change_bg_color`**: (글상자)의 배경색을 (색)으로 바꾸기
+- [ ] **`text_flush`**: (글상자)의 글 모두 지우기

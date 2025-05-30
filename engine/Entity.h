@@ -216,24 +216,31 @@ private:
     // Brightness: -100 (어둡게) to 0 (원본) to +100 (밝게)
     double m_effectBrightness;
     // Alpha: 0.0 (완전 투명) to 1.0 (완전 불투명)
-    double m_effectAlpha;
+    double m_effectAlpha; // LCOV_EXCL_LINE
     // Hue: 0-359 degrees offset for color effect
     double m_effectHue;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동    
     CollisionSide lastCollisionSide = CollisionSide::NONE;
-    mutable std::mutex m_stateMutex;
+    mutable std::recursive_mutex m_stateMutex; // std::mutex에서 std::recursive_mutex로 변경
     bool m_isClone = false;
     std::string m_originalClonedFromId = "";
 public:                      // Made brush and paint public for now for easier access from blocks
     Engine *pEngineInstance; // Store a pointer to the engine instance
+    // Explicitly delete copy constructor and copy assignment operator
+    // to prevent copying of Entity objects, which contain a non-copyable std::mutex member.
+    Entity(const Entity&) = delete;
+    Entity& operator=(const Entity&) = delete;
+    // Optionally, define or default move constructor and move assignment operator if needed
+    Entity(Entity&&) = default;
+    Entity& operator=(Entity&&) = default;
     PenState brush;
 
     TimedMoveState timedMoveState; // timed move 상태 변수 추가
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
     PenState paint;
-    // m_stateMutex에 대한 public 접근자 추가 (주의해서 사용)
-    std::mutex& getStateMutex() const { return m_stateMutex; }
+    // m_stateMutex에 대한 public 접근자 추가 (주의해서 사용) - 반환 타입도 변경
+    std::recursive_mutex& getStateMutex() const { return m_stateMutex; }
     bool getIsClone() const { return m_isClone; }
     void setIsClone(bool isClone, const std::string& originalId=""){
         m_isClone = isClone;
@@ -286,6 +293,7 @@ public:
     void setRegX(double newRegX);
     void setRegY(double newRegY);
     void setScaleX(double newScaleX);
+    void setText(const std::string &text);
     void setScaleY(double newScaleY);
     void setRotation(double newRotation);
     void setDirection(double newDirection);

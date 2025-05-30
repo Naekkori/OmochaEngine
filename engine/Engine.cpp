@@ -203,8 +203,8 @@ namespace
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0),
                    zoomFactor((this->specialConfig.setZoomfactor <= 0.0)
-                                  ? 1.0f 
-                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)), 
+                                  ? 1.0f
+                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)),
                    m_isDraggingZoomSlider(false), m_pressedObjectId(""),
                    logger("omocha_engine.log"),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
@@ -214,35 +214,47 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
     startThreadPool((std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
 }
 
-void Engine::workerLoop() {
-    while (true) {
+void Engine::workerLoop()
+{
+    while (true)
+    {
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(m_taskQueueMutex_std);
-            m_taskQueueCV_std.wait(lock, [this] { return m_isShuttingDown.load(std::memory_order_relaxed) || !m_taskQueue.empty(); });
-            if (m_isShuttingDown.load(std::memory_order_relaxed) && m_taskQueue.empty()) {
+            m_taskQueueCV_std.wait(lock, [this]
+                                   { return m_isShuttingDown.load(std::memory_order_relaxed) || !m_taskQueue.empty(); });
+            if (m_isShuttingDown.load(std::memory_order_relaxed) && m_taskQueue.empty())
+            {
                 return; // Exit if shutting down and no more tasks
             }
-            if (m_taskQueue.empty()) { 
+            if (m_taskQueue.empty())
+            {
                 continue;
             }
             task = std::move(m_taskQueue.front());
             m_taskQueue.pop();
         }
-        if (task) {
-            try {
+        if (task)
+        {
+            try
+            {
                 task();
-            } catch (const ScriptBlockExecutionError& sbee) {
-                 // 이미 EngineStdOut 및 showMessageBox를 호출하는 예외 핸들러가 Entity::executeScript 내에 있으므로,
-                 // 여기서 중복으로 처리할 필요는 없습니다. 만약 추가적인 로깅이나 처리가 필요하다면 여기에 작성합니다.
-                 // 현재는 예외가 Entity 레벨에서 처리되도록 그대로 전파합니다. (또는 여기서 다시 throw)
-                 EngineStdOut("ScriptBlockExecutionError in worker thread: " + std::string(sbee.what()) + " Block: " + sbee.blockId, 2);
-                 // this->showMessageBox("스크립트 실행 중 오류 발생:\n" + std::string(sbee.what()), msgBoxIconType.ICON_ERROR);
             }
-            catch (const std::exception& e) {
+            catch (const ScriptBlockExecutionError &sbee)
+            {
+                // 이미 EngineStdOut 및 showMessageBox를 호출하는 예외 핸들러가 Entity::executeScript 내에 있으므로,
+                // 여기서 중복으로 처리할 필요는 없습니다. 만약 추가적인 로깅이나 처리가 필요하다면 여기에 작성합니다.
+                // 현재는 예외가 Entity 레벨에서 처리되도록 그대로 전파합니다. (또는 여기서 다시 throw)
+                EngineStdOut("ScriptBlockExecutionError in worker thread: " + std::string(sbee.what()) + " Block: " + sbee.blockId, 2);
+                // this->showMessageBox("스크립트 실행 중 오류 발생:\n" + std::string(sbee.what()), msgBoxIconType.ICON_ERROR);
+            }
+            catch (const std::exception &e)
+            {
                 EngineStdOut("Exception in worker thread task: " + std::string(e.what()), 2);
-                 // this->showMessageBox("작업 스레드에서 예외 발생:\n" + std::string(e.what()), msgBoxIconType.ICON_ERROR);
-            } catch (...) {
+                // this->showMessageBox("작업 스레드에서 예외 발생:\n" + std::string(e.what()), msgBoxIconType.ICON_ERROR);
+            }
+            catch (...)
+            {
                 EngineStdOut("Unknown exception in worker thread task.", 2);
                 // this->showMessageBox("알 수 없는 예외가 작업 스레드에서 발생했습니다.", msgBoxIconType.ICON_ERROR);
             }
@@ -368,7 +380,7 @@ Engine::~Engine()
 {
     EngineStdOut("Engine shutting down...");
     m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
-    stopThreadPool(); // Stop and join standard C++ threads
+    stopThreadPool();                                        // Stop and join standard C++ threads
 
     // TerminateGE 보다 먼저 폰트 캐시 정리
     for (auto const &[key, val] : m_fontCache)
@@ -380,7 +392,8 @@ Engine::~Engine()
 
     // Entity 객체들 명시적 삭제
     EngineStdOut("Deleting entity objects...", 0);
-    for (auto &pair : entities) {
+    for (auto &pair : entities)
+    {
         delete pair.second;
     }
     entities.clear();
@@ -1753,6 +1766,7 @@ bool Engine::loadProject(const string &projectFilePath)
 
 const ObjectInfo *Engine::getObjectInfoById(const string &id) const
 {
+    std::lock_guard<std::mutex> lock(m_engineDataMutex);
     // objects_in_order is a vector, so we need to iterate.
     // This could be optimized if access becomes frequent by creating a map during loadProject.
     for (const auto &objInfo : objects_in_order)
@@ -2658,6 +2672,7 @@ void Engine::drawAllEntities()
 
                 SDL_Surface *textSurface = TTF_RenderText_Blended(Usefont, objInfo.textContent.c_str(),
                                                                   objInfo.textContent.size(), objInfo.textColor);
+                updateEntityTextContent(entityPtr->getId(), objInfo.textContent);
                 if (textSurface)
                 {
                     // 텍스트 표면 렌더링 성공
@@ -3631,7 +3646,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
         return; // 텍스트 입력 중에는 다른 게임플레이 입력 처리 방지
     }
     // --- General Key State Update (Happens regardless of m_gameplayInputActive for isKeyPressed) ---
-    if (event.type == SDL_EVENT_KEY_DOWN) {
+    if (event.type == SDL_EVENT_KEY_DOWN)
+    {
         std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
         m_pressedKeys.insert(event.key.scancode);
     }
@@ -5938,23 +5954,28 @@ void Engine::requestStopObject(const std::string &callingEntityId, const std::st
     }
 }
 
-void Engine::startThreadPool(size_t numThreads) {
+void Engine::startThreadPool(size_t numThreads)
+{
     m_isShuttingDown.store(false, std::memory_order_relaxed);
-    for (size_t i = 0; i < numThreads; ++i) {
+    for (size_t i = 0; i < numThreads; ++i)
+    {
         m_workerThreads.emplace_back(&Engine::workerLoop, this);
     }
-    EngineStdOut("Standard C++ thread pool started with " + std::to_string(numThreads) + " threads.", 0);
+    EngineStdOut("thread pool started with " + std::to_string(numThreads) + " threads.", 0);
 }
 
-void Engine::stopThreadPool() {
-    EngineStdOut("Stopping standard C++ thread pool...", 0);
+void Engine::stopThreadPool()
+{
+    EngineStdOut("Stopping thread pool...", 0);
     // m_isShuttingDown is typically set by the caller (destructor or restart logic)
     // If not, it should be set here:
     // m_isShuttingDown.store(true, std::memory_order_relaxed);
 
     m_taskQueueCV_std.notify_all(); // Wake up all workers
-    for (std::thread &worker : m_workerThreads) {
-        if (worker.joinable()) {
+    for (std::thread &worker : m_workerThreads)
+    {
+        if (worker.joinable())
+        {
             worker.join();
         }
     }
@@ -5962,11 +5983,11 @@ void Engine::stopThreadPool() {
     // Clear any remaining tasks in the queue
     std::queue<std::function<void()>> empty;
     std::swap(m_taskQueue, empty);
-    EngineStdOut("Standard C++ thread pool stopped and joined.", 0);
+    EngineStdOut("pool stopped and joined.", 0);
 }
 int Engine::getNextCloneIdSuffix(const std::string &originalId)
 {
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // m_cloneCounters 접근 보호
+    // std::lock_guard<std::mutex> lock(m_engineDataMutex); // m_cloneCounters 접근 보호
     return ++m_cloneCounters[originalId];
 }
 
@@ -5974,17 +5995,16 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
 {
     EngineStdOut("Attempting to create clone of entity: " + originalEntityId, 0);
 
-    if (entities.size() >= static_cast<size_t>(specialConfig.MAX_ENTITY))
-    {
-        EngineStdOut("Cannot create clone: Maximum entity limit (" + std::to_string(specialConfig.MAX_ENTITY) + ") reached.", 1);
-        return nullptr;
-    }
-
     const ObjectInfo *originalObjInfo = nullptr;
     Entity *originalEntity = nullptr;
 
     {
         std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        if (entities.size() >= static_cast<size_t>(specialConfig.MAX_ENTITY))
+        {
+            EngineStdOut("Cannot create clone: Maximum entity limit (" + std::to_string(specialConfig.MAX_ENTITY) + ") reached.", 1);
+            return nullptr;
+        }
         originalObjInfo = getObjectInfoById(originalEntityId);
         auto it_orig_entity = entities.find(originalEntityId);
         if (it_orig_entity != entities.end())
@@ -6101,8 +6121,10 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
 
 void Engine::deleteEntity(const std::string &entityIdToDelete)
 {
-    auto safe_log_id = [](const std::string& id, size_t max_len = 256) {
-        if (id.length() > max_len) {
+    auto safe_log_id = [](const std::string &id, size_t max_len = 256)
+    {
+        if (id.length() > max_len)
+        {
             return id.substr(0, max_len) + "...(truncated)";
         }
         return id;
@@ -6151,7 +6173,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
             std::remove_if(objects_in_order.begin(), objects_in_order.end(),
                            [&entityIdToDelete](const ObjectInfo &oi)
                            { return oi.id == entityIdToDelete; }),
-            objects_in_order.end());       
+            objects_in_order.end());
         EngineStdOut(std::format("Removed ObjectInfo for {} from rendering order.", safe_log_id(entityIdToDelete)), 0);
 
         // Remove from objectScripts
@@ -6168,21 +6190,25 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
         // 로그 메시지 생성 전 ID 길이 제한
         std::string truncatedId = entityIdToDelete;
         const size_t maxLogIdLength = 256; // 로그에 표시할 ID 최대 길이 (예시)
-        if (truncatedId.length() > maxLogIdLength) {
+        if (truncatedId.length() > maxLogIdLength)
+        {
             truncatedId = truncatedId.substr(0, maxLogIdLength) + "...(truncated)";
         }
         EngineStdOut(std::format("Removed script entries for {}.", truncatedId), 0);
         EngineStdOut(std::format("Entity object {} deleted from memory.", truncatedId), 0);
     }
     std::string finalLogId = entityIdToDelete;
-    if (finalLogId.length() > 256) { // 예시: ID가 256자 초과 시 일부만 표시
+    if (finalLogId.length() > 256)
+    { // 예시: ID가 256자 초과 시 일부만 표시
         finalLogId = finalLogId.substr(0, 256) + "...(truncated)";
     }
     EngineStdOut(std::format("Entity deletion process for {} completed.", finalLogId), 0);
 }
 
-void Engine::submitTask(std::function<void()> task) {
-    if (m_isShuttingDown.load(std::memory_order_relaxed)) {
+void Engine::submitTask(std::function<void()> task)
+{
+    if (m_isShuttingDown.load(std::memory_order_relaxed))
+    {
         EngineStdOut("Engine is shutting down. Task not submitted.", 1);
         // Optionally, log the task details if possible, or just ignore.
         return;
@@ -6194,8 +6220,8 @@ void Engine::submitTask(std::function<void()> task) {
     m_taskQueueCV_std.notify_one();
 }
 
-
-void Engine::deleteAllClonesOf(const std::string& originalEntityId) {
+void Engine::deleteAllClonesOf(const std::string &originalEntityId)
+{
     EngineStdOut("Attempting to delete all clones of entity: " + originalEntityId, 0);
     std::vector<std::string> cloneIdsToDelete;
 
@@ -6203,21 +6229,25 @@ void Engine::deleteAllClonesOf(const std::string& originalEntityId) {
     // Lock entities for reading, but don't modify it yet to avoid iterator invalidation.
     {
         std::lock_guard<std::mutex> lock(m_engineDataMutex);
-        for (const auto& pair : entities) {
-            Entity* entity = pair.second;
-            if (entity && entity->getIsClone() && entity->getOriginalClonedFromId() == originalEntityId) {
+        for (const auto &pair : entities)
+        {
+            Entity *entity = pair.second;
+            if (entity && entity->getIsClone() && entity->getOriginalClonedFromId() == originalEntityId)
+            {
                 cloneIdsToDelete.push_back(pair.first);
             }
         }
     }
 
-    if (cloneIdsToDelete.empty()) {
+    if (cloneIdsToDelete.empty())
+    {
         EngineStdOut("No clones found for original entity ID: " + originalEntityId, 0);
         return;
     }
 
     EngineStdOut("Found " + std::to_string(cloneIdsToDelete.size()) + " clones of " + originalEntityId + " to delete.", 0);
-    for (const std::string& cloneId : cloneIdsToDelete) {
+    for (const std::string &cloneId : cloneIdsToDelete)
+    {
         deleteEntity(cloneId); // This will handle script termination and removal from collections
     }
     EngineStdOut("Finished deleting all clones of entity: " + originalEntityId, 0);
@@ -6242,4 +6272,76 @@ bool Engine::isKeyPressed(SDL_Scancode scancode) const
 {
     std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
     return m_pressedKeys.count(scancode) > 0;
+}
+
+std::string Engine::getDeviceType() const
+{
+    // TODO: 실제 장치 유형 감지 로직 구현 (예: SDL_GetPlatform 또는 OS별 API 사용)
+    // 현재는 데스크톱으로 가정합니다.
+    // 안드로이드 빌드 시에는 __ANDROID__ 매크로 등을 사용하여 "mobile" 또는 "tablet" 반환
+#if defined(__ANDROID__)
+    // 안드로이드 플랫폼에서 화면 크기나 DPI 등을 기준으로 tablet/mobile 구분 필요
+    // 여기서는 단순화를 위해 mobile로 가정
+    return "mobile";
+#else
+    return "desktop";
+#endif
+}
+bool Engine::isTouchSupported() const
+{
+    /*if (SDL_InitSubSystem(SDL_INIT_EVENTS) < 0) // SDL_InitSubSystem은 실패 시 음수 반환
+    {
+        EngineStdOut("SDL_INIT_EVENTS could not be initialized",2);
+        return false; // bool 함수이므로 false 반환
+    }
+
+    int num_touch_devices = SDL_GetTouchDevices();
+    if (num_touch_devices < 0) { // SDL_GetNumTouchDevices는 오류 시 음수 반환 가능성 있음 (문서 확인 필요)
+        EngineStdOut("Failed to get number of touch devices: " + string(SDL_GetError()), 2);
+        return false;
+    }
+    return num_touch_devices > 0;*/
+    return false;
+}
+
+void Engine::updateEntityTextContent(const std::string &entityId, const std::string &newText)
+{
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // objects_in_order 접근 보호
+
+    bool found = false;
+    for (auto &objInfo : objects_in_order)
+    { // objects_in_order를 순회하며 ID로 ObjectInfo를 찾습니다.
+        if (objInfo.id == entityId)
+        {
+            if (objInfo.objectType == "textBox")
+            { // 글상자 타입인지 확인
+                objInfo.textContent = newText;
+                found = true;
+                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 0);
+
+                // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
+                // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.
+                Entity *entity = getEntityById_nolock(entityId); // m_engineDataMutex가 이미 잠겨 있으므로 _nolock 사용
+                if (entity)
+                {
+                    // 글상자가 다이얼로그 시스템을 사용하여 텍스트를 표시하거나,
+                    // 자체적으로 텍스트 텍스처를 캐시하는 경우, 해당 부분을 다시 그려야 함을 표시합니다.
+                    // 예를 들어, DialogState를 사용한다면:
+                    // entity->m_currentDialog.text = newText; // DialogState의 텍스트도 동기화 (필요하다면)
+                    // entity->m_currentDialog.needsRedraw = true;
+                    // 또는 글상자 전용 렌더링 로직이 있다면 해당 플래그 설정
+                }
+            }
+            else
+            {
+                EngineStdOut("Warning: Attempted to set text for entity " + entityId + " which is not a textBox (type: " + objInfo.objectType + ")", 1);
+            }
+            break;
+        }
+    }
+
+    if (!found)
+    {
+        EngineStdOut("Warning: ObjectInfo not found for entity " + entityId + " when trying to update text content.", 1);
+    }
 }
