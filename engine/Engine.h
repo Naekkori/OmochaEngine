@@ -21,9 +21,8 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
+#include <functional>               // For std::function
 #include <memory>                     // For std::unique_ptr
-#include <boost/asio/thread_pool.hpp> // 추가
-#include <boost/asio/post.hpp>
 using namespace std;
 #include <set>      // For std::set
 #include <atomic> // For std::atomic
@@ -136,7 +135,6 @@ private:
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     vector<pair<string, const Script *>> m_whenCloneStartScripts;               // 복제본 생성 시 실행될 스크립트
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
-    std::unique_ptr<boost::asio::thread_pool> m_scriptThreadPoolPtr;            // 스크립트 실행을 위한 스레드 풀 (unique_ptr로 변경)
     // --- Text Input Members (for ask_and_wait) ---
     std::string m_currentTextInputBuffer;     // 현재 입력 중인 텍스트 버퍼
     bool m_textInputActive = false;           // 텍스트 입력 모드 활성화 여부
@@ -199,6 +197,13 @@ private:
     void destroyTemporaryScreen();
     std::mutex m_commandQueueMutex;
     std::condition_variable m_commandQueueCV; // 엔티티 스레드가 커맨드를 추가했음을 알리기 위함 (선택적)
+
+    // Standard C++ Thread Pool members
+    std::vector<std::thread> m_workerThreads;
+    std::queue<std::function<void()>> m_taskQueue;
+    std::mutex m_taskQueueMutex_std; // Renamed to avoid conflict if another m_taskQueueMutex exists
+    std::condition_variable m_taskQueueCV_std;
+    void workerLoop();
     void processCommands();                   // 메인 루프에서 커맨드를 처리하는 함수
 
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
@@ -336,12 +341,15 @@ public:
     void requestProjectRestart(); // 프로젝트 다시 시작 요청
     void performProjectRestart();
     SimpleLogger logger;                         // 로거 인스턴스
+    // Thread pool management
+    void startThreadPool(size_t numThreads);
+    void stopThreadPool();
     std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
     std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
-    boost::asio::thread_pool &getThreadPool();   // 스레드 풀 접근자 수정
     mutable std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
 private:
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
     uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환
+    void submitTask(std::function<void()> task); // Task submission method
 };

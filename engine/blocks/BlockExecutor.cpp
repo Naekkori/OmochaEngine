@@ -6,14 +6,14 @@
 #include <vector>
 #include <thread>
 #include <cmath>
-#include <algorithm> // std::clamp를 위해 추가
+#include <algorithm> // clamp를 위해 추가
 #include <limits>
 #include <ctime>
 #include <regex>
 #include "blockTypes.h"
 #include "rapidjson/prettywriter.h"
 // Helper function to check if a string can be parsed as a number
-static bool isNumber(const std::string &s)
+static bool isNumber(const string &s)
 {
     if (s.empty())
     {
@@ -22,15 +22,15 @@ static bool isNumber(const std::string &s)
     try
     {
         size_t pos;
-        std::stod(s, &pos);
+        stod(s, &pos);
         // Check if the entire string was consumed
         return pos == s.length();
     }
-    catch (const std::invalid_argument &)
+    catch (const invalid_argument &)
     {
         return false;
     }
-    catch (const std::out_of_range &)
+    catch (const out_of_range &)
     {
         // Could be a very large number, potentially still valid depending on context,
         // but for typical numeric checks, out_of_range implies not a simple number.
@@ -49,7 +49,7 @@ OperandValue::OperandValue(double val) : type(Type::NUMBER), number_val(val), bo
 {
 }
 
-OperandValue::OperandValue(const std::string &val) : type(Type::STRING), string_val(val), boolean_val(false),
+OperandValue::OperandValue(const string &val) : type(Type::STRING), string_val(val), boolean_val(false),
                                                      number_val(0.0)
 {
 }
@@ -68,19 +68,19 @@ double OperandValue::asNumber() const
         try
         {
             size_t idx = 0;
-            double val = std::stod(string_val, &idx);
+            double val = stod(string_val, &idx);
             if (idx == string_val.length()) // Ensure the whole string was parsed
             {
                 return val;
             }
         }
-        catch (const std::invalid_argument &)
+        catch (const invalid_argument &)
         {
             // Consider logging or a more specific error handling
             // For now, re-throwing a generic message or returning 0.0
             // throw "Invalid number format"; // Or handle more gracefully
         }
-        catch (const std::out_of_range &)
+        catch (const out_of_range &)
         {
             // throw "Number out of range"; // Or handle more gracefully
         }
@@ -88,20 +88,20 @@ double OperandValue::asNumber() const
     return 0.0; // Default for non-convertible types or errors
 }
 
-std::string OperandValue::asString() const
+string OperandValue::asString() const
 {
     if (type == Type::STRING)
         return string_val;
     if (type == Type::NUMBER)
     {
-        if (std::isnan(number_val))
+        if (isnan(number_val))
             return "NaN";
-        if (std::isinf(number_val))
+        if (isinf(number_val))
             return (number_val > 0 ? "Infinity" : "-Infinity");
 
-        std::string s = std::to_string(number_val);
+        string s = to_string(number_val);
         // Remove trailing zeros and decimal point if it's the last char
-        s.erase(s.find_last_not_of('0') + 1, std::string::npos);
+        s.erase(s.find_last_not_of('0') + 1, string::npos);
         if (!s.empty() && s.back() == '.')
         {
             s.pop_back();
@@ -116,22 +116,22 @@ std::string OperandValue::asString() const
 }
 
 // processVariableBlock 선언이 누락된 것 같아 추가 (필요하다면)
-// OperandValue processVariableBlock(Engine &engine, const std::string &objectId, const Block &block);
+// OperandValue processVariableBlock(Engine &engine, const string &objectId, const Block &block);
 
-OperandValue getOperandValue(Engine &engine, const std::string &objectId, const rapidjson::Value &paramField, const std::string &executionThreadId)
+OperandValue getOperandValue(Engine &engine, const string &objectId, const rapidjson::Value &paramField, const string &executionThreadId)
 {
     // paramField 내용을 로깅하여 문제 파악
-    std::string paramField_summary = "Unknown Type";
+    string paramField_summary = "Unknown Type";
     if (paramField.IsNull())
     {
         paramField_summary = "Null";
     }
     else if (paramField.IsString())
     {
-        std::string str_val = paramField.GetString();
+        string str_val = paramField.GetString();
         if (str_val.length() > 50)
         { // 너무 긴 문자열은 자르기
-            paramField_summary = "String (len=" + std::to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
+            paramField_summary = "String (len=" + to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
         }
         else
         {
@@ -140,17 +140,17 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     }
     else if (paramField.IsNumber())
     {
-        paramField_summary = "Number: " + std::to_string(paramField.GetDouble());
+        paramField_summary = "Number: " + to_string(paramField.GetDouble());
     }
     else if (paramField.IsBool())
     {
-        paramField_summary = "Boolean: " + std::string(paramField.GetBool() ? "true" : "false");
+        paramField_summary = "Boolean: " + string(paramField.GetBool() ? "true" : "false");
     }
     else if (paramField.IsObject())
     {
         if (paramField.HasMember("type") && paramField["type"].IsString())
         {
-            paramField_summary = "Object (block type: " + std::string(paramField["type"].GetString()) + ")";
+            paramField_summary = "Object (block type: " + string(paramField["type"].GetString()) + ")";
         }
         else
         {
@@ -159,9 +159,9 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     }
     else if (paramField.IsArray())
     {
-        paramField_summary = "Array (size: " + std::to_string(paramField.Size()) + ")";
+        paramField_summary = "Array (size: " + to_string(paramField.Size()) + ")";
     }
-    engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + std::to_string(paramField.GetType()), 3, executionThreadId);
+    engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + to_string(paramField.GetType()), 3, executionThreadId);
 
     // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 IsObject(), IsString() 등에서 문제를 일으킬 수 있습니다.
     if (paramField.IsNull())
@@ -172,7 +172,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
 
     if (paramField.IsString())
     {
-        std::string str_val_for_op = paramField.GetString();
+        string str_val_for_op = paramField.GetString();
         return OperandValue(str_val_for_op);
     }
     else if (paramField.IsObject()) // paramField가 Null이 아님을 위에서 확인했으므로 IsObject() 호출이 좀 더 안전해집니다.
@@ -186,8 +186,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
                 rapidjson::Writer<rapidjson::StringBuffer> key_writer_debug(key_buffer_debug); // 일반 Writer 사용 가능
                 it->name.Accept(key_writer_debug);
                 engine.EngineStdOut("!!! Non-string key found in paramField for object " + objectId +
-                                        ". Key details: " + std::string(key_buffer_debug.GetString()) +
-                                        ", Key Type: " + std::to_string(it->name.GetType()),
+                                        ". Key details: " + string(key_buffer_debug.GetString()) +
+                                        ", Key Type: " + to_string(it->name.GetType()),
                                     2, executionThreadId);
             }
         }
@@ -197,7 +197,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             engine.EngineStdOut("Parameter field is object but missing 'type' for object " + objectId, 2);
             return nan("");
         }
-        std::string fieldType = paramField["type"].GetString();
+        string fieldType = paramField["type"].GetString();
 
         if (fieldType == "number" || fieldType == "text_reporter_number")
         {
@@ -206,12 +206,12 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             {
                 try
                 {
-                    return OperandValue(std::stod(paramField["params"][0].GetString()));
+                    return OperandValue(stod(paramField["params"][0].GetString()));
                 }
-                catch (const std::exception &e)
+                catch (const exception &e)
                 {
                     engine.EngineStdOut(
-                        "Error converting number param: " + std::string(paramField["params"][0].GetString()) + " for " +
+                        "Error converting number param: " + string(paramField["params"][0].GetString()) + " for " +
                             objectId + " - " + e.what(),
                         2);
                     return nan("");
@@ -265,7 +265,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
                 }
                 else
                 {
-                    engine.EngineStdOut("Error: 'params' member in paramField for block type " + fieldType + " (object " + objectId + ") is not an array. Actual type: " + std::to_string(paramsMember.GetType()), 2, executionThreadId);
+                    engine.EngineStdOut("Error: 'params' member in paramField for block type " + fieldType + " (object " + objectId + ") is not an array. Actual type: " + to_string(paramsMember.GetType()), 2, executionThreadId);
                     // Handle error: return an empty/error OperandValue or throw
                     return nan("");
                 }
@@ -279,7 +279,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             if (paramField.HasMember("params") && paramField["params"].IsArray() &&
                 paramField["params"].Size() > 0 && paramField["params"][0].IsString())
             {
-                std::string temp_image_id = paramField["params"][0].GetString();
+                string temp_image_id = paramField["params"][0].GetString();
                 // temp_image_id로 안전하게 복사된 문자열을 사용하여 OperandValue 직접 반환
                 return OperandValue(temp_image_id);
             }
@@ -295,7 +295,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
             if (paramField.HasMember("params") && paramField["params"].IsArray() &&
                 paramField["params"].Size() > 0 && paramField["params"][0].IsString())
             {
-                std::string tem_sound_id = paramField["params"][0].GetString();
+                string tem_sound_id = paramField["params"][0].GetString();
                 return OperandValue(tem_sound_id);
             }
             engine.EngineStdOut(
@@ -329,7 +329,7 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
     }
 
     // Fallback if not string, object, number, bool, or null
-    engine.EngineStdOut("Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " + std::to_string(paramField.GetType()), 1);
+    engine.EngineStdOut("Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " + to_string(paramField.GetType()), 1);
     return OperandValue();
 }
 
@@ -338,8 +338,8 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
  * @brief 움직이기 블럭
  *
  */
-void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-            const std::string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
+void Moving(string BlockType, Engine &engine, const string &objectId, const Block &block,
+            const string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -369,8 +369,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
         double dist = distance.number_val;
         double dir = direction.number_val;
         // entity는 함수 시작 시 이미 검증되었습니다.
-        double newX = entity->getX() + dist * std::cos(dir * SDL_PI_D / 180.0);
-        double newY = entity->getY() - dist * std::sin(dir * SDL_PI_D / 180.0);
+        double newX = entity->getX() + dist * cos(dir * SDL_PI_D / 180.0);
+        double newY = entity->getY() - dist * sin(dir * SDL_PI_D / 180.0);
         // engine.EngineStdOut("move_direction objectId: " + objectId + " direction: " + to_string(newX) + ", " + to_string(newY), 0, executionThreadId);
         entity->setX(newX);
         entity->setY(newY);
@@ -676,7 +676,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
                 entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 // engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
-                //                         std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
+                //                         to_string(entity->getX()) + ", " + to_string(entity->getY()) + ")",
                 //                     3, executionThreadId);
                 state.isActive = false; // 완료
                 return;                 // 이 블록 실행 완료
@@ -708,7 +708,7 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
                 entity->setX(state.targetX); // 최종 위치로 정확히 이동
                 entity->setY(state.targetY);
                 // engine.EngineStdOut("move_xy_time: " + objectId + " Pos: (" +
-                //                         std::to_string(entity->getX()) + ", " + std::to_string(entity->getY()) + ")",
+                //                         to_string(entity->getX()) + ", " + to_string(entity->getY()) + ")",
                 //                     3, executionThreadId);
                 state.isActive = false; // 이동 완료
             }
@@ -1058,8 +1058,8 @@ void Moving(std::string BlockType, Engine &engine, const std::string &objectId, 
  * @brief 계산 블록
  *
  */
-OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-                        const std::string &executionThreadId)
+OperandValue Calculator(string BlockType, Engine &engine, const string &objectId, const Block &block,
+                        const string &executionThreadId)
 {
     if (BlockType == "calc_basic")
     {
@@ -1077,10 +1077,12 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (opVal.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("calc_basic operator is not a string for " + objectId, 2, executionThreadId);
-            return OperandValue();
+            string errMsg = "calc_basic operator is not a string for " + objectId;
+            engine.EngineStdOut(errMsg, 2, executionThreadId);
+            // 사용자에게 보여줄 메시지와 내부 로그용 메시지를 구분하여 전달
+            throw ScriptBlockExecutionError("계산 블록의 연산자 타입이 올바르지 않습니다.", block.id, BlockType, objectId, "Operator is not a string.");
         }
-        std::string anOperator = opVal.string_val;
+        string anOperator = opVal.string_val;
 
         // EntryJS-like behavior: PLUS can be string concatenation or numeric addition
         if (anOperator == "PLUS")
@@ -1111,8 +1113,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             if (numRight == 0.0)
             {
-                engine.EngineStdOut("Division by zero", 2, executionThreadId);
-                return OperandValue(std::nan(""));
+                string errMsg = "Division by zero in calc_basic for " + objectId;
+                engine.EngineStdOut(errMsg, 2, executionThreadId);
+                throw ScriptBlockExecutionError("0으로 나눌 수 없습니다.", block.id, BlockType, objectId, "Division by zero.");
             }
             return OperandValue(numLeft / numRight);
         }
@@ -1161,7 +1164,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         OperandValue coordTypeOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string coord_type_str;
+        string coord_type_str;
 
         if (coordTypeOp.type == OperandValue::Type::STRING)
         {
@@ -1236,7 +1239,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 executionThreadId);
             return OperandValue(0.0);
         }
-        std::string targetObjectIdStr = targetIdOpVal.asString();
+        string targetObjectIdStr = targetIdOpVal.asString();
 
         // 필터링 후 두 번째 파라미터 (원래 인덱스 3)가 좌표 유형입니다.
         OperandValue coordinateTypeOpVal = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
@@ -1246,7 +1249,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "coordinate_object block for " + objectId + ": coordinate type parameter (original index 3) did not resolve to a string. Value: " + coordinateTypeOpVal.asString(), 2, executionThreadId);
             return OperandValue(0.0);
         }
-        std::string coordinateTypeStr = coordinateTypeOpVal.asString();
+        string coordinateTypeStr = coordinateTypeOpVal.asString();
 
         Entity *targetEntity = nullptr;
         if (targetObjectIdStr == "self" || targetObjectIdStr.empty())
@@ -1287,7 +1290,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         else if (coordinateTypeStr == "size")
         {
             // Match EntryJS func: Number(targetEntity.getSize().toFixed(1))
-            double sizeVal = std::round((targetEntity->getScaleX() * 100.0) * 10.0) / 10.0;
+            double sizeVal = round((targetEntity->getScaleX() * 100.0) * 10.0) / 10.0;
             return OperandValue(sizeVal);
         }
         else if (coordinateTypeStr == "picture_index" || coordinateTypeStr == "picture_name")
@@ -1316,7 +1319,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 return OperandValue(0.0);
             }
 
-            const std::string &selectedCostumeId = targetObjInfo->selectedCostumeId;
+            const string &selectedCostumeId = targetObjInfo->selectedCostumeId;
 
             bool found = false;
             size_t found_idx = 0;
@@ -1384,7 +1387,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "몫과 나머지 블록의 연산자 파라미터 타입이 올바르지 않습니다.", block.id, BlockType, objectId,
                 "Operator parameter for quotient_and_mod block is not a string.");
         }
-        std::string anOperator = operator_op.string_val;
+        string anOperator = operator_op.string_val;
 
         double left_val = left_op.asNumber();
         double right_val = right_op.asNumber();
@@ -1397,9 +1400,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                     "Division by zero in quotient_and_mod (QUOTIENT) for " + objectId + ". Returning NaN.", 2,
                     executionThreadId);
                 // throw "0으로 나누기 (몫) (은)는 불가능합니다.";
-                return OperandValue(std::nan("")); // NaN 반환
+                return OperandValue(nan("")); // NaN 반환
             }
-            return OperandValue(std::floor(left_val / right_val));
+            return OperandValue(floor(left_val / right_val));
         }
         else
         {
@@ -1408,9 +1411,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 engine.EngineStdOut("Division by zero in quotient_and_mod (MOD) for " + objectId + ". Returning NaN.",
                                     2, executionThreadId);
                 // throw "0으로 나누기 (나머지) (은)는 불가능합니다.";
-                return OperandValue(std::nan("")); // NaN 반환
+                return OperandValue(nan("")); // NaN 반환
             }
-            return OperandValue(left_val - right_val * std::floor(left_val / right_val));
+            return OperandValue(left_val - right_val * floor(left_val / right_val));
         }
     }
     else if (BlockType == "calc_operation")
@@ -1435,7 +1438,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             UNKNOWN
         };
         // 연산자 문자열을 열거형으로 변환하는 헬퍼 함수
-        auto stringToMathOperation = [](const std::string &opStr) -> MathOperationType
+        auto stringToMathOperation = [](const string &opStr) -> MathOperationType
         {
             if (opStr == "abs")
                 return MathOperationType::ABS;
@@ -1471,7 +1474,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut(
                 "calc_operation block for " + objectId + " has invalid params. Expected 2 params (LEFTHAND, OPERATOR).",
                 2, executionThreadId);
-            return OperandValue(std::nan(""));
+            return OperandValue(nan(""));
         }
 
         OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
@@ -1481,18 +1484,18 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             engine.EngineStdOut("calc_operation block for " + objectId + " has non-numeric left operand.", 2,
                                 executionThreadId);
-            return OperandValue(std::nan(""));
+            return OperandValue(nan(""));
         }
         if (opVal.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("calc_operation block for " + objectId + " has non-string operator.", 2,
                                 executionThreadId);
-            return OperandValue(std::nan(""));
+            return OperandValue(nan(""));
         }
 
         double leftNum = leftOp.asNumber();
-        std::string originalOperator = opVal.asString();
-        std::string anOperator = originalOperator;
+        string originalOperator = opVal.asString();
+        string anOperator = originalOperator;
 
         // JavaScript 코드: if (operator.indexOf('_')) { operator = operator.split('_')[0]; }
         // C++ 대응 코드:
@@ -1502,12 +1505,12 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (underscore_pos != 0)
         {
             // 찾지 못했거나(npos) 0보다 큰 인덱스에서 찾았을 경우 참
-            if (underscore_pos != std::string::npos)
+            if (underscore_pos != string::npos)
             {
                 // 찾았고, 0번 위치가 아닐 경우
                 anOperator = anOperator.substr(0, underscore_pos);
             }
-            // 찾지 못했을 경우 (underscore_pos == std::string::npos), anOperator는 originalOperator로 유지됩니다.
+            // 찾지 못했을 경우 (underscore_pos == string::npos), anOperator는 originalOperator로 유지됩니다.
         }
         const double PI_CONST = SDL_PI_D; // SDL PI 사용
 
@@ -1523,55 +1526,55 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         double result = 0.0;
         bool errorOccurred = false;
-        std::string errorMsg = "";
+        string errorMsg = "";
 
         MathOperationType opType = stringToMathOperation(anOperator);
 
         switch (opType)
         {
         case MathOperationType::ABS:
-            result = std::fabs(leftNum);
+            result = fabs(leftNum);
             break;
         case MathOperationType::FLOOR:
-            result = std::floor(leftNum);
+            result = floor(leftNum);
             break;
         case MathOperationType::CEIL:
-            result = std::ceil(leftNum);
+            result = ceil(leftNum);
             break;
         case MathOperationType::ROUND:
-            result = std::round(leftNum);
+            result = round(leftNum);
             break;
         case MathOperationType::SQRT:
             if (leftNum < 0)
             {
                 errorOccurred = true;
                 errorMsg = "sqrt of negative number";
-                result = std::nan("");
+                result = nan("");
             }
             else
             {
-                result = std::sqrt(leftNum);
+                result = sqrt(leftNum);
             }
             break;
         case MathOperationType::SIN:
-            result = std::sin(leftNum); // leftNum이 라디안이라고 가정
+            result = sin(leftNum); // leftNum이 라디안이라고 가정
             break;
         case MathOperationType::COS:
-            result = std::cos(leftNum); // leftNum이 라디안이라고 가정
+            result = cos(leftNum); // leftNum이 라디안이라고 가정
             break;
         case MathOperationType::TAN:
-            result = std::tan(leftNum); // leftNum이 라디안이라고 가정
+            result = tan(leftNum); // leftNum이 라디안이라고 가정
             break;
         case MathOperationType::ASIN:
             if (leftNum < -1.0 || leftNum > 1.0)
             {
                 errorOccurred = true;
                 errorMsg = "asin input out of range [-1, 1]";
-                result = std::nan("");
+                result = nan("");
             }
             else
             {
-                result = std::asin(leftNum); // 라디안 값 반환
+                result = asin(leftNum); // 라디안 값 반환
             }
             break;
         case MathOperationType::ACOS:
@@ -1579,26 +1582,26 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             {
                 errorOccurred = true;
                 errorMsg = "acos input out of range [-1, 1]";
-                result = std::nan("");
+                result = nan("");
             }
             else
             {
-                result = std::acos(leftNum); // 라디안 값 반환
+                result = acos(leftNum); // 라디안 값 반환
             }
             break;
         case MathOperationType::ATAN:
-            result = std::atan(leftNum); // 라디안 값 반환
+            result = atan(leftNum); // 라디안 값 반환
             break;
         case MathOperationType::LOG: // 밑이 10인 로그
             if (leftNum <= 0)
             {
                 errorOccurred = true;
                 errorMsg = "log of non-positive number";
-                result = std::nan("");
+                result = nan("");
             }
             else
             {
-                result = std::log10(leftNum);
+                result = log10(leftNum);
             }
             break;
         case MathOperationType::LN: // 자연로그
@@ -1606,18 +1609,18 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             {
                 errorOccurred = true;
                 errorMsg = "ln of non-positive number";
-                result = std::nan("");
+                result = nan("");
             }
             else
             {
-                result = std::log(leftNum);
+                result = log(leftNum);
             }
             break;
         case MathOperationType::UNKNOWN:
         default:
             errorOccurred = true;
             errorMsg = "Unknown operator in calc_operation: " + originalOperator;
-            result = std::nan("");
+            result = nan("");
             break;
         }
 
@@ -1656,8 +1659,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
-        std::transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
+        string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
+        transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
         struct tm timeinfo_s;                                                    // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
 #ifdef _WIN32
@@ -1713,7 +1716,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             {
                 double mouseX = engine.getCurrentStageMouseX();
                 double mouseY = engine.getCurrentStageMouseY();
-                return OperandValue(std::sqrt(mouseX * mouseX + mouseY * mouseY));
+                return OperandValue(sqrt(mouseX * mouseX + mouseY * mouseY));
             }
             else
             {
@@ -1734,7 +1737,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
             double dx = targetEntity->getX() - engine.getCurrentStageMouseX();
             double dy = targetEntity->getY() - engine.getCurrentStageMouseY();
-            return OperandValue(std::sqrt(dx * dx + dy * dy));
+            return OperandValue(sqrt(dx * dx + dy * dy));
         }
     }
     else if (BlockType == "length_of_string")
@@ -1771,8 +1774,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string reversedStr = strOp.asString(); // Ensure it's a string
-        std::reverse(reversedStr.begin(), reversedStr.end());
+        string reversedStr = strOp.asString(); // Ensure it's a string
+        reverse(reversedStr.begin(), reversedStr.end());
         return OperandValue(reversedStr);
     }
     else if (BlockType == "combine_something") // Corrected typo
@@ -1787,7 +1790,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue strOp1 = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue strOp2 = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         // Always concatenate as strings, as per typical block-based language behavior
-        std::string combinedStr = strOp1.asString() + strOp2.asString();
+        string combinedStr = strOp1.asString() + strOp2.asString();
         return OperandValue(combinedStr);
     }
     else if (BlockType == "char_at")
@@ -1812,7 +1815,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut("char_at block for " + objectId + " has index out of range.", 2, executionThreadId);
             return OperandValue();
         }
-        return OperandValue(std::string(1, strOp.string_val[index]));
+        return OperandValue(string(1, strOp.string_val[index]));
     }
     else if (BlockType == "substring")
     {
@@ -1857,11 +1860,11 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string str = strOp.string_val;
-        std::string subStr = subStrOp.string_val;
+        string str = strOp.string_val;
+        string subStr = subStrOp.string_val;
         size_t count = 0;
         size_t pos = str.find(subStr);
-        while (pos != std::string::npos)
+        while (pos != string::npos)
         {
             count++;
             pos = str.find(subStr, pos + subStr.length());
@@ -1885,10 +1888,10 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string str = strOp.string_val;
-        std::string subStr = subStrOp.string_val;
+        string str = strOp.string_val;
+        string subStr = subStrOp.string_val;
         size_t pos = str.find(subStr);
-        if (pos != std::string::npos)
+        if (pos != string::npos)
         {
             return OperandValue(static_cast<double>(pos));
         }
@@ -1915,11 +1918,11 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string str = strOp.string_val;
-        std::string oldStr = oldStrOp.string_val;
-        std::string newStr = newStrOp.string_val;
+        string str = strOp.string_val;
+        string oldStr = oldStrOp.string_val;
+        string newStr = newStrOp.string_val;
         size_t pos = str.find(oldStr);
-        if (pos != std::string::npos)
+        if (pos != string::npos)
         {
             str.replace(pos, oldStr.length(), newStr);
             return OperandValue(str);
@@ -1946,15 +1949,15 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string str = strOp.string_val;
-        std::string caseType = caseOp.string_val;
+        string str = strOp.string_val;
+        string caseType = caseOp.string_val;
         if (caseType == "upper")
         {
-            std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+            transform(str.begin(), str.end(), str.begin(), ::toupper);
         }
         else if (caseType == "lower")
         {
-            std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+            transform(str.begin(), str.end(), str.begin(), ::tolower);
         }
         else
         {
@@ -1981,7 +1984,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 executionThreadId);
             return OperandValue(0.0);
         }
-        std::string objectKey = objectKeyOp.string_val;
+        string objectKey = objectKeyOp.string_val;
 
         if (objectKey.empty())
         {
@@ -1994,7 +1997,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (objectKey.rfind("scene-", 0) == 0)
         {
             // Starts with "scene-"
-            std::string sceneIdToQuery = objectKey.substr(6);
+            string sceneIdToQuery = objectKey.substr(6);
             count = engine.getBlockCountForScene(sceneIdToQuery);
         }
         else if (objectKey == "all")
@@ -2009,7 +2012,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         else if (objectKey.rfind("object-", 0) == 0)
         {
             // Starts with "object-"
-            std::string targetObjId = objectKey.substr(7);
+            string targetObjId = objectKey.substr(7);
             count = engine.getBlockCountForObject(targetObjId);
         }
         else
@@ -2041,10 +2044,10 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         int red = static_cast<int>(redOp.number_val);
         int green = static_cast<int>(greenOp.number_val);
         int blue = static_cast<int>(blueOp.number_val);
-        std::stringstream hexStream;
-        hexStream << std::hex << std::setw(2) << std::setfill('0') << red
-                  << std::setw(2) << std::setfill('0') << green
-                  << std::setw(2) << std::setfill('0') << blue;
+        stringstream hexStream;
+        hexStream << hex << setw(2) << setfill('0') << red
+                  << setw(2) << setfill('0') << green
+                  << setw(2) << setfill('0') << blue;
         return OperandValue("#" + hexStream.str());
     }
     else if (BlockType == "change_hex_to_rgb")
@@ -2063,18 +2066,35 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 executionThreadId);
             return OperandValue();
         }
-        std::string hexStr = hexOp.string_val;
+        string hexStr = hexOp.string_val;
         if (hexStr.length() != 7 || hexStr[0] != '#')
         {
             engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid hex string: " + hexStr, 2,
                                 executionThreadId);
             return OperandValue();
         }
-        int red = std::stoi(hexStr.substr(1, 2), nullptr, 16);
-        int green = std::stoi(hexStr.substr(3, 2), nullptr, 16);
-        int blue = std::stoi(hexStr.substr(5, 2), nullptr, 16);
-        return OperandValue(
-            static_cast<double>(red) + static_cast<double>(green) / 256.0 + static_cast<double>(blue) / (256.0 * 256.0));
+        try
+        {
+            int red = stoi(hexStr.substr(1, 2), nullptr, 16);
+            int green = stoi(hexStr.substr(3, 2), nullptr, 16);
+            int blue = stoi(hexStr.substr(5, 2), nullptr, 16);
+            // EntryJS는 RGB 값을 반환할 때 특정 숫자 형식을 사용하지 않고,
+            // 각 R, G, B 값을 개별적으로 사용하거나 문자열로 합쳐서 보여주는 경우가 많습니다.
+            // 여기서는 단순히 R값을 반환하도록 수정하였으나,
+            // 실제 EntryJS 블록의 반환 값 형식에 맞춰 조정해야 합니다.
+            // 예를 들어, 문자열 "R,G,B" 또는 JSON 객체 형태로 반환할 수 있습니다.
+            // 현재로서는 가장 첫 번째 값인 R을 반환하도록 단순화합니다.
+            // 필요하다면 이 부분을 수정하여 원하는 형식으로 반환하세요.
+            return OperandValue(static_cast<double>(red)); // 예시: R 값만 반환
+        }
+        catch (const invalid_argument &ia)
+        {
+            throw ScriptBlockExecutionError("HEX 문자열을 RGB로 변환 중 유효하지 않은 문자가 포함되어 있습니다.", block.id, BlockType, objectId, "Invalid character in HEX string: " + hexStr + ". Error: " + ia.what());
+        }
+        catch (const out_of_range &oor)
+        {
+            throw ScriptBlockExecutionError("HEX 문자열을 RGB로 변환 중 숫자 범위 초과가 발생했습니다.", block.id, BlockType, objectId, "HEX string value out of range: " + hexStr + ". Error: " + oor.what());
+        }
     }
     else if (BlockType == "get_boolean_value")
     {
@@ -2130,7 +2150,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                                 2, executionThreadId);
             return OperandValue(false);
         }
-        std::string keyIdentifierStr = keyIdentifierOp.asString();
+        string keyIdentifierStr = keyIdentifierOp.asString();
 
         SDL_Scancode scancode = engine.mapStringToSDLScancode(keyIdentifierStr);
         return OperandValue(engine.isKeyPressed(scancode));
@@ -2151,7 +2171,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string action = actionOp.asString();
+        string action = actionOp.asString();
 
         if (action == "START")
         {
@@ -2248,7 +2268,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 "get_sound_duration block for " + objectId + ": sound ID parameter is not a string. Value: " + soundIdOp.asString(), 2, executionThreadId);
             return OperandValue(0.0);
         }
-        std::string targetSoundId = soundIdOp.asString();
+        string targetSoundId = soundIdOp.asString();
 
         if (targetSoundId.empty())
         {
@@ -2265,7 +2285,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             return OperandValue(0.0);
         }
 
-        const std::vector<SoundFile> &soundsVector = objInfo->sounds; // 참조로 받기
+        const vector<SoundFile> &soundsVector = objInfo->sounds; // 참조로 받기
 
         for (const auto &sound : soundsVector)
         {
@@ -2310,7 +2330,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             return OperandValue(0.0);
         }
 
-        std::string variableIdToFind = variableIdOp.asString();
+        string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("get_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -2378,7 +2398,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string. Value: " + listIdOp.asString(), 2, executionThreadId);
             return OperandValue("");
         }
-        std::string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].GetString();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -2423,7 +2443,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
         }
 
-        std::vector<ListItem> &listArray = targetListPtr->array;
+        vector<ListItem> &listArray = targetListPtr->array;
         if (listArray.empty())
         {
             engine.EngineStdOut(
@@ -2438,7 +2458,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         if (indexOp.type == OperandValue::Type::STRING)
         {
-            std::string indexStr = indexOp.asString();
+            string indexStr = indexOp.asString();
             if (indexStr == "last")
             {
                 resolvedIndex_1based = static_cast<double>(listArray.size());
@@ -2459,15 +2479,15 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 try
                 {
                     size_t idx = 0;
-                    resolvedIndex_1based = std::stod(indexStr, &idx);
-                    if (idx != indexStr.length() || !std::isfinite(resolvedIndex_1based))
+                    resolvedIndex_1based = stod(indexStr, &idx);
+                    if (idx != indexStr.length() || !isfinite(resolvedIndex_1based))
                     {
                         engine.EngineStdOut(
                             "value_of_index_from_list: INDEX string '" + indexStr + "' is not a valid number for list '" + listIdToFind + "'.", 1, executionThreadId);
                         return OperandValue("");
                     }
                 }
-                catch (const std::exception &)
+                catch (const exception &)
                 {
                     engine.EngineStdOut(
                         "value_of_index_from_list: Could not convert INDEX string '" + indexStr +
@@ -2480,7 +2500,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         else if (indexOp.type == OperandValue::Type::NUMBER)
         {
             resolvedIndex_1based = indexOp.asNumber();
-            if (!std::isfinite(resolvedIndex_1based))
+            if (!isfinite(resolvedIndex_1based))
             {
                 engine.EngineStdOut(
                     "value_of_index_from_list: INDEX is not a finite number for list '" + listIdToFind + "'.", 1,
@@ -2498,11 +2518,11 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // 4. 1기반 인덱스 유효성 검사 및 0기반으로 변환
-        if (std::floor(resolvedIndex_1based) != resolvedIndex_1based)
+        if (floor(resolvedIndex_1based) != resolvedIndex_1based)
         {
             // 정수인지 확인
             engine.EngineStdOut(
-                "value_of_index_from_list: INDEX '" + std::to_string(resolvedIndex_1based) +
+                "value_of_index_from_list: INDEX '" + to_string(resolvedIndex_1based) +
                     "' is not an integer for list '" + listIdToFind + "'.",
                 1, executionThreadId);
             return OperandValue("");
@@ -2513,7 +2533,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         if (finalIndex_1based < 1 || finalIndex_1based > static_cast<long long>(listArray.size()))
         {
             engine.EngineStdOut(
-                "value_of_index_from_list: INDEX " + std::to_string(finalIndex_1based) + " is out of bounds for list '" + listIdToFind + "' (size: " + std::to_string(listArray.size()) + ").", 1, executionThreadId);
+                "value_of_index_from_list: INDEX " + to_string(finalIndex_1based) + " is out of bounds for list '" + listIdToFind + "' (size: " + to_string(listArray.size()) + ").", 1, executionThreadId);
             return OperandValue("");
         }
 
@@ -2665,7 +2685,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut("reach_something block for " + objectId + ": target ID parameter is not a string. Value: " + targetIdOp.asString(), 2, executionThreadId);
             return OperandValue(false);
         }
-        std::string targetId = targetIdOp.asString();
+        string targetId = targetIdOp.asString();
 
         if (targetId.empty())
         {
@@ -2721,7 +2741,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         }
 
         // Sprite collision
-        std::vector<Entity *> entitiesToTest;
+        vector<Entity *> entitiesToTest;
         Entity *mainTargetSprite = engine.getEntityById(targetId);
 
         if (mainTargetSprite)
@@ -2731,7 +2751,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 entitiesToTest.push_back(mainTargetSprite);
             }
             // 클론 가져오기 (Engine에 getClones(targetId) 또는 Entity에 getMyClones() 필요)
-            // std::vector<Entity*> clones = engine.getClones(targetId);
+            // vector<Entity*> clones = engine.getClones(targetId);
             // for (Entity* clone : clones) {
             //    if (clone->getVisible() /*&& !clone->isStamp()*/) {
             //        entitiesToTest.push_back(clone);
@@ -2797,14 +2817,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue typeOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
 
-        std::string valueStr = valueOp.asString(); // 검사를 위해 입력값을 문자열로 변환
+        string valueStr = valueOp.asString(); // 검사를 위해 입력값을 문자열로 변환
 
         if (typeOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("is_type block for " + objectId + ": TYPE parameter is not a string. Value: " + typeOp.asString(), 2, executionThreadId);
             return OperandValue(false);
         }
-        std::string typeStr = typeOp.asString();
+        string typeStr = typeOp.asString();
 
         if (typeStr == "number")
         {
@@ -2817,9 +2837,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 regex en_pat("^[a-zA-Z]+$");
                 return OperandValue(regex_match(valueStr, en_pat));
             }
-            catch (const std::exception &e)
+            catch (const exception &e)
             {
-                engine.EngineStdOut("Regex error for 'en' type check: " + std::string(e.what()), 1);
+                engine.EngineStdOut("Regex error for 'en' type check: " + string(e.what()), 1);
                 return OperandValue(false);
             }
         }
@@ -2830,9 +2850,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
                 regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
                 return OperandValue(regex_match(valueStr, ko_pat));
             }
-            catch (const std::exception &e)
+            catch (const exception &e)
             {
-                engine.EngineStdOut("Regex error for 'ko' type check: " + std::string(e.what()), 1);
+                engine.EngineStdOut("Regex error for 'ko' type check: " + string(e.what()), 1);
                 return OperandValue(false);
             }
         }
@@ -2863,7 +2883,7 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": OPERATOR parameter is not a string. Value: " + operatorOp.asString(), 2, executionThreadId);
             return OperandValue(false);
         }
-        std::string opStr = operatorOp.asString();
+        string opStr = operatorOp.asString();
 
         // JavaScript 코드처럼, 문자열이지만 숫자일 수 있는 경우 숫자로 변환 시도
         double leftNum = 0.0, rightNum = 0.0;
@@ -2917,8 +2937,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             // 따라서, 숫자 비교가 실패하면 문자열 비교로 넘어가는 로직은 EQUAL, NOT_EQUAL에만 적용하고,
             // 나머지 연산자는 이미 위에서 처리된 숫자 값을 사용합니다.
 
-            std::string leftStr = leftOp.asString();
-            std::string rightStr = rightOp.asString();
+            string leftStr = leftOp.asString();
+            string rightStr = rightOp.asString();
 
             if (opStr == "EQUAL")
                 return OperandValue(leftStr == rightStr);
@@ -2951,8 +2971,8 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
  * @brief 모양새
  *
  */
-void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-           const std::string &executionThreadId)
+void Looks(string BlockType, Engine &engine, const string &objectId, const Block &block,
+           const string &executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -2998,9 +3018,9 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string message = messageOp.asString();
+        string message = messageOp.asString();
         Uint64 durationMs = static_cast<Uint64>(timeOp.asNumber() * 1000.0);
-        std::string dialogType = optionOp.asString();
+        string dialogType = optionOp.asString();
         entity->showDialog(message, dialogType, durationMs);
     }
     else if (BlockType == "dialog")
@@ -3025,8 +3045,8 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string message = messageOp.asString();
-        std::string dialogType = optionOp.asString();
+        string message = messageOp.asString();
+        string dialogType = optionOp.asString();
         entity->showDialog(message, dialogType, 0);
     }
     else if (BlockType == "remove_dialog")
@@ -3044,7 +3064,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             block.paramsJson[0].Accept(writer);
             engine.EngineStdOut(
                 "DEBUG: change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
-                    std::string(buffer.GetString()),
+                    string(buffer.GetString()),
                 3, executionThreadId);
         }
         else
@@ -3063,7 +3083,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             engine.EngineStdOut(
                 "change_to_some_shape block for " + objectId +
                     " parameter did not resolve to a string (expected costume ID). Actual type: " +
-                    std::to_string(static_cast<int>(imageDropdown.type)),
+                    to_string(static_cast<int>(imageDropdown.type)),
                 2, executionThreadId);
             // --- DEBUG START ---
             engine.EngineStdOut(
@@ -3071,7 +3091,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             // --- DEBUG END ---
             return;
         }
-        std::string costumeIdToSet = imageDropdown.asString();
+        string costumeIdToSet = imageDropdown.asString();
         if (costumeIdToSet.empty())
         {
             engine.EngineStdOut("change_to_some_shape block for " + objectId + " received an empty costume ID.", 2,
@@ -3104,11 +3124,11 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             engine.EngineStdOut(
                 "change_to_some_shape block for " + objectId +
                     " parameter did not resolve to a string (expected costume ID). Actual type: " +
-                    std::to_string(static_cast<int>(nextorprev.type)),
+                    to_string(static_cast<int>(nextorprev.type)),
                 2, executionThreadId);
             return;
         }
-        std::string direction = nextorprev.asString();
+        string direction = nextorprev.asString();
         if (direction == "next")
         {
             engine.setEntitychangeToNextCostume(objectId, "next");
@@ -3145,19 +3165,19 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string effectName = effectTypeOp.asString();
+        string effectName = effectTypeOp.asString();
         double value = effectValueOp.asNumber();
 
         if (effectName == "color")
         {
             // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
             entity->setEffectHue(entity->getEffectHue() + value);
-            // engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectHue()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectHue()), 0);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(entity->getEffectBrightness() + value);
-            // engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + std::to_string(value) + ", new value: " + std::to_string(entity->getEffectBrightness()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectBrightness()), 0);
         }
         else if (effectName == "transparency")
         {
@@ -3165,7 +3185,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             // 여기서 effectValue는 0-100 범위의 값으로, 투명도를 증가시킵니다 (알파 값을 감소시킴).
             // Entity의 m_effectAlpha는 0.0(투명) ~ 1.0(불투명) 범위입니다.
             entity->setEffectAlpha(entity->getEffectAlpha() - (value / 100.0));
-            // engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + std::to_string(value) + "%, new value: " + std::to_string(entity->getEffectAlpha()), 0);
+            // engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + to_string(value) + "%, new value: " + to_string(entity->getEffectAlpha()), 0);
         }
         else
         {
@@ -3199,25 +3219,25 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string effectName = effectTypeOp.asString();
+        string effectName = effectTypeOp.asString();
         double value = effectValueOp.asNumber();
         if (effectName == "color")
         {
             entity->setEffectHue(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + std::to_string(value), 0,
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + to_string(value), 0,
                                 executionThreadId);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + std::to_string(value), 0,
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + to_string(value), 0,
                                 executionThreadId);
         }
         else if (effectName == "transparency")
         {
             entity->setEffectAlpha(1 - (value / 100.0));
             engine.EngineStdOut(
-                "Entity " + objectId + " effect 'transparency' (alpha) changed to " + std::to_string(value), 0);
+                "Entity " + objectId + " effect 'transparency' (alpha) changed to " + to_string(value), 0);
         }
     }
     else if (BlockType == "erase_all_effects")
@@ -3267,7 +3287,7 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
             engine.EngineStdOut("change_object_index object is not String", 2, executionThreadId);
             return;
         }
-        std::string zindexEnumStr = zindexEnumDropdown.asString();
+        string zindexEnumStr = zindexEnumDropdown.asString();
         Omocha::ObjectIndexChangeType changeType = Omocha::stringToObjectIndexChangeType(zindexEnumStr);
         engine.changeObjectIndex(objectId, changeType);
     }
@@ -3277,8 +3297,8 @@ void Looks(std::string BlockType, Engine &engine, const std::string &objectId, c
  * @brief 사운드블럭
  *
  */
-void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-           const std::string &executionThreadId)
+void Sound(string BlockType, Engine &engine, const string &objectId, const Block &block,
+           const string &executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (BlockType == "sound_something_with_block")
@@ -3293,7 +3313,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                 2, executionThreadId);
             return;
         }
-        std::string soundIdToPlay = soundType.asString();
+        string soundIdToPlay = soundType.asString();
 
         if (soundIdToPlay.empty())
         {
@@ -3324,7 +3344,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string soundIdToPlay = soundType.asString();
+        string soundIdToPlay = soundType.asString();
 
         if (soundIdToPlay.empty())
         {
@@ -3356,7 +3376,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
             return;
         }
 
-        std::string soundIdToPlay = soundId.asString();
+        string soundIdToPlay = soundId.asString();
         double fromTime = from.asNumber();
         double toTime = to.asNumber();
         if (soundIdToPlay.empty())
@@ -3378,7 +3398,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                 executionThreadId);
             return;
         }
-        std::string soundIdToPlay = soundId.asString();
+        string soundIdToPlay = soundId.asString();
         entity->waitforPlaysound(soundIdToPlay);
     }
     else if (BlockType == "sound_something_second_wait_with_block")
@@ -3399,7 +3419,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                 executionThreadId);
             return;
         }
-        std::string soundIdToPlay = soundId.asString();
+        string soundIdToPlay = soundId.asString();
         double soundTimeValue = soundTime.asNumber();
 
         entity->waitforPlaysoundWithSeconds(soundIdToPlay, soundTimeValue);
@@ -3421,7 +3441,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                                 2, executionThreadId);
             return;
         }
-        std::string soundIdToPlay = soundId.asString();
+        string soundIdToPlay = soundId.asString();
         double fromTime = from.asNumber();
         double toTime = to.asNumber();
         entity->waitforPlaysoundWithFromTo(soundIdToPlay, fromTime, toTime);
@@ -3454,12 +3474,12 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         // aeHelper에 getGlobalVolume() 및 setGlobalVolume() 함수가 구현되어 있다고 가정합니다.
         float currentGlobalVolume = engine.aeHelper.getGlobalVolume();
         float newGlobalVolume = currentGlobalVolume + volumeChangeRatio;
-        newGlobalVolume = std::clamp(newGlobalVolume, 0.0f, 1.0f); // 0.0 ~ 1.0 범위로 제한
+        newGlobalVolume = clamp(newGlobalVolume, 0.0f, 1.0f); // 0.0 ~ 1.0 범위로 제한
 
         engine.aeHelper.setGlobalVolume(newGlobalVolume);
         engine.EngineStdOut(
-            "Global volume changed by " + std::to_string(volumeChangePercentage) + "%. New global volume: " +
-                std::to_string(newGlobalVolume) + " (triggered by object " + objectId + ")",
+            "Global volume changed by " + to_string(volumeChangePercentage) + "%. New global volume: " +
+                to_string(newGlobalVolume) + " (triggered by object " + objectId + ")",
             0, executionThreadId);
     }
     else if (BlockType == "sound_volume_set")
@@ -3503,7 +3523,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
         float speedChangeAmount = static_cast<float>(valueFromBlock) / 100.0f;
         float newSpeedFactor = currentSpeedFactor + speedChangeAmount;
 
-        double clampedSpeed = std::clamp(static_cast<double>(newSpeedFactor), 0.5, 2.0); // 엔트리와 동일하게 0.5 ~ 2.0 범위로 제한
+        double clampedSpeed = clamp(static_cast<double>(newSpeedFactor), 0.5, 2.0); // 엔트리와 동일하게 0.5 ~ 2.0 범위로 제한
         engine.aeHelper.setGlobalPlaybackSpeed(static_cast<float>(clampedSpeed));
     }
     else if (BlockType == "sound_speed_set")
@@ -3530,7 +3550,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                 executionThreadId);
             return;
         }
-        std::string target = block.paramsJson[0].GetString();
+        string target = block.paramsJson[0].GetString();
 
         if (target == "all")
         {
@@ -3567,7 +3587,7 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
                 "play_bgm 블록의 사운드 ID 파라미터가 문자열이 아닙니다.",
                 block.id, BlockType, objectId, "Sound ID parameter is not a string. Value: " + soundIdOp.asString());
         }
-        std::string soundIdToPlay = soundIdOp.asString(); // 실제 사운드 ID
+        string soundIdToPlay = soundIdOp.asString(); // 실제 사운드 ID
         if (soundIdToPlay.empty())
         {
             engine.EngineStdOut("play_bgm for object " + objectId + ": received an empty sound ID.", 2,
@@ -3624,8 +3644,8 @@ void Sound(std::string BlockType, Engine &engine, const std::string &objectId, c
  * @brief 변수블럭
  *
  */
-void Variable(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-              const std::string &executionThreadId)
+void Variable(string BlockType, Engine &engine, const string &objectId, const Block &block,
+              const string &executionThreadId)
 {
     if (BlockType == "set_visible_answer")
     {
@@ -3638,7 +3658,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                 2, executionThreadId);
             return;
         }
-        std::string visible = visibleDropdown.asString();
+        string visible = visibleDropdown.asString();
         if (visible == "HIDE")
         {
             engine.showAnswerValue(false);
@@ -3661,7 +3681,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         }
 
         OperandValue questionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string questionMessage = questionOp.asString();
+        string questionMessage = questionOp.asString();
 
         if (questionMessage.empty())
         {
@@ -3708,7 +3728,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
             engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string. Value: " + variableIdOp.asString(), 2, executionThreadId);
             return;
         }
-        std::string variableIdToFind = variableIdOp.asString();
+        string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -3756,20 +3776,20 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         try
         {
             size_t idx = 0;
-            currentVarNumericValue = std::stod(targetVarPtr->value, &idx);
-            if (idx == targetVarPtr->value.length() && std::isfinite(currentVarNumericValue))
+            currentVarNumericValue = stod(targetVarPtr->value, &idx);
+            if (idx == targetVarPtr->value.length() && isfinite(currentVarNumericValue))
             {
                 // 전체 문자열이 파싱되었고 유한한 숫자인지 확인
                 currentVarIsNumeric = true;
             }
         }
-        catch (const std::exception &)
+        catch (const exception &)
         {
             // 파싱 실패 시 currentVarIsNumeric는 false로 유지
         }
 
         // 더할 값도 숫자인지 확인
-        bool valueToAddIsNumeric = (valueToAddOp.type == OperandValue::Type::NUMBER && std::isfinite(
+        bool valueToAddIsNumeric = (valueToAddOp.type == OperandValue::Type::NUMBER && isfinite(
                                                                                            valueToAddOp.asNumber()));
 
         if (currentVarIsNumeric && valueToAddIsNumeric)
@@ -3777,9 +3797,9 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
             // 둘 다 숫자면 덧셈
             double sumValue = currentVarNumericValue + valueToAddOp.asNumber();
 
-            // EntryJS의 toFixed와 유사한 효과를 내기 위해 std::to_string 사용 후 후처리
-            std::string resultStr = std::to_string(sumValue);
-            resultStr.erase(resultStr.find_last_not_of('0') + 1, std::string::npos);
+            // EntryJS의 toFixed와 유사한 효과를 내기 위해 to_string 사용 후 후처리
+            string resultStr = to_string(sumValue);
+            resultStr.erase(resultStr.find_last_not_of('0') + 1, string::npos);
             if (!resultStr.empty() && resultStr.back() == '.')
             {
                 resultStr.pop_back();
@@ -3823,7 +3843,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                                 executionThreadId);
             return;
         }
-        std::string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].GetString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -3895,7 +3915,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                                 executionThreadId);
             return;
         }
-        std::string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].GetString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -3942,7 +3962,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                                 executionThreadId);
             return;
         }
-        std::string variableIdToFind = block.paramsJson[0].GetString();
+        string variableIdToFind = block.paramsJson[0].GetString();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -3993,7 +4013,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                 executionThreadId);
             return;
         }
-        std::string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].GetString();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("add_value_to_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4003,7 +4023,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
 
         // 2. 리스트에 추가할 값 가져오기
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
-        std::string valueToAdd = valueOp.asString(); // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
+        string valueToAdd = valueOp.asString(); // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
 
         // 3. 대상 리스트 찾기 (지역 리스트 우선, 없으면 전역 리스트)
         HUDVariableDisplay *targetListPtr = nullptr;
@@ -4077,7 +4097,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                 executionThreadId);
             return;
         }
-        std::string listIdToFind = block.paramsJson[0].GetString();
+        string listIdToFind = block.paramsJson[0].GetString();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("remove_value_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4096,7 +4116,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         double index_1_based_double = indexOp.asNumber();
 
         // 인덱스가 유한한 정수인지 확인
-        if (!std::isfinite(index_1_based_double) || std::floor(index_1_based_double) != index_1_based_double)
+        if (!isfinite(index_1_based_double) || floor(index_1_based_double) != index_1_based_double)
         {
             engine.EngineStdOut(
                 "remove_value_from_list block for " + objectId + ": INDEX '" + indexOp.asString() +
@@ -4149,7 +4169,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
             return;
         }
 
-        std::vector<ListItem> &listArray = targetListPtr->array;
+        vector<ListItem> &listArray = targetListPtr->array;
 
         // 4. 리스트가 비어있는지 확인
         if (listArray.empty())
@@ -4166,8 +4186,8 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         if (index_1_based < 1 || index_1_based > static_cast<long long>(listArray.size()))
         {
             engine.EngineStdOut(
-                "remove_value_from_list block for " + objectId + ": Index " + std::to_string(index_1_based) +
-                    " is out of bounds for list '" + listIdToFind + "' (size: " + std::to_string(listArray.size()) + ").",
+                "remove_value_from_list block for " + objectId + ": Index " + to_string(index_1_based) +
+                    " is out of bounds for list '" + listIdToFind + "' (size: " + to_string(listArray.size()) + ").",
                 1, executionThreadId);
             return;
         }
@@ -4175,11 +4195,11 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         // 6. 0기반 인덱스로 변환하여 항목 삭제
         size_t index_0_based = static_cast<size_t>(index_1_based - 1);
 
-        std::string removedItemData = listArray[index_0_based].data; // 로깅을 위해 삭제될 데이터 저장
+        string removedItemData = listArray[index_0_based].data; // 로깅을 위해 삭제될 데이터 저장
         listArray.erase(listArray.begin() + index_0_based);
 
         engine.EngineStdOut(
-            "Removed item at index " + std::to_string(index_1_based) + " (value: '" + removedItemData + "') from list '" + listIdToFind + "' for object " + objectId, 0, executionThreadId);
+            "Removed item at index " + to_string(index_1_based) + " (value: '" + removedItemData + "') from list '" + listIdToFind + "' for object " + objectId, 0, executionThreadId);
         if (targetListPtr->isCloud)
         {
             engine.saveCloudVariablesToJson();
@@ -4241,11 +4261,11 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                 2, executionThreadId);
             return;
         }
-        std::vector<ListItem> &listArray = targetListPtr->array;
+        vector<ListItem> &listArray = targetListPtr->array;
         if (index_1_based < 1 || index_1_based > static_cast<long long>(listArray.size()))
         {
             engine.EngineStdOut("insert_value_to_list block for" + objectId + ": index " + to_string(index_1_based_double) + " is out of bounds for list '" + listIdToFindOp.asString() +
-                                    "' (size: " + std::to_string(listArray.size()) + ").",
+                                    "' (size: " + to_string(listArray.size()) + ").",
                                 1, executionThreadId);
             return;
         }
@@ -4255,7 +4275,7 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
         {
             engine.saveCloudVariablesToJson();
         }
-        engine.EngineStdOut("Inserted value '" + valueOp.asString() + "' at index " + std::to_string(index_1_based) + " (value: '" + valueOp.asString() + "') to list '");
+        engine.EngineStdOut("Inserted value '" + valueOp.asString() + "' at index " + to_string(index_1_based) + " (value: '" + valueOp.asString() + "') to list '");
     }
     else if (BlockType == "change_value_list_index")
     {
@@ -4313,11 +4333,11 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
                 2, executionThreadId);
             return;
         }
-        std::vector<ListItem> &listArray = targetListPtr->array;
+        vector<ListItem> &listArray = targetListPtr->array;
         if (index_1_based < 1 || index_1_based > static_cast<long long>(listArray.size()))
         {
             engine.EngineStdOut("insert_value_to_list block for" + objectId + ": index " + to_string(index_1_based_double) + " is out of bounds for list '" + listIdToFindOp.asString() +
-                                    "' (size: " + std::to_string(listArray.size()) + ").",
+                                    "' (size: " + to_string(listArray.size()) + ").",
                                 1, executionThreadId);
             return;
         }
@@ -4400,8 +4420,8 @@ void Variable(std::string BlockType, Engine &engine, const std::string &objectId
  * @brief 흐름
  *
  */
-void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-          const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime)
+void Flow(string BlockType, Engine &engine, const string &objectId, const Block &block,
+          const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -4439,7 +4459,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // Set the wait state *before* performing the active wait
         entity->setScriptWait(executionThreadId, waitEndTime, block.id, Entity::WaitType::EXPLICIT_WAIT_SECOND);
 
-        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + std::to_string(secondsToWait) + "s. Block ID: " + block.id, 3, executionThreadId);
+        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + to_string(secondsToWait) + "s. Block ID: " + block.id, 3, executionThreadId);
 
         // Perform the active wait - this will block the current script thread
         entity->performActiveWait(executionThreadId, block.id, waitEndTime, &engine, sceneIdAtDispatch); // Pass necessary info
@@ -4463,10 +4483,10 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         double iterNumber = iterOp.asNumber();
         if (iterNumber < 0)
         {
-            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Iteration count cannot be negative. Value: " + std::to_string(iterNumber), 2, executionThreadId);
+            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Iteration count cannot be negative. Value: " + to_string(iterNumber), 2, executionThreadId);
             throw ScriptBlockExecutionError("반복 횟수는 음수일 수 없습니다.", block.id, BlockType, objectId, "Iteration count cannot be negative.");
         }
-        int iterCount = static_cast<int>(std::floor(iterNumber));
+        int iterCount = static_cast<int>(floor(iterNumber));
 
         // DO 스테이트먼트 스크립트 가져오기
         if (block.statementScripts.empty())
@@ -4480,7 +4500,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // Debugging: Print the content of doScript
         // if (!doScript.blocks.empty())
         // {
-        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
         //     for (size_t j = 0; j < doScript.blocks.size(); ++j)
         //     {
         //         const Block &innerBlock = doScript.blocks[j];
@@ -4491,7 +4511,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         //         {
         //             innerBlock.paramsJson.Accept(writer);
         //         }
-        //         engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+        //         engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
         //     }
         // }
         // else
@@ -4501,7 +4521,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
         {                                                              // entity 포인터 유효성 검사
-            std::lock_guard<std::mutex> lock(entity->getStateMutex()); // public getter 사용
+            lock_guard<mutex> lock(entity->getStateMutex()); // public getter 사용
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -4535,7 +4555,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             // Not resuming this specific loop, or it's the first time.
             pThreadState->loopCounter = 0; // Ensure loopCounter is reset for a new execution of this block.
         }
-        engine.EngineStdOut("repeat_basic: " + objectId + " loop. StartIter: " + std::to_string(startIteration) + "/" + std::to_string(iterCount) + ". Block ID: " + block.id, 0, executionThreadId);
+        engine.EngineStdOut("repeat_basic: " + objectId + " loop. StartIter: " + to_string(startIteration) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
 
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
         for (int i = startIteration; i < iterCount; ++i)
@@ -4548,7 +4568,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             {
                 bool shouldBreakLoop = false;
                 { // Scope for lock
-                    std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                    lock_guard<mutex> lock(entity->getStateMutex());
                     auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_break != entity->scriptThreadStates.end())
                     {
@@ -4561,7 +4581,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                 }
                 if (shouldBreakLoop)
                 {
-                    engine.EngineStdOut("repeat_basic for " + objectId + " breaking loop due to stop_repeat. Iteration " + std::to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
+                    engine.EngineStdOut("repeat_basic for " + objectId + " breaking loop due to stop_repeat. Iteration " + to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
                     if (pThreadState)
                         pThreadState->loopCounter = 0; // Reset loop counter as the loop is terminated
                     break;                             // Break from the C++ for loop
@@ -4569,7 +4589,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
                 bool shouldContinue = false;
                 { // Scope for lock
-                    std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                    lock_guard<mutex> lock(entity->getStateMutex());
                     auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                     {
@@ -4579,16 +4599,16 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                 }
                 if (shouldContinue)
                 {
-                    engine.EngineStdOut("repeat_basic for " + objectId + " continuing to next iteration. Iteration " + std::to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
+                    engine.EngineStdOut("repeat_basic for " + objectId + " continuing to next iteration. Iteration " + to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
                     continue; // Skip to the next iteration of the C++ for loop
                 }
                 // Entity::isScriptWaiting은 해당 스레드가 어떤 종류의 대기 상태인지 확인합니다.
                 // Entity::getCurrentWaitType은 구체적인 대기 타입을 반환합니다.
                 bool innerBlockIsWaiting = false;
                 Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-                std::string innerWaitingBlockId;
+                string innerWaitingBlockId;
                 {
-                    std::lock_guard<std::mutex> lock(entity->getStateMutex()); // public getter 사용
+                    lock_guard<mutex> lock(entity->getStateMutex()); // public getter 사용
                     auto it_check = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check != entity->scriptThreadStates.end() && it_check->second.isWaiting)
                     {
@@ -4604,7 +4624,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                     // Entity::executeScript will see the wait state (set by the inner block)
                     // and set its resumeAtBlockIndex to *this* repeat_basic block.
                     // The loopCounter 'i' is already saved in pThreadState->loopCounter.
-                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + std::to_string(i) +
+                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(i) +
                                             " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
                                             ". This repeat_basic block (" + block.id + ") will resume here.",
                                         1, executionThreadId);
@@ -4631,7 +4651,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         // Debugging: Print the content of doScript
         if (!doScript.blocks.empty())
         {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + std::to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
             for (size_t j = 0; j < doScript.blocks.size(); ++j)
             {
                 const Block &innerBlock = doScript.blocks[j];
@@ -4642,7 +4662,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                 {
                     innerBlock.paramsJson.Accept(writer);
                 }
-                engine.EngineStdOut("  Inner Block [" + std::to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
+                engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + (innerBlock.paramsJson.IsNull() ? "null" : buffer.GetString()), 3, executionThreadId);
             }
         }
         else
@@ -4658,13 +4678,13 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         while (true)
         {
             // 매 반복 시작 시 엔진 종료 또는 씬 변경 확인
-            if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+            if (engine.m_isShuttingDown.load(memory_order_relaxed))
             {
                 engine.EngineStdOut("repeat_inf for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
                 break; // 루프 종료
             }
 
-            std::string currentEngineSceneId = engine.getCurrentSceneId();
+            string currentEngineSceneId = engine.getCurrentSceneId();
             const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
             bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
 
@@ -4683,7 +4703,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
                     // 내부 블록이 대기를 설정했음 (예: move_xy_time). Flow 함수 종료.
                     bool shouldBreakLoop = false;
                     { // Scope for lock
-                        std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                        lock_guard<mutex> lock(entity->getStateMutex());
                         auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                         if (it_check_break != entity->scriptThreadStates.end())
                         {
@@ -4702,7 +4722,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
                     bool shouldContinue = false;
                     { // Scope for lock
-                        std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                        lock_guard<mutex> lock(entity->getStateMutex());
                         auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                         if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                         {
@@ -4761,12 +4781,12 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         while (true)
         {
             // Check for shutdown/scene change before evaluating condition or executing blocks
-            if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+            if (engine.m_isShuttingDown.load(memory_order_relaxed))
             {
                 engine.EngineStdOut("repeat_while_true for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
                 break; // Exit loop
             }
-            std::string currentEngineSceneId = engine.getCurrentSceneId();
+            string currentEngineSceneId = engine.getCurrentSceneId();
             const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
             bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
             if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
@@ -4795,7 +4815,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             {
                 bool shouldBreakLoop = false;
                 { // Scope for lock
-                    std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                    lock_guard<mutex> lock(entity->getStateMutex());
                     auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_break != entity->scriptThreadStates.end())
                     {
@@ -4814,7 +4834,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
 
                 bool shouldContinue = false;
                 { // Scope for lock
-                    std::lock_guard<std::mutex> lock(entity->getStateMutex());
+                    lock_guard<mutex> lock(entity->getStateMutex());
                     auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
                     {
@@ -4852,7 +4872,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
         { // entity pointer 유효성 검사
-            std::lock_guard<std::mutex> lock(entity->getStateMutex());
+            lock_guard<mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -4878,7 +4898,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
         { // entity 포인터 유효성 검사
-            std::lock_guard<std::mutex> lock(entity->getStateMutex());
+            lock_guard<mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
             {
@@ -4992,7 +5012,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
         }
         const Script *scriptToExecute = nullptr;
-        std::string stackToExecuteName;
+        string stackToExecuteName;
 
         if (conditionIsTrue)
         {
@@ -5098,7 +5118,7 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": TARGET parameter is not a string. Value: " + targetOptionOp.asString() + ". Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("TARGET 파라미터가 문자열이 아닙니다.", block.id, BlockType, objectId, "TARGET parameter is not a string.");
         }
-        std::string targetOption = targetOptionOp.asString();
+        string targetOption = targetOptionOp.asString();
         engine.EngineStdOut("Flow 'stop_object' for " + objectId + ": Option='" + targetOption + "'. Block ID: " + block.id, 0, executionThreadId);
 
         engine.requestStopObject(objectId, executionThreadId, targetOption);
@@ -5130,8 +5150,8 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             throw ScriptBlockExecutionError("복제 대상 파라미터가 문자열이 아닙니다.", block.id, BlockType, objectId, "Target parameter is not a string.");
         }
 
-        std::string targetToCloneId = targetOp.asString();
-        std::string actualOriginalId;
+        string targetToCloneId = targetOp.asString();
+        string actualOriginalId;
 
         if (targetToCloneId == "self" || targetToCloneId.empty())
         {                                // "self" 또는 드롭다운이 self에 대해 빈 값을 반환하는 경우
@@ -5184,8 +5204,8 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
  * @brief 함수블럭
  *
  */
-void Function(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-              const std::string &executionThreadId)
+void Function(string BlockType, Engine &engine, const string &objectId, const Block &block,
+              const string &executionThreadId)
 {
 }
 
@@ -5193,8 +5213,8 @@ void Function(std::string BlockType, Engine &engine, const std::string &objectId
  * @brief 이벤트 (기타 제어)
  *
  */
-void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-           const std::string &executionThreadId)
+void Event(string BlockType, Engine &engine, const string &objectId, const Block &block,
+           const string &executionThreadId)
 {
     if (BlockType == "message_cast")
     {
@@ -5207,12 +5227,12 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
 
         OperandValue messageIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         // messageIdOp.asString() will handle conversion if messageIdOp is a number or boolean.
-        std::string messageId = messageIdOp.asString();
+        string messageId = messageIdOp.asString();
         engine.EngineStdOut("DEBUG_MSG: Object " + objectId + " (Thread " + executionThreadId + ") is RAISING message: '" + messageId + "'", 3, executionThreadId);
 
         if (messageId.empty() || messageId == "null")
         {
-            std::string errMsg = "메시지 ID가 비어있거나 null입니다. 메시지를 발송할 수 없습니다.";
+            string errMsg = "메시지 ID가 비어있거나 null입니다. 메시지를 발송할 수 없습니다.";
             engine.EngineStdOut("message_cast block for object " + objectId + ": " + errMsg, 2, executionThreadId);
             throw ScriptBlockExecutionError(errMsg, block.id, BlockType, objectId, "Message ID is null or empty.");
         }
@@ -5238,13 +5258,13 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
         OperandValue sceneIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (sceneIdOp.type != OperandValue::Type::STRING || sceneIdOp.asString().empty() || sceneIdOp.asString() == "null")
         {
-            std::string errMsg = "장면 ID가 유효한 문자열이 아니거나 비어있거나 null입니다. 장면을 전환할 수 없습니다. 값: " + sceneIdOp.asString();
+            string errMsg = "장면 ID가 유효한 문자열이 아니거나 비어있거나 null입니다. 장면을 전환할 수 없습니다. 값: " + sceneIdOp.asString();
             engine.EngineStdOut("start_scene block for object " + objectId + ": " + errMsg, 2, executionThreadId);
             throw ScriptBlockExecutionError(errMsg, block.id, BlockType, objectId,
                                             "Scene ID is not a valid string, is empty, or null.");
         }
 
-        std::string sceneId = sceneIdOp.asString();
+        string sceneId = sceneIdOp.asString();
         engine.EngineStdOut("Object " + objectId + " is requesting to start scene: '" + sceneId + "'", 0,
                             executionThreadId);
         engine.goToScene(sceneId); // goToScene 내부에서 scene 존재 여부 확인 및 when_scene_start 이벤트 트리거
@@ -5269,25 +5289,25 @@ void Event(std::string BlockType, Engine &engine, const std::string &objectId, c
 }
 // 이 함수는 주어진 블록 목록을 순차적으로 실행하며, wait_second를 만나면 해당 스레드를 블록합니다.
 // 실제 게임 엔진에서는 비동기 실행 및 스레드 관리가 더 복잡하게 이루어집니다.
-void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks,
+void executeBlocksSynchronously(Engine &engine, const string &objectId, const vector<Block> &blocks,
                                 // Entity::ScriptThreadState& currentThreadState, // This might be needed for more complex state management
-                                const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime)
+                                const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
     Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
-    // engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + std::to_string(blocks.size()), 3, executionThreadId);
+    // engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
 
     for (size_t i = 0; i < blocks.size(); ++i)
     {
         const Block &block = blocks[i];
         // 엔진 종료 신호 확인
-        if (engine.m_isShuttingDown.load(std::memory_order_relaxed))
+        if (engine.m_isShuttingDown.load(memory_order_relaxed))
         {
             engine.EngineStdOut("Synchronous block execution cancelled due to engine shutdown for entity: " + objectId, 1, executionThreadId);
             engine.EngineStdOut("executeBlocksSynchronously: Shutting down. Exiting loop for " + objectId, 1, executionThreadId);
             return; // Stop execution
         }
         // 씬 변경 확인
-        std::string currentEngineSceneId = engine.getCurrentSceneId();
+        string currentEngineSceneId = engine.getCurrentSceneId();
         const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
         bool isGlobalEntity = false;
         if (objInfo)
@@ -5323,7 +5343,7 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
             // 내부 블록 실행 중 오류 발생 시 상위로 전파
             throw;
         }
-        catch (const std::exception &e)
+        catch (const exception &e)
         {
             // 다른 예외 발생 시 ScriptBlockExecutionError로 래핑하여 전파
             throw ScriptBlockExecutionError(
@@ -5338,7 +5358,7 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
             // ScriptThreadState에 직접 접근하기보다는 Entity의 getter를 사용하는 것이 좋습니다.
             // 여기서는 설명을 위해 직접 접근하는 것처럼 표현했지만, 실제로는 캡슐화를 고려해야 합니다.
             Entity::WaitType typeOfWait = entity->getCurrentWaitType(executionThreadId);
-            std::string idOfWaitingBlock = entity->getWaitingBlockId(executionThreadId);
+            string idOfWaitingBlock = entity->getWaitingBlockId(executionThreadId);
 
             // 현재 실행된 블록(block.id)이 스스로 대기를 설정한 경우
             if (idOfWaitingBlock == block.id)

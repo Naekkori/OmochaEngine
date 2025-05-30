@@ -13,7 +13,6 @@
 #include <memory>
 #include <format>
 #include <boost/asio/thread_pool.hpp> // 추가
-#include "rapidjson/istreamwrapper.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/ostreamwrapper.h"
@@ -23,6 +22,7 @@
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
 #include <resource.h>
+#include "rapidjson/istreamwrapper.h" // Moved here
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -203,16 +203,51 @@ namespace
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0),
                    zoomFactor((this->specialConfig.setZoomfactor <= 0.0)
-                                  ? 1.0f
-                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)),
-                   m_isDraggingZoomSlider(false), m_pressedObjectId(""), // m_scriptThreadPoolPtr 초기화 추가
+                                  ? 1.0f 
+                                  : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)), 
+                   m_isDraggingZoomSlider(false), m_pressedObjectId(""),
                    logger("omocha_engine.log"),
-                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false),
-                   m_scriptThreadPoolPtr(make_unique<boost::asio::thread_pool>(
-                       max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2))) // 스레드 풀 초기화 (최소 1개, 가능하면 CPU 코어 수만큼)
+                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
+    startThreadPool((std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+}
+
+void Engine::workerLoop() {
+    while (true) {
+        std::function<void()> task;
+        {
+            std::unique_lock<std::mutex> lock(m_taskQueueMutex_std);
+            m_taskQueueCV_std.wait(lock, [this] { return m_isShuttingDown.load(std::memory_order_relaxed) || !m_taskQueue.empty(); });
+            if (m_isShuttingDown.load(std::memory_order_relaxed) && m_taskQueue.empty()) {
+                return; // Exit if shutting down and no more tasks
+            }
+            if (m_taskQueue.empty()) { 
+                continue;
+            }
+            task = std::move(m_taskQueue.front());
+            m_taskQueue.pop();
+        }
+        if (task) {
+            try {
+                task();
+            } catch (const ScriptBlockExecutionError& sbee) {
+                 // 이미 EngineStdOut 및 showMessageBox를 호출하는 예외 핸들러가 Entity::executeScript 내에 있으므로,
+                 // 여기서 중복으로 처리할 필요는 없습니다. 만약 추가적인 로깅이나 처리가 필요하다면 여기에 작성합니다.
+                 // 현재는 예외가 Entity 레벨에서 처리되도록 그대로 전파합니다. (또는 여기서 다시 throw)
+                 EngineStdOut("ScriptBlockExecutionError in worker thread: " + std::string(sbee.what()) + " Block: " + sbee.blockId, 2);
+                 // this->showMessageBox("스크립트 실행 중 오류 발생:\n" + std::string(sbee.what()), msgBoxIconType.ICON_ERROR);
+            }
+            catch (const std::exception& e) {
+                EngineStdOut("Exception in worker thread task: " + std::string(e.what()), 2);
+                 // this->showMessageBox("작업 스레드에서 예외 발생:\n" + std::string(e.what()), msgBoxIconType.ICON_ERROR);
+            } catch (...) {
+                EngineStdOut("Unknown exception in worker thread task.", 2);
+                // this->showMessageBox("알 수 없는 예외가 작업 스레드에서 발생했습니다.", msgBoxIconType.ICON_ERROR);
+            }
+        }
+    }
 }
 
 static void Helper_DrawFilledCircle(SDL_Renderer *renderer, int centerX, int centerY, int radius)
@@ -333,40 +368,8 @@ Engine::~Engine()
 {
     EngineStdOut("Engine shutting down...");
     m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
-    EngineStdOut("Shutting down script thread pool...");
-    if (m_scriptThreadPoolPtr)
-    { // Check if pool exists
-        m_scriptThreadPoolPtr->stop();
-    }
-    std::future<void> join_future = std::async(std::launch::async, [&]()
-                                               { if (m_scriptThreadPoolPtr) m_scriptThreadPoolPtr->join(); });
-    EngineStdOut("Waiting for script threads to join...", 0);
-    // Entity 객체들 명시적 삭제
-    EngineStdOut("Deleting entity objects...", 0);
-    for (auto &pair : entities)
-    {
-        delete pair.second; // Entity 포인터 삭제
-    }
-    entities.clear(); // 이제 맵을 비워도 안전
-    EngineStdOut("Entity objects deleted.", 0);
-    objects_in_order.clear();
-    EngineStdOut("Waiting for script threads to join...", 0);
-    std::chrono::seconds timeout_duration(3);
-    if (join_future.wait_for(timeout_duration) == std::future_status::timeout)
-    {
-        // Try to show a message box, but it might not work if SDL is already partially shut down.
-        // Consider a more robust way to notify the user or log this critically if SDL_ShowMessageBox fails.
-        // For now, we attempt it.
-        EngineStdOut("Timeout waiting for script threads to join. Some scripts might be stuck.", 2); // M+2. This log is incorrect if it's not a timeout.
-        showMessageBox("엔진 종료 중 스크립트 스레드 대기 시간이 초과되었습니다.\n일부 스크립트가 응답하지 않는 것 같습니다.", msgBoxIconType.ICON_WARNING);
-        // quick_exit might be too abrupt, consider std::exit or allowing main to return.
-        // For now, keeping quick_exit as it was.
-        quick_exit(EXIT_FAILURE); // Or std::exit(EXIT_FAILURE);
-    }
-    else
-    {
-        EngineStdOut("Script threads joined successfully.", 0);
-    }
+    stopThreadPool(); // Stop and join standard C++ threads
+
     // TerminateGE 보다 먼저 폰트 캐시 정리
     for (auto const &[key, val] : m_fontCache)
     {
@@ -374,6 +377,14 @@ Engine::~Engine()
     }
     m_fontCache.clear();
     EngineStdOut("Font cache cleared.", 0);
+
+    // Entity 객체들 명시적 삭제
+    EngineStdOut("Deleting entity objects...", 0);
+    for (auto &pair : entities) {
+        delete pair.second;
+    }
+    entities.clear();
+    EngineStdOut("Entity objects deleted.", 0);
 
     terminateGE();
     objectScripts.clear();
@@ -5764,23 +5775,13 @@ void Engine::performProjectRestart()
     EngineStdOut("Project restart sequence initiated...", 0);
 
     // 1. Stop all current script activities
-    EngineStdOut("Stopping all scripts and activities...", 0);
-    m_isShuttingDown.store(true, std::memory_order_relaxed); // Signal script threads to terminate
-
-    SDL_Delay(50); // Give threads a moment to acknowledge shutdown
-
-    if (m_scriptThreadPoolPtr)
-    {
-        m_scriptThreadPoolPtr->stop();
-        m_scriptThreadPoolPtr->join();
-    }
+    stopThreadPool(); // Stop existing thread pool
 
     // Clear script states from entities
     for (auto &pair : entities)
     {
         if (pair.second)
         {
-            std::lock_guard<std::mutex> lock(pair.second->getStateMutex());
             pair.second->scriptThreadStates.clear();
         }
     }
@@ -5788,7 +5789,7 @@ void Engine::performProjectRestart()
     m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
 
     // Re-create the thread pool
-    m_scriptThreadPoolPtr = std::make_unique<boost::asio::thread_pool>(max(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+    startThreadPool((std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
 
     resetProjectTimer();
     m_gameplayInputActive = false;
@@ -5937,13 +5938,31 @@ void Engine::requestStopObject(const std::string &callingEntityId, const std::st
     }
 }
 
-boost::asio::thread_pool &Engine::getThreadPool()
-{
-    if (!m_scriptThreadPoolPtr)
-    {
-        throw std::runtime_error("Thread pool not initialized!");
+void Engine::startThreadPool(size_t numThreads) {
+    m_isShuttingDown.store(false, std::memory_order_relaxed);
+    for (size_t i = 0; i < numThreads; ++i) {
+        m_workerThreads.emplace_back(&Engine::workerLoop, this);
     }
-    return *m_scriptThreadPoolPtr;
+    EngineStdOut("Standard C++ thread pool started with " + std::to_string(numThreads) + " threads.", 0);
+}
+
+void Engine::stopThreadPool() {
+    EngineStdOut("Stopping standard C++ thread pool...", 0);
+    // m_isShuttingDown is typically set by the caller (destructor or restart logic)
+    // If not, it should be set here:
+    // m_isShuttingDown.store(true, std::memory_order_relaxed);
+
+    m_taskQueueCV_std.notify_all(); // Wake up all workers
+    for (std::thread &worker : m_workerThreads) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+    m_workerThreads.clear();
+    // Clear any remaining tasks in the queue
+    std::queue<std::function<void()>> empty;
+    std::swap(m_taskQueue, empty);
+    EngineStdOut("Standard C++ thread pool stopped and joined.", 0);
 }
 int Engine::getNextCloneIdSuffix(const std::string &originalId)
 {
@@ -6082,10 +6101,18 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
 
 void Engine::deleteEntity(const std::string &entityIdToDelete)
 {
-    EngineStdOut("Attempting to delete entity: " + entityIdToDelete, 0);
+    auto safe_log_id = [](const std::string& id, size_t max_len = 256) {
+        if (id.length() > max_len) {
+            return id.substr(0, max_len) + "...(truncated)";
+        }
+        return id;
+    };
+
+    EngineStdOut(std::format("Attempting to delete entity: {}.", safe_log_id(entityIdToDelete)), 0);
 
     Entity *entityPtr = nullptr;
     // First, mark scripts for termination and get the pointer
+
     {
         std::lock_guard<std::mutex> lock(m_engineDataMutex); // Lock for entities map access
         auto it = entities.find(entityIdToDelete);
@@ -6124,23 +6151,49 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
             std::remove_if(objects_in_order.begin(), objects_in_order.end(),
                            [&entityIdToDelete](const ObjectInfo &oi)
                            { return oi.id == entityIdToDelete; }),
-            objects_in_order.end());
-        EngineStdOut("Removed ObjectInfo for " + entityIdToDelete + " from rendering order.", 0);
+            objects_in_order.end());       
+        EngineStdOut(std::format("Removed ObjectInfo for {} from rendering order.", safe_log_id(entityIdToDelete)), 0);
 
         // Remove from objectScripts
         auto scriptIt = objectScripts.find(entityIdToDelete);
         if (scriptIt != objectScripts.end())
         {
             objectScripts.erase(scriptIt);
-            EngineStdOut("Removed script entries for " + entityIdToDelete + ".", 0);
+            // EngineStdOut("Removed script entries for " + entityIdToDelete + ".", 0); // 로그 메시지 생성 전 ID 길이 제한
         }
 
         // Finally, delete the Entity object itself
         delete entityPtr;
-        EngineStdOut("Entity object " + entityIdToDelete + " deleted from memory.", 0);
+
+        // 로그 메시지 생성 전 ID 길이 제한
+        std::string truncatedId = entityIdToDelete;
+        const size_t maxLogIdLength = 256; // 로그에 표시할 ID 최대 길이 (예시)
+        if (truncatedId.length() > maxLogIdLength) {
+            truncatedId = truncatedId.substr(0, maxLogIdLength) + "...(truncated)";
+        }
+        EngineStdOut(std::format("Removed script entries for {}.", truncatedId), 0);
+        EngineStdOut(std::format("Entity object {} deleted from memory.", truncatedId), 0);
     }
-    EngineStdOut("Entity deletion process for " + entityIdToDelete + " completed.", 0);
+    std::string finalLogId = entityIdToDelete;
+    if (finalLogId.length() > 256) { // 예시: ID가 256자 초과 시 일부만 표시
+        finalLogId = finalLogId.substr(0, 256) + "...(truncated)";
+    }
+    EngineStdOut(std::format("Entity deletion process for {} completed.", finalLogId), 0);
 }
+
+void Engine::submitTask(std::function<void()> task) {
+    if (m_isShuttingDown.load(std::memory_order_relaxed)) {
+        EngineStdOut("Engine is shutting down. Task not submitted.", 1);
+        // Optionally, log the task details if possible, or just ignore.
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_taskQueueMutex_std);
+        m_taskQueue.push(std::move(task));
+    }
+    m_taskQueueCV_std.notify_one();
+}
+
 
 void Engine::deleteAllClonesOf(const std::string& originalEntityId) {
     EngineStdOut("Attempting to delete all clones of entity: " + originalEntityId, 0);

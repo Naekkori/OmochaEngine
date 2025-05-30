@@ -88,7 +88,6 @@ OmochaEngine v1.0.0 by Maiteil
 | SDL_image      | [https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt) |
 | SDL_ttf        | [https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt) |
 | miniAudio      | [https://github.com/mackron/miniaudio/blob/master/LICENSE](https://github.com/mackron/miniaudio/blob/master/LICENSE) |
-| Boost          | [https://www.boost.org/LICENSE_1_0.txt](https://www.boost.org/LICENSE_1_0.txt) |
 | Bzip2          | [https://sourceware.org/bzip2/LICENSE](https://sourceware.org/bzip2/LICENSE) |
 | libjpeg-turbo  | [https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md) |
 | libtiff        | [https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT](https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT) |

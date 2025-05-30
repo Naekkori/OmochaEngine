@@ -68,8 +68,6 @@ find_package(SDL3_image CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
 find_package(SDL3_ttf CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_ttf::SDL3_ttf>,SDL3_ttf::SDL3_ttf,SDL3_ttf::SDL3_ttf-static>)
-#boost
-find_package(Boost REQUIRED)
 # config file
 configure_file(
     "${PROJECT_SOURCE_DIR}/version_config.h.in" 
@@ -279,7 +277,7 @@ if(VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_LI
         "sdl3"          # From find_package
         "sdl3-image"    # From find_package
         "sdl3-ttf"      # From find_package
-        "boost"         # Used for asio, license often general
+        #"boost"         # Used for asio, license often general
         "bzip2"         # From bz2.dll (Windows) or linked dependency
         "libjpeg-turbo" # From jpeg62.dll (Windows) or linked dependency
         "libtiff"       # From tiff.dll (Windows) or linked dependency
