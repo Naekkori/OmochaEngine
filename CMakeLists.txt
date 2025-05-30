@@ -21,6 +21,11 @@ project("OmochaEngine" VERSION 1.0.0)
 
 if(MSVC)
     add_compile_options(/utf-8) # MSVC uses /utf-8 for UTF-8 source/execution charsets
+    # C++ 예외 처리 모델을 /EHa (비동기 예외 처리)로 설정
+    string(REPLACE "/EHsc" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    if(NOT CMAKE_CXX_FLAGS MATCHES "/EHa")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHa")
+    endif()
 else()
     add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8) # For GCC/Clang
 endif()

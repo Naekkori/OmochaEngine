@@ -92,6 +92,7 @@
         "csignal": "cpp",
         "shared_mutex": "cpp",
         "source_location": "cpp",
-        "resumable": "cpp"
+        "resumable": "cpp",
+        "regex": "cpp"
     }
 }

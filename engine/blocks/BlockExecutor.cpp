@@ -9,6 +9,7 @@
 #include <algorithm> // std::clamp를 위해 추가
 #include <limits>
 #include <ctime>
+#include <regex>
 #include "blockTypes.h"
 #include "rapidjson/prettywriter.h"
 // Helper function to check if a string can be parsed as a number
@@ -239,6 +240,9 @@ OperandValue getOperandValue(Engine &engine, const std::string &objectId, const 
                  fieldType == "get_sound_volume" || fieldType == "get_sound_speed" || fieldType == "get_sound_duration" ||
                  fieldType == "get_canvas_input_value" || fieldType == "length_of_list" || fieldType == "is_included_in_list" ||
                  fieldType == "coordinate_mouse" || fieldType == "coordinate_object" || fieldType == "get_variable" ||
+                 fieldType == "reach_something" ||                                                                    // << 판단 블록 추가
+                 fieldType == "is_type" ||                                                                            // << is_type 판단 블록 추가
+                 fieldType == "boolean_basic_operator" ||                                                             // << boolean_basic_operator 판단 블록 추가
                  fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" || // 판단 블록들 추가
                  fieldType == "value_of_index_from_list")
         {
@@ -1363,7 +1367,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " parameter is invalid. Expected 3 params.",
                                 2, executionThreadId);
-            throw "알수없는 파라미터 크기";
+            throw ScriptBlockExecutionError(
+                "몫과 나머지 블록의 파라미터 개수가 올바르지 않습니다.", block.id, BlockType, objectId,
+                "Invalid parameter count for quotient_and_mod block. Expected 3 params.");
         }
 
         OperandValue left_op = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
@@ -1374,8 +1380,9 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
         {
             engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2,
                                 executionThreadId);
-            throw "알수없는 피연산자 타입";
-            return OperandValue();
+            throw ScriptBlockExecutionError(
+                "몫과 나머지 블록의 연산자 파라미터 타입이 올바르지 않습니다.", block.id, BlockType, objectId,
+                "Operator parameter for quotient_and_mod block is not a string.");
         }
         std::string anOperator = operator_op.string_val;
 
@@ -2112,13 +2119,14 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
 
         // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
         // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
-        const rapidjson::Value& keyParamValue = block.paramsJson[0];
+        const rapidjson::Value &keyParamValue = block.paramsJson[0];
         OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
 
-        if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty()) {
+        if (keyIdentifierOp.type != OperandValue::Type::STRING || keyIdentifierOp.asString().empty())
+        {
             engine.EngineStdOut("is_press_some_key block for " + objectId +
-                                ": key identifier parameter did not resolve to a non-empty string. Value: " +
-                                keyIdentifierOp.asString(),
+                                    ": key identifier parameter did not resolve to a non-empty string. Value: " +
+                                    keyIdentifierOp.asString(),
                                 2, executionThreadId);
             return OperandValue(false);
         }
@@ -2630,6 +2638,310 @@ OperandValue Calculator(std::string BlockType, Engine &engine, const std::string
             }
         }
         return OperandValue(finded);
+    }
+    else if (BlockType == "reach_something")
+    { // ~에 닿았는가?
+        Entity *self = engine.getEntityById(objectId);
+        if (!self)
+        {
+            engine.EngineStdOut("reach_something: Self entity " + objectId + " not found.", 2, executionThreadId);
+            return OperandValue(false);
+        } // self->isVisible() 로 변경하거나, 엔트리 로직에 맞춰 이 조건 제거
+        if (!self->isVisible())
+        { // 엔트리는 보이지 않아도 충돌 판정함. 이 조건은 주석 처리하거나 로직에 맞게 조정.
+          // engine.EngineStdOut("reach_something: Self entity " + objectId + " is not visible.", 0, executionThreadId);
+          // return OperandValue(false); // 엔트리 동작과 맞추려면 이 줄 주석 처리
+        }
+
+        if (!block.paramsJson.IsArray() || block.paramsJson.Empty())
+        {
+            engine.EngineStdOut("reach_something block for " + objectId + " has invalid or missing params array. Expected target ID at index 0.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+
+        OperandValue targetIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (targetIdOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("reach_something block for " + objectId + ": target ID parameter is not a string. Value: " + targetIdOp.asString(), 2, executionThreadId);
+            return OperandValue(false);
+        }
+        std::string targetId = targetIdOp.asString();
+
+        if (targetId.empty())
+        {
+            engine.EngineStdOut("reach_something block for " + objectId + ": target ID is empty.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+
+        // Wall collision
+        if (targetId == "wall" || targetId == "wall_up" || targetId == "wall_down" || targetId == "wall_left" || targetId == "wall_right")
+        {
+            // Engine에 벽 충돌 확인 로직 필요 (engine.checkCollisionWithWall(self, targetId))
+            // 여기서는 Entity의 경계와 스테이지 경계를 비교하는 단순화된 로직을 사용합니다.
+            float selfX = self->getX();
+            float selfY = self->getY();
+            float scaledWidth = self->getWidth() * self->getScaleX();
+            float scaledHeight = self->getHeight() * self->getScaleY();
+
+            float selfTop = selfY + scaledHeight / 2.0f;
+            float selfBottom = selfY - scaledHeight / 2.0f;
+            float selfRight = selfX + scaledWidth / 2.0f;
+            float selfLeft = selfX - scaledWidth / 2.0f;
+
+            const float stageTop = PROJECT_STAGE_HEIGHT / 2.0f;
+            const float stageBottom = -PROJECT_STAGE_HEIGHT / 2.0f;
+            const float stageRight = PROJECT_STAGE_WIDTH / 2.0f;
+            const float stageLeft = -PROJECT_STAGE_WIDTH / 2.0f;
+
+            bool collided = false;
+            if ((targetId == "wall" || targetId == "wall_up") && selfTop > stageTop)
+                collided = true;
+            if (!collided && (targetId == "wall" || targetId == "wall_down") && selfBottom < stageBottom)
+                collided = true;
+            if (!collided && (targetId == "wall" || targetId == "wall_right") && selfRight > stageRight)
+                collided = true;
+            if (!collided && (targetId == "wall" || targetId == "wall_left") && selfLeft < stageLeft)
+                collided = true;
+
+            return OperandValue(collided);
+        }
+
+        // Mouse collision
+        if (targetId == "mouse")
+        {
+            if (!engine.isMouseCurrentlyOnStage())
+                return OperandValue(false);
+
+            SDL_FPoint mousePos = {static_cast<float>(engine.getCurrentStageMouseX()), static_cast<float>(engine.getCurrentStageMouseY())};
+
+            // Entity의 getVisualBounds()가 전역 좌표계의 SDL_FRect를 반환한다고 가정
+            SDL_FRect selfBounds = self->getVisualBounds(); // Engine에 getGlobalBounds(self) 같은 헬퍼가 더 적합할 수 있음
+
+            return OperandValue(SDL_PointInRectFloat(&mousePos, &selfBounds));
+        }
+
+        // Sprite collision
+        std::vector<Entity *> entitiesToTest;
+        Entity *mainTargetSprite = engine.getEntityById(targetId);
+
+        if (mainTargetSprite)
+        {
+            if (mainTargetSprite->isVisible() /*&& !mainTargetSprite->isStamp() 엔트리는 스탬프도 충돌대상*/)
+            {
+                entitiesToTest.push_back(mainTargetSprite);
+            }
+            // 클론 가져오기 (Engine에 getClones(targetId) 또는 Entity에 getMyClones() 필요)
+            // std::vector<Entity*> clones = engine.getClones(targetId);
+            // for (Entity* clone : clones) {
+            //    if (clone->getVisible() /*&& !clone->isStamp()*/) {
+            //        entitiesToTest.push_back(clone);
+            //    }
+            // }
+            // 임시: 클론 로직은 Engine에 구현 필요. 여기서는 주석 처리.
+        }
+        else
+        {
+            // ID로 못찾으면 이름으로 찾아 시도 (엔트리는 ID 기반)
+            // 현재 구현에서는 ID로만 찾음
+            engine.EngineStdOut("reach_something: Target sprite ID '" + targetId + "' not found.", 1, executionThreadId);
+            return OperandValue(false);
+        }
+
+        if (entitiesToTest.empty() && !mainTargetSprite)
+        { // mainTargetSprite도 없고 entitiesToTest도 비었으면 대상 없음
+            engine.EngineStdOut("reach_something: No target entities to test against for ID '" + targetId + "'.", 1, executionThreadId);
+            return OperandValue(false);
+        } // mainTargetSprite->isVisible() 로 변경
+        if (entitiesToTest.empty() && mainTargetSprite && !mainTargetSprite->isVisible())
+        { // 대상은 있으나 보이지 않음
+          // 엔트리는 보이지 않는 대상과도 충돌 판정하므로 이 케이스는 실제로는 발생하면 안됨 (위의 getVisible 체크 때문)
+          // 만약 getVisible 체크를 제거한다면 이 로그가 유용할 수 있음
+          // engine.EngineStdOut("reach_something: Target sprite '" + targetId + "' is not visible and has no visible clones.", 0, executionThreadId);
+          // return OperandValue(false); // 엔트리 동작과 맞추려면 이 부분도 수정 필요
+        }
+
+        SDL_FRect selfBounds = self->getVisualBounds();
+
+        for (Entity *testEntity : entitiesToTest)
+        {
+            if (!testEntity)
+                continue; // 혹시 모를 null 체크
+            SDL_FRect targetBounds = testEntity->getVisualBounds();
+            if (SDL_HasRectIntersectionFloat(&selfBounds, &targetBounds))
+            { // 함수 이름 변경
+                // 엔트리는 텍스트 박스 간, 텍스트 박스와 다른 오브젝트 간 충돌은 항상 사각 충돌 사용
+                // 일반 오브젝트 간에는 픽셀 충돌 (여기서는 경계 상자로 단순화) - SDL_HasRectIntersectionFloat 사용
+                // if (self->isTextbox() || testEntity->isTextbox()) {
+                //    return OperandValue(true); // 사각 충돌로 충분
+                // } else {
+                //    // 픽셀 충돌 로직 (여기서는 경계 상자로 대체됨)
+                //    return OperandValue(true);
+                // }
+                return OperandValue(true); // 단순화된 경계 상자 충돌
+            } // SDL_HasIntersectionF 대신 SDL_HasRectIntersectionFloat 사용
+        }
+        return OperandValue(false);
+    }
+    else if (BlockType == "is_type")
+    {
+        // ~ 타입인가?
+        // params: [VALUE_TO_CHECK (any type), TYPE_STRING_DROPDOWN (string: "number", "en", "ko")]
+        // paramsKeyMap: { VALUE: 0, TYPE: 1 } (가정)
+
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 2)
+        {
+            engine.EngineStdOut("is_type block for " + objectId + " has insufficient parameters. Expected VALUE and TYPE.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+
+        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue typeOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+
+        std::string valueStr = valueOp.asString(); // 검사를 위해 입력값을 문자열로 변환
+
+        if (typeOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("is_type block for " + objectId + ": TYPE parameter is not a string. Value: " + typeOp.asString(), 2, executionThreadId);
+            return OperandValue(false);
+        }
+        std::string typeStr = typeOp.asString();
+
+        if (typeStr == "number")
+        {
+            return OperandValue(isNumber(valueStr));
+        }
+        else if (typeStr == "en")
+        {
+            try
+            {
+                regex en_pat("^[a-zA-Z]+$");
+                return OperandValue(regex_match(valueStr, en_pat));
+            }
+            catch (const std::exception &e)
+            {
+                engine.EngineStdOut("Regex error for 'en' type check: " + std::string(e.what()), 1);
+                return OperandValue(false);
+            }
+        }
+        else if (typeStr == "ko")
+        {
+            try
+            {
+                regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
+                return OperandValue(regex_match(valueStr, ko_pat));
+            }
+            catch (const std::exception &e)
+            {
+                engine.EngineStdOut("Regex error for 'ko' type check: " + std::string(e.what()), 1);
+                return OperandValue(false);
+            }
+        }
+        else
+        {
+            engine.EngineStdOut("is_type block for " + objectId + ": Unsupported type: " + typeStr, 1);
+            return OperandValue(false);
+        }
+    }
+    else if (BlockType == "boolean_basic_operator")
+    {
+        // 두 값의 관계 비교
+        // params: [LEFTHAND (any type), OPERATOR (string), RIGHTHAND (any type)]
+        // paramsKeyMap: { LEFTHAND: 0, OPERATOR: 1, RIGHTHAND: 2 }
+
+        if (!block.paramsJson.IsArray() || block.paramsJson.Size() < 3)
+        {
+            engine.EngineStdOut("boolean_basic_operator block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
+            return OperandValue(false);
+        }
+
+        OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue operatorOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId); // This should be a direct string from Dropdown
+        OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
+
+        if (operatorOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": OPERATOR parameter is not a string. Value: " + operatorOp.asString(), 2, executionThreadId);
+            return OperandValue(false);
+        }
+        std::string opStr = operatorOp.asString();
+
+        // JavaScript 코드처럼, 문자열이지만 숫자일 수 있는 경우 숫자로 변환 시도
+        double leftNum = 0.0, rightNum = 0.0;
+        bool leftIsStrictlyNumeric = false;
+        bool rightIsStrictlyNumeric = false;
+
+        if (leftOp.type == OperandValue::Type::NUMBER)
+        {
+            leftNum = leftOp.number_val;
+            leftIsStrictlyNumeric = true;
+        }
+        else if (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && isNumber(leftOp.string_val))
+        {
+            leftNum = leftOp.asNumber(); // asNumber() handles stod
+            leftIsStrictlyNumeric = true;
+        }
+
+        if (rightOp.type == OperandValue::Type::NUMBER)
+        {
+            rightNum = rightOp.number_val;
+            rightIsStrictlyNumeric = true;
+        }
+        else if (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && isNumber(rightOp.string_val))
+        {
+            rightNum = rightOp.asNumber();
+            rightIsStrictlyNumeric = true;
+        }
+
+        // 숫자 비교 우선
+        if (leftIsStrictlyNumeric && rightIsStrictlyNumeric)
+        {
+            if (opStr == "EQUAL")
+                return OperandValue(leftNum == rightNum);
+            if (opStr == "NOT_EQUAL")
+                return OperandValue(leftNum != rightNum);
+            if (opStr == "GREATER")
+                return OperandValue(leftNum > rightNum);
+            if (opStr == "LESS")
+                return OperandValue(leftNum < rightNum);
+            if (opStr == "GREATER_OR_EQUAL")
+                return OperandValue(leftNum >= rightNum);
+            if (opStr == "LESS_OR_EQUAL")
+                return OperandValue(leftNum <= rightNum);
+        }
+        else
+        {
+            // 하나라도 엄격한 숫자가 아니면 문자열로 비교 (EQUAL, NOT_EQUAL만 해당)
+            // EntryJS는 GREATER, LESS 등의 경우 문자열을 숫자로 강제 변환 (0으로) 후 비교하므로,
+            // 위에서 isNumber()로 체크된 경우 이미 leftNum, rightNum에 변환된 값이 들어있거나,
+            // isNumber()가 false였다면 0.0이 들어있을 것입니다.
+            // 따라서, 숫자 비교가 실패하면 문자열 비교로 넘어가는 로직은 EQUAL, NOT_EQUAL에만 적용하고,
+            // 나머지 연산자는 이미 위에서 처리된 숫자 값을 사용합니다.
+
+            std::string leftStr = leftOp.asString();
+            std::string rightStr = rightOp.asString();
+
+            if (opStr == "EQUAL")
+                return OperandValue(leftStr == rightStr);
+            if (opStr == "NOT_EQUAL")
+                return OperandValue(leftStr != rightStr);
+
+            // GREATER, LESS, GREATER_OR_EQUAL, LESS_OR_EQUAL의 경우,
+            // isNumber()를 통과하지 못한 문자열은 asNumber() 호출 시 0.0으로 변환됩니다.
+            // 따라서, 위에서 leftIsStrictlyNumeric, rightIsStrictlyNumeric이 false였더라도
+            // leftNum, rightNum은 0.0 또는 변환된 숫자 값을 가집니다.
+            // 이 값들을 사용하여 비교합니다.
+            if (opStr == "GREATER")
+                return OperandValue(leftOp.asNumber() > rightOp.asNumber());
+            if (opStr == "LESS")
+                return OperandValue(leftOp.asNumber() < rightOp.asNumber());
+            if (opStr == "GREATER_OR_EQUAL")
+                return OperandValue(leftOp.asNumber() >= rightOp.asNumber());
+            if (opStr == "LESS_OR_EQUAL")
+                return OperandValue(leftOp.asNumber() <= rightOp.asNumber());
+        }
+
+        engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": Unknown OPERATOR '" + opStr + "'.", 2, executionThreadId);
+        return OperandValue(false);
     }
 
     return OperandValue();
@@ -4613,9 +4925,11 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             conditionIsTrue = !conditionResult.string_val.empty() &&
                               conditionResult.string_val != "0" &&
                               conditionResult.string_val != "false";
-        }else{
-             // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
-        engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
+        }
+        else
+        {
+            // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
+            engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
         }
         if (conditionIsTrue)
         {
@@ -4672,8 +4986,10 @@ void Flow(std::string BlockType, Engine &engine, const std::string &objectId, co
             conditionIsTrue = !conditionResult.string_val.empty() &&
                               conditionResult.string_val != "0" &&
                               conditionResult.string_val != "false";
-        }else{
-               engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
+        }
+        else
+        {
+            engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
         }
         const Script *scriptToExecute = nullptr;
         std::string stackToExecuteName;

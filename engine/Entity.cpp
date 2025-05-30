@@ -434,6 +434,28 @@ bool Entity::isVisible() const
     return visible;
 }
 
+SDL_FRect Entity::getVisualBounds() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    // 엔티티의 현재 위치(x, y는 중심점), 크기, 스케일을 기반으로 경계 상자를 계산합니다.
+    // 회전은 이 예제에서 고려하지 않았습니다. 필요시 추가 구현이 필요합니다.
+    // 엔트리 좌표계 (Y축 위쪽) 및 중심점 기준입니다.
+    double actualWidth = width * scaleX;
+    double actualHeight = height * scaleY;
+
+    SDL_FRect bounds;
+    // 좌상단 x, y 계산
+    bounds.x = static_cast<float>(x - actualWidth / 2.0);
+    // 엔트리 좌표계에서는 y가 위로 갈수록 크므로, 좌상단 y는 y + height/2 입니다.
+    // 하지만 SDL_FRect는 일반적으로 y가 아래로 갈수록 크므로, 변환이 필요할 수 있습니다.
+    // 여기서는 Stage 좌표계 (Y 위쪽)를 그대로 사용한다고 가정하고,
+    // SDL 렌더링 시점에서 Y축을 뒤집는다고 가정합니다.
+    bounds.y = static_cast<float>(y - actualHeight / 2.0); // Stage 좌표계의 좌하단 y
+    bounds.w = static_cast<float>(actualWidth);
+    bounds.h = static_cast<float>(actualHeight);
+    return bounds;
+}
+
 void Entity::setX(double newX)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);

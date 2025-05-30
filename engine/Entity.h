@@ -278,6 +278,7 @@ public:
     double getWidth() const;
     double getHeight() const;
     bool isVisible() const;
+    SDL_FRect getVisualBounds() const; // 추가
     Entity::RotationMethod getRotateMethod() const;
     void setRotateMethod(RotationMethod method);
     void setX(double newX);

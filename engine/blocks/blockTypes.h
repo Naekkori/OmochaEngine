@@ -149,7 +149,10 @@ namespace Omocha
         // Judge (판단)
         IS_CLICKED,               // 마우스를 클릭했는가? (일반 클릭)
         IS_OBJECT_CLICKED_JUDGE,  // 특정 오브젝트를 클릭했는가? (is_object_clicked)
-        IS_KEY_PRESSED_JUDGE      // 특정 키가 눌렸는가? (is_press_some_key)
+        IS_KEY_PRESSED_JUDGE,     // 특정 키가 눌렸는가? (is_press_some_key)
+        REACH_SOMETHING,           // ~에 닿았는가?
+        IS_TYPE,                   // ~ 타입인가?
+        BOOLEAN_BASIC_OPERATOR     // 두 값의 관계 비교
     };
 
     /**

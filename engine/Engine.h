@@ -144,8 +144,7 @@ private:
     std::string m_textInputQuestionMessage;   // 텍스트 입력 시 표시될 질문 메시지
     std::string m_lastAnswer;                 // 마지막으로 입력된 답변 (ask_and_wait 블록용)
     mutable std::mutex m_textInputMutex;
-    std::condition_variable m_textInputCv;
-    mutable mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
+    std::condition_variable m_textInputCv;    
     string firstSceneIdInOrder;
     std::string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
     SDL_Texture *LoadTextureFromSvgResource(SDL_Renderer *renderer, int resourceID);
@@ -340,6 +339,7 @@ public:
     std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
     std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
     boost::asio::thread_pool &getThreadPool();   // 스레드 풀 접근자 수정
+    mutable std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
 private:
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:

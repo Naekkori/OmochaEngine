@@ -334,14 +334,17 @@ int main(int argc, char *argv[])
                 engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main);
 
                 // 엔티티 업데이트
-                for (auto &[entity_key, entity_ptr] : engine.getEntities_Modifiable())
-                {
-                    if (entity_ptr)
-                    {                                     
-                        entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
-                        entity_ptr->resumeInternalBlockScripts(deltaTime); // BLOCK_INTERNAL 상태 스크립트 재개
+                { // std::lock_guard의 범위를 지정하기 위한 블록
+                    std::lock_guard<std::mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
+                    for (auto &[entity_key, entity_ptr] : engine.getEntities_Modifiable())
+                    {
+                        if (entity_ptr)
+                        {                                     
+                            entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
+                            entity_ptr->resumeInternalBlockScripts(deltaTime); // BLOCK_INTERNAL 상태 스크립트 재개
+                        }
                     }
-                }
+                } // 여기서 lock_guard가 소멸되면서 뮤텍스 자동 해제
 
                 while (SDL_PollEvent(&event))
                 {

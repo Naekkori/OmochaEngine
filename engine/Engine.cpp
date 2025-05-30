@@ -2441,6 +2441,9 @@ void Engine::drawAllEntities()
         return;
     }
 
+    // Lock the mutex that protects objects_in_order and entities
+    std::lock_guard<std::mutex> lock(m_engineDataMutex);
+
     SDL_SetRenderTarget(renderer, tempScreenTexture);
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 배경색 흰색으로 설정
@@ -5055,6 +5058,9 @@ void Engine::drawDialogs()
 {
     if (!renderer || !tempScreenTexture)
         return;
+
+    // Lock the mutex that protects entities and their dialog states
+    std::lock_guard<std::mutex> lock(m_engineDataMutex);
 
     SDL_SetRenderTarget(renderer, tempScreenTexture); // 스테이지 텍스처에 그립니다.
 
