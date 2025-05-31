@@ -253,10 +253,16 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                  fieldType == "get_sound_volume" || fieldType == "get_sound_speed" || fieldType == "get_sound_duration" ||
                  fieldType == "get_canvas_input_value" || fieldType == "length_of_list" || fieldType == "is_included_in_list" ||
                  fieldType == "coordinate_mouse" || fieldType == "coordinate_object" || fieldType == "get_variable" ||
-                 fieldType == "reach_something" ||                                                                    // << 판단 블록 추가
-                 fieldType == "is_type" ||                                                                            // << is_type 판단 블록 추가
-                 fieldType == "boolean_basic_operator" ||                                                             // << boolean_basic_operator 판단 블록 추가
-                 fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" || // 판단 블록들 추가
+                 fieldType == "reach_something" ||
+                 fieldType == "is_type" ||
+                 fieldType == "boolean_basic_operator" ||
+                 fieldType == "boolean_and_or" || // 추가
+                 fieldType == "boolean_not" ||    // 추가
+                 fieldType == "is_boost_mode" ||  // 추가
+                 fieldType == "is_current_device_type" || // 추가: 사용자가 보고한 문제 해결
+                 fieldType == "is_touch_supported" || // 추가
+                 fieldType == "text_read" || // 추가
+                 fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" ||
                  fieldType == "value_of_index_from_list")
         {
             Block subBlock;
@@ -1674,7 +1680,6 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
-        transform(action.begin(), action.end(), action.begin(), ::tolower); // 소문자로 변환
         struct tm timeinfo_s;                                               // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
 #ifdef _WIN32
@@ -1684,27 +1689,27 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         localtime_r(&now, &timeinfo_s);
         timeinfo_ptr = &timeinfo_s;
 #endif
-        if (action == "year")
+        if (action == "YEAR")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_year + 1900));
         }
-        else if (action == "month")
+        else if (action == "MONTH")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_mon + 1));
         }
-        else if (action == "day")
+        else if (action == "DAY")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday));
         }
-        else if (action == "hour")
+        else if (action == "HOUR")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_hour));
         }
-        else if (action == "minute")
+        else if (action == "MINUTE")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_min));
         }
-        else if (action == "second")
+        else if (action == "SECOND")
         {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_sec));
         }
@@ -3943,13 +3948,31 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 더할 값도 숫자인지 확인
-        bool valueToAddIsNumeric = (valueToAddOp.type == OperandValue::Type::NUMBER && isfinite(
-                                                                                           valueToAddOp.asNumber()));
+        // bool valueToAddIsNumeric = (valueToAddOp.type == OperandValue::Type::NUMBER && isfinite(valueToAddOp.asNumber()));
+        // Let's make this more robust:
+        double valueToAddNumVal = 0.0;
+        bool valueToAddIsActuallyNumeric = false;
+        if (valueToAddOp.type == OperandValue::Type::NUMBER) {
+            valueToAddNumVal = valueToAddOp.number_val;
+            valueToAddIsActuallyNumeric = isfinite(valueToAddNumVal);
+        } else if (valueToAddOp.type == OperandValue::Type::STRING) {
+            if (!valueToAddOp.string_val.empty()) { // Avoid stod on empty string
+                try {
+                    size_t add_idx = 0;
+                    valueToAddNumVal = stod(valueToAddOp.string_val, &add_idx);
+                    if (add_idx == valueToAddOp.string_val.length() && isfinite(valueToAddNumVal)) {
+                        valueToAddIsActuallyNumeric = true;
+                    }
+                } catch (const std::exception&) {
+                    // valueToAddIsActuallyNumeric remains false
+                }
+            }
+        }
 
-        if (currentVarIsNumeric && valueToAddIsNumeric)
+        if (currentVarIsNumeric && valueToAddIsActuallyNumeric)
         {
             // 둘 다 숫자면 덧셈
-            double sumValue = currentVarNumericValue + valueToAddOp.asNumber();
+            double sumValue = currentVarNumericValue + valueToAddNumVal;
 
             // EntryJS의 toFixed와 유사한 효과를 내기 위해 to_string 사용 후 후처리
             string resultStr = to_string(sumValue);
@@ -3962,7 +3985,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.EngineStdOut(
                 "Variable '" + variableIdToFind + "' (numeric) changed by " + valueToAddOp.asString() + " to " +
                     targetVarPtr->value,
-                0, executionThreadId);
+                3, executionThreadId);
         }
         else
         {
@@ -3971,7 +3994,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.EngineStdOut(
                 "Variable '" + variableIdToFind + "' (string) concatenated with " + valueToAddOp.asString() + " to " +
                     targetVarPtr->value,
-                0, executionThreadId);
+                3, executionThreadId);
         }
         if (targetVarPtr->isCloud)
         {
@@ -4617,6 +4640,16 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         // Perform the active wait - this will block the current script thread
         entity->performActiveWait(executionThreadId, block.id, waitEndTime, &engine, sceneIdAtDispatch); // Pass necessary info
+        // DEBUG LOG: After performActiveWait
+        bool isWaitingAfter = entity->isScriptWaiting(executionThreadId);
+        Entity::WaitType waitTypeAfter = entity->getCurrentWaitType(executionThreadId);
+        engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": After performActiveWait. isWaiting=" + (isWaitingAfter ? "true" : "false") + ", waitType=" + BlockTypeEnumToString(waitTypeAfter) + ". Block ID: " + block.id, 0, executionThreadId);
+
+        // 만약 performActiveWait가 정상 종료 (시간 만료) 되었는데도 isWaiting이 true로 남아있다면,
+        // performActiveWait 내부의 정상 종료 시 isWaiting = false 로직이 누락되었거나 다른 문제가 있을 수 있습니다.
+        // (현재 performActiveWait 코드를 보면 정상 종료 시 isWaiting=false로 설정하고 있음)
+
+
                                                                                                          // performActiveWait가 완료되면 isWaiting 상태가 해제됩니다.
     }
     else if (BlockType == "repeat_basic")
@@ -4685,67 +4718,53 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_basic, or entity is null.", 2, executionThreadId);
             return; // 또는 예외 발생
         }
-        // else // 이 else는 if(!pThreadState)에 대한 것이므로, 위의 if 블록 밖으로 이동하거나 제거해야 합니다.
-        // 아래 로직은 pThreadState가 유효할 때만 실행되어야 합니다.
-        {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
-        }
 
         int startIteration = 0;
         // Check if we are resuming this specific repeat_basic block
         // The wait state would have been set by an inner block, and Entity::executeScript
         // would have set resumeAtBlockIndex to *this* repeat_basic block.
-        // The isWaiting flag on pThreadState might reflect the inner block's wait.
-        if (pThreadState->blockIdForWait == block.id && pThreadState->resumeAtBlockIndex != -1 && pThreadState->loopCounter > 0)
+        // The isWaiting flag on pThreadState might reflect the inner block's wait.        
+        if ( pThreadState->loopCounters.count(block.id))
         {
             // This condition means we are likely resuming this loop.
-            startIteration = pThreadState->loopCounter;
-        }
-        else
-        {
-            // Not resuming this specific loop, or it's the first time.
-            pThreadState->loopCounter = 0; // Ensure loopCounter is reset for a new execution of this block.
+            startIteration = pThreadState->loopCounters[block.id];
         }
         engine.EngineStdOut("repeat_basic: " + objectId + " loop. StartIter: " + to_string(startIteration) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
 
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
         for (int i = startIteration; i < iterCount; ++i)
         {
-            pThreadState->loopCounter = i;                                                                                  // Save current iteration *before* executing inner blocks
+            pThreadState->loopCounters[block.id] = i; // Save current iteration *before* executing inner blocks
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
 
             // 내부 블록 실행 후 대기 상태 확인
             if (entity)
             {
                 bool shouldBreakLoop = false;
-                { // Scope for lock
+                // Check and reset breakLoopRequested under lock
+                {
                     lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                    auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_check_break != entity->scriptThreadStates.end())
-                    {
-                        if (it_check_break->second.breakLoopRequested)
-                        {
-                            shouldBreakLoop = true;
-                            it_check_break->second.breakLoopRequested = false; // Reset flag
-                        }
+                    auto it_state = entity->scriptThreadStates.find(executionThreadId);
+                    if (it_state != entity->scriptThreadStates.end() && it_state->second.breakLoopRequested) {
+                        shouldBreakLoop = true;
+                        it_state->second.breakLoopRequested = false; // Reset flag
                     }
                 }
                 if (shouldBreakLoop)
                 {
                     engine.EngineStdOut("repeat_basic for " + objectId + " breaking loop due to stop_repeat. Iteration " + to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
-                    if (pThreadState)
-                        pThreadState->loopCounter = 0; // Reset loop counter as the loop is terminated
+                    if (pThreadState) pThreadState->loopCounters.erase(block.id); // Reset loop counter as the loop is terminated
                     break;                             // Break from the C++ for loop
                 }
 
                 bool shouldContinue = false;
-                { // Scope for lock
+                // Check and reset continueLoopRequested under lock
+                {
                     lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                    auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.continueLoopRequested)
-                    {
+                    auto it_state = entity->scriptThreadStates.find(executionThreadId);
+                    if (it_state != entity->scriptThreadStates.end() && it_state->second.continueLoopRequested) {
                         shouldContinue = true;
-                        it_check_continue->second.continueLoopRequested = false; // Reset flag
+                        it_state->second.continueLoopRequested = false; // Reset flag
                     }
                 }
                 if (shouldContinue)
@@ -4773,7 +4792,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     // An inner block is waiting. This repeat_basic block must also "wait".
                     // Entity::executeScript will see the wait state (set by the inner block)
-                    // and set its resumeAtBlockIndex to *this* repeat_basic block.
+                    // and set its resumeAtBlockIndex to *this* repeat_basic block.                    
                     // The loopCounter 'i' is already saved in pThreadState->loopCounter.
                     engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(i) +
                                             " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
@@ -4784,7 +4803,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
         }
         // Loop finished all iterations normally
-        pThreadState->loopCounter = 0; // Reset for the next time this repeat_basic block might run.
+        if (pThreadState) pThreadState->loopCounters.erase(block.id); // Reset for the next time this repeat_basic block might run.
         engine.EngineStdOut("repeat_basic: " + objectId + " loop completed. Block ID: " + block.id, 0, executionThreadId);
     }
     else if (BlockType == "repeat_inf")
@@ -4891,7 +4910,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     // 내부 블록이 대기를 설정하지 않음 (모두 즉시 실행됨).
                     // repeat_inf의 무한 루프가 CPU를 점유하지 않도록 강제로 1프레임 대기.
                     entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant.", 1, executionThreadId);
+                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant. Block ID: " + block.id, 1, executionThreadId);
                     return; // Flow 함수를 빠져나가 Entity::executeScript가 이 repeat_inf 블록에서 대기하도록 함
                 }
             }
@@ -5004,7 +5023,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     // 조건이 계속 참이고 내부 블록이 즉시 실행되면 무한 루프 방지를 위해 강제 대기
                     entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant and condition is true.", 1, executionThreadId);
+                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant and condition is true. Block ID: " + block.id, 1, executionThreadId);
                     return;
                 }
             }
@@ -5383,6 +5402,29 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
 
         entity->setText(textToWrite); // 새로 추가된 Entity::setText 메소드 호출
         engine.EngineStdOut("TextBox " + objectId + " executed text_write with: \"" + textToWrite + "\"", 3, executionThreadId);
+    }else if (BlockType == "text_append")
+    {
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
+        {
+            engine.EngineStdOut(
+                "text_append block for " + objectId + " has invalid or missing params. Expected text VALUE.",
+                2, executionThreadId);
+            return;
+        }
+        OperandValue textValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        std::string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
+        entity->appendText(textToAppend);
+    }else if(BlockType == "text_prepend"){
+                if (!block.paramsJson.is_array() || block.paramsJson.empty())
+        {
+            engine.EngineStdOut(
+                "text_append block for " + objectId + " has invalid or missing params. Expected text VALUE.",
+                2, executionThreadId);
+            return;
+        }
+        OperandValue textValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        std::string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
+        entity->prependText(textToAppend);
     }
 }
 /**
@@ -5500,7 +5542,7 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                                 const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
     Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
-    // engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
+    engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
 
     for (size_t i = 0; i < blocks.size(); ++i)
     {
@@ -5533,12 +5575,14 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
         // 해당 블록의 로직에 따라 재귀적으로 이 함수를 호출하거나 다른 처리를 해야 합니다.
         // 여기서는 간단히 카테고리 함수만 호출합니다. 실제로는 더 복잡한 실행기 로직이 필요합니다.
         try
-        {            
+        {  
             Moving(block.type, engine, objectId, block, executionThreadId, deltaTime);
-            /*OperandValue calcResult =*/ Calculator(block.type, engine, objectId, block, executionThreadId); // 반환 값은 현재 사용되지 않음
+            Calculator(block.type, engine, objectId, block, executionThreadId);
             Looks(block.type, engine, objectId, block, executionThreadId);
             Sound(block.type, engine, objectId, block, executionThreadId);
             Variable(block.type, engine, objectId, block, executionThreadId);
+            Function(block.type, engine, objectId, block, executionThreadId);
+            TextBox(block.type, engine, objectId, block, executionThreadId);
             Event(block.type, engine, objectId, block, executionThreadId);
             Flow(block.type, engine, objectId, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         }
@@ -5559,8 +5603,6 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
         // Entity 포인터가 유효한지 먼저 확인합니다.
         if (entity && entity->isScriptWaiting(executionThreadId))
         {
-            // ScriptThreadState에 직접 접근하기보다는 Entity의 getter를 사용하는 것이 좋습니다.
-            // 여기서는 설명을 위해 직접 접근하는 것처럼 표현했지만, 실제로는 캡슐화를 고려해야 합니다.
             Entity::WaitType typeOfWait = entity->getCurrentWaitType(executionThreadId);
             string idOfWaitingBlock = entity->getWaitingBlockId(executionThreadId);
 

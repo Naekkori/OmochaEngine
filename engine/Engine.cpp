@@ -41,6 +41,31 @@ static string NlohmannJsonToString(const nlohmann::json &value)
 namespace
 {
 
+    // Helper function to recursively filter 'params' arrays within a JSON structure
+    void RecursiveFilterParamsArray(nlohmann::json& paramsArray, Engine& engine, const std::string& parentContext) {
+        if (!paramsArray.is_array()) {
+            // This function expects an array.
+            // If paramsArray was supposed to be an array but isn't, the calling code (ParseBlockDataInternal) handles logging.
+            return;
+        }
+
+        nlohmann::json filteredArray = nlohmann::json::array();
+        for (const auto& item : paramsArray) {
+            if (item.is_null()) {
+                // Skip null items
+                continue;
+            } else if (item.is_object() && item.contains("type") && item.contains("params") && item["params"].is_array()) {
+                // It's a block-like structure. Make a copy to modify its "params".
+                nlohmann::json subBlockCopy = item;
+                RecursiveFilterParamsArray(subBlockCopy["params"], engine, parentContext + " -> sub-param-block (type: " + subBlockCopy.value("type", "unknown") + ")"); // Recursively filter its params
+                filteredArray.push_back(subBlockCopy); // Add the processed sub-block
+            } else {
+                // It's a literal or a non-block object, keep it.
+                filteredArray.push_back(item);
+            }
+        }
+        paramsArray = filteredArray; // Replace the original array with the filtered one
+    }
     // Forward declaration for recursive use if ParseBlockDataInternal calls itself for nested statements.
     Block ParseBlockDataInternal(const nlohmann::json &blockJson, Engine &engine, const std::string &contextForLog);
 
@@ -76,51 +101,16 @@ namespace
         if (blockJson.contains("params"))
         {
             const nlohmann::json &paramsVal = blockJson["params"];
-            // nlohmann::json으로 변경됨에 따라 paramsVal도 nlohmann::json 타입이어야 합니다.
-            // 실제 호출부에서 blockJson이 nlohmann::json이므로 paramsVal도 nlohmann::json입니다.
             if (paramsVal.is_array())
             {
-                newBlock.paramsJson = nlohmann::json::array(); // 명시적으로 빈 배열로 초기화
-                for (const auto &paramEntryJson : paramsVal)
-                { // Iterate over original params
-                    if (paramEntryJson.is_null())
-                    {
-                        // 최상위 null 값은 FilterNullsInParamsJsonArray가 나중에 처리하도록 그대로 추가
-                        newBlock.paramsJson.push_back(nullptr);
-                    }
-                    else if (paramEntryJson.is_object() && paramEntryJson.contains("type") && paramEntryJson.contains("params") && paramEntryJson["params"].is_array())
-                    {
-                        // 블록과 유사한 파라미터입니다. 내부 'params'를 필터링하기 위해 복사본을 만듭니다.
-                        nlohmann::json subBlockCopy = paramEntryJson; // sub-block 객체 깊은 복사
-
-                        // 복사본 내의 'params' 배열에 대한 참조를 가져옵니다.
-                        nlohmann::json &subBlockParamsArray = subBlockCopy["params"];
-
-                        nlohmann::json filteredNestedParams = nlohmann::json::array(); // 필터링된 params를 위한 새 배열 생성
-                        for (const auto &nestedParam : subBlockParamsArray)
-                        {
-                            if (!nestedParam.is_null())
-                            {
-                                // null이 아닌 중첩된 파라미터만 깊은 복사합니다.
-                                filteredNestedParams.push_back(nestedParam);
-                            }
-                        }
-                        // subBlockCopy의 'params' 배열을 필터링된 버전으로 교체합니다.
-                        subBlockCopy["params"] = filteredNestedParams;
-
-                        newBlock.paramsJson.push_back(subBlockCopy); // 수정된 sub-block을 newBlock의 params에 추가합니다.
-                    }
-                    else
-                    {
-                        // null도 아니고 수정 가능한 sub-block도 아니면, 그대로 복사합니다.
-                        newBlock.paramsJson.push_back(paramEntryJson);
-                    }
-                }
+                newBlock.paramsJson = paramsVal; // Initial copy
+                std::string paramsContext = contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type + ") params";
+                RecursiveFilterParamsArray(newBlock.paramsJson, engine, paramsContext);
             }
             else
             {                                                                                                                                                                                                                               // params가 있지만 배열이 아닌 경우
                 engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type + ") has 'params' but it's not an array. Params will be empty. Value: " + NlohmannJsonToString(paramsVal), 1, ""); // Added empty thread ID
-                newBlock.paramsJson = nlohmann::json::array();
+                newBlock.paramsJson = nlohmann::json::array(); // Ensure it's an empty array
             }
         }
         else
@@ -128,8 +118,6 @@ namespace
             // 'params' 멤버가 없으면 빈 배열로 초기화합니다.
             newBlock.paramsJson = nlohmann::json::array();
         }
-        // Filter nulls for the current block's paramsJson
-        newBlock.FilterNullsInParamsJsonArray();
 
         // Parse Statements (Inner Scripts)
         if (blockJson.contains("statements") && blockJson["statements"].is_array())
@@ -681,6 +669,21 @@ bool Engine::loadProject(const string &projectFilePath)
                 continue;
             }
 
+            // id 파싱 (변수 식별에 중요)
+            if (variableJson.contains("id") && variableJson["id"].is_string())
+            {
+                currentVarDisplay.id = variableJson["id"].get<string>();
+                if (currentVarDisplay.id.empty())
+                {
+                    EngineStdOut("Variable '" + currentVarDisplay.name + "' has an empty 'id' field. Skipping variable.", 1);
+                    continue;
+                }
+            }
+            else
+            {
+                EngineStdOut("Variable 'id' is missing or not a string for variable '" + currentVarDisplay.name + "' at index " + to_string(i_var) + ". Skipping variable.", 1);
+                continue;
+            }
             // value 파싱
             if (variableJson.contains("value"))
             {
@@ -764,6 +767,17 @@ bool Engine::loadProject(const string &projectFilePath)
             currentVarDisplay.x = variableJson.contains("x") && variableJson["x"].is_number() ? variableJson["x"].get<float>() : 0.0f;
             currentVarDisplay.y = variableJson.contains("y") && variableJson["y"].is_number() ? variableJson["y"].get<float>() : 0.0f;
 
+            // isCloud 파싱 추가
+            if (variableJson.contains("isCloud") && variableJson["isCloud"].is_boolean())
+            {
+                currentVarDisplay.isCloud = variableJson["isCloud"].get<bool>();
+            }
+            else
+            {
+                currentVarDisplay.isCloud = false;
+                // isCloud 필드가 없거나 boolean 타입이 아니면 기본값 false 사용
+                EngineStdOut("Variable '" + currentVarDisplay.name + "' 'isCloud' field missing or not boolean. Defaulting to false.", 1);
+            }
             // 리스트 타입 처리
             if (currentVarDisplay.variableType == "list")
             {
@@ -4358,20 +4372,27 @@ void Engine::updateFps()
 
 void Engine::startProjectTimer()
 {
-    m_projectTimerRunning = true; // 프로젝트 타이머 시작
-    EngineStdOut("Project timer started.", 0);
+ if (!m_projectTimerRunning) {
+        m_projectTimerRunning = true;
+        // 타이머 재개 시, 이전에 누적된 시간을 제외한 시점부터 시작하도록 Ticks 설정
+        m_projectTimerStartTime = SDL_GetTicks() - static_cast<Uint64>(m_projectTimerValue * 1000.0);
+    }
 }
 
 void Engine::stopProjectTimer()
 {
-    m_projectTimerRunning = false; // 프로젝트 타이머 중지
-    EngineStdOut("Project timer stopped.", 0);
+    if (!m_projectTimerRunning)
+    {
+        m_projectTimerRunning = false;
+        m_projectTimerValue = (SDL_GetTicks() - m_projectTimerStartTime) / 1000.0;
+    }
+    
 }
 
 void Engine::resetProjectTimer()
 {
     m_projectTimerValue = 0.0; // 프로젝트 타이머 리셋
-    EngineStdOut("Project timer reset.", 0);
+    m_projectTimerStartTime = 0;
 }
 
 void Engine::showProjectTimer(bool show)
@@ -5500,7 +5521,15 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                     if (isInCurrentScene || isGlobal)
                     {
                         EngineStdOut("Dispatching message-received script for object: " + listeningObjectId + " (Message: '" + messageId + "')", 3, executionThreadId); // LEVEL 0 -> 3
-                        this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId, 0.0);
+                        // 메시지 수신 스크립트는 항상 새 스레드로 시작 (existingExecutionThreadId를 비워둠)
+                        // 또한, 메시지를 받은 시점의 씬 컨텍스트(currentSceneId)를 사용합니다.
+                        // 기존 코드에서 sceneIdAtDispatch가 항상 currentSceneId로 전달되었으므로,
+                        // 이 부분은 변경 없이 유지하거나 명시적으로 currentSceneId를 전달할 수 있습니다.
+                        // 여기서는 명확성을 위해 currentSceneId를 전달합니다.
+                        // deltaTime은 이벤트 발생 시점이므로 0.0f가 적절합니다.
+                        this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId, 0.0f, "");
+
+
                     }
                     else
                     {
@@ -5672,7 +5701,7 @@ bool Engine::saveCloudVariablesToJson()
         return false; // 예외 발생 시 저장 중단
     }
 
-    EngineStdOut("Saving cloud variables to: " + filePath, 0);
+    EngineStdOut("Saving cloud variables to: " + filePath, 3);
     std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
 
     nlohmann::json doc = nlohmann::json::array();
@@ -5733,11 +5762,11 @@ bool Engine::loadCloudVariablesFromJson()
     std::string directoryPath = "cloud_saves";
     std::string filePath = directoryPath + "/" + PROJECT_NAME + ".cloud.json";
 
-    EngineStdOut("Attempting to load cloud variables from: " + filePath, 0);
+    EngineStdOut("Attempting to load cloud variables from: " + filePath, 3);
 
     if (!std::filesystem::exists(filePath))
     {
-        EngineStdOut("Cloud variable save file not found: " + filePath + ". No variables loaded.", 0);
+        EngineStdOut("Cloud variable save file not found: " + filePath + ". No variables loaded.", 1);
         return true; // 저장 파일이 아직 없는 것은 정상적인 상황
     }
 
@@ -5830,7 +5859,7 @@ bool Engine::loadCloudVariablesFromJson()
             if (hudVar.isCloud && hudVar.name == name && hudVar.objectId == objectId && hudVar.variableType == variableType)
             {
                 hudVar.value = value;
-                EngineStdOut("Cloud variable '" + name + "' (Object: '" + (objectId.empty() ? "global" : objectId) + "') updated to value: '" + value + "'", 0);
+                EngineStdOut("Cloud variable '" + name + "' (Object: '" + (objectId.empty() ? "global" : objectId) + "') updated to value: '" + value + "'", 3);
 
                 if (variableType == "list")
                 {
@@ -6421,7 +6450,7 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
             { // 글상자 타입인지 확인
                 objInfo.textContent = newText;
                 found = true;
-                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
+                //EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
 
                 // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
                 // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.

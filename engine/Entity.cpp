@@ -103,8 +103,10 @@ bool Entity::isScriptWaiting(const std::string &executionThreadId) const
 
 void Entity::performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait)
 {
+        Uint32 entryTime = SDL_GetTicks();
     // This method is called when the mutex is NOT held by this thread.
-    pEngine->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") now actively waiting due to block " + waitedBlockId + " (Type: wait_second) until " + std::to_string(waitEndTime), 0, executionThreadId);
+        pEngine->EngineStdOut("Enter performActiveWait for " + id + ", block " + waitedBlockId + ". waitEndTime=" + std::to_string(waitEndTime) + ", currentTicks=" + std::to_string(entryTime) + ", sceneIdAtDispatchForWait=" + sceneIdAtDispatchForWait + ". Expected duration (ms): " + (waitEndTime > entryTime ? std::to_string(waitEndTime - entryTime) : "0 or negative"), 0, executionThreadId);
+
 
     while (SDL_GetTicks() < waitEndTime)
     {
@@ -113,6 +115,7 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
             auto it_thread_state = scriptThreadStates.find(executionThreadId);
             if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested)
             {
+                    pEngine->EngineStdOut("performActiveWait: terminateRequested true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
                 pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " (Thread: " + executionThreadId + ") cancelled due to script termination request.", 1, executionThreadId);
                 // No need to reset state here, executeScript will handle it upon return
                 // The isWaiting flag will remain true, and executeScript will see terminateRequested.
@@ -122,6 +125,7 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
 
         if (pEngine->m_isShuttingDown.load(std::memory_order_relaxed))
         {
+                pEngine->EngineStdOut("performActiveWait: m_isShuttingDown true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
             pEngine->EngineStdOut("Wait for block " + waitedBlockId + " cancelled due to engine shutdown for entity: " + this->getId(), 1, executionThreadId);
             std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
             auto it_cleanup = scriptThreadStates.find(executionThreadId);
@@ -146,6 +150,7 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
         // and this entity is not global, then interrupt the wait.
         if (!isGlobal && currentEngineScene != sceneIdAtDispatchForWait)
         {
+            pEngine->EngineStdOut("performActiveWait: Scene changed for " + waitedBlockId + ". Current: " + currentEngineScene + ", Expected: " + sceneIdAtDispatchForWait + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
             pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " cancelled. Scene changed from " + sceneIdAtDispatchForWait + " to " + currentEngineScene + " during wait.", 1, executionThreadId);
             std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Re-lock to clean up
             auto it_cleanup = scriptThreadStates.find(executionThreadId);
@@ -177,10 +182,9 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
     // but that would mean this waitEndTime was for an older wait.
     // The crucial part is that *a* wait for this thread, identified by waitEndTime, has completed.
     // For robustness, ensure we are clearing the state that corresponds to the waitEndTime we just used.
-    if (it_cleanup != scriptThreadStates.end() &&                               // <--- 수정된 부분
-        it_cleanup->second.blockIdForWait == waitedBlockId &&                   // Use blockIdForWait
-        it_cleanup->second.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND && // Ensure it was this type of wait
-        it_cleanup->second.waitEndTime == waitEndTime)
+    if (it_cleanup != scriptThreadStates.end() &&
+        it_cleanup->second.blockIdForWait == waitedBlockId &&
+        it_cleanup->second.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND) // waitEndTime 비교 제거
     {
         it_cleanup->second.isWaiting = false;
         it_cleanup->second.waitEndTime = 0;
@@ -206,10 +210,10 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         return;
     }
 
-    size_t startIndex = 1;                              // 기본 시작 인덱스 (0번 블록은 이벤트 트리거)
-    std::string blockIdToResumeOnLog;                   // 로그용 변수
-    WaitType waitTypeToResumeOnLog = WaitType::NONE;    // 로그용 변수
-    {                                                   // Lock scope for initial state check and modification
+    size_t startIndex = 1;                                        // 기본 시작 인덱스 (0번 블록은 이벤트 트리거)
+    std::string blockIdToResumeOnLog;                             // 로그용 변수
+    WaitType waitTypeToResumeOnLog = WaitType::NONE;              // 로그용 변수
+    {                                                             // Lock scope for initial state check and modification
         std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Critical section for threadState access
         // 스레드 상태 가져오기 (없으면 생성)
         auto &threadState = scriptThreadStates[executionThreadId];
@@ -273,7 +277,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 it_thread_state->second.isWaiting = false;
                 it_thread_state->second.resumeAtBlockIndex = -1;
                 it_thread_state->second.blockIdForWait = "";
-                it_thread_state->second.loopCounter = 0;
+                it_thread_state->second.loopCounters.clear(); // loopCounter 대신 loopCounters 사용
                 it_thread_state->second.currentWaitType = WaitType::NONE;
                 it_thread_state->second.scriptPtrForResume = nullptr;
                 it_thread_state->second.sceneIdAtDispatchForResume = "";
@@ -314,7 +318,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            TextBox(block.type,*pEngineInstance,this->id,block,executionThreadId);
+            TextBox(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         }
@@ -386,7 +390,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         threadState.isWaiting = false;
         threadState.resumeAtBlockIndex = -1; // 스크립트 완료 시 재개 인덱스 초기화
         threadState.blockIdForWait = "";
-        threadState.loopCounter = 0; // Reset loop counter as well
+        threadState.loopCounters.clear(); // Reset loop counter as well
         threadState.currentWaitType = WaitType::NONE;
         threadState.scriptPtrForResume = nullptr;
         threadState.sceneIdAtDispatchForResume = "";
@@ -1336,6 +1340,21 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
                 if (state.scriptPtrForResume && !state.sceneIdAtDispatchForResume.empty())
                 {
                     tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume);
+                    // 로그 추가: 어떤 스크립트가 재개 대상으로 추가되었는지 확인
+                    // pEngineInstance->EngineStdOut("Entity " + id + " script thread " + execId + " added to resume queue for scene " + state.sceneIdAtDispatchForResume, 0, execId);
+                }
+                else if (state.scriptPtrForResume && state.sceneIdAtDispatchForResume.empty()) {
+                     // sceneIdAtDispatchForResume이 비어있는 경우, 현재 씬 컨텍스트를 사용하도록 시도하거나 경고 로깅
+                    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+                    bool isGlobal = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
+                    std::string currentSceneContext = pEngineInstance->getCurrentSceneId();
+
+                    if (isGlobal || (objInfo && objInfo->sceneId == currentSceneContext)) {
+                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait but sceneIdAtDispatchForResume is empty. Using current scene: " + currentSceneContext, 1, execId);
+                        tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, currentSceneContext);
+                    } else {
+                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait, sceneIdAtDispatchForResume is empty, and entity is not in current scene. Cannot resume.", 1, execId);
+                    }
                 }
                 else
                 {
@@ -1357,6 +1376,30 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
         const Script *scriptToRun = std::get<1>(task);
         const std::string &sceneIdForRun = std::get<2>(task);
         Engine *capturedEnginePtr = pEngineInstance; // Capture for lambda
+
+        // 작업 제출 전에 여기서도 씬 유효성 검사 추가
+        const ObjectInfo* objInfoCheck = capturedEnginePtr->getObjectInfoById(this->id);
+        bool isGlobalCheck = (objInfoCheck && (objInfoCheck->sceneId == "global" || objInfoCheck->sceneId.empty()));
+        std::string engineCurrentSceneCheck = capturedEnginePtr->getCurrentSceneId();
+
+        if (!isGlobalCheck && objInfoCheck && objInfoCheck->sceneId != engineCurrentSceneCheck) {
+            // 엔티티가 현재 씬에 없으면 재개하지 않음
+            // capturedEnginePtr->EngineStdOut("Resume for " + this->getId() + " (Thread: " + execId + ") cancelled. Entity not in current scene " + engineCurrentSceneCheck + " (Entity scene: " + objInfoCheck->sceneId + ")", 1, execId);
+            
+            // 대기 상태를 해제하여 무한 재개 시도를 방지
+            std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+            auto it_state = scriptThreadStates.find(execId);
+            if (it_state != scriptThreadStates.end()) {
+                it_state->second.isWaiting = false;
+                it_state->second.currentWaitType = WaitType::NONE;
+            } else {
+                // 스레드 상태를 찾을 수 없는 경우 로그 (이 경우는 발생하지 않아야 함)
+                if (capturedEnginePtr) { // capturedEnginePtr 유효성 검사
+                    capturedEnginePtr->EngineStdOut("ERROR: ScriptThreadState not found for execId " + execId + " in resumeInternalBlockScripts for entity " + this->getId() + " when trying to cancel resume.", 2, execId);
+                }
+            }
+            continue; // 다음 태스크로 넘어감
+        }
 
         capturedEnginePtr->submitTask([this, scriptToRun, execId, sceneIdForRun, deltaTime, capturedEnginePtr]()
                                       {
@@ -1537,13 +1580,89 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                           } });
 }
 
-void Entity::setText(const std::string& newText) {
-    if (pEngineInstance) {
-         std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+void Entity::setText(const std::string &newText)
+{
+    if (pEngineInstance)
+    {
+        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 업데이트합니다.
         pEngineInstance->updateEntityTextContent(this->id, newText);
-    } else {
+    }
+    else
+    {
         // pEngineInstance가 null인 경우 오류 로깅 (이 경우는 거의 없어야 함)
         std::cerr << "Error: Entity " << id << " has no pEngineInstance to set text." << std::endl;
+    }
+}
+
+void Entity::appendText(const std::string &textToAppend)
+{
+    if (pEngineInstance)
+    {
+        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+        // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
+        // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
+        // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.
+        // 현재 Engine::updateEntityTextContent는 전체 텍스트를 설정하므로,
+        // 기존 텍스트를 가져와서 이어붙이는 로직이 필요합니다.
+
+        // 1. 현재 ObjectInfo 가져오기
+        ObjectInfo *objInfo = const_cast<ObjectInfo *>(pEngineInstance->getObjectInfoById(this->id));
+        if (objInfo)
+        {
+            if (objInfo->objectType == "textBox")
+            {
+                std::string currentText = objInfo->textContent;
+                std::string newText = currentText + textToAppend;
+                pEngineInstance->updateEntityTextContent(this->id, newText); // 업데이트된 전체 텍스트로 설정
+            }
+            else
+            {
+                pEngineInstance->EngineStdOut("Warning: Entity " + id + " is not a textBox. Cannot append text.", 1);
+            }
+        }
+        else
+        {
+            pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + id + " when trying to append text.", 1);
+        }
+    }
+    else
+    {
+        std::cerr << "Error: Entity " << id << " has no pEngineInstance to append text." << std::endl;
+    }
+}
+
+void Entity::prependText(const std::string &prependToText)
+{
+    if (pEngineInstance)
+    {
+        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+        // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
+        // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
+        // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.
+
+        // 1. 현재 ObjectInfo 가져오기
+        ObjectInfo *objInfo = const_cast<ObjectInfo *>(pEngineInstance->getObjectInfoById(this->id));
+        if (objInfo)
+        {
+            if (objInfo->objectType == "textBox")
+            {
+                std::string currentText = objInfo->textContent;
+                std::string newText = prependToText + currentText;
+                pEngineInstance->updateEntityTextContent(this->id, newText); // 업데이트된 전체 텍스트로 설정
+            }
+            else
+            {
+                pEngineInstance->EngineStdOut("Warning: Entity " + id + " is not a textBox. Cannot append text.", 1);
+            }
+        }
+        else
+        {
+            pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + id + " when trying to append text.", 1);
+        }
+    }
+    else
+    {
+        std::cerr << "Error: Entity " << id << " has no pEngineInstance to append text." << std::endl;
     }
 }

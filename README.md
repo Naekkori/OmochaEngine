@@ -294,8 +294,8 @@ SOFTWARE.
 
 - [x] **`text_read`**: (글상자)의 글 내용
 - [x] **`text_write`**: (글상자)에 (내용) 쓰기
-- [ ] **`text_append`**: (글상자)에 (내용) 이어 쓰기
-- [ ] **`text_prepend`**: (글상자)에 (내용) 앞에 이어 쓰기
+- [x] **`text_append`**: (글상자)에 (내용) 이어 쓰기
+- [x] **`text_prepend`**: (글상자)에 (내용) 앞에 이어 쓰기
 - [ ] **`text_change_effect`**: (글상자)에 (효과) (적용/해제)하기
 - [ ] **`text_change_font`**: (글상자)의 글꼴을 (글꼴)로 바꾸기
 - [ ] **`text_change_font_color`**: (글상자)의 글자 색을 (색)으로 바꾸기
