@@ -62,6 +62,7 @@ public:
         EXPLICIT_WAIT_SECOND, // 'wait_second' 블록에 의한 명시적 시간 대기
         BLOCK_INTERNAL,       // 'move_xy_time' 등 시간 소요 블록 내부의 프레임 간 대기
         TEXT_INPUT,           // 'ask_and_wait' 블록에 의한 사용자 입력 대기
+        SOUND_FINISH          // 소리 재생 완료 대기 (신규)
         // 필요에 따라 다른 대기 유형 추가 가능
     };
 
@@ -272,7 +273,9 @@ public:
     void removeDialog();
     void update(float deltaTime);
     void updateDialog(float deltaTime); // Changed from Uint64 currentTimeMs
+    void resumeExplicitWaitScripts(float deltaTime); // 추가: EXPLICIT_WAIT_SECOND 상태의 스크립트 재개
     void resumeInternalBlockScripts(float deltaTime); // 추가: BLOCK_INTERNAL 상태의 스크립트 재개
+    void resumeSoundWaitScripts(float deltaTime);      // 추가: SOUND_FINISH 상태의 스크립트 재개
     bool hasActiveDialog() const;
     bool isPointInside(double pX, double pY) const;
     const std::string &getId() const;

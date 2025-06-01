@@ -128,8 +128,8 @@ bool OperandValue::asBool() const
         // "false" (case-insensitive) is false.
         // "0" is false.
         // Otherwise, true.
-        std::string lower_str = string_val;
-        std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(), ::tolower);
+        string lower_str = string_val;
+        transform(lower_str.begin(), lower_str.end(), lower_str.begin(), ::tolower);
         return !string_val.empty() && lower_str != "false" && string_val != "0";
     }
     // EMPTY or unhandled types are false
@@ -149,7 +149,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
     }
     else if (paramField.is_string())
     {
-        string str_val = paramField.get<std::string>();
+        string str_val = paramField.get<string>();
         if (str_val.length() > 50)
         { // 너무 긴 문자열은 자르기
             paramField_summary = "String (len=" + to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
@@ -171,7 +171,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
     {
         if (paramField.contains("type") && paramField["type"].is_string())
         {
-            paramField_summary = "Object (block type: " + paramField["type"].get<std::string>() + ")";
+            paramField_summary = "Object (block type: " + paramField["type"].get<string>() + ")";
         }
         else
         {
@@ -182,7 +182,9 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
     {
         paramField_summary = "Array (size: " + to_string(paramField.size()) + ")";
     }
-    engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + paramField.type_name(), 3, executionThreadId);
+    // 상세 로깅으로 인한 성능 저하 가능성이 있으므로, 디버그 시에만 활성화하거나 로그 레벨 조정
+    // 예: if (engine.specialConfig.enableVerboseLogging) engine.EngineStdOut(...);
+    // engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + paramField.type_name(), 3, executionThreadId);
 
     // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 is_object(), is_string() 등에서 문제를 일으킬 수 있습니다.
     if (paramField.is_null())
@@ -193,7 +195,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
 
     if (paramField.is_string())
     {
-        string str_val_for_op = paramField.get<std::string>();
+        string str_val_for_op = paramField.get<string>();
         return OperandValue(str_val_for_op);
     }
     else if (paramField.is_object()) // paramField가 Null이 아님을 위에서 확인했으므로 is_object() 호출이 좀 더 안전해집니다.
@@ -203,14 +205,14 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
         // but can be kept for robustness if paramField might not be a valid JSON object structure
         // from an external source before parsing.
         // For nlohmann::json, iterating items():
-        // for (auto& [key, value] : paramField.items()) { /* key is std::string */ }
+        // for (auto& [key, value] : paramField.items()) { /* key is string */ }
 
         if (!paramField.contains("type") || !paramField["type"].is_string())
         {
             engine.EngineStdOut("Parameter field is object but missing 'type' for object " + objectId, 2);
             return nan("");
         }
-        string fieldType = paramField["type"].get<std::string>();
+        string fieldType = paramField["type"].get<string>();
 
         if (fieldType == "number" || fieldType == "text_reporter_number")
         {
@@ -219,12 +221,12 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             {
                 try
                 {
-                    return OperandValue(stod(paramField["params"][0].get<std::string>()));
+                    return OperandValue(stod(paramField["params"][0].get<string>()));
                 }
                 catch (const exception &e)
                 {
                     engine.EngineStdOut(
-                        "Error converting number param: " + paramField["params"][0].get<std::string>() + " for " +
+                        "Error converting number param: " + paramField["params"][0].get<string>() + " for " +
                             objectId + " - " + e.what(),
                         2);
                     return nan("");
@@ -238,7 +240,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                return OperandValue(paramField["params"][0].get<std::string>());
+                return OperandValue(paramField["params"][0].get<string>());
             }
             engine.EngineStdOut("Invalid 'text' block structure in parameter field for " + objectId, 1);
             return nan("");
@@ -256,19 +258,19 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                  fieldType == "reach_something" ||
                  fieldType == "is_type" ||
                  fieldType == "boolean_basic_operator" ||
-                 fieldType == "boolean_and_or" || // 추가
-                 fieldType == "boolean_not" ||    // 추가
-                 fieldType == "is_boost_mode" ||  // 추가
+                 fieldType == "boolean_and_or" ||         // 추가
+                 fieldType == "boolean_not" ||            // 추가
+                 fieldType == "is_boost_mode" ||          // 추가
                  fieldType == "is_current_device_type" || // 추가: 사용자가 보고한 문제 해결
-                 fieldType == "is_touch_supported" || // 추가
-                 fieldType == "text_read" || // 추가
+                 fieldType == "is_touch_supported" ||     // 추가
+                 fieldType == "text_read" ||              // 추가
                  fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" ||
                  fieldType == "value_of_index_from_list")
         {
             Block subBlock;
             subBlock.type = fieldType;
             if (paramField.contains("id") && paramField["id"].is_string())
-                subBlock.id = paramField["id"].get<std::string>();
+                subBlock.id = paramField["id"].get<string>();
             // paramsJson은 Document 타입이므로 CopyFrom 사용
             // engine.m_blockParamsAllocatorDoc.GetAllocator()를 사용하여 할당
 
@@ -279,7 +281,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 if (paramsMember.is_array())
                 {
                     // subBlock.paramsJson의 자체 할당자를 사용하도록 변경
-                    subBlock.paramsJson = paramsMember; // Direct assignment for nlohmann::json
+                    subBlock.paramsJson = paramsMember;      // Direct assignment for nlohmann::json
                     subBlock.FilterNullsInParamsJsonArray(); // subBlock의 paramsJson에 대해서도 null 제거
                 }
                 else
@@ -298,7 +300,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                string temp_image_id = paramField["params"][0].get<std::string>();
+                string temp_image_id = paramField["params"][0].get<string>();
                 // temp_image_id로 안전하게 복사된 문자열을 사용하여 OperandValue 직접 반환
                 return OperandValue(temp_image_id);
             }
@@ -314,7 +316,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                string tem_sound_id = paramField["params"][0].get<std::string>();
+                string tem_sound_id = paramField["params"][0].get<string>();
                 return OperandValue(tem_sound_id);
             }
             engine.EngineStdOut(
@@ -356,7 +358,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
 /* 여기에 있던 excuteBlock 함수는 Entity.cpp 로 이동*/
 /**
  * @brief 움직이기 블록
- * 
+ *
  */
 void Moving(string BlockType, Engine &engine, const string &objectId, const Block &block,
             const string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
@@ -1075,8 +1077,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 }
 
 /**
- * @brief 계산 블록 
- * 
+ * @brief 계산 블록
+ *
  */
 OperandValue Calculator(string BlockType, Engine &engine, const string &objectId, const Block &block,
                         const string &executionThreadId)
@@ -1679,8 +1681,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 
         // 이 블록의 파라미터는 항상 단순 문자열 드롭다운 값이므로 직접 접근합니다.
         OperandValue actionOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        string action = actionOp.asString();                                // OperandValue에서 문자열 가져오기
-        struct tm timeinfo_s;                                               // localtime_s 및 localtime_r을 위한 구조체
+        string action = actionOp.asString(); // OperandValue에서 문자열 가져오기
+        struct tm timeinfo_s;                // localtime_s 및 localtime_r을 위한 구조체
         struct tm *timeinfo_ptr = nullptr;
 #ifdef _WIN32
         localtime_s(&timeinfo_s, &now);
@@ -2157,7 +2159,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         }
 
         // 첫 번째 파라미터 (키 식별자 문자열)를 가져옵니다.
-        // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.        
+        // 이 파라미터는 직접 문자열 값이거나, 문자열을 반환하는 다른 블록일 수 있습니다.
         const nlohmann::json &keyParamValue = block.paramsJson[0];
         OperandValue keyIdentifierOp = getOperandValue(engine, objectId, keyParamValue, executionThreadId);
 
@@ -2179,7 +2181,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         // paramsKeyMap: { ACTION: 0 }
         // 드롭다운 값은 block.paramsJson[0]에 문자열로 저장되어 있을 것으로 예상합니다.
         // Block.h에서 paramsJson이 rapidjson::Value 타입이고,
-        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.        
+        // 이 값은 loadProject 시점에 engine.m_blockParamsAllocatorDoc를 사용하여 할당됩니다.
         if (!block.paramsJson.is_array() || block.paramsJson.empty() || !block.paramsJson[0].is_string())
         {
             engine.EngineStdOut(
@@ -2417,7 +2419,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": LIST_ID parameter is not a string. Value: " + listIdOp.asString(), 2, executionThreadId);
             return OperandValue("");
         }
-        string listIdToFind = block.paramsJson[0].get<std::string>();
+        string listIdToFind = block.paramsJson[0].get<string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("value_of_index_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -3115,7 +3117,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         string textValue = targetObjInfo->textContent;
         // JavaScript의 value.replace(/\n/gim, ' ')와 동일하게 처리
         size_t pos = 0;
-        while ((pos = textValue.find('\n', pos)) != std::string::npos)
+        while ((pos = textValue.find('\n', pos)) != string::npos)
         {
             textValue.replace(pos, 1, " ");
             pos += 1;
@@ -3127,7 +3129,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 
 /**
  * @brief 모양새 블록
- * 
+ *
  */
 void Looks(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
@@ -3217,19 +3219,20 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
         // --- DEBUG START ---
         if (block.paramsJson.is_array() && !block.paramsJson.empty())
         {
-            std::string params_json_dump = "null";
-            if (!block.paramsJson[0].is_null()) {
+            string params_json_dump = "null";
+            if (!block.paramsJson[0].is_null())
+            {
                 params_json_dump = block.paramsJson[0].dump();
             }
             engine.EngineStdOut(
-                "DEBUG: change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
+                "change_to_some_shape for " + objectId + ": Raw paramField[0] before getOperandValue: " +
                     params_json_dump,
                 3, executionThreadId);
         }
         else
         {
             engine.EngineStdOut(
-                "DEBUG: change_to_some_shape for " + objectId + ": paramsJson is not an array or is empty.", 3, executionThreadId);
+                "change_to_some_shape for " + objectId + ": paramsJson is not an array or is empty.", 3, executionThreadId);
         }
         // --- DEBUG END ---
 
@@ -3246,7 +3249,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
                 2, executionThreadId);
             // --- DEBUG START ---
             engine.EngineStdOut(
-                "DEBUG: change_to_some_shape for " + objectId + ": imageDropdown.asString() returned: '" + imageDropdown.asString() + "'", 3, executionThreadId);
+                "change_to_some_shape for " + objectId + ": imageDropdown.asString() returned: '" + imageDropdown.asString() + "'", 3, executionThreadId);
             // --- DEBUG END ---
             return;
         }
@@ -3259,7 +3262,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
         }
         // --- DEBUG START ---
         engine.EngineStdOut(
-            "DEBUG: change_to_some_shape for " + objectId + ": Attempting to set costume to ID: '" + costumeIdToSet + "'", 3, executionThreadId);
+            "change_to_some_shape for " + objectId + ": Attempting to set costume to ID: '" + costumeIdToSet + "'", 3, executionThreadId);
         // --- DEBUG END ---
 
         // Engine에서 ObjectInfo를 가져와서 selectedCostumeId를 업데이트합니다.
@@ -3454,7 +3457,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
 
 /**
  * @brief 사운드 블록
- * 
+ *
  */
 void Sound(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
@@ -3558,7 +3561,20 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
             return;
         }
         string soundIdToPlay = soundId.asString();
-        entity->waitforPlaysound(soundIdToPlay);
+
+        // 1. Play the sound (non-blocking)
+        entity->playSound(soundIdToPlay); // Assuming playSound is non-blocking
+
+        // 2. Set script wait state for SOUND_FINISH
+        // Need to store scriptPtr and next block index for resume
+        Entity::ScriptThreadState *pThreadState = nullptr;
+        {
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
+            pThreadState = &entity->scriptThreadStates[executionThreadId];
+        }
+        // resumeAtBlockIndex will be set by Entity::executeScript when it sees this wait state.
+        // It should point to the block *after* this sound_something_wait_with_block.
+        entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::SOUND_FINISH);
     }
     else if (BlockType == "sound_something_second_wait_with_block")
     {
@@ -3581,7 +3597,16 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
         string soundIdToPlay = soundId.asString();
         double soundTimeValue = soundTime.asNumber();
 
-        entity->waitforPlaysoundWithSeconds(soundIdToPlay, soundTimeValue);
+        entity->playSoundWithSeconds(soundIdToPlay, soundTimeValue);
+
+        Entity::ScriptThreadState *pThreadState = nullptr;
+        {
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
+            pThreadState = &entity->scriptThreadStates[executionThreadId];
+        }
+        // Similar to above, set wait state. Entity::executeScript will handle pausing
+        // and setting resumeAtBlockIndex.
+        entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::SOUND_FINISH);
     }
     else if (BlockType == "sound_from_to_and_wait")
     {
@@ -3603,7 +3628,17 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
         string soundIdToPlay = soundId.asString();
         double fromTime = from.asNumber();
         double toTime = to.asNumber();
-        entity->waitforPlaysoundWithFromTo(soundIdToPlay, fromTime, toTime);
+
+        entity->playSoundWithFromTo(soundIdToPlay, fromTime, toTime);
+
+        Entity::ScriptThreadState *pThreadState = nullptr;
+        {
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
+            pThreadState = &entity->scriptThreadStates[executionThreadId];
+        }
+        // Set wait state. Entity::executeScript will handle pausing
+        // and setting resumeAtBlockIndex.
+        entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::SOUND_FINISH);
     }
     else if (BlockType == "sound_volume_change")
     {
@@ -3709,7 +3744,7 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
                 executionThreadId);
             return;
         }
-        string target = block.paramsJson[0].get<std::string>();
+        string target = block.paramsJson[0].get<string>();
 
         if (target == "all")
         {
@@ -3801,7 +3836,7 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
 
 /**
  * @brief 변수 블록
- * 
+ *
  */
 void Variable(string BlockType, Engine &engine, const string &objectId, const Block &block,
               const string &executionThreadId)
@@ -3952,18 +3987,26 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         // Let's make this more robust:
         double valueToAddNumVal = 0.0;
         bool valueToAddIsActuallyNumeric = false;
-        if (valueToAddOp.type == OperandValue::Type::NUMBER) {
+        if (valueToAddOp.type == OperandValue::Type::NUMBER)
+        {
             valueToAddNumVal = valueToAddOp.number_val;
             valueToAddIsActuallyNumeric = isfinite(valueToAddNumVal);
-        } else if (valueToAddOp.type == OperandValue::Type::STRING) {
-            if (!valueToAddOp.string_val.empty()) { // Avoid stod on empty string
-                try {
+        }
+        else if (valueToAddOp.type == OperandValue::Type::STRING)
+        {
+            if (!valueToAddOp.string_val.empty())
+            { // Avoid stod on empty string
+                try
+                {
                     size_t add_idx = 0;
                     valueToAddNumVal = stod(valueToAddOp.string_val, &add_idx);
-                    if (add_idx == valueToAddOp.string_val.length() && isfinite(valueToAddNumVal)) {
+                    if (add_idx == valueToAddOp.string_val.length() && isfinite(valueToAddNumVal))
+                    {
                         valueToAddIsActuallyNumeric = true;
                     }
-                } catch (const std::exception&) {
+                }
+                catch (const exception &)
+                {
                     // valueToAddIsActuallyNumeric remains false
                 }
             }
@@ -4020,7 +4063,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<std::string>();
+        string variableIdToFind = block.paramsJson[0].get<string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4092,7 +4135,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<std::string>();
+        string variableIdToFind = block.paramsJson[0].get<string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4139,7 +4182,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<std::string>();
+        string variableIdToFind = block.paramsJson[0].get<string>();
         if (variableIdToFind.empty())
         {
             engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
@@ -4190,7 +4233,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].get<std::string>();
+        string listIdToFind = block.paramsJson[0].get<string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("add_value_to_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4274,7 +4317,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].get<std::string>();
+        string listIdToFind = block.paramsJson[0].get<string>();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("remove_value_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4595,7 +4638,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
 
 /**
  * @brief 흐름 블록
- * 
+ *
  */
 void Flow(string BlockType, Engine &engine, const string &objectId, const Block &block,
           const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
@@ -4636,24 +4679,20 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // Set the wait state *before* performing the active wait
         entity->setScriptWait(executionThreadId, waitEndTime, block.id, Entity::WaitType::EXPLICIT_WAIT_SECOND);
 
-        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") requested wait for " + to_string(secondsToWait) + "s. Block ID: " + block.id, 3, executionThreadId);
-
-        // Perform the active wait - this will block the current script thread
-        entity->performActiveWait(executionThreadId, block.id, waitEndTime, &engine, sceneIdAtDispatch); // Pass necessary info
-        // DEBUG LOG: After performActiveWait
-        bool isWaitingAfter = entity->isScriptWaiting(executionThreadId);
-        Entity::WaitType waitTypeAfter = entity->getCurrentWaitType(executionThreadId);
-        engine.EngineStdOut("Flow 'wait_second' for " + objectId + ": After performActiveWait. isWaiting=" + (isWaitingAfter ? "true" : "false") + ", waitType=" + BlockTypeEnumToString(waitTypeAfter) + ". Block ID: " + block.id, 0, executionThreadId);
-
-        // 만약 performActiveWait가 정상 종료 (시간 만료) 되었는데도 isWaiting이 true로 남아있다면,
-        // performActiveWait 내부의 정상 종료 시 isWaiting = false 로직이 누락되었거나 다른 문제가 있을 수 있습니다.
-        // (현재 performActiveWait 코드를 보면 정상 종료 시 isWaiting=false로 설정하고 있음)
-
-
-                                                                                                         // performActiveWait가 완료되면 isWaiting 상태가 해제됩니다.
+        engine.EngineStdOut("Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") setting wait for " + to_string(secondsToWait) + "s. Block ID: " + block.id + ". Script will pause.", 3, executionThreadId);
+        // The Entity::executeScript method will see the EXPLICIT_WAIT_SECOND
+        // and pause the script. Entity::resumeExplicitWaitScripts will resume it.
+        // No active waiting (performActiveWait) is done here anymore for wait_second.
     }
     else if (BlockType == "repeat_basic")
     {
+        // Entity 유효성 검사 추가
+        if (!entity)
+        {
+            engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Entity is null.", 2, executionThreadId);
+            return;
+        }
+
         // 기본 반복 블록 구현
         // 반복 횟수 파라미터 가져오기
         if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null())
@@ -4687,11 +4726,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // Debugging: Print the content of doScript
         // if (!doScript.blocks.empty())
         // {
-        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+        //     engine.EngineStdOut("doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
         //     for (size_t j = 0; j < doScript.blocks.size(); ++j)
         //     {
         //         const Block &innerBlock = doScript.blocks[j];
-        //         std::string inner_params_dump = "null";
+        //         string inner_params_dump = "null";
         //         if (!innerBlock.paramsJson.is_null()) {
         //            inner_params_dump = innerBlock.paramsJson.dump();
         //         }
@@ -4700,11 +4739,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // }
         // else
         // {
-        //     engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+        //     engine.EngineStdOut("doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
         // }
         Entity::ScriptThreadState *pThreadState = nullptr;
         if (entity)
-        {                                                    // entity 포인터 유효성 검사
+        {                                                              // entity 포인터 유효성 검사
             lock_guard<recursive_mutex> lock(entity->getStateMutex()); // public getter 사용
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end())
@@ -4717,27 +4756,30 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         { // pThreadState가 여전히 nullptr이면 오류 처리
             engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_basic, or entity is null.", 2, executionThreadId);
             return; // 또는 예외 발생
-        }
-
-        int startIteration = 0;
+        }        int startIteration = 0;
         // Check if we are resuming this specific repeat_basic block
-        // The wait state would have been set by an inner block, and Entity::executeScript
-        // would have set resumeAtBlockIndex to *this* repeat_basic block.
-        // The isWaiting flag on pThreadState might reflect the inner block's wait.        
-        if ( pThreadState->loopCounters.count(block.id))
+        if (pThreadState->loopCounters.count(block.id))
         {
-            // This condition means we are likely resuming this loop.
             startIteration = pThreadState->loopCounters[block.id];
+            engine.EngineStdOut("repeat_basic: " + objectId + " resuming from iteration " + to_string(startIteration) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
+        } else {
+            engine.EngineStdOut("repeat_basic: " + objectId + " starting new loop with " + to_string(iterCount) + " iterations. Block ID: " + block.id, 3, executionThreadId);
         }
-        engine.EngineStdOut("repeat_basic: " + objectId + " loop. StartIter: " + to_string(startIteration) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
-
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
         for (int i = startIteration; i < iterCount; ++i)
         {
-            pThreadState->loopCounters[block.id] = i; // Save current iteration *before* executing inner blocks
-            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // Pass deltaTime
+            engine.EngineStdOut("repeat_basic: " + objectId + " starting iteration " + to_string(i) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
+              // 내부 블록 실행 전에 현재 반복 카운터를 저장
+            {
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                int nextIteration = i + 1; // 다음 반복을 위해 미리 증가된 값을 저장
+                pThreadState->loopCounters[block.id] = nextIteration;
+                engine.EngineStdOut("repeat_basic: Saved next iteration counter " + to_string(nextIteration) + " for block " + block.id, 3, executionThreadId);
+            }
 
-            // 내부 블록 실행 후 대기 상태 확인
+            // 내부 블록 실행
+            engine.EngineStdOut("repeat_basic: Executing iteration " + to_string(i) + " for block " + block.id, 3, executionThreadId);
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime);// 내부 블록 실행 후 대기 상태 확인
             if (entity)
             {
                 bool shouldBreakLoop = false;
@@ -4745,7 +4787,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_state != entity->scriptThreadStates.end() && it_state->second.breakLoopRequested) {
+                    if (it_state != entity->scriptThreadStates.end() && it_state->second.breakLoopRequested)
+                    {
                         shouldBreakLoop = true;
                         it_state->second.breakLoopRequested = false; // Reset flag
                     }
@@ -4753,8 +4796,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 if (shouldBreakLoop)
                 {
                     engine.EngineStdOut("repeat_basic for " + objectId + " breaking loop due to stop_repeat. Iteration " + to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
-                    if (pThreadState) pThreadState->loopCounters.erase(block.id); // Reset loop counter as the loop is terminated
-                    break;                             // Break from the C++ for loop
+                    if (pThreadState)
+                        pThreadState->loopCounters.erase(block.id); // Reset loop counter as the loop is terminated
+                    break;                                          // Break from the C++ for loop
                 }
 
                 bool shouldContinue = false;
@@ -4762,7 +4806,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_state != entity->scriptThreadStates.end() && it_state->second.continueLoopRequested) {
+                    if (it_state != entity->scriptThreadStates.end() && it_state->second.continueLoopRequested)
+                    {
                         shouldContinue = true;
                         it_state->second.continueLoopRequested = false; // Reset flag
                     }
@@ -4772,13 +4817,13 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     engine.EngineStdOut("repeat_basic for " + objectId + " continuing to next iteration. Iteration " + to_string(i) + ". Block ID: " + block.id, 0, executionThreadId);
                     continue; // Skip to the next iteration of the C++ for loop
                 }
-                // Entity::isScriptWaiting은 해당 스레드가 어떤 종류의 대기 상태인지 확인합니다.
-                // Entity::getCurrentWaitType은 구체적인 대기 타입을 반환합니다.
+
+                // 내부 블록이 대기를 설정하지 않은 경우 프레임 동기화를 위한 대기 추가
                 bool innerBlockIsWaiting = false;
                 Entity::WaitType innerWaitType = Entity::WaitType::NONE;
                 string innerWaitingBlockId;
                 {
-                    lock_guard<recursive_mutex> lock(entity->getStateMutex()); // public getter 사용
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
                     auto it_check = entity->scriptThreadStates.find(executionThreadId);
                     if (it_check != entity->scriptThreadStates.end() && it_check->second.isWaiting)
                     {
@@ -4786,24 +4831,31 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                         innerWaitType = it_check->second.currentWaitType;
                         innerWaitingBlockId = it_check->second.blockIdForWait;
                     }
-                }
-
-                if (innerBlockIsWaiting)
+                }                if (innerBlockIsWaiting)
                 {
-                    // An inner block is waiting. This repeat_basic block must also "wait".
-                    // Entity::executeScript will see the wait state (set by the inner block)
-                    // and set its resumeAtBlockIndex to *this* repeat_basic block.                    
-                    // The loopCounter 'i' is already saved in pThreadState->loopCounter.
+                    // 내부 블록이 대기 중일 때
                     engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(i) +
-                                            " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
-                                            ". This repeat_basic block (" + block.id + ") will resume here.",
-                                        1, executionThreadId);
-                    return; // Exit Flow; Entity::executeScript will handle pausing this repeat_basic.
+                        " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
+                        ". Will resume here.",
+                        3, executionThreadId);
+                    return;
+                }
+                else
+                {
+                    // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
+                    double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) + 
+                        " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
+                        3, executionThreadId);
+                    return;
                 }
             }
         }
         // Loop finished all iterations normally
-        if (pThreadState) pThreadState->loopCounters.erase(block.id); // Reset for the next time this repeat_basic block might run.
+        if (pThreadState)
+            pThreadState->loopCounters.erase(block.id); // Reset for the next time this repeat_basic block might run.
         engine.EngineStdOut("repeat_basic: " + objectId + " loop completed. Block ID: " + block.id, 0, executionThreadId);
     }
     else if (BlockType == "repeat_inf")
@@ -4816,17 +4868,35 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             return;
         }
 
+        Entity::ScriptThreadState *pThreadState = nullptr;
+        if (entity)
+        { // entity 포인터 유효성 검사
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
+            auto it = entity->scriptThreadStates.find(executionThreadId);
+            if (it != entity->scriptThreadStates.end())
+            {
+                pThreadState = &it->second;
+            }
+        }
+
+        if (!pThreadState)
+        { // pThreadState가 여전히 nullptr이면 오류 처리
+            engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_inf, or entity is null.", 2, executionThreadId);
+            return;
+        }
+
         const Script &doScript = block.statementScripts[0]; // 첫 번째 statementScript가 DO 블록이라고 가정
 
         // Debugging: Print the content of doScript
         if (!doScript.blocks.empty())
         {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
+            engine.EngineStdOut("doScript for block " + block.id + " (object " + objectId + ") contains " + to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
             for (size_t j = 0; j < doScript.blocks.size(); ++j)
             {
                 const Block &innerBlock = doScript.blocks[j];
-                std::string inner_params_dump = "null";
-                if (!innerBlock.paramsJson.is_null()) {
+                string inner_params_dump = "null";
+                if (!innerBlock.paramsJson.is_null())
+                {
                     inner_params_dump = innerBlock.paramsJson.dump();
                 }
                 engine.EngineStdOut("  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type + ", ParamsJSON=" + inner_params_dump, 3, executionThreadId);
@@ -4834,7 +4904,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         else
         {
-            engine.EngineStdOut("DEBUG: doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
+            engine.EngineStdOut("doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3, executionThreadId);
         }
 
         if (doScript.blocks.empty())
@@ -4908,10 +4978,20 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 else
                 {
                     // 내부 블록이 대기를 설정하지 않음 (모두 즉시 실행됨).
-                    // repeat_inf의 무한 루프가 CPU를 점유하지 않도록 강제로 1프레임 대기.
-                    entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant. Block ID: " + block.id, 1, executionThreadId);
-                    return; // Flow 함수를 빠져나가 Entity::executeScript가 이 repeat_inf 블록에서 대기하도록 함
+                    // 매 프레임마다 적절한 대기를 주어 다른 엔티티에게 실행 기회를 제공
+                    if (pThreadState->loopCounters.count(block.id) == 0)
+                    {
+                        pThreadState->loopCounters[block.id] = 0;
+                    }
+                    pThreadState->loopCounters[block.id]++;
+                    double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
+                                            "FPS, " + to_string(frameDelay) + "ms). Iteration: " +
+                                            to_string(pThreadState->loopCounters[block.id]) + ", Block ID: " + block.id,
+                                        3, executionThreadId);
+                    return;
                 }
             }
             else
@@ -4941,7 +5021,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
 
         const nlohmann::json &conditionJson = block.paramsJson[0]; // Condition block JSON
-        const Script &doScript = block.statementScripts[0];          // First statementScript is the DO block
+        const Script &doScript = block.statementScripts[0];        // First statementScript is the DO block
 
         engine.EngineStdOut("repeat_while_true: " + objectId + " starting loop. Block ID: " + block.id, 0, executionThreadId);
 
@@ -5016,14 +5096,17 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 }
                 if (entity->isScriptWaiting(executionThreadId))
                 {
-                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
+                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " pausing because an inner block set a wait state.", 3, executionThreadId); // WARN -> DEBUG
                     return;
                 }
                 else
-                {
-                    // 조건이 계속 참이고 내부 블록이 즉시 실행되면 무한 루프 방지를 위해 강제 대기
-                    entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing BLOCK_INTERNAL wait as inner blocks were instant and condition is true. Block ID: " + block.id, 1, executionThreadId);
+                { // 조건이 계속 참이고 내부 블록이 즉시 실행되면 프레임 동기화를 위해 강제 대기
+                    double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                    engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
+                                            "FPS, " + to_string(frameDelay) + "ms). Block ID: " + block.id,
+                                        3, executionThreadId);
                     return;
                 }
             }
@@ -5139,8 +5222,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 // 내부 블록 실행 후 대기 상태 확인
                 if (entity && entity->isScriptWaiting(executionThreadId))
                 {
-                    engine.EngineStdOut("Flow '_if' for " + objectId + " pausing because an inner block in STACK set a wait state. Block ID: " + block.id, 1, executionThreadId);
-                    return; // Flow 함수 종료, Entity::executeScript가 대기 처리
+                    engine.EngineStdOut("Flow '_if' for " + objectId + " pausing because an inner block in STACK set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
+                    return;                                                                                                                                                       // Flow 함수 종료, Entity::executeScript가 대기 처리
                 }
             }
         }
@@ -5219,7 +5302,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
                 if (entity && entity->isScriptWaiting(executionThreadId))
                 {
-                    engine.EngineStdOut("Flow 'if_else' for " + objectId + " pausing because an inner block in " + stackToExecuteName + " set a wait state. Block ID: " + block.id, 1, executionThreadId);
+                    engine.EngineStdOut("Flow 'if_else' for " + objectId + " pausing because an inner block in " + stackToExecuteName + " set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
                     return;
                 }
             }
@@ -5263,10 +5346,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // 특별한 대기 설정 없이 Flow 함수를 반환합니다.
         }
         else
-        {
-            // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
+        { // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
             engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 3, executionThreadId);
-            entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+            double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+            Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+            entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
             // Flow 함수를 반환하여 Entity::executeScript가 이 블록에서 대기하도록 합니다.
         }
     }
@@ -5368,8 +5452,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     }
 }
 
-void TextBox(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block,
-             const std::string &executionThreadId)
+void TextBox(string BlockType, Engine &engine, const string &objectId, const Block &block,
+             const string &executionThreadId)
 {
     Entity *entity = engine.getEntityById(objectId);
     if (!entity)
@@ -5381,7 +5465,7 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
     const ObjectInfo *objInfo = engine.getObjectInfoById(objectId); // getObjectInfoById는 내부적으로 뮤텍스 처리 가정
     if (!objInfo || objInfo->objectType != "textBox")
     {
-        engine.EngineStdOut("TextBox block: Entity " + objectId + " is not a textBox. Block type: " + BlockType, 1, executionThreadId);
+        // 텍스트박스가 아닐경우 무시함
         return;
     }
 
@@ -5398,11 +5482,12 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
         }
 
         OperandValue textValueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string textToWrite = textValueOp.asString(); // 모든 타입을 문자열로 변환
+        string textToWrite = textValueOp.asString(); // 모든 타입을 문자열로 변환
 
         entity->setText(textToWrite); // 새로 추가된 Entity::setText 메소드 호출
         engine.EngineStdOut("TextBox " + objectId + " executed text_write with: \"" + textToWrite + "\"", 3, executionThreadId);
-    }else if (BlockType == "text_append")
+    }
+    else if (BlockType == "text_append")
     {
         if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
@@ -5412,10 +5497,12 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
             return;
         }
         OperandValue textValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
+        string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
         entity->appendText(textToAppend);
-    }else if(BlockType == "text_prepend"){
-                if (!block.paramsJson.is_array() || block.paramsJson.empty())
+    }
+    else if (BlockType == "text_prepend")
+    {
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut(
                 "text_append block for " + objectId + " has invalid or missing params. Expected text VALUE.",
@@ -5423,13 +5510,13 @@ void TextBox(std::string BlockType, Engine &engine, const std::string &objectId,
             return;
         }
         OperandValue textValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        std::string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
+        string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
         entity->prependText(textToAppend);
     }
 }
 /**
  * @brief 함수 블록
- * 
+ *
  */
 void Function(string BlockType, Engine &engine, const string &objectId, const Block &block,
               const string &executionThreadId)
@@ -5438,7 +5525,7 @@ void Function(string BlockType, Engine &engine, const string &objectId, const Bl
 
 /**
  * @brief 이벤트 (기타 제어) 블록
- * 
+ *
  */
 void Event(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
@@ -5541,8 +5628,8 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                                 // Entity::ScriptThreadState& currentThreadState, // This might be needed for more complex state management
                                 const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
-    Entity *entity = engine.getEntityById_nolock(objectId); // Assuming entity exists and mutex is handled by caller if needed
-    engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
+    Entity *entity = engine.getEntityById_nolock(objectId);
+    // engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
 
     for (size_t i = 0; i < blocks.size(); ++i)
     {
@@ -5575,7 +5662,7 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
         // 해당 블록의 로직에 따라 재귀적으로 이 함수를 호출하거나 다른 처리를 해야 합니다.
         // 여기서는 간단히 카테고리 함수만 호출합니다. 실제로는 더 복잡한 실행기 로직이 필요합니다.
         try
-        {  
+        {
             Moving(block.type, engine, objectId, block, executionThreadId, deltaTime);
             Calculator(block.type, engine, objectId, block, executionThreadId);
             Looks(block.type, engine, objectId, block, executionThreadId);
@@ -5613,7 +5700,7 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                     typeOfWait == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
                     typeOfWait == Entity::WaitType::TEXT_INPUT)
                 {
-                    engine.EngineStdOut("executeBlocksSynchronously: Block " + block.id + " (Type: " + block.type + ") set wait (" + BlockTypeEnumToString(typeOfWait) + "). Pausing synchronous execution chain for " + objectId + ".", 3, executionThreadId);
+                    // engine.EngineStdOut("executeBlocksSynchronously: Block " + block.id + " (Type: " + block.type + ") set wait (" + BlockTypeEnumToString(typeOfWait) + "). Pausing synchronous execution chain for " + objectId + ".", 3, executionThreadId);
                     return; // 동기적 블록 목록 실행을 여기서 중단합니다.
                 }
             }

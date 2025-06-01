@@ -342,6 +342,8 @@ int main(int argc, char *argv[])
                         {                                     
                             entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
                             entity_ptr->resumeInternalBlockScripts(deltaTime); // BLOCK_INTERNAL 상태 스크립트 재개
+                            entity_ptr->resumeExplicitWaitScripts(deltaTime); // EXPLICIT_WAIT_SECOND 상태 스크립트 재개
+                            entity_ptr->resumeSoundWaitScripts(deltaTime);    // SOUND_FINISH 상태 스크립트 재개
                         }
                     }
                 } // 여기서 lock_guard가 소멸되면서 뮤텍스 자동 해제

@@ -64,48 +64,17 @@ public:
     // paramsJson 배열 내의 null 값을 제거하는 메서드
     void FilterNullsInParamsJsonArray()
     {
-#ifdef _WIN32
-        // Helper lambda to send debug messages (defined locally within the method)
-        auto DebugOutput = [](const std::string &msg)
-        {
-            OutputDebugStringA(msg.c_str());
-            OutputDebugStringA("\n");
-        };
-#else
-        // For other platforms, you might use std::cout or another logging mechanism
-        auto DebugOutput = [](const std::string &msg)
-        {
-            // std::cout << msg << std::endl; // Placeholder for non-Windows
-            (void)msg; // Prevent unused variable warning if std::cout is commented out
-        };
-#endif
         if (paramsJson.is_array() && !paramsJson.empty())
         {
-            // std::cout << "[DEBUG] FilterNulls: Block ID " << id << ", Type " << type << " - Before: " << paramsJson.dump() << std::endl;
-            DebugOutput.operator()("[DEBUG] FilterNulls: Block ID " + id + ", Type " + type + " - Before: " + paramsJson.dump());
             nlohmann::json filteredArray = nlohmann::json::array();
             for (const auto &item : paramsJson)
             {
-                // std::cout << "[DEBUG] FilterNulls: Checking item: " << item.dump() << ", is_null(): " << item.is_null() << std::endl;
-                DebugOutput.operator()("[DEBUG] FilterNulls: Checking item: " + item.dump() + ", is_null(): " + std::to_string(item.is_null()));
                 if (!item.is_null())
                 {
                     filteredArray.push_back(item); // nlohmann::json은 값 복사
                 }
             }
             paramsJson = std::move(filteredArray);
-            // std::cout << "[DEBUG] FilterNulls: Block ID " << id << ", Type " << type << " - After: " << paramsJson.dump() << std::endl;
-            DebugOutput.operator()("[DEBUG] FilterNulls: Block ID "+id+", Type "+type+" - After: "+paramsJson.dump());
-        }
-        else
-        {
-            if (paramsJson.is_array() && paramsJson.empty()) {
-            //     std::cout << "[DEBUG] FilterNulls: Block ID " << id << ", Type " << type << " - Input was an empty array." << std::endl;
-            DebugOutput.operator()("[DEBUG] FilterNulls: Block ID "+id+", Type "+type+" - Input was an empty array.");
-             } else if (!paramsJson.is_array()) {
-            //     std::cout << "[DEBUG] FilterNulls: Block ID " << id << ", Type " << type << " - Input was not an array: " << paramsJson.type_name() << std::endl;
-            DebugOutput.operator()("[DEBUG] FilterNulls: Block ID "+id+", Type "+type+" - Input was not an array: "+paramsJson.type_name());
-            }
         }
     }
 };

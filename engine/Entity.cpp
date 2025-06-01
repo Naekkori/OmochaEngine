@@ -308,7 +308,8 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         }
 
         const Block &block = scriptPtr->blocks[i];
-        pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3, executionThreadId); // LEVEL 5 -> 3
+        // 각 블록 실행 시 로깅은 성능에 영향을 줄 수 있으므로, 디버그 시에만 활성화하거나 로그 레벨 조정
+        // pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3, executionThreadId); // LEVEL 5 -> 3
 
         try
         {
@@ -340,40 +341,41 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
             if (currentThreadState.isWaiting)
             {
-                // 어떤 블록이든 대기 상태를 설정했고, 해당 대기 유형이 현재 프레임에서 스크립트 실행을 중단해야 하는 경우
-                // For EXPLICIT_WAIT_SECOND, the performActiveWait would have blocked and then cleared isWaiting.
-                // So if isWaiting is true here, it's most likely for BLOCK_INTERNAL or an interrupted explicit wait.
-
-                // Store the index of the *current block* (i) that caused or is part of the wait.
-                // This is the block we need to resume *at* or *after*, depending on the wait type.
-                currentThreadState.resumeAtBlockIndex = i;
+                // 공통 "대기 처리 진입" 로그
+                pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
+                                                  ") - Entering wait handling for block " + block.id + " (Type: " + block.type +
+                                                  "). CurrentWaitType: " + BlockTypeEnumToString(currentThreadState.currentWaitType), 3, executionThreadId);
 
                 if (currentThreadState.currentWaitType == WaitType::BLOCK_INTERNAL)
                 {
-                    // BLOCK_INTERNAL 대기의 경우, 다음 프레임에 resumeInternalBlockScripts가
-                    // 이 스크립트를 다시 디스패치할 수 있도록 필요한 정보를 저장합니다.
+                    currentThreadState.resumeAtBlockIndex = i; // 현재 블록에서 재개
                     currentThreadState.scriptPtrForResume = scriptPtr;                 // 현재 실행 중인 스크립트의 포인터
                     currentThreadState.sceneIdAtDispatchForResume = sceneIdAtDispatch; // 스크립트가 시작된 씬 ID
 
                     pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
-                                                      ") - Block " + block.id + " (Type: " + block.type +
-                                                      ") set BLOCK_INTERNAL wait. Pausing script at index " + std::to_string(i) + ".",
-                                                  1, executionThreadId);
+                                                      ") - Wait (BLOCK_INTERNAL) for block " + block.id +
+                                                      " initiated. Pausing script. Will resume at index " + std::to_string(i) + ".",
+                                                  3, executionThreadId);
+                    // 공통 "반환" 로그
+                    pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
+                                                      ") - Returning from executeScript to free worker thread (BLOCK_INTERNAL).", 3, executionThreadId);
                     return; // 현재 프레임의 스크립트 실행을 여기서 중단
                 }
                 else if (currentThreadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
-                         currentThreadState.currentWaitType == WaitType::TEXT_INPUT)
+                        currentThreadState.currentWaitType == WaitType::TEXT_INPUT||
+                        currentThreadState.currentWaitType == WaitType::SOUND_FINISH)
                 {
-                    // EXPLICIT_WAIT_SECOND나 TEXT_INPUT의 경우, 해당 블록 핸들러(performActiveWait, activateTextInput)가
-                    // 스레드를 블로킹합니다. 정상 완료 시 isWaiting은 false가 됩니다.
-                    // 만약 isWaiting이 여전히 true라면, 이는 해당 대기가 외부 요인(예: 씬 변경, 엔진 종료)으로 중단되었음을 의미할 수 있습니다.
-                    // 이 경우에도 스크립트 실행을 중단하고 다음 틱에서 상태를 재평가합니다.
-                    // The resumeAtBlockIndex should point to the *next* block after the wait_second/ask_and_wait.
-                    currentThreadState.resumeAtBlockIndex = i + 1; // Next block
+                    currentThreadState.resumeAtBlockIndex = i + 1; // Resume at the next block
+                    currentThreadState.scriptPtrForResume = scriptPtr; // Store for resume
+                    currentThreadState.sceneIdAtDispatchForResume = sceneIdAtDispatch; // Store for resume
+
                     pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
                                                       ") - Wait (" + BlockTypeEnumToString(currentThreadState.currentWaitType) +
-                                                      ") for block " + block.id + " is still active (likely interrupted). Pausing script at index " + std::to_string(i) + ".",
-                                                  1, executionThreadId);
+                                                      ") for block " + block.id + " initiated. Pausing script. Will resume at index " + std::to_string(i + 1) + ".",
+                                                  3, executionThreadId);
+                    // 공통 "반환" 로그
+                    pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
+                                                      ") - Returning from executeScript to free worker thread (EXPLICIT/TEXT/SOUND).", 3, executionThreadId);
                     return; // 현재 프레임의 스크립트 실행을 여기서 중단
                 }
                 // 다른 유형의 대기가 추가된다면 여기에 처리 로직 추가
@@ -413,6 +415,8 @@ string BlockTypeEnumToString(Entity::WaitType type)
         return "BLOCK_INTERNAL";
     case Entity::WaitType::TEXT_INPUT:
         return "TEXT_INPUT";
+    case Entity::WaitType::SOUND_FINISH:
+        return "SOUND_FINISH";
     default:
         return "UNKNOWN_WAIT_TYPE";
     }
@@ -1438,6 +1442,135 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
                     "Unknown exception caught in resumed script for entity " + this->getId() +
                     " (Thread: " + execId + ")", 2, execId);
             } });
+    }
+}
+
+void Entity::resumeExplicitWaitScripts(float deltaTime)
+{
+    if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    std::vector<std::tuple<std::string, const Script *, std::string, int>> tasksToDispatch; // execId, script, sceneId, resumeIndex
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
+        {
+            auto& execId = it->first;
+            auto& state = it->second;
+
+            if (state.isWaiting && state.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND)
+            {
+                if (SDL_GetTicks() >= state.waitEndTime)
+                {
+                    if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1)
+                    {
+                        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + execId + ") finished EXPLICIT_WAIT_SECOND for block " + state.blockIdForWait + ". Resuming.", 0, execId);
+                        tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume, state.resumeAtBlockIndex);
+                        
+                        state.isWaiting = false;
+                        state.waitEndTime = 0;
+                        state.currentWaitType = WaitType::NONE;
+                        // blockIdForWait, scriptPtrForResume, sceneIdAtDispatchForResume, resumeAtBlockIndex will be used by the dispatched task or reset by executeScript.
+                        ++it;
+                    }
+                    else
+                    {
+                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " EXPLICIT_WAIT_SECOND finished but missing resume context. Clearing wait.", 1, execId);
+                        state.isWaiting = false;
+                        state.currentWaitType = WaitType::NONE;
+                        state.scriptPtrForResume = nullptr;
+                        state.sceneIdAtDispatchForResume = "";
+                        state.resumeAtBlockIndex = -1;
+                        ++it;
+                    }
+                }
+                else
+                {
+                    ++it; // Still waiting
+                }
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    for (const auto &task : tasksToDispatch)
+    {
+        const std::string &execId = std::get<0>(task);
+        const Script *scriptToRun = std::get<1>(task);
+        const std::string &sceneIdForRun = std::get<2>(task);
+        int resumeIndex = std::get<3>(task); 
+
+        // The resumeAtBlockIndex is set in the thread's state when executeScript is called by scheduleScriptExecutionOnPool
+        // if existingExecutionThreadId is provided.
+        this->scheduleScriptExecutionOnPool(scriptToRun, sceneIdForRun, deltaTime, execId);
+    }
+}
+
+void Entity::resumeSoundWaitScripts(float deltaTime)
+{
+    if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+
+    std::vector<std::tuple<std::string, const Script *, std::string, int>> tasksToDispatch; // execId, script, sceneId, resumeIndex
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
+        {
+            auto& execId = it->first;
+            auto& state = it->second;
+
+            if (state.isWaiting && state.currentWaitType == WaitType::SOUND_FINISH)
+            {
+                // Check if the sound associated with this entity (and potentially this specific wait) has finished.
+                // AudioEngineHelper::isSoundPlaying(this->getId()) checks if *any* sound for this entity is playing.
+                // For more precise control, you might need to store a specific sound handle/ID in ScriptThreadState.
+                if (!pEngineInstance->aeHelper.isSoundPlaying(this->getId()))
+                {
+                    if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1)
+                    {
+                        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + execId + ") finished SOUND_FINISH for block " + state.blockIdForWait + ". Resuming.", 0, execId);
+                        tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume, state.resumeAtBlockIndex);
+                        
+                        state.isWaiting = false;
+                        state.currentWaitType = WaitType::NONE;
+                        // blockIdForWait, scriptPtrForResume, etc., will be used by the dispatched task or reset by executeScript.
+                        ++it;
+                    }
+                    else
+                    {
+                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " SOUND_FINISH finished but missing resume context. Clearing wait.", 1, execId);
+                        state.isWaiting = false;
+                        state.currentWaitType = WaitType::NONE;
+                        // Clear other relevant state fields
+                        ++it;
+                    }
+                }
+                else
+                {
+                    ++it; // Still waiting for sound to finish
+                }
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    for (const auto &task : tasksToDispatch)
+    {
+        const std::string &execId = std::get<0>(task);
+        // Reschedule the script execution.
+        this->scheduleScriptExecutionOnPool(std::get<1>(task), std::get<2>(task), deltaTime, execId);
     }
 }
 

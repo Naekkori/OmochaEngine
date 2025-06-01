@@ -2,10 +2,11 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <filesystem>
 #include <chrono>
 #include <iomanip>
 #include <codecvt> // For std::codecvt_utf8_utf16
-#include <locale> // For std::wstring_convert
+#include <locale>  // For std::wstring_convert
 
 #if defined(_DEBUG) && defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -24,7 +25,16 @@ private:
 public:
     SimpleLogger(const std::string &filename = "engine.log") : logFilePath(filename)
     {
-
+        try
+        {
+            if (std::filesystem::exists(logFilePath))
+            {
+                std::filesystem::remove(logFilePath); // 로그파일 삭제 (용량관리)
+            }
+        }
+        catch (...)
+        {
+        }
         logFile.open(logFilePath, std::ios::app);
         if (!logFile.is_open())
         {

@@ -26,6 +26,9 @@ if(MSVC)
     if(NOT CMAKE_CXX_FLAGS MATCHES "/EHa")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHa")
     endif()
+    # Debug 빌드에서 디버깅 심볼(/Zi)과 최적화 끔(/Od) 옵션을 명시적으로 추가
+    set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /MDd /EHa")
+    set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
 else()
     add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8) # For GCC/Clang
 endif()
