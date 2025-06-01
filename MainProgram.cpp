@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
                 engine.showMessageBox("Failed to create 'assets' directory.", engine.msgBoxIconType.ICON_ERROR);
             }
         }
+        
         return 1;
     }
 

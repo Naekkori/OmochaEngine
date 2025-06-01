@@ -4714,10 +4714,10 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
     else
     {
         SDL_ShowSimpleMessageBox(flags, title, message.c_str(), this->window); // 단순 메시지 박스 (OK 버튼만)
-        if (flags == SDL_MESSAGEBOX_ERROR)
+        /*if (flags == SDL_MESSAGEBOX_ERROR)
         {
            quick_exit(EXIT_FAILURE); //오류면 종료함
-        }
+        }*/
         
         return true;
     }

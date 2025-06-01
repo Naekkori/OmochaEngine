@@ -13,6 +13,7 @@
 #include "blockTypes.h"
 #include "rapidjson/prettywriter.h"
 // Helper function to check if a string can be parsed as a number
+constexpr double MIN_LOOP_WAIT_MS = 10.0; // 최소
 static bool is_number(const string &s)
 {
     if (s.empty())
@@ -4844,7 +4845,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime,MIN_LOOP_WAIT_MS,33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) + 
                         " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
@@ -4969,10 +4970,10 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     }
                     if (shouldContinue)
                     {
-                        engine.EngineStdOut("repeat_inf for " + objectId + " continuing to next iteration. Block ID: " + block.id, 0, executionThreadId);
+                        engine.EngineStdOut("repeat_inf for " + objectId + " continuing to next iteration. Block ID: " + block.id, 3, executionThreadId);
                         continue; // Skip to the next iteration of the C++ while(true) loop
                     }
-                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " pausing because an inner block set a wait state.", 1, executionThreadId);
+                    engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " pausing because an inner block set a wait state.", 3, executionThreadId);
                     return;
                 }
                 else
@@ -4985,7 +4986,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     }
                     pThreadState->loopCounters[block.id]++;
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
                                             "FPS, " + to_string(frameDelay) + "ms). Iteration: " +
@@ -5102,7 +5103,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 else
                 { // 조건이 계속 참이고 내부 블록이 즉시 실행되면 프레임 동기화를 위해 강제 대기
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
                                             "FPS, " + to_string(frameDelay) + "ms). Block ID: " + block.id,
@@ -5349,7 +5350,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         { // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
             engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 3, executionThreadId);
             double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-            Uint32 frameDelay = static_cast<Uint32>(max(1.0, min(idealFrameTime, 33.0))); // 최소 1ms, 최대 33ms
+            Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
             entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
             // Flow 함수를 반환하여 Entity::executeScript가 이 블록에서 대기하도록 합니다.
         }
