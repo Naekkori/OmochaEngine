@@ -103,10 +103,9 @@ bool Entity::isScriptWaiting(const std::string &executionThreadId) const
 
 void Entity::performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait)
 {
-        Uint32 entryTime = SDL_GetTicks();
+    Uint32 entryTime = SDL_GetTicks();
     // This method is called when the mutex is NOT held by this thread.
-        pEngine->EngineStdOut("Enter performActiveWait for " + id + ", block " + waitedBlockId + ". waitEndTime=" + std::to_string(waitEndTime) + ", currentTicks=" + std::to_string(entryTime) + ", sceneIdAtDispatchForWait=" + sceneIdAtDispatchForWait + ". Expected duration (ms): " + (waitEndTime > entryTime ? std::to_string(waitEndTime - entryTime) : "0 or negative"), 0, executionThreadId);
-
+    pEngine->EngineStdOut("Enter performActiveWait for " + id + ", block " + waitedBlockId + ". waitEndTime=" + std::to_string(waitEndTime) + ", currentTicks=" + std::to_string(entryTime) + ", sceneIdAtDispatchForWait=" + sceneIdAtDispatchForWait + ". Expected duration (ms): " + (waitEndTime > entryTime ? std::to_string(waitEndTime - entryTime) : "0 or negative"), 0, executionThreadId);
 
     while (SDL_GetTicks() < waitEndTime)
     {
@@ -115,7 +114,7 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
             auto it_thread_state = scriptThreadStates.find(executionThreadId);
             if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested)
             {
-                    pEngine->EngineStdOut("performActiveWait: terminateRequested true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
+                pEngine->EngineStdOut("performActiveWait: terminateRequested true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
                 pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " (Thread: " + executionThreadId + ") cancelled due to script termination request.", 1, executionThreadId);
                 // No need to reset state here, executeScript will handle it upon return
                 // The isWaiting flag will remain true, and executeScript will see terminateRequested.
@@ -125,7 +124,7 @@ void Entity::performActiveWait(const std::string &executionThreadId, const std::
 
         if (pEngine->m_isShuttingDown.load(std::memory_order_relaxed))
         {
-                pEngine->EngineStdOut("performActiveWait: m_isShuttingDown true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
+            pEngine->EngineStdOut("performActiveWait: m_isShuttingDown true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
             pEngine->EngineStdOut("Wait for block " + waitedBlockId + " cancelled due to engine shutdown for entity: " + this->getId(), 1, executionThreadId);
             std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
             auto it_cleanup = scriptThreadStates.find(executionThreadId);
@@ -344,11 +343,12 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 // 공통 "대기 처리 진입" 로그
                 pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
                                                   ") - Entering wait handling for block " + block.id + " (Type: " + block.type +
-                                                  "). CurrentWaitType: " + BlockTypeEnumToString(currentThreadState.currentWaitType), 3, executionThreadId);
+                                                  "). CurrentWaitType: " + BlockTypeEnumToString(currentThreadState.currentWaitType),
+                                              3, executionThreadId);
 
                 if (currentThreadState.currentWaitType == WaitType::BLOCK_INTERNAL)
                 {
-                    currentThreadState.resumeAtBlockIndex = i; // 현재 블록에서 재개
+                    currentThreadState.resumeAtBlockIndex = i;                         // 현재 블록에서 재개
                     currentThreadState.scriptPtrForResume = scriptPtr;                 // 현재 실행 중인 스크립트의 포인터
                     currentThreadState.sceneIdAtDispatchForResume = sceneIdAtDispatch; // 스크립트가 시작된 씬 ID
 
@@ -358,15 +358,16 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                                                   3, executionThreadId);
                     // 공통 "반환" 로그
                     pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
-                                                      ") - Returning from executeScript to free worker thread (BLOCK_INTERNAL).", 3, executionThreadId);
+                                                      ") - Returning from executeScript to free worker thread (BLOCK_INTERNAL).",
+                                                  3, executionThreadId);
                     return; // 현재 프레임의 스크립트 실행을 여기서 중단
                 }
                 else if (currentThreadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
-                        currentThreadState.currentWaitType == WaitType::TEXT_INPUT||
-                        currentThreadState.currentWaitType == WaitType::SOUND_FINISH)
+                         currentThreadState.currentWaitType == WaitType::TEXT_INPUT ||
+                         currentThreadState.currentWaitType == WaitType::SOUND_FINISH)
                 {
-                    currentThreadState.resumeAtBlockIndex = i + 1; // Resume at the next block
-                    currentThreadState.scriptPtrForResume = scriptPtr; // Store for resume
+                    currentThreadState.resumeAtBlockIndex = i + 1;                     // Resume at the next block
+                    currentThreadState.scriptPtrForResume = scriptPtr;                 // Store for resume
                     currentThreadState.sceneIdAtDispatchForResume = sceneIdAtDispatch; // Store for resume
 
                     pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
@@ -375,7 +376,8 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                                                   3, executionThreadId);
                     // 공통 "반환" 로그
                     pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
-                                                      ") - Returning from executeScript to free worker thread (EXPLICIT/TEXT/SOUND).", 3, executionThreadId);
+                                                      ") - Returning from executeScript to free worker thread (EXPLICIT/TEXT/SOUND).",
+                                                  3, executionThreadId);
                     return; // 현재 프레임의 스크립트 실행을 여기서 중단
                 }
                 // 다른 유형의 대기가 추가된다면 여기에 처리 로직 추가
@@ -780,8 +782,9 @@ void Entity::setRotateMethod(RotationMethod method)
 bool Entity::isPointInside(double pX, double pY) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    
-    if (!visible || m_effectAlpha < 0.1) {  // 투명도가 90% 이상이면 클릭 불가
+
+    if (!visible || m_effectAlpha < 0.1)
+    { // 투명도가 90% 이상이면 클릭 불가
         return false;
     }
 
@@ -794,21 +797,56 @@ bool Entity::isPointInside(double pX, double pY) const
     double rotatedPX = localPX * std::cos(angleRad) - localPY * std::sin(angleRad);
     double rotatedPY = localPX * std::sin(angleRad) + localPY * std::cos(angleRad);
 
-    // 스케일과 등록점을 고려한 경계 박스 계산
-    double scaledHalfWidth = (this->width * this->scaleX) / 2.0;
-    double scaledHalfHeight = (this->height * this->scaleY) / 2.0;
-    double adjustedRegX = this->regX * this->scaleX;
-    double adjustedRegY = this->regY * this->scaleY;
+    // rotatedPX, rotatedPY는 엔티티의 로컬 회전은 풀렸지만, 여전히 월드 공간 기준의 스케일.
+    // 이를 엔티티의 고유 스케일(scaleX, scaleY로 나눈 값)로 변환하여
+    // 엔티티의 원본 크기(width, height) 및 등록점(regX, regY) 기준 경계와 비교.
 
-    // 등록점 기준 경계 상자 계산
-    double leftBound = -adjustedRegX - scaledHalfWidth;
-    double rightBound = -adjustedRegX + scaledHalfWidth;
-    double topBound = adjustedRegY + scaledHalfHeight;
-    double bottomBound = adjustedRegY - scaledHalfHeight;
+    const double epsilon = 1e-9; // 부동 소수점 비교를 위한 작은 값
 
-    // 회전된 점이 경계 상자 내에 있는지 확인
-    return (rotatedPX >= leftBound && rotatedPX <= rightBound &&
-            rotatedPY >= bottomBound && rotatedPY <= topBound);
+    double checkPX = rotatedPX;
+    double checkPY = rotatedPY;
+
+    // X축 스케일 처리
+    if (std::abs(this->scaleX) < epsilon) { // X축 스케일이 거의 0인 경우
+        if (std::abs(this->width) > epsilon) return false; // 원본 너비가 있는데 스케일이 0이면 클릭 불가 (선)
+        // 너비도 0이면 (점 또는 수직선), rotatedPX가 등록점의 X 위치와 일치해야 함.
+        // 로컬 좌표계에서 등록점은 (0,0)이므로, rotatedPX가 0에 가까워야 함.
+        if (std::abs(rotatedPX) > epsilon) return false;
+        // checkPX는 -this->regX와 비교될 것이므로, 해당 값으로 설정 (width=0일 때 halfWidth=0, left/rightBound = -regX)
+        checkPX = -this->regX;
+    } else {
+        checkPX /= this->scaleX;
+    }
+
+    // Y축 스케일 처리
+    if (std::abs(this->scaleY) < epsilon) { // Y축 스케일이 거의 0인 경우
+        if (std::abs(this->height) > epsilon) return false; // 원본 높이가 있는데 스케일이 0이면 클릭 불가 (선)
+        // 높이도 0이면 (점 또는 수평선), rotatedPY가 등록점의 Y 위치와 일치해야 함.
+        if (std::abs(rotatedPY) > epsilon) return false;
+        checkPY = -this->regY;
+    } else {
+        checkPY /= this->scaleY;
+    }
+
+    // 이제 checkPX, checkPY는 엔티티의 1x1 스케일 기준 로컬 좌표.
+    // 경계는 엔티티의 원본 크기(width, height)와 등록점(regX, regY)을 기준으로 계산.
+    double halfWidth = this->width / 2.0;
+    double halfHeight = this->height / 2.0;
+
+    // localCostumeCenterX/Y는 로컬 좌표계(등록점이 원점)에서 코스튬의 시각적 중심 위치.
+    double localCostumeCenterX = -this->regX;
+    double localCostumeCenterY = -this->regY; // rotatedPY 및 regY 오프셋에 대해 Y축 위쪽 가정
+
+    double leftBound = localCostumeCenterX - halfWidth;
+    double rightBound = localCostumeCenterX + halfWidth;
+    double bottomBound = localCostumeCenterY - halfHeight;
+    double topBound = localCostumeCenterY + halfHeight;
+
+    // 스케일 조정된 점(checkPX, checkPY)이 원본 크기 기준 경계 내에 있는지 확인 (부동소수점 오차 감안)
+    bool inX = (checkPX >= leftBound - epsilon && checkPX <= rightBound + epsilon);
+    bool inY = (checkPY >= bottomBound - epsilon && checkPY <= topBound + epsilon);
+
+    return inX && inY;
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const
 {
@@ -1339,16 +1377,20 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
                     // 로그 추가: 어떤 스크립트가 재개 대상으로 추가되었는지 확인
                     // pEngineInstance->EngineStdOut("Entity " + id + " script thread " + execId + " added to resume queue for scene " + state.sceneIdAtDispatchForResume, 0, execId);
                 }
-                else if (state.scriptPtrForResume && state.sceneIdAtDispatchForResume.empty()) {
-                     // sceneIdAtDispatchForResume이 비어있는 경우, 현재 씬 컨텍스트를 사용하도록 시도하거나 경고 로깅
-                    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+                else if (state.scriptPtrForResume && state.sceneIdAtDispatchForResume.empty())
+                {
+                    // sceneIdAtDispatchForResume이 비어있는 경우, 현재 씬 컨텍스트를 사용하도록 시도하거나 경고 로깅
+                    const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
                     bool isGlobal = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
                     std::string currentSceneContext = pEngineInstance->getCurrentSceneId();
 
-                    if (isGlobal || (objInfo && objInfo->sceneId == currentSceneContext)) {
+                    if (isGlobal || (objInfo && objInfo->sceneId == currentSceneContext))
+                    {
                         pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait but sceneIdAtDispatchForResume is empty. Using current scene: " + currentSceneContext, 1, execId);
                         tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, currentSceneContext);
-                    } else {
+                    }
+                    else
+                    {
                         pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait, sceneIdAtDispatchForResume is empty, and entity is not in current scene. Cannot resume.", 1, execId);
                     }
                 }
@@ -1374,23 +1416,28 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
         Engine *capturedEnginePtr = pEngineInstance; // Capture for lambda
 
         // 작업 제출 전에 여기서도 씬 유효성 검사 추가
-        const ObjectInfo* objInfoCheck = capturedEnginePtr->getObjectInfoById(this->id);
+        const ObjectInfo *objInfoCheck = capturedEnginePtr->getObjectInfoById(this->id);
         bool isGlobalCheck = (objInfoCheck && (objInfoCheck->sceneId == "global" || objInfoCheck->sceneId.empty()));
         std::string engineCurrentSceneCheck = capturedEnginePtr->getCurrentSceneId();
 
-        if (!isGlobalCheck && objInfoCheck && objInfoCheck->sceneId != engineCurrentSceneCheck) {
+        if (!isGlobalCheck && objInfoCheck && objInfoCheck->sceneId != engineCurrentSceneCheck)
+        {
             // 엔티티가 현재 씬에 없으면 재개하지 않음
             // capturedEnginePtr->EngineStdOut("Resume for " + this->getId() + " (Thread: " + execId + ") cancelled. Entity not in current scene " + engineCurrentSceneCheck + " (Entity scene: " + objInfoCheck->sceneId + ")", 1, execId);
-            
+
             // 대기 상태를 해제하여 무한 재개 시도를 방지
             std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
             auto it_state = scriptThreadStates.find(execId);
-            if (it_state != scriptThreadStates.end()) {
+            if (it_state != scriptThreadStates.end())
+            {
                 it_state->second.isWaiting = false;
                 it_state->second.currentWaitType = WaitType::NONE;
-            } else {
+            }
+            else
+            {
                 // 스레드 상태를 찾을 수 없는 경우 로그 (이 경우는 발생하지 않아야 함)
-                if (capturedEnginePtr) { // capturedEnginePtr 유효성 검사
+                if (capturedEnginePtr)
+                { // capturedEnginePtr 유효성 검사
                     capturedEnginePtr->EngineStdOut("ERROR: ScriptThreadState not found for execId " + execId + " in resumeInternalBlockScripts for entity " + this->getId() + " when trying to cancel resume.", 2, execId);
                 }
             }
@@ -1420,7 +1467,7 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
                                                    (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                         ? " (원본: " + sbee.blockType + ")"
                                                         : "") +
-                                                   " 에서 사용 하는 객체 "+
+                                                   " 에서 사용 하는 객체 "+sbee.entityId +
                                                    "\n원본 오류: " + sbee.originalMessage;
 
                 capturedEnginePtr->EngineStdOut("Script Execution Error (Thread " + execId + "): " + detailedErrorMessage, 2, execId);
@@ -1450,8 +1497,8 @@ void Entity::resumeExplicitWaitScripts(float deltaTime)
         std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
         for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
         {
-            auto& execId = it->first;
-            auto& state = it->second;
+            auto &execId = it->first;
+            auto &state = it->second;
 
             if (state.isWaiting && state.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND)
             {
@@ -1461,7 +1508,7 @@ void Entity::resumeExplicitWaitScripts(float deltaTime)
                     {
                         pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + execId + ") finished EXPLICIT_WAIT_SECOND for block " + state.blockIdForWait + ". Resuming.", 0, execId);
                         tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume, state.resumeAtBlockIndex);
-                        
+
                         state.isWaiting = false;
                         state.waitEndTime = 0;
                         state.currentWaitType = WaitType::NONE;
@@ -1496,7 +1543,7 @@ void Entity::resumeExplicitWaitScripts(float deltaTime)
         const std::string &execId = std::get<0>(task);
         const Script *scriptToRun = std::get<1>(task);
         const std::string &sceneIdForRun = std::get<2>(task);
-        int resumeIndex = std::get<3>(task); 
+        int resumeIndex = std::get<3>(task);
 
         // The resumeAtBlockIndex is set in the thread's state when executeScript is called by scheduleScriptExecutionOnPool
         // if existingExecutionThreadId is provided.
@@ -1517,8 +1564,8 @@ void Entity::resumeSoundWaitScripts(float deltaTime)
         std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
         for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
         {
-            auto& execId = it->first;
-            auto& state = it->second;
+            auto &execId = it->first;
+            auto &state = it->second;
 
             if (state.isWaiting && state.currentWaitType == WaitType::SOUND_FINISH)
             {
@@ -1531,7 +1578,7 @@ void Entity::resumeSoundWaitScripts(float deltaTime)
                     {
                         pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + execId + ") finished SOUND_FINISH for block " + state.blockIdForWait + ". Resuming.", 0, execId);
                         tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume, state.resumeAtBlockIndex);
-                        
+
                         state.isWaiting = false;
                         state.currentWaitType = WaitType::NONE;
                         // blockIdForWait, scriptPtrForResume, etc., will be used by the dispatched task or reset by executeScript.
@@ -1542,7 +1589,7 @@ void Entity::resumeSoundWaitScripts(float deltaTime)
                         pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " SOUND_FINISH finished but missing resume context. Clearing wait.", 1, execId);
                         state.isWaiting = false;
                         state.currentWaitType = WaitType::NONE;
-                                               // Clear other relevant state fields
+                        // Clear other relevant state fields
                         ++it;
                     }
                 }
@@ -1673,9 +1720,8 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                                                                  "\n원본 오류: " + sbee.originalMessage;
 
                               // EngineStdOut은 이미 상세 메시지를 포함하므로, 여기서는 요약된 메시지 또는 상세 메시지 그대로 사용
-                              this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);                              
-                              // showMessageBox 호출 후 프로그램 종료
-                              this->pEngineInstance->showMessageBox("스크립트 실행 중 오류가 발생했습니다.\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
+                              this->pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
                               exit(EXIT_FAILURE); // 프로그램 종료
                           }
                           catch (const std::length_error &le)

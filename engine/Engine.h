@@ -280,6 +280,12 @@ public:
     bool saveCloudVariablesToJson();
     bool loadCloudVariablesFromJson();
     void drawAllEntities();
+    int GET_WINDOW_WIDTH() const{
+        return WINDOW_WIDTH;
+    };
+    int GET_WINDOW_HEIGHT() const{
+        return WINDOW_HEIGHT;
+    };
     const string &getCurrentSceneId() const;
     SDL_Scancode mapStringToSDLScancode(const string &keyName) const;
     bool showMessageBox(const string &message, int IconType, bool showYesNo = false) const;

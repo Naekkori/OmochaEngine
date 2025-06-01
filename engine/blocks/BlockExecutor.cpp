@@ -39,11 +39,11 @@ bool is_number(const std::string& s) {
 // ThreadPool 생성자 구현
 ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
     : engine(eng), stop(false), max_queue_size(maxQueueSize) {
-    engine.EngineStdOut("ThreadPool 초기화 시작", 0);
+    engine.EngineStdOut("ThreadPool initalize.", 3);
 
     for(size_t i = 0; i < threads; ++i) {
         workers.emplace_back([this, i] {
-            // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 시작됨", 0); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
+            engine.EngineStdOut(std::to_string(i) + " WorkerThread Started.", 3); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
 
             while(true) {
                 std::function<void()> task_fn; // 변수 이름 변경 (task -> task_fn)
@@ -54,7 +54,7 @@ ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
                     });
 
                     if(this->stop && this->tasks.empty()) {
-                        // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 종료", 0);
+                        engine.EngineStdOut(std::to_string(i) + " Ended.", 3);
                         return;
                     }
 
@@ -66,13 +66,13 @@ ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
                 try {
                     task_fn();
                 } catch (const std::exception& e) {
-                    // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 작업 실패: " + e.what(), 0);
+                    engine.EngineStdOut(std::to_string(i) + " WorkerThread Exception: " + e.what(), 3);
                 }
             }
         });
-        // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 생성됨", 0);
+        engine.EngineStdOut(std::to_string(i) + "WorkerThread Created.", 3);
     }
-    engine.EngineStdOut("ThreadPool 초기화 완료", 0);
+    engine.EngineStdOut("ThreadPool initalized.", 0);
 }
 
 // ...rest of the file...
@@ -1245,17 +1245,23 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     " has an empty coordinate type string for VALUE parameter.",
                 2, executionThreadId);
             return OperandValue(0.0);
-        }
-
-        if (engine.isMouseCurrentlyOnStage())
+        }        if (engine.isMouseCurrentlyOnStage())
         {
+            // 실제 마우스 좌표 가져오기 (이미 스테이지 좌표계로 변환된 값)
+            int mouseX = engine.getCurrentStageMouseX();
+            int mouseY = engine.getCurrentStageMouseY();
+
+            // 마우스 좌표는 이미 스테이지 좌표계(-240~240, -180~180)에 있음
+            double entryX = static_cast<double>(mouseX);
+            double entryY = static_cast<double>(mouseY);
+
             if (coord_type_str == "x" || coord_type_str == "mouseX")
             {
-                return OperandValue(static_cast<double>(engine.getCurrentStageMouseX()));
+                return OperandValue(entryX);
             }
             else if (coord_type_str == "y" || coord_type_str == "mouseY")
             {
-                return OperandValue(static_cast<double>(engine.getCurrentStageMouseY()));
+                return OperandValue(entryY);
             }
             else
             {
