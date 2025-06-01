@@ -16,6 +16,7 @@
 #include <boost/asio/thread_pool.hpp> // 추가
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
+#include "blocks/BlockExecutor.h" // ThreadPool 정의를 위해 추가 (BlockExecutor.h로 옮겨졌다고 가정)
 #include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
 #include <resource.h>
@@ -42,24 +43,32 @@ namespace
 {
 
     // Helper function to recursively filter 'params' arrays within a JSON structure
-    void RecursiveFilterParamsArray(nlohmann::json& paramsArray, Engine& engine, const std::string& parentContext) {
-        if (!paramsArray.is_array()) {
+    void RecursiveFilterParamsArray(nlohmann::json &paramsArray, Engine &engine, const std::string &parentContext)
+    {
+        if (!paramsArray.is_array())
+        {
             // This function expects an array.
             // If paramsArray was supposed to be an array but isn't, the calling code (ParseBlockDataInternal) handles logging.
             return;
         }
 
         nlohmann::json filteredArray = nlohmann::json::array();
-        for (const auto& item : paramsArray) {
-            if (item.is_null()) {
+        for (const auto &item : paramsArray)
+        {
+            if (item.is_null())
+            {
                 // Skip null items
                 continue;
-            } else if (item.is_object() && item.contains("type") && item.contains("params") && item["params"].is_array()) {
+            }
+            else if (item.is_object() && item.contains("type") && item.contains("params") && item["params"].is_array())
+            {
                 // It's a block-like structure. Make a copy to modify its "params".
                 nlohmann::json subBlockCopy = item;
                 RecursiveFilterParamsArray(subBlockCopy["params"], engine, parentContext + " -> sub-param-block (type: " + subBlockCopy.value("type", "unknown") + ")"); // Recursively filter its params
-                filteredArray.push_back(subBlockCopy); // Add the processed sub-block
-            } else {
+                filteredArray.push_back(subBlockCopy);                                                                                                                   // Add the processed sub-block
+            }
+            else
+            {
                 // It's a literal or a non-block object, keep it.
                 filteredArray.push_back(item);
             }
@@ -110,7 +119,7 @@ namespace
             else
             {                                                                                                                                                                                                                               // params가 있지만 배열이 아닌 경우
                 engine.EngineStdOut("WARN: Block " + contextForLog + " (id: " + newBlock.id + ", type: " + newBlock.type + ") has 'params' but it's not an array. Params will be empty. Value: " + NlohmannJsonToString(paramsVal), 1, ""); // Added empty thread ID
-                newBlock.paramsJson = nlohmann::json::array(); // Ensure it's an empty array
+                newBlock.paramsJson = nlohmann::json::array();                                                                                                                                                                              // Ensure it's an empty array
             }
         }
         else
@@ -185,7 +194,8 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                                   ? 1.0f
                                   : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)),
                    m_isDraggingZoomSlider(false), m_pressedObjectId(""),
-                   logger("omocha_engine.log"),
+                   logger("omocha_engine.log"), // threadPool 멤버 초기화 추가
+                   threadPool(std::make_unique<ThreadPool>(*this, (std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2))),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
@@ -1531,7 +1541,8 @@ bool Engine::loadProject(const string &projectFilePath)
                         } // End of if (scriptNlohmannJson.is_array())
 
                         // After parsing all script stacks for the current object, assign to objectScripts
-                        if (!scriptsForObject.empty()) {
+                        if (!scriptsForObject.empty())
+                        {
                             objectScripts[objInfo.id] = std::move(scriptsForObject);
                             EngineStdOut("  Assigned " + std::to_string(objectScripts[objInfo.id].size()) + " script stacks to object ID: " + objInfo.id, 3);
                         }
@@ -3812,48 +3823,18 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         break;
                     }
                 }
-            }
-            if (!uiClicked && m_gameplayInputActive)
+            }            if (!uiClicked && m_gameplayInputActive)
             {
                 // UI 클릭이 아니고 게임플레이 입력이 활성화된 경우
                 this->setStageClickedThisFrame(true);
-                if (!m_mouseClickedScripts.empty())
-                {
-                    for (const auto &scriptPair : m_mouseClickedScripts)
-                    {
-                        const string &objectId = scriptPair.first;
-                        const Script *scriptPtr = scriptPair.second;
-                        Entity *currentEntity = getEntityById(objectId);
-                        if (currentEntity)
-                        {
-                            if (currentEntity->isVisible()) // 엔티티가 보이는지 확인
-                            {
-                                // 현재 씬에 속하거나 전역 오브젝트인지 확인
-                                const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기
-                                if (objInfoPtr)
-                                {
-                                    bool isInCurrentScene = (objInfoPtr->sceneId == currentSceneId);
-                                    bool isGlobal = (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty());
-                                    if (isInCurrentScene || isGlobal)
-                                    {
-                                        this->dispatchScriptForExecution(objectId, scriptPtr, getCurrentSceneId(), 0.0f);
-                                    }
-                                }
-                                else
-                                {
-                                    EngineStdOut(
-                                        "Warning: ObjectInfo not found for entity ID '" + objectId +
-                                            "' during mouse_clicked event processing. Script not run.",
-                                        1);
-                                }
-                            }
-                        }
-                    }
-                }
-
                 float stageMouseX = 0.0f, stageMouseY = 0.0f;
                 if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY)) // 윈도우 좌표를 스테이지 좌표로 변환
                 {
+                    EngineStdOut("Click at stage coordinates: (" + std::to_string(stageMouseX) + ", " +
+                                     std::to_string(stageMouseY) + ")",
+                                 3);
+
+                    // objects_in_order는 이미 Z순서대로 정렬되어 있으므로, 앞에서부터 처리
                     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
                     {
                         const ObjectInfo &objInfo = objects_in_order[i];
@@ -3867,26 +3848,61 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         }
 
                         Entity *entity = getEntityById(objectId);
-                        if (!entity || !entity->isVisible()) // 엔티티가 없거나 보이지 않으면 건너뜀
+                        // 엔티티 유효성, 가시성, 투명도 체크 강화
+                        if (!entity || !entity->isVisible() || entity->getEffectAlpha() < 0.1f)
                         {
                             continue;
                         }
-
-                        if (entity->isPointInside(stageMouseX, stageMouseY))
+                        EngineStdOut("Checking click for entity: " + objectId + " at stage pos (" +
+                                         std::to_string(stageMouseX) + ", " + std::to_string(stageMouseY) + ")",
+                                     3);                        if (entity->isPointInside(stageMouseX, stageMouseY))
                         {
+                            EngineStdOut("Hit detected on entity: " + objectId, 3);
                             // 마우스가 엔티티 내부에 있으면
                             m_pressedObjectId = objectId;
 
+                            // 클릭된 오브젝트의 모든 관련 스크립트 실행                            // 클릭된 엔티티에 대한 모든 스크립트를 비동기적으로 실행
+                            std::vector<std::pair<std::string, const Script*>> scriptsToRun;
+                            
+                            // "when clicked" 스크립트 수집
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
                                 if (clickScriptPair.first == objectId)
-                                { // LEVEL 0 -> 3
-                                    EngineStdOut("Dispatching 'when_object_click' for object: " + entity->getId(), 3);
-                                    this->dispatchScriptForExecution(objectId, clickScriptPair.second,
-                                                                     getCurrentSceneId(), deltaTime);
+                                {
+                                    scriptsToRun.emplace_back(objectId, clickScriptPair.second);
                                 }
                             }
-                            break;
+                            
+                            // "mouse clicked" 스크립트 수집
+                            for (const auto &scriptPair : m_mouseClickedScripts)
+                            {
+                                if (scriptPair.first == objectId)
+                                {
+                                    scriptsToRun.emplace_back(objectId, scriptPair.second);
+                                }
+                            }
+
+                            // 수집된 모든 스크립트를 비동기적으로 실행
+                            std::string currentScene = getCurrentSceneId();
+                            for (const auto& scriptPair : scriptsToRun)
+                            {
+                                // 각 스크립트를 별도의 작업으로 스케줄링
+                                std::async(std::launch::async, [this, scriptPair, currentScene, deltaTime]() {
+                                    try {
+                                        this->dispatchScriptForExecution(
+                                            scriptPair.first,
+                                            scriptPair.second,
+                                            currentScene,
+                                            deltaTime
+                                        );
+                                    } catch (const std::exception& e) {
+                                        EngineStdOut("Error executing click script: " + std::string(e.what()), 1);
+                                    }
+                                });
+                            }
+
+                            EngineStdOut("Click handled by entity: " + objectId, 0);
+                            return;  // 클릭 처리 완료 후 다음 엔티티 처리 방지
                         }
                     }
                 }
@@ -4372,7 +4388,8 @@ void Engine::updateFps()
 
 void Engine::startProjectTimer()
 {
- if (!m_projectTimerRunning) {
+    if (!m_projectTimerRunning)
+    {
         m_projectTimerRunning = true;
         // 타이머 재개 시, 이전에 누적된 시간을 제외한 시점부터 시작하도록 Ticks 설정
         m_projectTimerStartTime = SDL_GetTicks() - static_cast<Uint64>(m_projectTimerValue * 1000.0);
@@ -4386,7 +4403,6 @@ void Engine::stopProjectTimer()
         m_projectTimerRunning = false;
         m_projectTimerValue = (SDL_GetTicks() - m_projectTimerStartTime) / 1000.0;
     }
-    
 }
 
 void Engine::resetProjectTimer()
@@ -4718,7 +4734,7 @@ bool Engine::showMessageBox(const string &message, int IconType, bool showYesNo)
         {
            quick_exit(EXIT_FAILURE); //오류면 종료함
         }*/
-        
+
         return true;
     }
     // If showYesNo was true and SDL_ShowMessageBox failed, this path might be reached.
@@ -5528,8 +5544,6 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                         // 여기서는 명확성을 위해 currentSceneId를 전달합니다.
                         // deltaTime은 이벤트 발생 시점이므로 0.0f가 적절합니다.
                         this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId, 0.0f, "");
-
-
                     }
                     else
                     {
@@ -6450,7 +6464,7 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
             { // 글상자 타입인지 확인
                 objInfo.textContent = newText;
                 found = true;
-                //EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
+                // EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
 
                 // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
                 // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.

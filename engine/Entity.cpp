@@ -780,43 +780,35 @@ void Entity::setRotateMethod(RotationMethod method)
 bool Entity::isPointInside(double pX, double pY) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    // pX, pY는 스테이지 좌표 (중앙 (0,0), Y축 위쪽)
-    // this->x, this->y는 엔티티의 등록점의 스테이지 좌표
-    // 1. 점을 엔티티의 로컬 좌표계로 변환 (등록점을 원점으로)
+    
+    if (!visible || m_effectAlpha < 0.1) {  // 투명도가 90% 이상이면 클릭 불가
+        return false;
+    }
+
+    // 엔티티의 중심을 (0,0)으로 하는 로컬 좌표계로 변환
     double localPX = pX - this->x;
     double localPY = pY - this->y;
 
-    // 2. 엔티티의 회전만큼 점을 반대로 회전
     // SDL 각도는 시계 방향이므로, 점을 객체 프레임으로 가져오려면 반시계 방향(-rotation)으로 회전
-    const double PI = std::acos(-1.0);
-    double angleRad = -this->rotation * (PI / 180.0); // 도 -> 라디안, 반대 방향
-
+    double angleRad = -this->rotation * (SDL_PI_D / 180.0);
     double rotatedPX = localPX * std::cos(angleRad) - localPY * std::sin(angleRad);
     double rotatedPY = localPX * std::sin(angleRad) + localPY * std::cos(angleRad);
 
-    // 3. 이제 rotatedPX, rotatedPY는 엔티티의 비회전 로컬 좌표계에 있음 (등록점이 원점)
-    //    이 좌표계에서 엔티티의 경계 상자를 확인합니다.
-    //    regX, regY는 비스케일 이미지의 좌상단으로부터 등록점까지의 오프셋입니다.
-    //    로컬 좌표계 (Y 위쪽)에서:
-    //    - 좌측 X: -regX * scaleX
-    //    - 우측 X: (-regX + width) * scaleX
-    //    - 상단 Y: regY * scaleY
-    //    - 하단 Y: (regY - height) * scaleY
+    // 스케일과 등록점을 고려한 경계 박스 계산
+    double scaledHalfWidth = (this->width * this->scaleX) / 2.0;
+    double scaledHalfHeight = (this->height * this->scaleY) / 2.0;
+    double adjustedRegX = this->regX * this->scaleX;
+    double adjustedRegY = this->regY * this->scaleY;
 
-    double localMinX = -this->regX * this->scaleX;
-    double localMaxX = (-this->regX + this->width) * this->scaleX;
+    // 등록점 기준 경계 상자 계산
+    double leftBound = -adjustedRegX - scaledHalfWidth;
+    double rightBound = -adjustedRegX + scaledHalfWidth;
+    double topBound = adjustedRegY + scaledHalfHeight;
+    double bottomBound = adjustedRegY - scaledHalfHeight;
 
-    // Y축이 위를 향하므로, regY가 클수록 위쪽, (regY - height)가 아래쪽
-    double localMinY = (this->regY - this->height) * this->scaleY;
-    double localMaxY = this->regY * this->scaleY;
-
-    if (rotatedPX >= localMinX && rotatedPX <= localMaxX &&
-        rotatedPY >= localMinY && rotatedPY <= localMaxY)
-    {
-        return true;
-    }
-
-    return false;
+    // 회전된 점이 경계 상자 내에 있는지 확인
+    return (rotatedPX >= leftBound && rotatedPX <= rightBound &&
+            rotatedPY >= bottomBound && rotatedPY <= topBound);
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const
 {
@@ -1428,7 +1420,7 @@ void Entity::resumeInternalBlockScripts(float deltaTime)
                                                    (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                         ? " (원본: " + sbee.blockType + ")"
                                                         : "") +
-                                                   " 에서 사용 하는 객체 " + sbee.entityId +
+                                                   " 에서 사용 하는 객체 "+
                                                    "\n원본 오류: " + sbee.originalMessage;
 
                 capturedEnginePtr->EngineStdOut("Script Execution Error (Thread " + execId + "): " + detailedErrorMessage, 2, execId);
@@ -1550,7 +1542,7 @@ void Entity::resumeSoundWaitScripts(float deltaTime)
                         pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " SOUND_FINISH finished but missing resume context. Clearing wait.", 1, execId);
                         state.isWaiting = false;
                         state.currentWaitType = WaitType::NONE;
-                        // Clear other relevant state fields
+                                               // Clear other relevant state fields
                         ++it;
                     }
                 }

@@ -5,41 +5,77 @@
 #include <string>
 #include <vector>
 #include <thread>
-#include <cmath>
-#include <algorithm> // clamp를 위해 추가
-#include <limits>
-#include <ctime>
-#include <regex>
-#include "blockTypes.h"
-#include "rapidjson/prettywriter.h"
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <functional>
+#include <regex> // regex 헤더 추가
+#include <future>
+#include <algorithm> // For std::clamp
+
+// ...existing code...
+
+AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
+
+// ThreadPool 클래스 정의는 BlockExecutor.h로 이동
+
 // Helper function to check if a string can be parsed as a number
-constexpr double MIN_LOOP_WAIT_MS = 10.0; // 최소
-static bool is_number(const string &s)
-{
-    if (s.empty())
-    {
+bool is_number(const std::string& s) {
+    if (s.empty()) {
         return false;
     }
-    try
-    {
+    try {
         size_t pos;
-        stod(s, &pos);
-        // Check if the entire string was consumed
+        std::stod(s, &pos);
+        // Check if the entire string was consumed by stod and it's not just a prefix
         return pos == s.length();
-    }
-    catch (const invalid_argument &)
-    {
+    } catch (const std::invalid_argument&) {
         return false;
-    }
-    catch (const out_of_range &)
-    {
-        // Could be a very large number, potentially still valid depending on context,
-        // but for typical numeric checks, out_of_range implies not a simple number.
+    } catch (const std::out_of_range&) {
         return false;
     }
 }
 
-AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
+// ThreadPool 생성자 구현
+ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
+    : engine(eng), stop(false), max_queue_size(maxQueueSize) {
+    engine.EngineStdOut("ThreadPool 초기화 시작", 0);
+
+    for(size_t i = 0; i < threads; ++i) {
+        workers.emplace_back([this, i] {
+            // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 시작됨", 0); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
+
+            while(true) {
+                std::function<void()> task_fn; // 변수 이름 변경 (task -> task_fn)
+                {
+                    std::unique_lock<std::mutex> lock(this->queue_mutex);
+                    this->condition.wait(lock, [this] {
+                        return this->stop || !this->tasks.empty();
+                    });
+
+                    if(this->stop && this->tasks.empty()) {
+                        // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 종료", 0);
+                        return;
+                    }
+
+                    task_fn = std::move(this->tasks.top().second);
+                    this->tasks.pop();
+                    this->queue_space_available.notify_one();
+                }
+
+                try {
+                    task_fn();
+                } catch (const std::exception& e) {
+                    // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 작업 실패: " + e.what(), 0);
+                }
+            }
+        });
+        // engine.EngineStdOut("워커 스레드 " + std::to_string(i) + " 생성됨", 0);
+    }
+    engine.EngineStdOut("ThreadPool 초기화 완료", 0);
+}
+
+// ...rest of the file...
 
 // OperandValue 생성자 및 멤버 함수 구현 (BlockExecutor.h에 선언됨)
 OperandValue::OperandValue() : type(Type::EMPTY), boolean_val(false), number_val(0.0)
@@ -2856,8 +2892,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         {
             try
             {
-                regex en_pat("^[a-zA-Z]+$");
-                return OperandValue(regex_match(valueStr, en_pat));
+                std::regex en_pat("^[a-zA-Z]+$");
+                return OperandValue(std::regex_match(valueStr, en_pat));
             }
             catch (const exception &e)
             {
@@ -2869,8 +2905,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         {
             try
             {
-                regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
-                return OperandValue(regex_match(valueStr, ko_pat));
+                std::regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
+                return OperandValue(std::regex_match(valueStr, ko_pat));
             }
             catch (const exception &e)
             {
@@ -4769,11 +4805,32 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
         for (int i = startIteration; i < iterCount; ++i)
         {
+            // 매 반복 시작 시 엔진 종료 또는 씬 변경 확인
+            if (engine.m_isShuttingDown.load(memory_order_relaxed))
+            {
+                engine.EngineStdOut("repeat_basic for " + objectId + " cancelled due to engine shutdown.", 1, executionThreadId);
+                if (pThreadState)
+                    pThreadState->loopCounters.erase(block.id);
+                break;
+            }
+
+            string currentEngineSceneId = engine.getCurrentSceneId();
+            const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
+            bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
+
+            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId)
+            {
+                engine.EngineStdOut("repeat_basic for " + objectId + " halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
+                if (pThreadState)
+                    pThreadState->loopCounters.erase(block.id);
+                break;
+            }
+
             engine.EngineStdOut("repeat_basic: " + objectId + " starting iteration " + to_string(i) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
-              // 내부 블록 실행 전에 현재 반복 카운터를 저장
+            // 내부 블록 실행 전에 현재 반복 카운터를 저장
             {
                 lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                int nextIteration = i + 1; // 다음 반복을 위해 미리 증가된 값을 저장
+                int nextIteration = i + 1;
                 pThreadState->loopCounters[block.id] = nextIteration;
                 engine.EngineStdOut("repeat_basic: Saved next iteration counter " + to_string(nextIteration) + " for block " + block.id, 3, executionThreadId);
             }
@@ -4845,7 +4902,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 {
                     // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime,MIN_LOOP_WAIT_MS,33.0)); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) + 
                         " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
@@ -4986,7 +5043,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     }
                     pThreadState->loopCounters[block.id]++;
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_inf' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
                                             "FPS, " + to_string(frameDelay) + "ms). Iteration: " +
@@ -5103,7 +5160,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 else
                 { // 조건이 계속 참이고 내부 블록이 즉시 실행되면 프레임 동기화를 위해 강제 대기
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
                     engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + " forcing frame sync wait (" + to_string(engine.specialConfig.TARGET_FPS) +
                                             "FPS, " + to_string(frameDelay) + "ms). Block ID: " + block.id,
@@ -5350,7 +5407,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         { // 조건이 거짓이므로, 다음 프레임에 다시 평가하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
             engine.EngineStdOut("Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 3, executionThreadId);
             double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-            Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, MIN_LOOP_WAIT_MS, 33.0)); // 최소 1ms, 최대 33ms
+            Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
             entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
             // Flow 함수를 반환하여 Entity::executeScript가 이 블록에서 대기하도록 합니다.
         }

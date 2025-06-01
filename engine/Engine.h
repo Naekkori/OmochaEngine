@@ -42,6 +42,10 @@ extern const char *BASE_ASSETS;                                  // Declaration 
 extern const char *FONT_ASSETS;                                  // Declaration only
 extern string PROJECT_NAME;                                      // Declaration only
 extern string WINDOW_TITLE;                                      // Declaration only
+
+// Forward declaration for ThreadPool
+class ThreadPool;
+
 struct Costume
 {
     string id;
@@ -222,6 +226,8 @@ private:
     mutable std::mutex m_pressedKeysMutex;  // Mutex for m_pressedKeys
     atomic<bool> m_stageWasClickedThisFrame{false};
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
+
+    std::unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
 
 public:
     // --- Engine Special Configuration ---
