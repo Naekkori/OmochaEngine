@@ -1355,134 +1355,116 @@ void Entity::terminateAllScriptThread(const std::string &exceptThreadId)
         pEngineInstance->EngineStdOut("Entity " + id + " marked " + std::to_string(markedCount) + " script threads for termination" + (exceptThreadId.empty() ? "" : " (excluding " + exceptThreadId + ")") + ".", 0);
     }
 }
-void Entity::resumeInternalBlockScripts(float deltaTime)
+void Entity::processInternalContinuations(float deltaTime)
 {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
     {
         return;
     }
 
-    std::vector<std::tuple<std::string, const Script *, std::string>> tasksToDispatch;
+    std::vector<std::tuple<std::string, const Script *, std::string>> tasksToRunInline;
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-        for (auto &[execId, state] : scriptThreadStates)
-        { // Iterate by reference
+        for (auto it_state = scriptThreadStates.begin(); it_state != scriptThreadStates.end(); /* manual increment */)
+        {
+            auto &execId = it_state->first;
+            auto &state = it_state->second;
+
             if (state.isWaiting && state.currentWaitType == WaitType::BLOCK_INTERNAL)
             {
-                if (state.scriptPtrForResume && !state.sceneIdAtDispatchForResume.empty())
-                {
-                    tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume);
-                    // 로그 추가: 어떤 스크립트가 재개 대상으로 추가되었는지 확인
-                    // pEngineInstance->EngineStdOut("Entity " + id + " script thread " + execId + " added to resume queue for scene " + state.sceneIdAtDispatchForResume, 0, execId);
-                }
-                else if (state.scriptPtrForResume && state.sceneIdAtDispatchForResume.empty())
-                {
-                    // sceneIdAtDispatchForResume이 비어있는 경우, 현재 씬 컨텍스트를 사용하도록 시도하거나 경고 로깅
-                    const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
-                    bool isGlobal = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
-                    std::string currentSceneContext = pEngineInstance->getCurrentSceneId();
+                const ObjectInfo *objInfoCheck = pEngineInstance->getObjectInfoById(this->getId());
+                bool isGlobal = (objInfoCheck && (objInfoCheck->sceneId == "global" || objInfoCheck->sceneId.empty()));
+                std::string engineCurrentScene = pEngineInstance->getCurrentSceneId();
+                const std::string& scriptSceneContext = state.sceneIdAtDispatchForResume;
 
-                    if (isGlobal || (objInfo && objInfo->sceneId == currentSceneContext))
-                    {
-                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait but sceneIdAtDispatchForResume is empty. Using current scene: " + currentSceneContext, 1, execId);
-                        tasksToDispatch.emplace_back(execId, state.scriptPtrForResume, currentSceneContext);
+                bool canResume = false;
+                if (!state.scriptPtrForResume) { // 스크립트 포인터가 유효하지 않으면 재개 불가
+                    canResume = false;
+                    pEngineInstance->EngineStdOut("WARNING: Entity " + getId() + " script thread " + execId + " is BLOCK_INTERNAL wait but scriptPtrForResume is null. Clearing wait.", 1, execId);
+                } else if (isGlobal) {
+                    canResume = true;
+                } else {
+                    if (objInfoCheck && objInfoCheck->sceneId == scriptSceneContext) {
+                        if (engineCurrentScene == scriptSceneContext) {
+                            canResume = true;
+                        }
                     }
-                    else
-                    {
-                        pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait, sceneIdAtDispatchForResume is empty, and entity is not in current scene. Cannot resume.", 1, execId);
-                    }
+                }
+
+                if (canResume)
+                {
+                    tasksToRunInline.emplace_back(execId, state.scriptPtrForResume, scriptSceneContext);
+                    // tasksToRunInline에 추가했으므로, 여기서는 isWaiting을 false로 바꾸지 않습니다.
+                    // executeScript가 호출될 때 isWaiting이 false로 설정됩니다.
+                    // 만약 executeScript가 BLOCK_INTERNAL을 다시 설정하면 다음 틱에 다시 처리됩니다.
+                    ++it_state;
                 }
                 else
                 {
-                    pEngineInstance->EngineStdOut("WARNING: Entity " + id + " script thread " + execId + " is BLOCK_INTERNAL wait but missing resume context.", 1, execId);
+                    // 재개할 수 없는 경우, 대기 상태를 해제하여 무한 루프 방지
+                    if (state.scriptPtrForResume) { // 로그는 스크립트 포인터가 있을 때만 의미 있음
+                        pEngineInstance->EngineStdOut("Internal continuation for " + getId() + " (Thread: " + execId + ") cancelled. Scene/Context mismatch or invalid script. EntityScene: " + (objInfoCheck ? objInfoCheck->sceneId : "N/A") + ", ScriptDispatchScene: " + scriptSceneContext + ", EngineCurrentScene: " + engineCurrentScene, 1, execId);
+                    }
                     state.isWaiting = false;
                     state.currentWaitType = WaitType::NONE;
                     state.scriptPtrForResume = nullptr;
                     state.sceneIdAtDispatchForResume = "";
+                    // 상태가 변경되었으므로, 다음 반복에서 이 스레드를 다시 처리할 필요 없음
+                    // 만약 반복 중 요소를 제거한다면 it_state = scriptThreadStates.erase(it_state); 와 같이 처리해야 하지만, 여기서는 상태만 변경
+                    ++it_state;
                 }
-            }
-        }
-    }
-
-    // Capture pEngineInstance by value (it's a pointer, so the pointer value is copied)
-    // to ensure the lambda uses the Engine instance that was valid at the time of posting.
-    for (const auto &task : tasksToDispatch)
-    {
-        const std::string &execId = std::get<0>(task);
-        const Script *scriptToRun = std::get<1>(task);
-        const std::string &sceneIdForRun = std::get<2>(task);
-        Engine *capturedEnginePtr = pEngineInstance; // Capture for lambda
-
-        // 작업 제출 전에 여기서도 씬 유효성 검사 추가
-        const ObjectInfo *objInfoCheck = capturedEnginePtr->getObjectInfoById(this->id);
-        bool isGlobalCheck = (objInfoCheck && (objInfoCheck->sceneId == "global" || objInfoCheck->sceneId.empty()));
-        std::string engineCurrentSceneCheck = capturedEnginePtr->getCurrentSceneId();
-
-        if (!isGlobalCheck && objInfoCheck && objInfoCheck->sceneId != engineCurrentSceneCheck)
-        {
-            // 엔티티가 현재 씬에 없으면 재개하지 않음
-            // capturedEnginePtr->EngineStdOut("Resume for " + this->getId() + " (Thread: " + execId + ") cancelled. Entity not in current scene " + engineCurrentSceneCheck + " (Entity scene: " + objInfoCheck->sceneId + ")", 1, execId);
-
-            // 대기 상태를 해제하여 무한 재개 시도를 방지
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-            auto it_state = scriptThreadStates.find(execId);
-            if (it_state != scriptThreadStates.end())
-            {
-                it_state->second.isWaiting = false;
-                it_state->second.currentWaitType = WaitType::NONE;
             }
             else
             {
-                // 스레드 상태를 찾을 수 없는 경우 로그 (이 경우는 발생하지 않아야 함)
-                if (capturedEnginePtr)
-                { // capturedEnginePtr 유효성 검사
-                    capturedEnginePtr->EngineStdOut("ERROR: ScriptThreadState not found for execId " + execId + " in resumeInternalBlockScripts for entity " + this->getId() + " when trying to cancel resume.", 2, execId);
-                }
+                ++it_state;
             }
-            continue; // 다음 태스크로 넘어감
         }
+    } // Mutex scope ends
 
-        capturedEnginePtr->submitTask([this, scriptToRun, execId, sceneIdForRun, deltaTime, capturedEnginePtr]()
-                                      {
-            if (capturedEnginePtr->m_isShuttingDown.load(std::memory_order_relaxed)) {
-                // capturedEnginePtr->EngineStdOut("Resume for " + this->getId() + " (Thread: " + execId + ") cancelled due to engine shutdown.", 1, execId);
-                return;
-            }
+    // 수집된 작업을 현재 스레드에서 직접 실행
+    for (const auto &taskDetails : tasksToRunInline)
+    {
+        const std::string &execId = std::get<0>(taskDetails);
+        const Script *scriptToRun = std::get<1>(taskDetails);
+        const std::string &sceneIdForRun = std::get<2>(taskDetails);
 
-            // Log that the entity is resuming this script thread.
-            // This log replaces the one that was in Engine::dispatchScriptForExecution for resumed scripts.
-            capturedEnginePtr->EngineStdOut("Worker thread (resumed by Entity) for entity: " + this->getId() + " (Thread: " + execId + ")", 5, execId);
+        // pEngineInstance->EngineStdOut("Executing internal continuation for entity: " + getId() + " (Thread: " + execId + ")", 5, execId);
 
-            try {
-                this->executeScript(scriptToRun, execId, sceneIdForRun, deltaTime);
-            } catch (const ScriptBlockExecutionError &sbee) {
-                // Replicate error handling from Engine::dispatchScriptForExecution
-                Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
-                std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
-
-                std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
-                                                   " 의 타입 " + koreanBlockTypeName +
-                                                   (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
-                                                        ? " (원본: " + sbee.blockType + ")"
-                                                        : "") +
-                                                   " 에서 사용 하는 객체 "+sbee.entityId +
-                                                   "\n원본 오류: " + sbee.originalMessage;
-
-                capturedEnginePtr->EngineStdOut("Script Execution Error (Thread " + execId + "): " + detailedErrorMessage, 2, execId);
-                capturedEnginePtr->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage, capturedEnginePtr->msgBoxIconType.ICON_ERROR);
-            } catch (const std::exception &e) {
-                capturedEnginePtr->EngineStdOut(
-                    "Generic exception caught in resumed script for entity " + this->getId() +
-                    " (Thread: " + execId + "): " + e.what(), 2, execId);
-            } catch (...) {
-                capturedEnginePtr->EngineStdOut(
-                    "Unknown exception caught in resumed script for entity " + this->getId() +
-                    " (Thread: " + execId + ")", 2, execId);
-            } });
+        try
+        {
+            this->executeScript(scriptToRun, execId, sceneIdForRun, deltaTime);
+        }
+        catch (const ScriptBlockExecutionError &sbee)
+        {
+            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
+            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + this->getId() +
+                                               ") 블럭ID " + sbee.blockId +
+                                               " 의 타입 " + koreanBlockTypeName +
+                                               (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
+                                                    ? " (원본: " + sbee.blockType + ")"
+                                                    : "") +
+                                               " 에서 사용 하는 객체 " + sbee.entityId +
+                                               "\n원본 오류: " + sbee.originalMessage;
+            pEngineInstance->EngineStdOut("Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2, execId);
+            pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR);
+            // 프로그램 종료 여부는 상위 정책에 따름 (여기서는 Engine::dispatchScriptForExecution의 예외 처리와 유사하게)
+        }
+        catch (const std::exception &e)
+        {
+            pEngineInstance->EngineStdOut(
+                "Generic exception caught in internal continuation for entity " + getId() +
+                " (Thread: " + execId + "): " + e.what(), 2, execId);
+        }
+        catch (...)
+        {
+            pEngineInstance->EngineStdOut(
+                "Unknown exception caught in internal continuation for entity " + getId() +
+                " (Thread: " + execId + ")", 2, execId);
+        }
     }
 }
-
 void Entity::resumeExplicitWaitScripts(float deltaTime)
 {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
@@ -1676,40 +1658,39 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
 
     // 스레드 풀에 작업을 게시합니다.
     // 람다 함수는 필요한 변수들을 캡처합니다. pEngineInstance는 this를 통해 접근 가능합니다.
-    pEngineInstance->submitTask([this, scriptPtr, sceneIdAtDispatch, deltaTime, execIdToUse, isResumedScript]()
+    pEngineInstance->submitTask([self = shared_from_this(), scriptPtr, sceneIdAtDispatch, deltaTime, execIdToUse, isResumedScript]()
 
                                 {
-                          if (this->pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
+                          if (self->pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
                           {
                               // 엔진 종료 중이면 스크립트 실행을 취소합니다. (선택적 로깅)
-                              // this->pEngineInstance->EngineStdOut("Script execution for " + this->id + " (Thread: " + execIdToUse + ") cancelled due to engine shutdown.", 1, execIdToUse);
+                              // self->pEngineInstance->EngineStdOut("Script execution for " + self->id + " (Thread: " + execIdToUse + ") cancelled due to engine shutdown.", 1, execIdToUse);
                               return;
                           }
 
                           // 스크립트 시작 또는 재개 로깅
                           if (isResumedScript)
                           {
-                              this->pEngineInstance->EngineStdOut("Entity " + this->id + " resuming script (Thread: " + execIdToUse + ")", 5, execIdToUse);
+                              self->pEngineInstance->EngineStdOut("Entity " + self->getId() + " resuming script (Thread: " + execIdToUse + ")", 5, execIdToUse);
                           }
                           else
                           {
-                              this->pEngineInstance->EngineStdOut("Entity " + this->id + " starting new script (Thread: " + execIdToUse + ")", 5, execIdToUse);
+                              self->pEngineInstance->EngineStdOut("Entity " + self->getId() + " starting new script (Thread: " + execIdToUse + ")", 5, execIdToUse);
                           }
 
                           try
                           {
                               // 실제 스크립트 실행
-                              this->executeScript(scriptPtr, execIdToUse, sceneIdAtDispatch, deltaTime);
+                              self->executeScript(scriptPtr, execIdToUse, sceneIdAtDispatch, deltaTime);
                           }
                           catch (const ScriptBlockExecutionError &sbee)
                           {
                               // Handle script block execution errors
                               Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
                               std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
-
                               // Configure error message (sbee.entityId could be the entity referenced by the block where the error occurred,
-                              // so explicitly stating this->id for the entity executing the script might be clearer.)
-                              std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + this->id +
+                              // so explicitly stating self->id for the entity executing the script might be clearer.)
+                              std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + self->getId() +
                                                                  ") 블럭ID " + sbee.blockId +
                                                                  " 의 타입 " + koreanBlockTypeName +
                                                                  (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
@@ -1719,32 +1700,32 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                                                                  "\n원본 오류: " + sbee.originalMessage;
 
                               // EngineStdOut은 이미 상세 메시지를 포함하므로, 여기서는 요약된 메시지 또는 상세 메시지 그대로 사용
-                              this->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + this->id + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
-                              this->pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              self->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + self->getId() + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
+                              self->pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, self->pEngineInstance->msgBoxIconType.ICON_ERROR);
                               exit(EXIT_FAILURE); // 프로그램 종료
                           }
                           catch (const std::length_error &le)
                           { // Specifically catch std::length_error
-                              this->pEngineInstance->EngineStdOut(
-                                  "std::length_error caught in script for entity " + this->id +
+                              self->pEngineInstance->EngineStdOut(
+                                  "std::length_error caught in script for entity " + self->getId() +
                                       " (Thread: " + execIdToUse + "): " + le.what(),
                                   2, execIdToUse);
                               // Optionally, show a message box or perform other error handling
-                              // this->pEngineInstance->showMessageBox("문자열 처리 중 오류가 발생했습니다: " + std::string(le.what()), this->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              // self->pEngineInstance->showMessageBox("문자열 처리 중 오류가 발생했습니다: " + std::string(le.what()), self->pEngineInstance->msgBoxIconType.ICON_ERROR);
                           }
                           catch (const std::exception &e)
                           {
                               // Handle general C++ exceptions
-                              this->pEngineInstance->EngineStdOut(
-                                  "Generic exception caught in script for entity " + this->id +
+                              self->pEngineInstance->EngineStdOut(
+                                  "Generic exception caught in script for entity " + self->getId() +
                                       " (Thread: " + execIdToUse + "): " + e.what(),
                                   2, execIdToUse);
                           }
                           catch (...)
                           {
                               // Handle other unknown exceptions
-                              this->pEngineInstance->EngineStdOut(
-                                  "Unknown exception caught in script for entity " + this->id +
+                              self->pEngineInstance->EngineStdOut(
+                                  "Unknown exception caught in script for entity " + self->getId() +
                                       " (Thread: " + execIdToUse + ")",
                                   2, execIdToUse);
                           } });
@@ -1754,7 +1735,7 @@ void Entity::setText(const std::string &newText)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 업데이트합니다.
         pEngineInstance->updateEntityTextContent(this->id, newText);
     }
@@ -1769,7 +1750,7 @@ void Entity::appendText(const std::string &textToAppend)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
         // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
         // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.
@@ -1806,7 +1787,7 @@ void Entity::prependText(const std::string &prependToText)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::mutex> lock(pEngineInstance->m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
         // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
         // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.

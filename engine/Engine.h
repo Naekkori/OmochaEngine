@@ -370,7 +370,7 @@ public:
     void stopThreadPool();
     std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
     std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
-    mutable std::mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
+    mutable std::recursive_mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
 private: // LCOV_EXCL_LINE
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:

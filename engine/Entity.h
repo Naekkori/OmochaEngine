@@ -275,7 +275,8 @@ public:
     void removeDialog();
     void update(float deltaTime);
     void updateDialog(float deltaTime); // Changed from Uint64 currentTimeMs
-    void resumeExplicitWaitScripts(float deltaTime); // 추가: EXPLICIT_WAIT_SECOND 상태의 스크립트 재개
+    void processInternalContinuations(float deltaTime); // BLOCK_INTERNAL 상태 스크립트 직접 처리
+    void resumeExplicitWaitScripts(float deltaTime); 
     void resumeInternalBlockScripts(float deltaTime); // 추가: BLOCK_INTERNAL 상태의 스크립트 재개
     void resumeSoundWaitScripts(float deltaTime);      // 추가: SOUND_FINISH 상태의 스크립트 재개
     bool hasActiveDialog() const;

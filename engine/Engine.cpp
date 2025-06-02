@@ -1425,7 +1425,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 // Initialize pen positions
                 newEntity->brush.reset(initial_x, initial_y);
                 newEntity->paint.reset(initial_x, initial_y);
-                lock_guard<mutex> lock(m_engineDataMutex);
+                lock_guard<recursive_mutex> lock(m_engineDataMutex);
                 entities[objectId] = std::shared_ptr<Entity>(newEntity);
                 // newEntity->startLogicThread(); // This seems to be commented out already
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
@@ -2539,7 +2539,7 @@ void Engine::drawAllEntities()
     }
 
     // Lock the mutex that protects objects_in_order and entities
-    std::lock_guard<std::mutex> lock(m_engineDataMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
     SDL_SetRenderTarget(renderer, tempScreenTexture);
 
@@ -4475,7 +4475,7 @@ Entity *Engine::getEntityById_nolock(const std::string &id)
 // Shared pointer version of getEntityById
 std::shared_ptr<Entity> Engine::getEntityByIdShared(const std::string &id)
 {
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Protects entities map
     auto it = entities.find(id);
     if (it != entities.end())
     {
@@ -5069,7 +5069,7 @@ int Engine::getBlockCountForScene(const std::string &sceneId) const
 
 void Engine::changeObjectIndex(const std::string &entityId, Omocha::ObjectIndexChangeType changeType)
 {
-    std::lock_guard<std::mutex> lock(this->m_engineDataMutex); // Protect access to objects_in_order
+    std::lock_guard<std::recursive_mutex> lock(this->m_engineDataMutex); // Protect access to objects_in_order
 
     auto it = std::find_if(objects_in_order.begin(), objects_in_order.end(),
                            [&entityId](const ObjectInfo &objInfo)
@@ -5210,7 +5210,7 @@ void Engine::drawDialogs()
         return;
 
     // Lock the mutex that protects entities and their dialog states
-    std::lock_guard<std::mutex> lock(m_engineDataMutex);
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
     SDL_SetRenderTarget(renderer, tempScreenTexture); // 스테이지 텍스처에 그립니다.
 
@@ -5613,7 +5613,7 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
     // Entity 객체를 찾습니다.
     Entity *entity = nullptr;
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
         entity = getEntityById_nolock(entityId);
     }
 
@@ -5739,7 +5739,7 @@ bool Engine::saveCloudVariablesToJson()
     }
 
     EngineStdOut("Saving cloud variables to: " + filePath, 3);
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
 
     nlohmann::json doc = nlohmann::json::array();
 
@@ -5834,7 +5834,7 @@ bool Engine::loadCloudVariablesFromJson()
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Protect m_HUDVariables
 
     int updatedCount = 0;
     int notFoundCount = 0;
@@ -6071,7 +6071,7 @@ void Engine::requestStopObject(const std::string &callingEntityId, const std::st
 
     if (targetOption == "all")
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Protects entities map
         for (auto &pair : entities)
         {
             if (pair.second)
@@ -6110,7 +6110,7 @@ void Engine::requestStopObject(const std::string &callingEntityId, const std::st
     }
     else if (targetOption == "other_objects")
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Protects entities map
         for (auto &pair : entities)
         {
             if (pair.first != callingEntityId && pair.second)
@@ -6171,7 +6171,7 @@ std::shared_ptr<Entity> Engine::createCloneOfEntity(const std::string &originalE
     Entity *originalEntity = nullptr;
 
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
         if (entities.size() >= static_cast<size_t>(specialConfig.MAX_ENTITY))
         {
             EngineStdOut("Cannot create clone: Maximum entity limit (" + std::to_string(specialConfig.MAX_ENTITY) + ") reached.", 1);
@@ -6234,7 +6234,7 @@ std::shared_ptr<Entity> Engine::createCloneOfEntity(const std::string &originalE
 
     // 4. Add clone to engine collections
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
         objects_in_order.push_back(cloneObjInfo); // Add to rendering order (usually on top initially)
                                                   // Consider Z-order: clones often appear on top of the original.
                                                   // The default push_back adds to the end, which is rendered first (bottom).
@@ -6311,7 +6311,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
     // First, mark scripts for termination and get the pointer
 
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Lock for entities map access
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Lock for entities map access
         auto it = entities.find(entityIdToDelete);
         if (it == entities.end())
         {
@@ -6334,7 +6334,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
     // from collections to the end of the game loop's update cycle.
     if (entityPtr)
     {                                                        // Check if entityPtr was successfully retrieved
-        std::lock_guard<std::mutex> lock(m_engineDataMutex); // Lock for all collection modifications
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Lock for all collection modifications
 
         // Remove from entities map
         auto it_map = entities.find(entityIdToDelete);
@@ -6403,7 +6403,7 @@ void Engine::deleteAllClonesOf(const std::string &originalEntityId)
     // 1. Collect IDs of all clones originating from originalEntityId
     // Lock entities for reading, but don't modify it yet to avoid iterator invalidation.
     {
-        std::lock_guard<std::mutex> lock(m_engineDataMutex);
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
         for (const auto &pair : entities)
         { 
             // pair.second는 std::shared_ptr<Entity> 타입입니다. 원시 포인터를 얻으려면 .get()을 사용해야 합니다.
@@ -6440,7 +6440,7 @@ void Engine::setStageClickedThisFrame(bool clicked)
 
 std::string Engine::getPressedObjectId() const
 {
-    std::lock_guard<std::mutex> lock(m_engineDataMutex); // m_pressedObjectId 접근 보호
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // m_pressedObjectId 접근 보호
     return m_pressedObjectId;
 }
 

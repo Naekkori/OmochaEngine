@@ -336,13 +336,13 @@ int main(int argc, char *argv[])
 
                 // 엔티티 업데이트
                 { // std::lock_guard의 범위를 지정하기 위한 블록
-                    std::lock_guard<std::mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
+                    std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
                     for (auto &[entity_key, entity_ptr] : engine.getEntities_Modifiable())
                     { // entity_ptr is now std::shared_ptr<Entity>
                         if (entity_ptr)
                         {                                     
                             entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
-                            entity_ptr->resumeInternalBlockScripts(deltaTime); // BLOCK_INTERNAL 상태 스크립트 재개
+                            entity_ptr->processInternalContinuations(deltaTime); // BLOCK_INTERNAL 상태 스크립트 직접 처리
                             entity_ptr->resumeExplicitWaitScripts(deltaTime); // EXPLICIT_WAIT_SECOND 상태 스크립트 재개
                             entity_ptr->resumeSoundWaitScripts(deltaTime);    // SOUND_FINISH 상태 스크립트 재개
                         }
