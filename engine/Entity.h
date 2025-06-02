@@ -7,7 +7,9 @@
 #include "SDL3/SDL_pixels.h" // For SDL_Color (already included)
 #include "SDL3/SDL_rect.h"   // For SDL_FRect, SDL_FPoint
 #include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
+#include <atomic>            // For std::atomic
 #include <map>               // For std::map
+#include <memory>            // For std::shared_ptr, std::enable_shared_from_this
 
 // Forward declaration
 class Engine;
@@ -52,7 +54,7 @@ struct ScriptWaitState
     }
 };
 
-class Entity
+class Entity : public std::enable_shared_from_this<Entity>
 {
 public:
     // 스크립트 대기 유형 정의
@@ -214,7 +216,7 @@ private:
     double direction;
     double width;
     double height;
-    bool visible;
+    std::atomic<bool> visible; // Changed to std::atomic<bool>
     RotationMethod rotateMethod;
     // Effects
     // Brightness: -100 (어둡게) to 0 (원본) to +100 (밝게)

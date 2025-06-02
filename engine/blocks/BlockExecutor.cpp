@@ -10,6 +10,7 @@
 #include <queue>
 #include <functional>
 #include <regex> // regex 헤더 추가
+#include <random> // For std::mt19937 and std::uniform_real_distribution
 #include <future>
 #include <algorithm> // For std::clamp
 
@@ -400,7 +401,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
 void Moving(string BlockType, Engine &engine, const string &objectId, const Block &block,
             const string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
 {
-    Entity *entity = engine.getEntityById(objectId);
+    auto entity = engine.getEntityByIdShared(objectId);
     if (!entity)
     {
         // Moving 함수 내 어떤 블록도 이 objectId에 대해 실행될 수 없으므로 여기서 공통 오류 처리 후 반환합니다.
@@ -1198,15 +1199,25 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                                 executionThreadId);
             return OperandValue();
         }
-        double min = minVal.number_val;
-        double max = maxVal.number_val;
-        if (min >= max)
-        {
-            engine.EngineStdOut("calc_rand block for object " + objectId + " has invalid range.", 2, executionThreadId);
-            return OperandValue();
-        }
-        double randVal = min + static_cast<double>(rand()) / (static_cast<double>(RAND_MAX / (max - min)));
-        return OperandValue(randVal);
+    // thread_local을 사용하여 각 스레드가 자신만의 난수 생성기를 갖도록 합니다.
+    // std::random_device{}()를 사용하여 각 스레드마다 다른 시드로 초기화합니다.
+    thread_local std::mt19937 generator(std::random_device{}());
+
+    double min_val = minVal.asNumber();
+    double max_val = maxVal.asNumber();
+
+    if (min_val < max_val) {
+        std::uniform_real_distribution<double> distribution(min_val, max_val);
+        return OperandValue(distribution(generator));
+    } else if (min_val == max_val) {
+        return OperandValue(min_val); // 최소값과 최대값이 같으면 해당 값 반환
+    } else { // min_val > max_val
+        // EntryJS는 이 경우 min_val을 반환하는 것으로 보입니다.
+        // 또는 오류를 발생시키거나, 범위를 교정할 수 있습니다.
+        // 여기서는 EntryJS 동작을 따라 min_val을 반환합니다.
+        engine.EngineStdOut("calc_rand block for object " + objectId + ": min_val (" + std::to_string(min_val) + ") is greater than max_val (" + std::to_string(max_val) + "). Returning min_val.", 1, executionThreadId);
+        return OperandValue(min_val);
+    }
     }
     else if (BlockType == "coordinate_mouse")
     {
@@ -3177,7 +3188,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 void Looks(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
 {
-    Entity *entity = engine.getEntityById(objectId);
+    auto entity = engine.getEntityByIdShared(objectId);
     if (!entity)
     {
         engine.EngineStdOut("Looks block: Entity " + objectId + " not found for block type " + BlockType, 2);
@@ -3505,7 +3516,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
 void Sound(string BlockType, Engine &engine, const string &objectId, const Block &block,
            const string &executionThreadId)
 {
-    Entity *entity = engine.getEntityById(objectId);
+    auto entity = engine.getEntityByIdShared(objectId);
     if (BlockType == "sound_something_with_block")
     {
         OperandValue soundType = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
@@ -3930,7 +3941,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                             "Question message cannot be empty.");
         }
 
-        Entity *entity = engine.getEntityById(objectId);
+        auto entity = engine.getEntityByIdShared(objectId);
         if (!entity)
         {
             engine.EngineStdOut("ask_and_wait: Entity " + objectId + " not found.", 2, executionThreadId);
@@ -4686,7 +4697,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
 void Flow(string BlockType, Engine &engine, const string &objectId, const Block &block,
           const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
-    Entity *entity = engine.getEntityById(objectId);
+    auto entity = engine.getEntityByIdShared(objectId);
     if (!entity)
     {
         engine.EngineStdOut("Flow 'wait_second': Entity " + objectId + " not found.", 2, executionThreadId);
@@ -5484,7 +5495,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     else if (BlockType == "delete_clone")
     {
         // 이 블록은 자신(복제본)을 삭제합니다. 파라미터는 보통 없습니다.
-        Entity *entity = engine.getEntityById(objectId); // objectId는 이 스크립트를 실행하는 엔티티의 ID입니다.
+        auto entity = engine.getEntityByIdShared(objectId); // objectId는 이 스크립트를 실행하는 엔티티의 ID입니다.
         if (!entity)
         {
             engine.EngineStdOut("Flow 'delete_clone' for " + objectId + ": Entity not found.", 2, executionThreadId);
@@ -5519,7 +5530,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 void TextBox(string BlockType, Engine &engine, const string &objectId, const Block &block,
              const string &executionThreadId)
 {
-    Entity *entity = engine.getEntityById(objectId);
+    auto entity = engine.getEntityByIdShared(objectId);
     if (!entity)
     {
         engine.EngineStdOut("TextBox block: Entity " + objectId + " not found for block type " + BlockType, 2, executionThreadId);

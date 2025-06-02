@@ -81,7 +81,7 @@ struct ObjectInfo
     string id;
     string name;
     string objectType;
-    string sceneId;
+    std::string sceneId; // Changed to std::string for consistency
     string selectedCostumeId;
     vector<Costume> costumes;
     vector<SoundFile> sounds;
@@ -119,8 +119,8 @@ private:
     map<string, vector<Script>> objectScripts;
     vector<pair<string, const Script *>> startButtonScripts;                   // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
-    vector<ObjectInfo> objects_in_order;
-    map<string, Entity *> entities;
+    vector<ObjectInfo> objects_in_order; // This stores info, not live entities.
+    map<string, std::shared_ptr<Entity>> entities; // Changed to shared_ptr
     vector<string> m_sceneOrder; // Stores scene IDs in the order they are defined
     SDL_Window *window;          // SDL Window
     SDL_Renderer *renderer;      // SDL Renderer
@@ -296,8 +296,8 @@ public:
     void initFps();
     void updateFps();
     void setfps(int fps);
-    SDL_Renderer *getRenderer()
-    {
+    SDL_Renderer *getRenderer() const // Added const
+    { // Added const
         return this->renderer;
     }
     float getFps() { return currentFps; };
@@ -306,6 +306,8 @@ public:
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
     Entity *getEntityById_nolock(const std::string &id);
+    std::shared_ptr<Entity> getEntityByIdShared(const std::string &id); // New method
+    std::shared_ptr<Entity> getEntityByIdNolockShared(const std::string &id); // New method
     void renderLoadingScreen();
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();
@@ -321,7 +323,7 @@ public:
     void resetProjectTimer();
     void setProjectTimerVisibility(bool show); // 이름 변경 및 기능 수정
     double getProjectTimerValue() const;
-    void showAnswerValue(bool show);
+    void showAnswerValue(bool show); // Declaration
     void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
@@ -337,8 +339,8 @@ public:
     bool isTouchSupported() const;
     void updateEntityTextContent(const std::string &entityId, const std::string &newText);
     void setStageClickedThisFrame(bool clicked);
-    // HUD에 표시할 변수 목록을 설정하는 메서드
-    map<string, Entity *> &getEntities_Modifiable() { return entities; }
+    // HUD에 표시할 변수 목록을 설정하는 메서드    
+    map<string, std::shared_ptr<Entity>> &getEntities_Modifiable() { return entities; } // Changed to shared_ptr
     void loadHUDVariablesFromJson(const nlohmann::json &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
@@ -353,8 +355,8 @@ public:
     bool setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId);
     bool setEntitychangeToNextCostume(const std::string &entityId, const std::string &asOption);
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string &sceneIdAtDispatch, float deltaTime, const std::string &existingExecutionThreadId = "");
-    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);
-    Entity *createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts);
+    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);    
+    std::shared_ptr<Entity> createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts); // Return shared_ptr
     int getNextCloneIdSuffix(const std::string &originalId);
     void deleteEntity(const std::string& entityIdToDelete);
     void deleteAllClonesOf(const std::string& originalEntityId);

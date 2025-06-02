@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
                 { // std::lock_guard의 범위를 지정하기 위한 블록
                     std::lock_guard<std::mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
                     for (auto &[entity_key, entity_ptr] : engine.getEntities_Modifiable())
-                    {
+                    { // entity_ptr is now std::shared_ptr<Entity>
                         if (entity_ptr)
                         {                                     
                             entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트

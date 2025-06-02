@@ -368,8 +368,18 @@ static void Helper_RenderFilledRoundedRect(SDL_Renderer *renderer, const SDL_FRe
 Engine::~Engine()
 {
     EngineStdOut("Engine shutting down...");
-    m_isShuttingDown.store(true, std::memory_order_relaxed); // 스레드들에게 종료 신호
-    stopThreadPool();                                        // Stop and join standard C++ threads
+    m_isShuttingDown.store(true, std::memory_order_relaxed); // 모든 스레드에 종료 신호
+
+    // 1. BlockExecutor::ThreadPool (engine.threadPool) 명시적 종료
+    // 이 풀의 작업자 스레드가 종료 시 로그를 남기므로, 다른 리소스 해제 전에 완료해야 합니다.
+    if (threadPool) {
+        EngineStdOut("Stopping BlockExecutor::ThreadPool...", 0);
+        threadPool.reset(); // unique_ptr의 reset()을 호출하여 ThreadPool 소멸자 실행 및 스레드 join
+        EngineStdOut("BlockExecutor::ThreadPool stopped.", 0);
+    }
+
+    // 2. Engine 자체의 m_workerThreads 풀 종료 (사용 중인 경우)
+    stopThreadPool(); // 이 함수는 m_workerThreads를 중지하고 join합니다.
 
     // TerminateGE 보다 먼저 폰트 캐시 정리
     for (auto const &[key, val] : m_fontCache)
@@ -381,16 +391,12 @@ Engine::~Engine()
 
     // Entity 객체들 명시적 삭제
     EngineStdOut("Deleting entity objects...", 0);
-    for (auto &pair : entities)
-    {
-        delete pair.second;
-    }
     entities.clear();
     EngineStdOut("Entity objects deleted.", 0);
 
     terminateGE();
-    objectScripts.clear();
-    EngineStdOut("Object Script Clear");
+    objectScripts.clear(); // entities 삭제 후 objectScripts 정리
+    EngineStdOut("Object Script Clear"); // 이 로그는 이제 더 안전한 시점에 출력됩니다.
 }
 
 std::string Engine::getSafeStringFromJson(const nlohmann::json &parentValue,
@@ -1420,7 +1426,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 newEntity->brush.reset(initial_x, initial_y);
                 newEntity->paint.reset(initial_x, initial_y);
                 lock_guard<mutex> lock(m_engineDataMutex);
-                entities[objectId] = newEntity;
+                entities[objectId] = std::shared_ptr<Entity>(newEntity);
                 // newEntity->startLogicThread(); // This seems to be commented out already
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
             }
@@ -2559,7 +2565,7 @@ void Engine::drawAllEntities()
 
             continue;
         }
-        const Entity *entityPtr = it_entity->second;
+        const Entity *entityPtr = it_entity->second.get();
 
         if (!entityPtr->isVisible())
         {
@@ -3687,7 +3693,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
         else if (event.type == SDL_EVENT_KEY_DOWN)
         {
             std::lock_guard<std::mutex> lock(m_textInputMutex);
-            if (event.key.scancode == SDLK_BACKSPACE && !m_currentTextInputBuffer.empty())
+            if (event.key.scancode == SDL_SCANCODE_BACKSPACE && !m_currentTextInputBuffer.empty())
             {
                 m_currentTextInputBuffer.pop_back();
                 // EngineStdOut("Backspace. Buffer: " + m_currentTextInputBuffer, 3);
@@ -3834,8 +3840,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                      std::to_string(stageMouseY) + ")",
                                  3);
 
-                    // objects_in_order는 이미 Z순서대로 정렬되어 있으므로, 앞에서부터 처리
-                    for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
+                    // objects_in_order[0]이 가장 위에 그려지므로, 0번 인덱스부터 순회하여 가장 위에 있는 엔티티를 먼저 확인합니다.
+                    for (size_t i = 0; i < objects_in_order.size(); ++i)
                     {
                         const ObjectInfo &objInfo = objects_in_order[i];
                         const string &objectId = objInfo.id;
@@ -3886,19 +3892,12 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                             std::string currentScene = getCurrentSceneId();
                             for (const auto& scriptPair : scriptsToRun)
                             {
-                                // 각 스크립트를 별도의 작업으로 스케줄링
-                                std::async(std::launch::async, [this, scriptPair, currentScene, deltaTime]() {
-                                    try {
-                                        this->dispatchScriptForExecution(
-                                            scriptPair.first,
-                                            scriptPair.second,
-                                            currentScene,
-                                            deltaTime
-                                        );
-                                    } catch (const std::exception& e) {
-                                        EngineStdOut("Error executing click script: " + std::string(e.what()), 1);
-                                    }
-                                });
+                                this->dispatchScriptForExecution(
+                                    scriptPair.first,
+                                    scriptPair.second,
+                                    currentScene,
+                                    deltaTime
+                                );
                             }
 
                             EngineStdOut("Click handled by entity: " + objectId, 0);
@@ -4456,7 +4455,7 @@ Entity *Engine::getEntityById(const string &id)
     auto it = entities.find(id); // ID로 엔티티 검색
     if (it != entities.end())
     {
-        return it->second;
+        return it->second.get();
     }
 
     return nullptr;
@@ -4465,6 +4464,30 @@ Entity *Engine::getEntityById(const string &id)
 // Private method, assumes m_engineDataMutex is already locked by the caller.
 Entity *Engine::getEntityById_nolock(const std::string &id)
 {
+    auto it = entities.find(id);
+    if (it != entities.end())
+    {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+// Shared pointer version of getEntityById
+std::shared_ptr<Entity> Engine::getEntityByIdShared(const std::string &id)
+{
+    std::lock_guard<std::mutex> lock(m_engineDataMutex); // Protects entities map
+    auto it = entities.find(id);
+    if (it != entities.end())
+    {
+        return it->second; // entities map stores std::shared_ptr<Entity>
+    }
+    return nullptr;
+}
+
+// Shared pointer version of getEntityById_nolock
+std::shared_ptr<Entity> Engine::getEntityByIdNolockShared(const std::string &id)
+{
+    // Assumes m_engineDataMutex is already locked by the caller or not needed.
     auto it = entities.find(id);
     if (it != entities.end())
     {
@@ -5198,7 +5221,7 @@ void Engine::drawDialogs()
     for (auto &pair : entities)
     {
         // Entity의 DialogState를 수정할 수 있으므로 non-const 반복
-        Entity *entity = pair.second;
+        Entity *entity = pair.second.get();
         if (entity && entity->hasActiveDialog())
         {
             Entity::DialogState &dialog = entity->m_currentDialog; // 수정 가능한 참조 가져오기
@@ -5980,7 +6003,7 @@ void Engine::performProjectRestart()
     // Clear existing entity objects before reloading
     for (auto &pair : entities)
     {
-        delete pair.second;
+        delete pair.second.get();
     }
     entities.clear();
     objects_in_order.clear();
@@ -6140,7 +6163,7 @@ int Engine::getNextCloneIdSuffix(const std::string &originalId)
     return ++m_cloneCounters[originalId];
 }
 
-Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts)
+std::shared_ptr<Entity> Engine::createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts)
 {
     EngineStdOut("Attempting to create clone of entity: " + originalEntityId, 0);
 
@@ -6158,7 +6181,7 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
         auto it_orig_entity = entities.find(originalEntityId);
         if (it_orig_entity != entities.end())
         {
-            originalEntity = it_orig_entity->second;
+            originalEntity = it_orig_entity->second.get();
         }
     }
 
@@ -6219,7 +6242,9 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
                                                   // objects_in_order.insert(objects_in_order.begin(), cloneObjInfo);
                                                   // For now, let's add to the end and it can be reordered by blocks.
 
-        entities[cloneId] = cloneEntity;
+        // cloneEntity는 Entity* 이므로 std::shared_ptr로 감싸서 저장
+        entities[cloneId] = std::shared_ptr<Entity>(cloneEntity);
+
 
         // Copy scripts from the original object type to the clone's entry in objectScripts
         // This ensures the clone can respond to events if its original type had scripts.
@@ -6265,7 +6290,8 @@ Entity *Engine::createCloneOfEntity(const std::string &originalEntityId, const s
     // This is handled by copying ObjectInfo which includes sceneId.
     // If the original was global, the clone is also global.
 
-    return cloneEntity;
+  // 반환 타입이 std::shared_ptr<Entity>이므로, 맵에서 가져오거나 새로 생성한 shared_ptr 반환
+    return entities[cloneId];
 }
 
 void Engine::deleteEntity(const std::string &entityIdToDelete)
@@ -6292,7 +6318,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
             EngineStdOut("Cannot delete entity: Entity ID '" + entityIdToDelete + "' not found in 'entities' map.", 1);
             return;
         }
-        entityPtr = it->second;
+        entityPtr = it->second.get();
 
         if (entityPtr)
         {
@@ -6379,8 +6405,9 @@ void Engine::deleteAllClonesOf(const std::string &originalEntityId)
     {
         std::lock_guard<std::mutex> lock(m_engineDataMutex);
         for (const auto &pair : entities)
-        {
-            Entity *entity = pair.second;
+        { 
+            // pair.second는 std::shared_ptr<Entity> 타입입니다. 원시 포인터를 얻으려면 .get()을 사용해야 합니다.
+            Entity *entity = pair.second.get();
             if (entity && entity->getIsClone() && entity->getOriginalClonedFromId() == originalEntityId)
             {
                 cloneIdsToDelete.push_back(pair.first);

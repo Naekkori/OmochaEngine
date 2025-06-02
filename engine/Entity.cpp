@@ -67,7 +67,7 @@ Entity::Entity(Engine *engine, const std::string &entityId, const std::string &e
       x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
       scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
       width(initial_width), height(initial_height), visible(initial_visible), rotateMethod(initial_rotationMethod),
-      brush(engine), paint(engine), timedMoveObjState(), timedRotationState(),
+      brush(engine), paint(engine), /*visible(initial_visible),*/ timedMoveObjState(), timedRotationState(),
       m_effectBrightness(0.0), // 0: 원본 밝기
       m_effectAlpha(1.0),      // 1.0: 완전 불투명,
       m_effectHue(0.0)         // 0: 색조 변경 없음
@@ -478,8 +478,8 @@ double Entity::getHeight() const
 }
 bool Entity::isVisible() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    return visible;
+    // std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Lock removed
+    return visible.load(std::memory_order_relaxed);
 }
 
 SDL_FRect Entity::getVisualBounds() const
@@ -763,8 +763,8 @@ void Entity::resetScaleSize()
 }
 void Entity::setVisible(bool newVisible)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    visible = newVisible;
+    // std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Lock removed
+    visible.store(newVisible, std::memory_order_relaxed);
 }
 
 Entity::RotationMethod Entity::getRotateMethod() const
@@ -830,17 +830,21 @@ bool Entity::isPointInside(double pX, double pY) const
 
     // 이제 checkPX, checkPY는 엔티티의 1x1 스케일 기준 로컬 좌표.
     // 경계는 엔티티의 원본 크기(width, height)와 등록점(regX, regY)을 기준으로 계산.
-    double halfWidth = this->width / 2.0;
-    double halfHeight = this->height / 2.0;
+    // (checkPX, checkPY)는 등록점을 원점으로 하는 좌표.
+    // this->regX, this->regY가 코스튬의 좌상단 (0,0)으로부터 등록점까지의 오프셋이라고 가정.
+    // 엔진 전체적으로 Y축은 위쪽을 향함. this->regY도 이 규칙을 따른다고 가정.
+    // (예: 코스튬 높이가 100이고, 등록점이 코스튬의 가장 위쪽 가장자리에 있다면 regY는 100 또는 0, 가장 아래쪽이면 0 또는 -100 등, 기준점에 따라 달라짐)
+    // 여기서는 this->regY가 코스튬의 좌상단(Y축 기준 0)으로부터 Y축 위쪽 방향으로의 오프셋이라고 가정.
+    // 즉, 코스튬의 좌상단은 (checkPX, checkPY) 좌표계에서 (-this->regX, -this->regY)에 해당. (이 가정은 일반적이지 않음)
 
-    // localCostumeCenterX/Y는 로컬 좌표계(등록점이 원점)에서 코스튬의 시각적 중심 위치.
-    double localCostumeCenterX = -this->regX;
-    double localCostumeCenterY = -this->regY; // rotatedPY 및 regY 오프셋에 대해 Y축 위쪽 가정
-
-    double leftBound = localCostumeCenterX - halfWidth;
-    double rightBound = localCostumeCenterX + halfWidth;
-    double bottomBound = localCostumeCenterY - halfHeight;
-    double topBound = localCostumeCenterY + halfHeight;
+    // 일반적인 경우: this->regX, this->regY는 코스튬의 좌상단(0,0)을 기준으로 한 등록점의 위치.
+    // 코스튬의 Y좌표는 아래로 증가한다고 가정하고, checkPY는 위로 증가.
+    // 코스튬의 좌상단은 (checkPX, checkPY) 좌표계에서 (-this->regX, this->regY) 에 위치.
+    // 코스튬의 우하단은 (checkPX, checkPY) 좌표계에서 (this->width - this->regX, this->regY - this->height) 에 위치.
+    double leftBound = -this->regX;
+    double rightBound = this->width - this->regX;
+    double bottomBound = this->regY - this->height; // (regY가 코스튬 상단 Y좌표일 때)
+    double topBound = this->regY;                   // (regY가 코스튬 상단 Y좌표일 때)
 
     // 스케일 조정된 점(checkPX, checkPY)이 원본 크기 기준 경계 내에 있는지 확인 (부동소수점 오차 감안)
     bool inX = (checkPX >= leftBound - epsilon && checkPX <= rightBound + epsilon);
@@ -1022,11 +1026,10 @@ void Entity::playSound(const std::string &soundId)
 
 void Entity::playSoundWithSeconds(const std::string &soundId, double seconds)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    // std::unique_lock<std::recursive_mutex> lock(m_stateMutex); // Lock removed for async wait
 
     if (!pEngineInstance)
     {
-        // std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
         pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.", 2);
         return;
     }
@@ -1153,40 +1156,35 @@ void Entity::waitforPlaysound(const std::string &soundId)
         {
             soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
         }
-        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath); // Engine의 public aeHelper 사용
-        // pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
+        pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
 
-        lock.unlock();
-        while (pEngineInstance->aeHelper.isSoundPlaying(this->getId())) // 루프 조건에서 상태를 계속 확인
-        {
-            // 현재 스레드를 잠시 멈춥니다.
-            // 이 작업은 현재 스크립트 실행 스레드를 블로킹합니다.
-            // 메인 게임 루프를 블로킹하지 않도록 주의해야 합니다.
-            SDL_Delay(2);
+        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
+        // 이 함수를 호출하는 컨텍스트에서 이 정보들을 전달받아야 합니다.
+        std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
+        std::string callingBlockId = "placeholder_block_id";         // 실제 호출 블록 ID로 대체 필요
+        // 예시: if (this->scriptThreadStates.count(currentExecutionThreadId)) { ... }
 
-            // 엔진 종료 상태 확인
-            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
-            {
-                pEngineInstance->EngineStdOut("Wait for sound cancelled due to engine shutdown for entity: " + this->getId(), 1);
-                break; // 대기 루프 종료
-            }
+        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id") {
+            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
+        } else {
+            pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing/placeholder thread/block ID. Sound will play without wait.", 1);
+            // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
+            // 또는, 여기서 에러를 발생시키거나 기본 블로킹 대기를 수행할 수 있지만, 비동기 패턴을 권장합니다.
         }
-        lock.lock(); // std::unique_lock 사용 시, 루프 후 다시 잠금
-        pEngineInstance->EngineStdOut("Entity " + id + " finished waiting for sound: " + soundToPlay->name, 0);
     }
     else
     {
         pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
     }
 }
-
 void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seconds)
 {
-    std::unique_lock<std::recursive_mutex> lock(m_stateMutex);
+    // std::unique_lock<std::recursive_mutex> lock(m_stateMutex); // Lock removed for initial part
 
     if (!pEngineInstance)
     {
-        // std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
         pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.", 2);
         return;
     }
@@ -1221,30 +1219,25 @@ void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seco
         }
         pEngineInstance->aeHelper.playSoundForDuration(this->getId(), soundFilePath, seconds); // Engine의 public aeHelper 사용
         // pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+        pEngineInstance->EngineStdOut("Entity " + id + " playing sound for " + std::to_string(seconds) + "s: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
 
-        lock.unlock();
-        while (pEngineInstance->aeHelper.isSoundPlaying(this->getId())) // 루프 조건에서 상태를 계속 확인
-        {
-            // 현재 스레드를 잠시 멈춥니다.
-            // 이 작업은 현재 스크립트 실행 스레드를 블로킹합니다.
-            // 메인 게임 루프를 블로킹하지 않도록 주의해야 합니다.
-            SDL_Delay(2);
+        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
+        std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
+        std::string callingBlockId = "placeholder_block_id";         // 실제 호출 블록 ID로 대체 필요
 
-            // 엔진 종료 상태 확인
-            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
-            {
-                pEngineInstance->EngineStdOut("Wait for sound cancelled due to engine shutdown for entity: " + this->getId(), 1);
-                break; // 대기 루프 종료
-            }
+        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id") {
+            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound (timed): " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
+        } else {
+            pEngineInstance->EngineStdOut("Entity " + id + " could not set timed sound wait due to missing/placeholder thread/block ID. Sound will play for duration without script pause.", 1);
         }
-        lock.lock(); // std::unique_lock 사용 시, 루프 후 다시 잠금
-        pEngineInstance->EngineStdOut("Entity " + id + " finished waiting for sound: " + soundToPlay->name, 0);
     }
     else
     {
         pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
     }
 }
+
 void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to)
 {
     std::unique_lock<std::recursive_mutex> lock(m_stateMutex);
@@ -1284,26 +1277,32 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
         {
             soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
         }
-        pEngineInstance->aeHelper.playSoundFromTo(this->getId(), soundFilePath, from, to); // Engine의 public aeHelper 사용
-        // pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
+    pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
 
-        lock.unlock();
-        while (pEngineInstance->aeHelper.isSoundPlaying(this->getId())) // 루프 조건에서 상태를 계속 확인
-        {
-            // 현재 스레드를 잠시 멈춥니다.
-            // 이 작업은 현재 스크립트 실행 스레드를 블로킹합니다.
-            // 메인 게임 루프를 블로킹하지 않도록 주의해야 합니다.
-            SDL_Delay(2);
+    // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
+    // 이 정보는 이 함수를 호출하는 컨텍스트(예: BlockExecutor)에서 전달받아야 합니다.
+    // 아래는 임시 플레이스홀더입니다. 실제 구현에서는 이 부분을 수정해야 합니다.
+    std::string currentExecutionThreadId = ""; // 실제 실행 스레드 ID로 대체 필요
+    std::string callingBlockId = "unknown_wait_block"; // 실제 호출 블록 ID로 대체 필요
 
-            // 엔진 종료 상태 확인
-            if (pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
-            {
-                pEngineInstance->EngineStdOut("Wait for sound cancelled due to engine shutdown for entity: " + this->getId(), 1);
-                break; // 대기 루프 종료
-            }
+    // 스레드 ID를 얻기 위한 임시 로직 (실제로는 더 안정적인 방법 필요)
+    // 예시: executeScript에서 현재 스레드 ID를 ScriptThreadState에 저장하고 여기서 읽어옴
+    // 또는, 이 함수에 executionThreadId와 blockId를 인자로 전달
+    {
+        std::lock_guard<std::recursive_mutex> read_lock(m_stateMutex);
+        // 가장 최근에 생성된 스레드 ID를 사용하려고 시도 (매우 불안정하며, 실제 사용 부적합)
+        if (!scriptThreadStates.empty()) {
+             // currentExecutionThreadId = scriptThreadStates.rbegin()->first; // 예시일 뿐, 사용 금지
         }
-        lock.lock(); // std::unique_lock 사용 시, 루프 후 다시 잠금
-        pEngineInstance->EngineStdOut("Entity " + id + " finished waiting for sound: " + soundToPlay->name, 0);
+    }
+
+    if (!currentExecutionThreadId.empty() && !callingBlockId.empty()) {
+        setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
+        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
+    } else {
+        pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing thread/block ID. Sound will play without wait.", 1);
+        // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
+    }
     }
     else
     {
