@@ -4914,9 +4914,51 @@ void Engine::goToScene(const string &sceneId)
         if (currentSceneId == sceneId)
         {
             EngineStdOut("Already in scene: " + scenes[sceneId] + " (ID: " + sceneId + "). No change.", 0); // 이미 해당 씬임
-
             return;
         }
+
+        const std::string oldSceneId = currentSceneId;
+
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+            
+            // 1. 모든 엔티티의 스크립트 상태를 확인하고 필요한 작업 수행
+            for (const auto &[entityId, entityPtr] : entities) {
+                const ObjectInfo *objInfo = getObjectInfoById(entityId);
+                if (objInfo) {
+                    bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
+                    // 글로벌이 아니고 현재 씬에 속한 엔티티의 스크립트 종료
+                    if (!isGlobal && objInfo->sceneId == oldSceneId) {
+                        entityPtr->terminateAllScriptThread("");
+                        EngineStdOut("Terminated all scripts for entity " + entityId + " during scene change", 0);
+                    }
+                }
+            }
+
+            // 2. 클론 엔티티 수집 및 제거
+            std::vector<std::string> entitiesToDelete;
+            for (const auto &objInfo : objects_in_order) {
+                if (!objInfo.sceneId.empty() && objInfo.sceneId != "global") {
+                    if (objInfo.sceneId == oldSceneId) {
+                        auto entityIt = entities.find(objInfo.id);
+                        if (entityIt != entities.end() && entityIt->second->getIsClone()) {
+                            entitiesToDelete.push_back(objInfo.id);
+                        }
+                    }
+                }
+            }
+
+            // 수집된 클론 엔티티들을 제거
+            for (const auto& entityId : entitiesToDelete) {
+                auto entityIt = entities.find(entityId);
+                if (entityIt != entities.end()) {
+                    entities.erase(entityIt);
+                    EngineStdOut("Removed clone entity " + entityId + " during scene change", 0);
+                }
+            }
+        }
+
+        // 3. 새로운 씬으로 전환
         currentSceneId = sceneId;
         EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
         triggerWhenSceneStartScripts();
