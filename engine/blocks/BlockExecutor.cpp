@@ -13,6 +13,7 @@
 #include <random> // For std::mt19937 and std::uniform_real_distribution
 #include <future>
 #include <algorithm> // For std::clamp
+#include <format>    // For std::format
 
 // ...existing code...
 
@@ -1747,27 +1748,27 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 #endif
         if (action == "YEAR")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_year + 1900));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_year + 1900)); // 연도는 숫자 그대로 반환
         }
         else if (action == "MONTH")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mon + 1));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mon + 1)); // 월은 숫자 그대로 반환
         }
         else if (action == "DAY")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday));
+            return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday)); // 일은 숫자 그대로 반환
         }
         else if (action == "HOUR")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_hour));
+            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_hour)); // 시를 두 자리 문자열로 포맷팅
         }
         else if (action == "MINUTE")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_min));
+            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_min)); // 분을 두 자리 문자열로 포맷팅
         }
         else if (action == "SECOND")
         {
-            return OperandValue(static_cast<double>(timeinfo_ptr->tm_sec));
+            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_sec)); // 초를 두 자리 문자열로 포맷팅
         }
         else
         {

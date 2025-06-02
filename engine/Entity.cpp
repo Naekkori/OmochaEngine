@@ -1439,8 +1439,7 @@ void Entity::processInternalContinuations(float deltaTime)
         {
             Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
             std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
-            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + this->getId() +
-                                               ") 블럭ID " + sbee.blockId +
+            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
                                                " 의 타입 " + koreanBlockTypeName +
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                     ? " (원본: " + sbee.blockType + ")"
@@ -1448,7 +1447,10 @@ void Entity::processInternalContinuations(float deltaTime)
                                                " 에서 사용 하는 객체 " + sbee.entityId +
                                                "\n원본 오류: " + sbee.originalMessage;
             pEngineInstance->EngineStdOut("Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2, execId);
-            pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR);
+            if (pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR))
+            {
+                exit(EXIT_FAILURE);
+            }
             // 프로그램 종료 여부는 상위 정책에 따름 (여기서는 Engine::dispatchScriptForExecution의 예외 처리와 유사하게)
         }
         catch (const std::exception &e)

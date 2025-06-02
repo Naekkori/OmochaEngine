@@ -232,20 +232,22 @@ void Engine::workerLoop()
             catch (const ScriptBlockExecutionError &sbee)
             {
                 // 이미 EngineStdOut 및 showMessageBox를 호출하는 예외 핸들러가 Entity::executeScript 내에 있으므로,
-                // 여기서 중복으로 처리할 필요는 없습니다. 만약 추가적인 로깅이나 처리가 필요하다면 여기에 작성합니다.
-                // 현재는 예외가 Entity 레벨에서 처리되도록 그대로 전파합니다. (또는 여기서 다시 throw)
+                // Entity 레벨에서 예외가 발생하여 여기까지 온 경우, 메시지 박스를 표시하고 종료합니다.
                 EngineStdOut("ScriptBlockExecutionError in worker thread: " + std::string(sbee.what()) + " Block: " + sbee.blockId, 2);
-                // this->showMessageBox("스크립트 실행 중 오류 발생:\n" + std::string(sbee.what()), msgBoxIconType.ICON_ERROR);
+                this->showMessageBox("스크립트 실행 중 오류 발생:\n" + std::string(sbee.what()) + "\n블록 ID: " + sbee.blockId + "\n블록 타입: " + sbee.blockType, msgBoxIconType.ICON_ERROR);
+                exit(EXIT_FAILURE);
             }
             catch (const std::exception &e)
             {
                 EngineStdOut("Exception in worker thread task: " + std::string(e.what()), 2);
-                // this->showMessageBox("작업 스레드에서 예외 발생:\n" + std::string(e.what()), msgBoxIconType.ICON_ERROR);
+                this->showMessageBox("작업 스레드에서 예외 발생:\n" + std::string(e.what()), msgBoxIconType.ICON_ERROR);
+                exit(EXIT_FAILURE);
             }
             catch (...)
             {
                 EngineStdOut("Unknown exception in worker thread task.", 2);
-                // this->showMessageBox("알 수 없는 예외가 작업 스레드에서 발생했습니다.", msgBoxIconType.ICON_ERROR);
+                this->showMessageBox("알 수 없는 예외가 작업 스레드에서 발생했습니다.", msgBoxIconType.ICON_ERROR);
+                exit(EXIT_FAILURE);
             }
         }
     }
