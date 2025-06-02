@@ -900,14 +900,26 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 objInfo.name = "Unnamed Object";
-            }
-            if (objectJson.contains("objectType") && objectJson["objectType"].is_string())
+            }            if (objectJson.contains("objectType") && objectJson["objectType"].is_string())
             {
                 objInfo.objectType = objectJson["objectType"].get<string>();
             }
             else
             {
                 objInfo.objectType = "sprite";
+            }
+
+            // Store entity JSON object if it exists
+            if (objectJson.contains("entity") && objectJson["entity"].is_object())
+            {
+                objInfo.entity = objectJson["entity"];
+                EngineStdOut("Stored entity data for object: " + objInfo.name, 3);
+            }
+            else
+            {
+                // Create empty object if entity section is missing
+                objInfo.entity = nlohmann::json::object();
+                EngineStdOut("No entity data found for object: " + objInfo.name + ". Using empty object.", 1);
             }
             if (objectJson.contains("scene") && objectJson["scene"].is_string())
             {
@@ -4953,12 +4965,57 @@ void Engine::goToScene(const string &sceneId)
                 auto entityIt = entities.find(entityId);
                 if (entityIt != entities.end()) {
                     entities.erase(entityIt);
-                    EngineStdOut("Removed clone entity " + entityId + " during scene change", 0);
+                    //EngineStdOut("Removed clone entity " + entityId.c_str() + " during scene change", 0);
+                }
+            }
+        }        // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);            // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
+            std::map<std::string, std::pair<double, double>> initialPositions;
+            for (const auto& obj : objects_in_order) {
+                if (obj.sceneId == sceneId || obj.sceneId == "global" || obj.sceneId.empty()) {
+                    // entity 필드에서 x, y 좌표 가져오기
+                    double x = 0.0, y = 0.0;
+                    if (obj.entity.contains("x") && obj.entity["x"].is_number()) {
+                        x = obj.entity["x"].get<double>();
+                    }
+                    if (obj.entity.contains("y") && obj.entity["y"].is_number()) {
+                        y = obj.entity["y"].get<double>();
+                    }
+                    initialPositions[obj.id] = std::make_pair(x, y);
+                }
+            }
+
+            // 엔티티들의 위치와 상태를 초기화
+            for (const auto &[entityId, entityPtr] : entities) {
+                const ObjectInfo *objInfo = getObjectInfoById(entityId);
+                if (objInfo && (objInfo->sceneId == sceneId || objInfo->sceneId == "global" || objInfo->sceneId.empty())) {
+                    Entity* entity = entityPtr.get();
+                    
+                    // 초기 위치 설정
+                    auto posIt = initialPositions.find(entityId);
+                    if (posIt != initialPositions.end()) {
+                        entity->setX(posIt->second.first);
+                        entity->setY(posIt->second.second);
+                    }
+
+                    if (!entity->getIsClone()) {  // 클론이 아닌 엔티티만 초기화
+                        // 기본 상태로 초기화
+                        entity->setDirection(90.0); // 기본 방향
+                        entity->setRotation(0.0);   // 기본 회전
+                        entity->setScaleX(1.0);     // 기본 크기
+                        entity->setScaleY(1.0);     // 기본 크기
+                        entity->setEffectBrightness(0.0); // 기본 밝기
+                        entity->setEffectAlpha(1.0);      // 기본 투명도
+                        entity->setEffectHue(0.0);        // 기본 색조
+                    }
+
+                    EngineStdOut("Reset entity " + entityId + " to initial position for new scene", 0);
                 }
             }
         }
 
-        // 3. 새로운 씬으로 전환
+        // 4. 씬 전환 완료
         currentSceneId = sceneId;
         EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
         triggerWhenSceneStartScripts();

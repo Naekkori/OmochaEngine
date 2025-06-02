@@ -90,6 +90,7 @@ struct ObjectInfo
     string fontName;
     int fontSize;
     int textAlign;
+    nlohmann::json entity; // Store the raw entity JSON object
 };
 struct ListItem
 {
