@@ -61,7 +61,7 @@ if(WIN32)
 else()
     add_executable(OmochaEngine ${OMOCHA_ENGINE_SOURCES})
 endif()
-set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 20)
+set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 23)
 find_package(nlohmann_json CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE nlohmann_json::nlohmann_json)
 #SDL
