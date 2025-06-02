@@ -8,7 +8,7 @@
 class AudioEngineHelper
 {
 private:
-    SimpleLogger logger;
+    mutable SimpleLogger logger; 
     ma_engine m_engine;
 
     std::map<std::string, ma_sound*> m_activeSounds; // 오브젝트 ID와 ma_sound 매핑
@@ -26,7 +26,7 @@ private:
 public:
     AudioEngineHelper();
     ~AudioEngineHelper();
-    void aeStdOut(const std::string &message) const; // const 멤버 함수로 변경 가능
+    void aeStdOut(const std::string &message) const; 
     // 사운드 미리 로딩
     void preloadSound(const std::string& filePath);
     void clearPreloadedSounds(); // 모든 미리 로딩된 사운드 해제

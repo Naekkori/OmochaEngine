@@ -623,7 +623,7 @@ float AudioEngineHelper::getGlobalPlaybackSpeed() const
 {
     return m_globalPlaybackSpeed;
 }
-void AudioEngineHelper::aeStdOut(const std::string &message) const
+void AudioEngineHelper::aeStdOut(const std::string &message) const 
 {
     std::string TAG = "[Hibiki] ";
     std::string lm = TAG + message;

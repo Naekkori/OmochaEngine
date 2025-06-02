@@ -403,8 +403,8 @@ std::string Engine::getSafeStringFromJson(const nlohmann::json &parentValue,
                                           const string &fieldName,
                                           const string &contextDescription,
                                           const string &defaultValue,
-                                          bool isCritical,
-                                          bool allowEmpty) const
+                                          bool isCritical, // LCOV_EXCL_LINE
+                                          bool allowEmpty) // Removed const
 {
     if (!parentValue.is_object())
     {
