@@ -3223,7 +3223,7 @@ void Engine::drawHUD()
                 // List specific styling
                 SDL_Color listBgColor = {240, 240, 240, 220};        // Dark semi-transparent background for the list
                 SDL_Color listBorderColor = {150, 150, 150, 255};    // Light gray border
-                SDL_Color listNameTextColor = {255, 255, 255, 255};  // Light text for list name
+                SDL_Color listNameTextColor = {0, 0, 0, 255};  // Light text for list name
                 SDL_Color listItemBgColor = {0, 120, 255, 255};      // Blue background for item data
                 SDL_Color listItemTextColor = {255, 255, 255, 255};  // White text for item data
                 SDL_Color listRowNumberColor = {200, 200, 200, 255}; // Light gray for row numbers
