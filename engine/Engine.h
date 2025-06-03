@@ -95,8 +95,8 @@ struct ObjectInfo
 };
 struct ListItem
 {
-    string key = ""; // 리스트 항목의 키
-    string data;     // 리스트 항목의 데이터
+    string data;     // 리스트 항목의 데이터 (첫 번째 멤버로 변경)
+    string key = ""; // 리스트 항목의 키 (두 번째 멤버로 변경)
 };
 // HUD에 표시될 일반 변수의 정보를 담는 구조체
 struct HUDVariableDisplay
@@ -110,6 +110,7 @@ struct HUDVariableDisplay
     float y;                             // HUD에서의 Y 좌표
     string variableType;                 // 변수 유형 ("variable", "timer", "answer" 등)
     bool isCloud;                        // 클라우드 변수 여부 (json 세이브)
+    bool isAnswerList;
     float width = 0;                     // HUD에서의 너비 리스트전용
     float height = 0;                    // HUD에서의 높이 리스트전용
     float transient_render_width = 0.0f; // 드래그 클램핑을 위해 마지막으로 계산된 렌더링 너비

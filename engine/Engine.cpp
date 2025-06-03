@@ -3208,7 +3208,7 @@ void Engine::drawHUD()
 
             SDL_Color itemValueBoxBgColor;
             string valueToDisplay;
-
+            var.isAnswerList=false;
             if (var.variableType == "timer")
             {
                 itemValueBoxBgColor = {255, 150, 0, 255}; // 타이머는 주황색 배경
@@ -3237,7 +3237,7 @@ void Engine::drawHUD()
                 float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
                 float scrollbarWidth = 10.0f;       // 스크롤바 너비
                 bool needsScrollbar = false;
-
+                var.isAnswerList=true;
 
                 // 1. 리스트 컨테이너 테두리 그리기
                 // 1. Draw List Container Border
@@ -3842,11 +3842,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 m_currentTextInputBuffer.pop_back();
             }            else if (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)
             {
-                // 현재 입력된 텍스트를 대답으로 저장 (비어있어도 저장)                m_lastAnswer = m_currentTextInputBuffer;
+                // 현재 입력된 텍스트를 대답으로 저장 (비어있어도 저장)
+                m_lastAnswer = m_currentTextInputBuffer;
                 m_currentTextInputBuffer.clear();
                 m_textInputActive = false;
-                requestAnswerUpdate();  // 나중에 업데이트하도록 요청
-
+                
                 // 질문 다이얼로그 제거
                 Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
                 if (entity)
@@ -3854,6 +3854,9 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                     entity->removeDialog();
                 }
 
+                // 즉시 대답 변수 업데이트
+                updateAnswerVariable();
+                
                 m_textInputCv.notify_all(); // 대기 중인 스크립트 스레드 깨우기
                 EngineStdOut("Enter pressed. Input complete. Answer: " + m_lastAnswer, 0);
             }
@@ -5186,15 +5189,17 @@ void Engine::updateAnswerVariable()
     if (!dataLock.owns_lock()) {
         requestAnswerUpdate();  // 락을 얻지 못했다면 나중에 다시 시도
         return;
-    }
-
-    for (auto &var : m_HUDVariables)
+    }    for (auto &var : m_HUDVariables)
     {
-        if (var.variableType == "answer")
+        if (var.variableType == "answer" || (var.variableType == "list" && var.isAnswerList))
         {
             var.value = currentAnswer;
-            EngineStdOut("Updated answer variable value to: " + currentAnswer, 3);
-            break;
+            EngineStdOut("Updated " + var.variableType + " variable '" + var.name + "' value to: " + currentAnswer, 3);
+            // answer 타입일 경우 첫 번째 변수만 업데이트하고 종료
+            if (var.variableType == "answer")
+            {
+                break;
+            }
         }
     }
 }

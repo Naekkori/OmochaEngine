@@ -4301,7 +4301,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                 2, executionThreadId);
             return;
         } // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId); // 실제 리스트 ID는 paramsJson[1]에서 가져옴
         if (listIdOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
@@ -4316,7 +4316,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 executionThreadId);
             return;
         }        // 2. 리스트에 추가할 값 가져오기
-        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId); // 실제 추가할 값은 paramsJson[0]에서 가져옴
         string valueToAdd = valueOp.asString(); // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
 
         // 빈 문자열 체크
@@ -4368,9 +4368,11 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             }
 
             targetListPtr->array.push_back({valueToAdd}); // 새로운 ListItem으로 추가
-            engine.EngineStdOut(
-                "Added value '" + valueToAdd + "' to list '" + listIdToFind + "' for object " + objectId, 0,
-                executionThreadId);
+            if (targetListPtr->isCloud) //클라우드 저장 흉내
+            {
+                engine.saveCloudVariablesToJson();
+            }
+            engine.EngineStdOut("DEBUG: add_value_to_list - block.paramsJson: " + block.paramsJson.dump(), 3, executionThreadId); 
         }
         else
         {
@@ -4392,7 +4394,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         if (listIdOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
@@ -4410,7 +4412,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 2. 삭제할 인덱스 값 가져오기
-        OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (indexOp.type != OperandValue::Type::NUMBER)
         {
             engine.EngineStdOut(
