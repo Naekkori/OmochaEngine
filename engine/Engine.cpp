@@ -28,6 +28,7 @@ const char *BASE_ASSETS = "assets/";
 const float Engine::LIST_RESIZE_HANDLE_SIZE = 10.0f;
 const float Engine::MIN_LIST_WIDTH = 80.0f;
 const float Engine::MIN_LIST_HEIGHT = 60.0f;
+const float MOUSE_WHEEL_SCROLL_SPEED = 20.0f;
 const char *FONT_ASSETS = "font/";
 string PROJECT_NAME;
 string WINDOW_TITLE;
@@ -3234,6 +3235,10 @@ void Engine::drawHUD()
                 float contentPadding = 5.0f;        // General padding inside the list container and items
                 float rowNumberColumnWidth = 30.0f; // Width allocated for row numbers column (adjust as needed)
                 float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
+                float scrollbarWidth = 10.0f;       // 스크롤바 너비
+                bool needsScrollbar = false;
+
+
                 // 1. 리스트 컨테이너 테두리 그리기
                 // 1. Draw List Container Border
                 SDL_FRect listContainerOuterRect = {renderX, renderY, var.width, var.height};
@@ -3296,13 +3301,24 @@ void Engine::drawHUD()
                 float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
                 float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
                 float currentItemVisualY = itemsAreaStartY + contentPadding;
+
+                // 리스트 아이템 전체 높이 계산
+                var.calculatedContentHeight = 0.0f;
+                if (!var.array.empty()) {
+                    var.calculatedContentHeight = (var.array.size() * (itemRowHeight + spacingBetweenRows)) - spacingBetweenRows + (2 * contentPadding);
+                }
+
+                if (var.calculatedContentHeight > itemsAreaRenderableHeight) {
+                    needsScrollbar = true;
+                }
+
                 // 컬럼 위치 계산 (행 번호 왼쪽, 데이터 오른쪽)
                 // 수정: 행 번호 컬럼을 먼저 계산하고 왼쪽에 배치
                 float rowNumColumnX = listContainerInnerRect.x + contentPadding;
                 // 수정: 데이터 컬럼은 행 번호 컬럼 오른쪽에 위치
+                float dataColumnAvailableWidth = listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding - (needsScrollbar ? scrollbarWidth + contentPadding : 0.0f);
                 float dataColumnX = rowNumColumnX + rowNumberColumnWidth + contentPadding;
-                float dataColumnWidth = listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth -
-                                        contentPadding; // 기존 계산 유지, 위치만 변경
+                float dataColumnWidth = max(0.0f, dataColumnAvailableWidth);
                 dataColumnWidth = max(0.0f, dataColumnWidth);
 
                 for (size_t i = 0; i < var.array.size(); ++i)
@@ -3312,6 +3328,16 @@ void Engine::drawHUD()
                         // 그릴 공간이 없으면 중단
                         break;
                     }
+
+                    // 스크롤 오프셋 적용된 아이템 Y 위치
+                    float itemRenderY = currentItemVisualY - var.scrollOffset_Y;
+
+                    // 아이템이 보이는 영역 밖에 있으면 그리지 않음
+                    if (itemRenderY + itemRowHeight < itemsAreaStartY || itemRenderY > itemsAreaStartY + itemsAreaRenderableHeight) {
+                        currentItemVisualY += itemRowHeight + spacingBetweenRows;
+                        continue;
+                    }
+
                     const ListItem &listItem = var.array[i];
 
                     // 컬럼 1: 행 번호 (왼쪽)
@@ -3325,7 +3351,7 @@ void Engine::drawHUD()
                         {
                             SDL_FRect r = {
                                 rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f,
-                                currentItemVisualY + (itemRowHeight - rowNumSurface->h) / 2.0f,
+                                itemRenderY + (itemRowHeight - rowNumSurface->h) / 2.0f, // itemRenderY 사용
                                 (float)rowNumSurface->w, (float)rowNumSurface->h};
                             SDL_RenderTexture(renderer, tex, nullptr, &r);
                             SDL_DestroyTexture(tex);
@@ -3334,7 +3360,7 @@ void Engine::drawHUD()
                     }
 
                     // 컬럼 2: 아이템 데이터 (오른쪽 - 파란 배경, 흰색 텍스트)
-                    SDL_FRect itemDataBgRect = {dataColumnX, currentItemVisualY, dataColumnWidth, itemRowHeight};
+                    SDL_FRect itemDataBgRect = {dataColumnX, itemRenderY, dataColumnWidth, itemRowHeight}; // itemRenderY 사용
                     SDL_SetRenderDrawColor(renderer, listItemBgColor.r, listItemBgColor.g, listItemBgColor.b,
                                            listItemBgColor.a);
                     SDL_RenderFillRect(renderer, &itemDataBgRect);
@@ -3451,6 +3477,35 @@ void Engine::drawHUD()
                     }
 
                     currentItemVisualY += itemRowHeight + spacingBetweenRows;
+                }
+
+                // 4.5 스크롤바 그리기 (필요한 경우)
+                if (needsScrollbar) {
+                    SDL_Color scrollbarTrackColor = {200, 200, 200, 150}; // 연한 회색 트랙
+                    SDL_Color scrollbarHandleColor = {80, 80, 80, 200};   // 어두운 회색 핸들
+
+                    float scrollbarTrackX = listContainerInnerRect.x + listContainerInnerRect.w - contentPadding - scrollbarWidth;
+                    SDL_FRect scrollbarTrackRect = {
+                        scrollbarTrackX,
+                        itemsAreaStartY, // 헤더 아래부터 시작
+                        scrollbarWidth,
+                        itemsAreaRenderableHeight // 아이템 영역 높이만큼
+                    };
+                    SDL_SetRenderDrawColor(renderer, scrollbarTrackColor.r, scrollbarTrackColor.g, scrollbarTrackColor.b, scrollbarTrackColor.a);
+                    SDL_RenderFillRect(renderer, &scrollbarTrackRect);
+
+                    float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
+                    float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio); // 최소 핸들 높이
+                    
+                    float scrollPositionRatio = var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight);
+                    scrollPositionRatio = clamp(scrollPositionRatio, 0.0f, 1.0f);
+                    float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (itemsAreaRenderableHeight - scrollbarHandleHeight);
+
+                    SDL_FRect scrollbarHandleRect = {
+                        scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight
+                    };
+                    SDL_SetRenderDrawColor(renderer, scrollbarHandleColor.r, scrollbarHandleColor.g, scrollbarHandleColor.b, scrollbarHandleColor.a);
+                    SDL_RenderFillRect(renderer, &scrollbarHandleRect);
                 }
 
                 // 5. 리스트 크기 조절 핸들 그리기 (오른쪽 하단)
@@ -4054,6 +4109,53 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             {
                 m_pressedObjectId = "";
             }
+             // 스크롤바 핸들 드래그 시작 확인 (다른 HUD 요소 드래그 확인 후, uiClicked가 false일 때)
+            if (!uiClicked && m_currentHUDDragState == HUDDragState::NONE) { // uiClicked가 false이고, 다른 드래그 상태가 아닐 때만
+                // mouseX, mouseY는 이미 위에서 event.button.x/y로 설정됨
+                int windowW_render = 0, windowH_render = 0;
+                if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+                float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
+                float screenCenterY = static_cast<float>(windowH_render) / 2.0f;
+
+                for (int i = static_cast<int>(m_HUDVariables.size()) - 1; i >= 0; --i) { // 역순으로 순회 (위에 있는 UI 우선)
+                    HUDVariableDisplay &var = m_HUDVariables[i]; // 참조로 가져와야 scrollOffset_Y 등 수정 가능
+                    if (var.isVisible && var.variableType == "list") {
+                        // 엔트리 좌표를 스크린 좌표로 변환
+                        float itemScreenX = screenCenterX + var.x;
+                        float itemScreenY = screenCenterY - var.y;
+
+                        float headerHeight = 30.0f;     // drawHUD와 일치
+                        float contentPadding = 5.0f;    // drawHUD와 일치
+                        float scrollbarWidth = 10.0f;   // drawHUD와 일치
+
+                        // listContainerInnerRect 계산 (스크린 좌표 기준)
+                        SDL_FRect listContainerInnerRect = { itemScreenX + contentPadding, itemScreenY + contentPadding, var.width - (2 * contentPadding), var.height - (2 * contentPadding) };
+                        float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
+                        float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
+
+                        if (var.calculatedContentHeight > itemsAreaRenderableHeight) { // 스크롤바가 있는 경우
+                            float scrollbarTrackX = listContainerInnerRect.x + listContainerInnerRect.w - contentPadding - scrollbarWidth;
+                            float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
+                            float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio);
+                            float scrollPositionRatio = (var.calculatedContentHeight - itemsAreaRenderableHeight == 0) ? 0.0f : (var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight));
+                            scrollPositionRatio = std::clamp(scrollPositionRatio, 0.0f, 1.0f);
+                            float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (itemsAreaRenderableHeight - scrollbarHandleHeight);
+                            SDL_FRect scrollbarHandleRect = { scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight };
+
+                            if (static_cast<float>(mouseX) >= scrollbarHandleRect.x && static_cast<float>(mouseX) <= scrollbarHandleRect.x + scrollbarHandleRect.w &&
+                                static_cast<float>(mouseY) >= scrollbarHandleRect.y && static_cast<float>(mouseY) <= scrollbarHandleRect.y + scrollbarHandleRect.h) {
+                                m_currentHUDDragState = HUDDragState::SCROLLING_LIST_HANDLE;
+                                m_draggedScrollbarListIndex = i;
+                                m_scrollbarDragStartY = static_cast<float>(mouseY);
+                                m_scrollbarDragInitialOffset = var.scrollOffset_Y;
+                                uiClicked = true; // UI 요소 클릭으로 처리
+                                EngineStdOut("Started dragging list scrollbar: " + var.name, 3);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     else if (event.type == SDL_EVENT_KEY_DOWN)
@@ -4189,6 +4291,44 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 {
                     draggedVar.height = min(draggedVar.height, static_cast<float>(windowH) - itemScreenY);
                 }
+            }else if (m_currentHUDDragState == HUDDragState::SCROLLING_LIST_HANDLE && m_draggedScrollbarListIndex != -1)
+            {
+                HUDVariableDisplay &var = m_HUDVariables[m_draggedScrollbarListIndex];
+                float dy = static_cast<float>(mouseY) - m_scrollbarDragStartY;
+
+                // 필요한 값들 (drawHUD와 일치)
+                float headerHeight = 30.0f;
+                float contentPadding = 5.0f;
+                // scrollbarWidth는 여기서는 직접 사용되지 않음
+
+                // var.x, var.y는 엔트리 좌표. 스크린 좌표계의 listContainerInnerRect 계산 필요 없음.
+                // var.width, var.height는 HUDVariableDisplay에 저장된 리스트의 크기.
+                float itemsAreaRenderableHeight = var.height - (2 * contentPadding) - headerHeight - contentPadding;
+                
+                if (var.calculatedContentHeight <= itemsAreaRenderableHeight) { // 스크롤 불필요
+                    var.scrollOffset_Y = 0.0f;
+                } else {
+                    float totalScrollableContentHeight = var.calculatedContentHeight - itemsAreaRenderableHeight;
+                    if (totalScrollableContentHeight <= 0.0f) { // 이론상 발생 안 함
+                         var.scrollOffset_Y = 0.0f;
+                    } else {
+                        float scrollbarTrackHeight = itemsAreaRenderableHeight; // 스크롤바 트랙의 실제 높이
+                        float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
+                        float scrollbarHandleHeight = max(10.0f, scrollbarTrackHeight * handleHeightRatio);
+                        float scrollbarEffectiveTrackHeight = scrollbarTrackHeight - scrollbarHandleHeight;
+
+                        if (scrollbarEffectiveTrackHeight <= 0.0f) { // 핸들이 트랙보다 크거나 같음
+                            var.scrollOffset_Y = 0.0f; 
+                        } else {
+                            // 마우스 이동량(dy)을 스크롤 가능한 트랙 높이 비율로 변환하고,
+                            // 이를 전체 스크롤 가능한 콘텐츠 높이에 곱하여 실제 스크롤 오프셋 변경량 계산
+                            float scrollOffsetChange = (dy / scrollbarEffectiveTrackHeight) * totalScrollableContentHeight;
+                            var.scrollOffset_Y = m_scrollbarDragInitialOffset + scrollOffsetChange;
+                            // 스크롤 오프셋을 0과 최대 스크롤 가능 범위 사이로 제한
+                            var.scrollOffset_Y = std::clamp(var.scrollOffset_Y, 0.0f, totalScrollableContentHeight);
+                        }
+                    }
+                }
             }
         }
     }
@@ -4215,6 +4355,12 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 m_draggedHUDVariableIndex = -1;
                 m_currentHUDDragState = HUDDragState::NONE;
                 uiInteractionReleased = true;
+            }
+            else if (m_currentHUDDragState == HUDDragState::SCROLLING_LIST_HANDLE) // 스크롤바 핸들 드래그 종료
+            {
+                m_currentHUDDragState = HUDDragState::NONE;
+                m_draggedScrollbarListIndex = -1;
+                uiInteractionReleased = true; // UI 상호작용으로 처리
             }
 
             if (m_gameplayInputActive && !uiInteractionReleased)
@@ -4276,6 +4422,47 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                     }
                 }
                 m_pressedObjectId = ""; // 눌린 오브젝트 ID 초기화
+            }
+            
+        }
+    }  else if (event.type == SDL_EVENT_MOUSE_WHEEL)
+    {
+        // 마우스 휠 이벤트는 m_gameplayInputActive와 관계없이 처리 (HUD 스크롤용)
+        float mouseX_wheel, mouseY_wheel;
+        SDL_GetMouseState(&mouseX_wheel, &mouseY_wheel); // 현재 마우스 위치 가져오기
+
+        // 화면 중앙 기준 좌표계 변환 (drawHUD와 일치시키기 위함)
+        int windowW_render = 0, windowH_render = 0;
+        if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+        float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
+        float screenCenterY = static_cast<float>(windowH_render) / 2.0f;
+
+        for (size_t i = 0; i < m_HUDVariables.size(); ++i) {
+            HUDVariableDisplay &var = m_HUDVariables[i]; // 값 변경을 위해 참조 사용
+            if (var.variableType == "list" && var.isVisible) {
+                // HUD 변수의 화면상 사각형 계산 (엔트리 좌표를 스크린 좌표로 변환)
+                float varScreenX = screenCenterX + var.x;
+                float varScreenY = screenCenterY - var.y; // Y축 반전
+                SDL_FRect listRect = { varScreenX, varScreenY, var.width, var.height };
+
+                // 마우스가 해당 리스트 위에 있는지 확인
+                if (static_cast<float>(mouseX_wheel) >= listRect.x && static_cast<float>(mouseX_wheel) <= listRect.x + listRect.w &&
+                    static_cast<float>(mouseY_wheel) >= listRect.y && static_cast<float>(mouseY_wheel) <= listRect.y + listRect.h) {
+                    
+                    // 스크롤 가능한 높이 계산 (drawHUD와 동일한 로직)
+                    float headerHeight = 30.0f; 
+                    float contentPadding = 5.0f;
+                    float itemsAreaRenderableHeight = var.height - (2 * contentPadding) - headerHeight - contentPadding;
+
+                    if (var.calculatedContentHeight > itemsAreaRenderableHeight) { // 스크롤이 필요한 경우
+                        float maxScrollOffset = var.calculatedContentHeight - itemsAreaRenderableHeight;
+                        // event.wheel.y > 0 이면 위로 스크롤 (내용이 아래로), < 0 이면 아래로 스크롤 (내용이 위로)
+                        // scrollOffset_Y는 내용이 위로 올라간 정도를 나타내므로, 위로 스크롤 시 감소해야 함.
+                        var.scrollOffset_Y -= static_cast<float>(event.wheel.y) * MOUSE_WHEEL_SCROLL_SPEED; 
+                        var.scrollOffset_Y = std::clamp(var.scrollOffset_Y, 0.0f, maxScrollOffset);
+                        break; // 가장 위에 있는 리스트만 스크롤
+                    }
+                }
             }
         }
     }
