@@ -3551,6 +3551,12 @@ void Engine::drawHUD()
                 nameToDisplay = var.name; // 변수 자체의 이름을 표시할 이름으로 사용합니다.
             }
 
+            // 디버그: "메시지3" 변수의 이름과 값을 로그로 출력
+            if (var.name == "메시지3") {
+                EngineStdOut("DEBUG: Rendering variable '메시지3'. nameToDisplay: [" + nameToDisplay + "], valueToDisplay: [" + valueToDisplay + "]", 3);
+            }
+
+
             SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
             SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
 
