@@ -3226,7 +3226,7 @@ void Engine::drawHUD()
                 SDL_Color listNameTextColor = {0, 0, 0, 255};  // Light text for list name
                 SDL_Color listItemBgColor = {0, 120, 255, 255};      // Blue background for item data
                 SDL_Color listItemTextColor = {255, 255, 255, 255};  // White text for item data
-                SDL_Color listRowNumberColor = {200, 200, 200, 255}; // Light gray for row numbers
+                SDL_Color listRowNumberColor = {230, 230, 230, 255}; // Light gray for row numbers
 
                 float listCornerRadius = 5.0f;
                 float listBorderWidth = 1.0f;
