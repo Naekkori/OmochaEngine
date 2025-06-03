@@ -17,7 +17,7 @@
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
 #include "blocks/BlockExecutor.h" // ThreadPool 정의를 위해 추가 (BlockExecutor.h로 옮겨졌다고 가정)
-#include "blocks/blockTypes.h" // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
+#include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
 #include <resource.h>
 using namespace std;
@@ -187,6 +187,40 @@ namespace
     }
 
 } // end anonymous namespace
+
+// Helper function to get font path from font name (similar to drawAllEntities)
+namespace
+{ // Anonymous namespace for local helper
+    std::string getFontPathByName(const std::string &fontName, int fontSize, Engine *engineInstance)
+    {
+        // This function is a simplified version. Ideally, FontName enum and getFontNameFromString
+        // would be part of Engine or a shared utility.
+        std::string fontAsset = std::string(FONT_ASSETS);
+        std::string determinedFontPath;
+
+        // Simplified mapping based on common names.
+        // This should ideally use the FontName enum and getFontNameFromString logic
+        // found in drawAllEntities if that's more comprehensive.
+        if (fontName == "D2Coding")
+            determinedFontPath = fontAsset + "d2coding.ttf";
+        else if (fontName == "NanumGothic")
+            determinedFontPath = fontAsset + "nanum_gothic.ttf";
+        else if (fontName == "MaruBuri")
+            determinedFontPath = fontAsset + "maruburi.ttf";
+        else if (fontName == "NanumBarunpen")
+            determinedFontPath = fontAsset + "nanum_barunpen.ttf";
+        else if (fontName == "NanumPen")
+            determinedFontPath = fontAsset + "nanum_pen.ttf";
+        else if (fontName == "NanumMyeongjo")
+            determinedFontPath = fontAsset + "nanum_myeongjo.ttf";
+        else if (fontName == "NanumSquareRound")
+            determinedFontPath = fontAsset + "nanum_square_round.ttf";
+        else
+            determinedFontPath = fontAsset + "nanum_gothic.ttf"; // Default
+
+        return determinedFontPath;
+    }
+}
 
 Engine::Engine() : window(nullptr), renderer(nullptr),
                    tempScreenTexture(nullptr), totalItemsToLoad(0), loadedItemCount(0),
@@ -374,7 +408,8 @@ Engine::~Engine()
 
     // 1. BlockExecutor::ThreadPool (engine.threadPool) 명시적 종료
     // 이 풀의 작업자 스레드가 종료 시 로그를 남기므로, 다른 리소스 해제 전에 완료해야 합니다.
-    if (threadPool) {
+    if (threadPool)
+    {
         EngineStdOut("Stopping BlockExecutor::ThreadPool...", 0);
         threadPool.reset(); // unique_ptr의 reset()을 호출하여 ThreadPool 소멸자 실행 및 스레드 join
         EngineStdOut("BlockExecutor::ThreadPool stopped.", 0);
@@ -397,7 +432,7 @@ Engine::~Engine()
     EngineStdOut("Entity objects deleted.", 0);
 
     terminateGE();
-    objectScripts.clear(); // entities 삭제 후 objectScripts 정리
+    objectScripts.clear();               // entities 삭제 후 objectScripts 정리
     EngineStdOut("Object Script Clear"); // 이 로그는 이제 더 안전한 시점에 출력됩니다.
 }
 
@@ -900,7 +935,8 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 objInfo.name = "Unnamed Object";
-            }            if (objectJson.contains("objectType") && objectJson["objectType"].is_string())
+            }
+            if (objectJson.contains("objectType") && objectJson["objectType"].is_string())
             {
                 objInfo.objectType = objectJson["objectType"].get<string>();
             }
@@ -1386,6 +1422,45 @@ bool Engine::loadProject(const string &projectFilePath)
                 double initial_height = entityJson.contains("height") && entityJson["height"].is_number()
                                             ? entityJson["height"].get<double>()
                                             : 100.0;
+
+                double entity_constructor_width = initial_width;
+                double entity_constructor_height = initial_height;
+
+                if (objInfo.objectType == "textBox")
+                {
+                    if (!objInfo.textContent.empty() && objInfo.fontSize > 0)
+                    {
+                        std::string fontPath = getFontPathByName(objInfo.fontName, objInfo.fontSize, this);
+                        TTF_Font *tempFont = getFont(fontPath, objInfo.fontSize); // getFont handles caching
+
+                        if (tempFont)
+                        {
+                            int measuredW_val, measuredH_val; // 값 자체를 저장할 변수
+                            // SDL3에서는 TTF_GetStringSize를 사용합니다.
+                            if (TTF_GetStringSize(tempFont, objInfo.textContent.c_str(), 0, &measuredW_val, &measuredH_val) == 0) // 주소 전달
+                            {
+                                entity_constructor_width = static_cast<double>(measuredW_val);
+                                entity_constructor_height = static_cast<double>(measuredH_val);
+                                EngineStdOut("TextBox '" + objInfo.name + "' (ID: " + objectId + ") calculated dimensions for constructor: " +
+                                                 std::to_string(measuredW_val) + "x" + std::to_string(measuredH_val),
+                                             3);
+                            }
+                            else
+                            {
+                                EngineStdOut("Warning: TTF_GetStringSize failed for textBox '" + objInfo.name + "' (ID: " + objectId + "). Using project file dimensions. ", 1);
+                            }
+                        }
+                        else
+                        {
+                            EngineStdOut("Warning: Font not found for textBox '" + objInfo.name + "' (ID: " + objectId + "). Using project file dimensions.", 1);
+                        }
+                    }
+                    else
+                    {
+                        EngineStdOut("Warning: TextBox '" + objInfo.name + "' (ID: " + objectId + ") has empty text or invalid font size. Using project file dimensions.", 1);
+                    }
+                }
+
                 bool initial_visible = entityJson.contains("visible") && entityJson["visible"].is_boolean()
                                            ? entityJson["visible"].get<bool>()
                                            : true;
@@ -1433,8 +1508,9 @@ bool Engine::loadProject(const string &projectFilePath)
                     objectId,
                     objInfo.name,
                     initial_x, initial_y, initial_regX, initial_regY,
-                    initial_scaleX, initial_scaleY, initial_rotation, initial_direction,
-                    initial_width, initial_height, initial_visible, currentRotationMethod);
+                    initial_scaleX, initial_scaleY, initial_rotation, initial_direction, // Use potentially overridden dimensions
+                    entity_constructor_width, entity_constructor_height,
+                    initial_visible, currentRotationMethod);
 
                 // Initialize pen positions
                 newEntity->brush.reset(initial_x, initial_y);
@@ -2964,11 +3040,9 @@ void Engine::drawHUD()
                     SDL_DestroyTexture(questionTexture);
                     SDL_DestroySurface(questionSurface);
                 }
-            }
-
-            // 입력 필드
+            } // 입력 필드 (더 짧게 수정)
             SDL_FRect inputBgRect = {
-                20.0f, static_cast<float>(WINDOW_HEIGHT - 80), static_cast<float>(WINDOW_WIDTH - 40), 40.0f};
+                20.0f, static_cast<float>(WINDOW_HEIGHT - 80), static_cast<float>(WINDOW_WIDTH - 120), 40.0f};
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
             SDL_RenderFillRect(renderer, &inputBgRect);
@@ -3024,14 +3098,13 @@ void Engine::drawHUD()
             SDL_Texture *checkboxTexture = LoadTextureFromSvgResource(renderer, IDI_CHBOX);
             SDL_Rect inputFiledRect = {inputBgRect.x, inputBgRect.y, inputBgRect.w, inputBgRect.h};
             if (checkboxTexture)
-            {
-                // 1. 체크박스의 크기를 입력창의 높이에 맞춘 정사각형으로 설정
-                int checkboxSize = inputFiledRect.h;
+            {                                                 // 체크박스의 크기와 위치 계산
+                int checkboxSize = min(inputFiledRect.h, 40); // 크기 제한
 
-                // 2. 체크박스의 위치 계산
+                // 체크박스의 위치 계산 (입력창 우측에 배치)
                 SDL_FRect checkboxDestRect;
-                checkboxDestRect.x = inputFiledRect.x + inputFiledRect.w + 10; // 입력창 우측 + 간격
-                checkboxDestRect.y = inputFiledRect.y;                         // 입력창과 동일한 y 좌표 (상단 정렬)
+                checkboxDestRect.x = inputFiledRect.x + inputFiledRect.w + 5; // 입력창과의 간격을 5로 축소
+                checkboxDestRect.y = inputFiledRect.y;                        // 입력창과 동일한 y 좌표 (상단 정렬)
                 // 만약 입력창과 수직 중앙 정렬을 원한다면:
                 // checkboxDestRect.y = inputFieldRect.y + (inputFieldRect.h - checkboxSize) / 2;
                 // 이 경우 checkboxSize가 inputFieldRect.h와 같으므로 결과는 동일합니다.
@@ -3694,25 +3767,26 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 }
 
 void Engine::processInput(const SDL_Event &event, float deltaTime)
-{
+{    // 키보드 텍스트 입력 처리
     if (m_textInputActive)
     {
         // 텍스트 입력 모드가 활성화된 경우
         if (event.type == SDL_EVENT_TEXT_INPUT)
         {
-            std::lock_guard<std::mutex> lock(m_textInputMutex); // m_currentTextInputBuffer 접근 보호
-            m_currentTextInputBuffer += event.text.text;
-            // EngineStdOut("Text input: " + m_currentTextInputBuffer, 3);
+            std::lock_guard<std::mutex> lock(m_textInputMutex);
+            if (event.text.text != nullptr)
+            {
+                m_currentTextInputBuffer += event.text.text;
+            }
         }
-        else if (event.type == SDL_EVENT_KEY_DOWN)
+        if (event.type == SDL_EVENT_KEY_DOWN)
         {
             std::lock_guard<std::mutex> lock(m_textInputMutex);
             if (event.key.scancode == SDL_SCANCODE_BACKSPACE && !m_currentTextInputBuffer.empty())
             {
                 m_currentTextInputBuffer.pop_back();
-                // EngineStdOut("Backspace. Buffer: " + m_currentTextInputBuffer, 3);
             }
-            else if (event.key.scancode == SDLK_RETURN || event.key.scancode == SDLK_KP_ENTER)
+            else if (event.key.scancode == SDLK_RETURN || event.key.scancode == SDLK_KP_ENTER || event.key.scancode == SDL_SCANCODE_RETURN)
             {
                 m_lastAnswer = m_currentTextInputBuffer;
                 m_textInputActive = false; // 입력 완료, 플래그 해제
@@ -3727,9 +3801,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 m_textInputCv.notify_all(); // 대기 중인 스크립트 스레드 깨우기
                 EngineStdOut("Enter pressed. Input complete. Answer: " + m_lastAnswer, 0);
             }
+            return; // 키 입력만 리턴하고 마우스 이벤트는 계속 처리
         }
-        // 텍스트 입력 중에는 다른 키 입력(예: keyPressedScripts)을 무시할 수 있도록 return 또는 플래그 사용
-        return; // 텍스트 입력 중에는 다른 게임플레이 입력 처리 방지
     }
     // --- General Key State Update (Happens regardless of m_gameplayInputActive for isKeyPressed) ---
     if (event.type == SDL_EVENT_KEY_DOWN)
@@ -3754,6 +3827,57 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 this->zoomFactor = max(MIN_ZOOM, min(MAX_ZOOM, this->zoomFactor));
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
+            } // 체크 버튼 클릭 확인 (텍스트 입력 활성화 상태일 때만)
+            EngineStdOut("텍스트 입력 상태: " + std::to_string(m_textInputActive), 3);            bool isCheckboxClick = false;
+            if (!uiClicked && m_textInputActive)
+            {
+                EngineStdOut("체크박스 클릭 체크 시작", 0);
+                // 실제 윈도우 렌더링 크기 가져오기
+                int windowRenderW = 0, windowRenderH = 0;
+                SDL_GetRenderOutputSize(renderer, &windowRenderW, &windowRenderH);
+
+                // drawHUD에서 정의된 입력 필드 및 체크박스 크기/위치와 일치해야 함
+                SDL_FRect inputBgRect = {
+                    20.0f, static_cast<float>(windowRenderH - 80), static_cast<float>(windowRenderW - 120), 40.0f};
+                int checkboxSize = min(static_cast<int>(inputBgRect.h), 40);
+                SDL_FRect checkboxDestRect;
+                checkboxDestRect.x = inputBgRect.x + inputBgRect.w + 5;
+                checkboxDestRect.y = inputBgRect.y;
+                checkboxDestRect.w = static_cast<float>(checkboxSize);
+                checkboxDestRect.h = static_cast<float>(checkboxSize); // 디버깅을 위한 좌표 정보 출력
+                EngineStdOut("Mouse click at: (" + std::to_string(mouseX) + ", " + std::to_string(mouseY) + ")", 3);
+                EngineStdOut("Checkbox area: x=" + std::to_string(checkboxDestRect.x) +
+                                 ", y=" + std::to_string(checkboxDestRect.y) +
+                                 ", w=" + std::to_string(checkboxDestRect.w) +
+                                 ", h=" + std::to_string(checkboxDestRect.h),
+                             3);
+                EngineStdOut("텍스트 입력 박스: x=" + std::to_string(inputBgRect.x) +
+                                 ", y=" + std::to_string(inputBgRect.y) +
+                                 ", w=" + std::to_string(inputBgRect.w) +
+                                 ", h=" + std::to_string(inputBgRect.h),
+                             3);
+                bool isInCheckbox = static_cast<float>(mouseX) >= checkboxDestRect.x &&
+                                    static_cast<float>(mouseX) <= checkboxDestRect.x + checkboxDestRect.w &&
+                                    static_cast<float>(mouseY) >= checkboxDestRect.y &&
+                                    static_cast<float>(mouseY) <= checkboxDestRect.y + checkboxDestRect.h;
+
+                EngineStdOut("체크박스 클릭 검사: " + std::to_string(isInCheckbox), 0);
+
+                if (isInCheckbox)
+                {
+                    std::lock_guard<std::mutex> lock(m_textInputMutex);
+                    m_lastAnswer = m_currentTextInputBuffer;
+                    m_textInputActive = false; // 입력 완료, 플래그 해제
+
+                    Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
+                    if (entity)
+                    {
+                        entity->removeDialog();
+                    }
+                    m_textInputCv.notify_all(); // 대기 중인 스크립트 스레드 깨우기
+                    EngineStdOut("Checkbox clicked. Input complete. Answer: " + m_lastAnswer, 0);
+                    uiClicked = true; // UI 요소 클릭으로 처리
+                }
             }
             // 개별 HUD 변수 드래그 확인
             if (!uiClicked && !m_HUDVariables.empty())
@@ -3843,7 +3967,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         break;
                     }
                 }
-            }            if (!uiClicked && m_gameplayInputActive)
+            }
+            if (!uiClicked && m_gameplayInputActive)
             {
                 // UI 클릭이 아니고 게임플레이 입력이 활성화된 경우
                 this->setStageClickedThisFrame(true);
@@ -3875,15 +4000,16 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                         }
                         EngineStdOut("Checking click for entity: " + objectId + " at stage pos (" +
                                          std::to_string(stageMouseX) + ", " + std::to_string(stageMouseY) + ")",
-                                     3);                        if (entity->isPointInside(stageMouseX, stageMouseY))
+                                     3);
+                        if (entity->isPointInside(stageMouseX, stageMouseY))
                         {
                             EngineStdOut("Hit detected on entity: " + objectId, 3);
                             // 마우스가 엔티티 내부에 있으면
                             m_pressedObjectId = objectId;
 
                             // 클릭된 오브젝트의 모든 관련 스크립트 실행                            // 클릭된 엔티티에 대한 모든 스크립트를 비동기적으로 실행
-                            std::vector<std::pair<std::string, const Script*>> scriptsToRun;
-                            
+                            std::vector<std::pair<std::string, const Script *>> scriptsToRun;
+
                             // "when clicked" 스크립트 수집
                             for (const auto &clickScriptPair : m_whenObjectClickedScripts)
                             {
@@ -3892,7 +4018,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                     scriptsToRun.emplace_back(objectId, clickScriptPair.second);
                                 }
                             }
-                            
+
                             // "mouse clicked" 스크립트 수집
                             for (const auto &scriptPair : m_mouseClickedScripts)
                             {
@@ -3904,18 +4030,17 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
 
                             // 수집된 모든 스크립트를 비동기적으로 실행
                             std::string currentScene = getCurrentSceneId();
-                            for (const auto& scriptPair : scriptsToRun)
+                            for (const auto &scriptPair : scriptsToRun)
                             {
                                 this->dispatchScriptForExecution(
                                     scriptPair.first,
                                     scriptPair.second,
                                     currentScene,
-                                    deltaTime
-                                );
+                                    deltaTime);
                             }
 
                             EngineStdOut("Click handled by entity: " + objectId, 0);
-                            return;  // 클릭 처리 완료 후 다음 엔티티 처리 방지
+                            return; // 클릭 처리 완료 후 다음 엔티티 처리 방지
                         }
                     }
                 }
@@ -4789,54 +4914,61 @@ void Engine::activateTextInput(const std::string &requesterObjectId, const std::
     EngineStdOut("Activating text input for object " + requesterObjectId + " with question: \"" + question + "\"", 0,
                  executionThreadId);
 
-    std::unique_lock<std::mutex> lock(m_textInputMutex);
+    {
+        std::unique_lock<std::mutex> lock(m_textInputMutex);
+        if (m_textInputActive)
+        {
+            EngineStdOut("Text input already active. Waiting for it to complete...", 1, executionThreadId);
+            m_textInputCv.wait(lock, [this]
+                               { return !m_textInputActive || m_isShuttingDown; });
+        }
 
-    // 이전 입력 상태 정리 및 새 입력 상태 설정
-    m_currentTextInputBuffer.clear();
-    m_textInputQuestionMessage = question;
-    m_textInputRequesterObjectId = requesterObjectId;
-    m_textInputActive = true;
+        // 이전 입력 상태 정리 및 새 입력 상태 설정
+        m_currentTextInputBuffer.clear();
+        m_textInputQuestionMessage = question;
+        m_textInputRequesterObjectId = requesterObjectId;
+        m_textInputActive = true;
+    }
+
     m_gameplayInputActive = false; // 텍스트 입력 중에는 일반 게임플레이 키 입력 비활성화
 
     // SDL 텍스트 입력 시작 (IME 등 활성화)
-    SDL_StartTextInput(window);
-
-    // Entity에 질문 다이얼로그 표시 요청 (Engine이 Entity를 직접 제어)
-    Entity *entity = getEntityById_nolock(requesterObjectId); // m_engineDataMutex는 여기서 잠그지 않음 (m_textInputMutex와 별개)
-    // 만약 getEntityById가 m_engineDataMutex를 사용한다면,
-    // activateTextInput 호출 전에 해당 뮤텍스를 잠그거나,
-    // getEntityById_nolock 같은 내부용 함수를 사용해야 함.
-    // 여기서는 getEntityById_nolock이 m_engineDataMutex를 잠그지 않는다고 가정.
-    // 또는, Engine의 entities 맵 접근 시 m_engineDataMutex를 사용하도록 수정.
-    if (entity)
+    SDL_StartTextInput(window); // Entity에 질문 다이얼로그 표시 요청
     {
-        // 다이얼로그 표시는 메인 스레드에서 처리하는 것이 더 안전할 수 있으나,
-        // Entity의 showDialog가 스레드 안전하다면 여기서 호출 가능.
-        // 여기서는 Entity의 showDialog가 상태만 변경하고 실제 그리기는 메인 스레드에서 한다고 가정.
-        entity->showDialog(question, "ask", 0); // 0 duration means it stays until explicitly removed
+        std::lock_guard<std::recursive_mutex> guard(m_engineDataMutex);
+        Entity *entity = getEntityByIdShared(requesterObjectId).get();
+        if (entity)
+        {
+            entity->showDialog(question, "ask", 0); // 0 duration means it stays until explicitly removed
+            EngineStdOut("Successfully showed dialog for entity " + requesterObjectId, 3, executionThreadId);
+        }
+        else
+        {
+            EngineStdOut("Warning: Entity " + requesterObjectId + " not found when trying to show 'ask' dialog.", 1,
+                         executionThreadId);
+        }
     }
-    else
     {
-        EngineStdOut("Warning: Entity " + requesterObjectId + " not found when trying to show 'ask' dialog.", 1,
-                     executionThreadId);
-    }
+        std::unique_lock<std::mutex> inputLock(m_textInputMutex);
+        EngineStdOut("Script thread " + executionThreadId + " waiting for text input...", 0, executionThreadId);
 
-    EngineStdOut("Script thread " + executionThreadId + " waiting for text input...", 0, executionThreadId);
-    m_textInputCv.wait(lock, [this]
-                       { return !m_textInputActive || m_isShuttingDown; });
+        // 입력이 완료되거나 엔진이 종료될 때까지 대기
+        m_textInputCv.wait(inputLock, [this]
+                           { return (!m_textInputActive && !m_currentTextInputBuffer.empty()) || m_isShuttingDown; });
 
-    // 입력 완료 또는 엔진 종료로 대기 상태 해제
-    SDL_StopTextInput(window);    // SDL 텍스트 입력 종료
-    m_gameplayInputActive = true; // 게임플레이 입력 다시 활성화
+        // 입력 완료 또는 엔진 종료로 대기 상태 해제
+        SDL_StopTextInput(window);
+        m_gameplayInputActive = true; // 게임플레이 입력 다시 활성화
 
-    if (m_isShuttingDown)
-    {
-        EngineStdOut("Text input cancelled due to engine shutdown for " + requesterObjectId, 1, executionThreadId);
-    }
-    else
-    {
-        EngineStdOut("Text input received for " + requesterObjectId + ". Last answer: \"" + m_lastAnswer + "\"", 0,
-                     executionThreadId);
+        if (m_isShuttingDown)
+        {
+            EngineStdOut("Text input cancelled due to engine shutdown for " + requesterObjectId, 1, executionThreadId);
+        }
+        else
+        {
+            EngineStdOut("Text input received for " + requesterObjectId + ". Last answer: \"" + m_lastAnswer + "\"", 0,
+                         executionThreadId);
+        }
     }
 }
 
@@ -4933,14 +5065,17 @@ void Engine::goToScene(const string &sceneId)
 
         {
             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
-            
+
             // 1. 모든 엔티티의 스크립트 상태를 확인하고 필요한 작업 수행
-            for (const auto &[entityId, entityPtr] : entities) {
+            for (const auto &[entityId, entityPtr] : entities)
+            {
                 const ObjectInfo *objInfo = getObjectInfoById(entityId);
-                if (objInfo) {
+                if (objInfo)
+                {
                     bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
                     // 글로벌이 아니고 현재 씬에 속한 엔티티의 스크립트 종료
-                    if (!isGlobal && objInfo->sceneId == oldSceneId) {
+                    if (!isGlobal && objInfo->sceneId == oldSceneId)
+                    {
                         entityPtr->terminateAllScriptThread("");
                         EngineStdOut("Terminated all scripts for entity " + entityId + " during scene change", 0);
                     }
@@ -4949,11 +5084,15 @@ void Engine::goToScene(const string &sceneId)
 
             // 2. 클론 엔티티 수집 및 제거
             std::vector<std::string> entitiesToDelete;
-            for (const auto &objInfo : objects_in_order) {
-                if (!objInfo.sceneId.empty() && objInfo.sceneId != "global") {
-                    if (objInfo.sceneId == oldSceneId) {
+            for (const auto &objInfo : objects_in_order)
+            {
+                if (!objInfo.sceneId.empty() && objInfo.sceneId != "global")
+                {
+                    if (objInfo.sceneId == oldSceneId)
+                    {
                         auto entityIt = entities.find(objInfo.id);
-                        if (entityIt != entities.end() && entityIt->second->getIsClone()) {
+                        if (entityIt != entities.end() && entityIt->second->getIsClone())
+                        {
                             entitiesToDelete.push_back(objInfo.id);
                         }
                     }
@@ -4961,25 +5100,31 @@ void Engine::goToScene(const string &sceneId)
             }
 
             // 수집된 클론 엔티티들을 제거
-            for (const auto& entityId : entitiesToDelete) {
+            for (const auto &entityId : entitiesToDelete)
+            {
                 auto entityIt = entities.find(entityId);
-                if (entityIt != entities.end()) {
+                if (entityIt != entities.end())
+                {
                     entities.erase(entityIt);
-                    //EngineStdOut("Removed clone entity " + entityId.c_str() + " during scene change", 0);
+                    EngineStdOut("Removed clone entity " + entityId + " during scene change", 0);
                 }
             }
-        }        // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
+        } // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
         {
-            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);            // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
+            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
             std::map<std::string, std::pair<double, double>> initialPositions;
-            for (const auto& obj : objects_in_order) {
-                if (obj.sceneId == sceneId || obj.sceneId == "global" || obj.sceneId.empty()) {
+            for (const auto &obj : objects_in_order)
+            {
+                if (obj.sceneId == sceneId || obj.sceneId == "global" || obj.sceneId.empty())
+                {
                     // entity 필드에서 x, y 좌표 가져오기
                     double x = 0.0, y = 0.0;
-                    if (obj.entity.contains("x") && obj.entity["x"].is_number()) {
+                    if (obj.entity.contains("x") && obj.entity["x"].is_number())
+                    {
                         x = obj.entity["x"].get<double>();
                     }
-                    if (obj.entity.contains("y") && obj.entity["y"].is_number()) {
+                    if (obj.entity.contains("y") && obj.entity["y"].is_number())
+                    {
                         y = obj.entity["y"].get<double>();
                     }
                     initialPositions[obj.id] = std::make_pair(x, y);
@@ -4987,27 +5132,19 @@ void Engine::goToScene(const string &sceneId)
             }
 
             // 엔티티들의 위치와 상태를 초기화
-            for (const auto &[entityId, entityPtr] : entities) {
+            for (const auto &[entityId, entityPtr] : entities)
+            {
                 const ObjectInfo *objInfo = getObjectInfoById(entityId);
-                if (objInfo && (objInfo->sceneId == sceneId || objInfo->sceneId == "global" || objInfo->sceneId.empty())) {
-                    Entity* entity = entityPtr.get();
-                    
+                if (objInfo && (objInfo->sceneId == sceneId || objInfo->sceneId == "global" || objInfo->sceneId.empty()))
+                {
+                    Entity *entity = entityPtr.get();
+
                     // 초기 위치 설정
                     auto posIt = initialPositions.find(entityId);
-                    if (posIt != initialPositions.end()) {
+                    if (posIt != initialPositions.end())
+                    {
                         entity->setX(posIt->second.first);
                         entity->setY(posIt->second.second);
-                    }
-
-                    if (!entity->getIsClone()) {  // 클론이 아닌 엔티티만 초기화
-                        // 기본 상태로 초기화
-                        entity->setDirection(90.0); // 기본 방향
-                        entity->setRotation(0.0);   // 기본 회전
-                        entity->setScaleX(1.0);     // 기본 크기
-                        entity->setScaleY(1.0);     // 기본 크기
-                        entity->setEffectBrightness(0.0); // 기본 밝기
-                        entity->setEffectAlpha(1.0);      // 기본 투명도
-                        entity->setEffectHue(0.0);        // 기본 색조
                     }
 
                     EngineStdOut("Reset entity " + entityId + " to initial position for new scene", 0);
@@ -6346,7 +6483,6 @@ std::shared_ptr<Entity> Engine::createCloneOfEntity(const std::string &originalE
         // cloneEntity는 Entity* 이므로 std::shared_ptr로 감싸서 저장
         entities[cloneId] = std::shared_ptr<Entity>(cloneEntity);
 
-
         // Copy scripts from the original object type to the clone's entry in objectScripts
         // This ensures the clone can respond to events if its original type had scripts.
         auto originalScriptsIt = objectScripts.find(originalEntityId);
@@ -6391,7 +6527,7 @@ std::shared_ptr<Entity> Engine::createCloneOfEntity(const std::string &originalE
     // This is handled by copying ObjectInfo which includes sceneId.
     // If the original was global, the clone is also global.
 
-  // 반환 타입이 std::shared_ptr<Entity>이므로, 맵에서 가져오거나 새로 생성한 shared_ptr 반환
+    // 반환 타입이 std::shared_ptr<Entity>이므로, 맵에서 가져오거나 새로 생성한 shared_ptr 반환
     return entities[cloneId];
 }
 
@@ -6434,7 +6570,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
     // A more robust system might defer the actual deletion of 'entityPtr' and removal
     // from collections to the end of the game loop's update cycle.
     if (entityPtr)
-    {                                                        // Check if entityPtr was successfully retrieved
+    {                                                                  // Check if entityPtr was successfully retrieved
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // Lock for all collection modifications
 
         // Remove from entities map
@@ -6506,7 +6642,7 @@ void Engine::deleteAllClonesOf(const std::string &originalEntityId)
     {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
         for (const auto &pair : entities)
-        { 
+        {
             // pair.second는 std::shared_ptr<Entity> 타입입니다. 원시 포인터를 얻으려면 .get()을 사용해야 합니다.
             Entity *entity = pair.second.get();
             if (entity && entity->getIsClone() && entity->getOriginalClonedFromId() == originalEntityId)
@@ -6592,7 +6728,7 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
             { // 글상자 타입인지 확인
                 objInfo.textContent = newText;
                 found = true;
-                // EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
+                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
 
                 // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
                 // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.
@@ -6605,6 +6741,33 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
                     // entity->m_currentDialog.text = newText; // DialogState의 텍스트도 동기화 (필요하다면)
                     // entity->m_currentDialog.needsRedraw = true;
                     // 또는 글상자 전용 렌더링 로직이 있다면 해당 플래그 설정
+                    // 중요: Entity의 내부 너비/높이도 업데이트해야 합니다.
+                    // 예시: entity->updateDimensionsForText(newText, objInfo.fontName, objInfo.fontSize);
+                    // 아래는 Engine 레벨에서 직접 계산하여 Entity의 setter를 호출하는 예시입니다.
+                    // 실제로는 Entity 클래스 내부에 이 로직이 있는 것이 더 좋습니다.
+                    if (!newText.empty() && objInfo.fontSize > 0)
+                    {
+                        std::string fontPath = getFontPathByName(objInfo.fontName, objInfo.fontSize, this);
+                        TTF_Font *tempFont = getFont(fontPath, objInfo.fontSize);
+                        if (tempFont)
+                        {
+                            int measuredW, measuredH;
+                            if (TTF_GetStringSize(tempFont, newText.c_str(), 0, &measuredW, &measuredH) == 0)
+                            {
+                                entity->setWidth(static_cast<double>(measuredW));
+                                entity->setHeight(static_cast<double>(measuredH));
+                                EngineStdOut("TextBox " + entityId + " dimensions potentially updated after text change.", 3);
+                            }
+                            else
+                            {
+                                EngineStdOut("Warning: TTF_SizeUTF8 failed during text update for " + entityId, 1);
+                            }
+                        }
+                        else
+                        {
+                            EngineStdOut("Warning: Font not found during text update for " + entityId, 1);
+                        }
+                    }
                 }
             }
             else
