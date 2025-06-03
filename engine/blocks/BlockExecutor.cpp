@@ -9,7 +9,7 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
-#include <regex> // regex 헤더 추가
+#include <regex>  // regex 헤더 추가
 #include <random> // For std::mt19937 and std::uniform_real_distribution
 #include <future>
 #include <algorithm> // For std::clamp
@@ -22,29 +22,39 @@ AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
 // ThreadPool 클래스 정의는 BlockExecutor.h로 이동
 
 // Helper function to check if a string can be parsed as a number
-bool is_number(const std::string& s) {
-    if (s.empty()) {
+bool is_number(const std::string &s)
+{
+    if (s.empty())
+    {
         return false;
     }
-    try {
+    try
+    {
         size_t pos;
         std::stod(s, &pos);
         // Check if the entire string was consumed by stod and it's not just a prefix
         return pos == s.length();
-    } catch (const std::invalid_argument&) {
+    }
+    catch (const std::invalid_argument &)
+    {
         return false;
-    } catch (const std::out_of_range&) {
+    }
+    catch (const std::out_of_range &)
+    {
         return false;
     }
 }
 
 // ThreadPool 생성자 구현
-ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
-    : engine(eng), stop(false), max_queue_size(maxQueueSize) {
+ThreadPool::ThreadPool(Engine &eng, size_t threads, size_t maxQueueSize)
+    : engine(eng), stop(false), max_queue_size(maxQueueSize)
+{
     engine.EngineStdOut("ThreadPool initalize.", 3);
 
-    for(size_t i = 0; i < threads; ++i) {
-        workers.emplace_back([this, i] {
+    for (size_t i = 0; i < threads; ++i)
+    {
+        workers.emplace_back([this, i]
+                             {
             engine.EngineStdOut(std::to_string(i) + " WorkerThread Started.", 3); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
 
             while(true) {
@@ -70,8 +80,7 @@ ThreadPool::ThreadPool(Engine& eng, size_t threads, size_t maxQueueSize)
                 } catch (const std::exception& e) {
                     engine.EngineStdOut(std::to_string(i) + " WorkerThread Exception: " + e.what(), 3);
                 }
-            }
-        });
+            } });
         engine.EngineStdOut(std::to_string(i) + "WorkerThread Created.", 3);
     }
     engine.EngineStdOut("ThreadPool initalized.", 0);
@@ -1200,25 +1209,30 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                                 executionThreadId);
             return OperandValue();
         }
-    // thread_local을 사용하여 각 스레드가 자신만의 난수 생성기를 갖도록 합니다.
-    // std::random_device{}()를 사용하여 각 스레드마다 다른 시드로 초기화합니다.
-    thread_local std::mt19937 generator(std::random_device{}());
+        // thread_local을 사용하여 각 스레드가 자신만의 난수 생성기를 갖도록 합니다.
+        // std::random_device{}()를 사용하여 각 스레드마다 다른 시드로 초기화합니다.
+        thread_local std::mt19937 generator(std::random_device{}());
 
-    double min_val = minVal.asNumber();
-    double max_val = maxVal.asNumber();
+        double min_val = minVal.asNumber();
+        double max_val = maxVal.asNumber();
 
-    if (min_val < max_val) {
-        std::uniform_real_distribution<double> distribution(min_val, max_val);
-        return OperandValue(distribution(generator));
-    } else if (min_val == max_val) {
-        return OperandValue(min_val); // 최소값과 최대값이 같으면 해당 값 반환
-    } else { // min_val > max_val
-        // EntryJS는 이 경우 min_val을 반환하는 것으로 보입니다.
-        // 또는 오류를 발생시키거나, 범위를 교정할 수 있습니다.
-        // 여기서는 EntryJS 동작을 따라 min_val을 반환합니다.
-        engine.EngineStdOut("calc_rand block for object " + objectId + ": min_val (" + std::to_string(min_val) + ") is greater than max_val (" + std::to_string(max_val) + "). Returning min_val.", 1, executionThreadId);
-        return OperandValue(min_val);
-    }
+        if (min_val < max_val)
+        {
+            std::uniform_real_distribution<double> distribution(min_val, max_val);
+            return OperandValue(distribution(generator));
+        }
+        else if (min_val == max_val)
+        {
+            return OperandValue(min_val); // 최소값과 최대값이 같으면 해당 값 반환
+        }
+        else
+        { // min_val > max_val
+            // EntryJS는 이 경우 min_val을 반환하는 것으로 보입니다.
+            // 또는 오류를 발생시키거나, 범위를 교정할 수 있습니다.
+            // 여기서는 EntryJS 동작을 따라 min_val을 반환합니다.
+            engine.EngineStdOut("calc_rand block for object " + objectId + ": min_val (" + std::to_string(min_val) + ") is greater than max_val (" + std::to_string(max_val) + "). Returning min_val.", 1, executionThreadId);
+            return OperandValue(min_val);
+        }
     }
     else if (BlockType == "coordinate_mouse")
     {
@@ -1257,7 +1271,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     " has an empty coordinate type string for VALUE parameter.",
                 2, executionThreadId);
             return OperandValue(0.0);
-        }        if (engine.isMouseCurrentlyOnStage())
+        }
+        if (engine.isMouseCurrentlyOnStage())
         {
             // 실제 마우스 좌표 가져오기 (이미 스테이지 좌표계로 변환된 값)
             int mouseX = engine.getCurrentStageMouseX();
@@ -3792,14 +3807,20 @@ void Sound(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "sound_silent_all")
     {
         // 파라미터는 하나 (TARGET) - "all", "thisOnly", "other_objects"
-        if (block.paramsJson.empty() || !block.paramsJson[0].is_string())
+        if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut(
-                "sound_silent_all for object " + objectId + ": TARGET parameter is missing or not a string.", 2,
+                "sound_silent_all for object " + objectId + ": TARGET parameter is missing.", 2,
                 executionThreadId);
             return;
         }
-        string target = block.paramsJson[0].get<string>();
+        OperandValue targetOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (targetOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("sound_silent_all for object " + objectId + ": TARGET parameter did not resolve to a string. Value: " + targetOp.asString(), 2, executionThreadId);
+            return;
+        }
+        string target = targetOp.asString();
 
         if (target == "all")
         {
@@ -4109,19 +4130,18 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                     " has insufficient parameters. Expected VARIABLE_ID and VALUE.",
                 2, executionThreadId);
             return;
-        }
-
-        // 1. 변수 ID 가져오기 (항상 문자열 드롭다운)
-        if (!block.paramsJson[0].is_string())
+        } // 1. 변수 ID 가져오기 (항상 문자열 드롭다운)
+        OperandValue variableIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (variableIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
+            engine.EngineStdOut("set_variable block for " + objectId + ": VARIABLE_ID parameter (index 0) did not resolve to a string. Value: " + variableIdOp.asString(), 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<string>();
+        string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
+            engine.EngineStdOut("set_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
                                 executionThreadId);
             return;
         }
@@ -4154,7 +4174,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         if (!targetVarPtr)
         {
             engine.EngineStdOut(
-                "change_variable block for " + objectId + ": Variable '" + variableIdToFind + "' not found.", 1,
+                "set_variable block for " + objectId + ": Variable '" + variableIdToFind + "' not found.", 1,
                 executionThreadId);
             return;
         }
@@ -4178,22 +4198,23 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
-                "change_variable block for " + objectId +
+                "show_variable block for " + objectId +
                     " has insufficient parameters. Expected VARIABLE_ID and VALUE.",
                 2, executionThreadId);
             return;
         }
 
-        if (!block.paramsJson[0].is_string())
+        OperandValue variableIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (variableIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
+            engine.EngineStdOut("show_variable block for " + objectId + ": VARIABLE_ID parameter (index 0) did not resolve to a string. Value: " + variableIdOp.asString(), 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<string>();
+        string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
+            engine.EngineStdOut("show_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
                                 executionThreadId);
             return;
         }
@@ -4225,22 +4246,23 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
         {
             engine.EngineStdOut(
-                "change_variable block for " + objectId +
+                "hide_variable block for " + objectId +
                     " has insufficient parameters. Expected VARIABLE_ID and VALUE.",
                 2, executionThreadId);
             return;
         }
 
-        if (!block.paramsJson[0].is_string())
+        OperandValue variableIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (variableIdOp.type != OperandValue::Type::STRING)
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": VARIABLE_ID parameter is not a string.", 2,
+            engine.EngineStdOut("hide_variable block for " + objectId + ": VARIABLE_ID parameter (index 0) did not resolve to a string. Value: " + variableIdOp.asString(), 2,
                                 executionThreadId);
             return;
         }
-        string variableIdToFind = block.paramsJson[0].get<string>();
+        string variableIdToFind = variableIdOp.asString();
         if (variableIdToFind.empty())
         {
-            engine.EngineStdOut("change_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
+            engine.EngineStdOut("hide_variable block for " + objectId + ": received an empty VARIABLE_ID.", 2,
                                 executionThreadId);
             return;
         }
@@ -4278,27 +4300,32 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                 "add_value_to_list block for " + objectId + " has insufficient parameters. Expected LIST_ID and VALUE.",
                 2, executionThreadId);
             return;
-        }
-
-        // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        if (!block.paramsJson[0].is_string())
+        } // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
+        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        if (listIdOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
-                "add_value_to_list block for " + objectId + ": LIST_ID parameter (index 0) is not a string.", 2,
+                "add_value_to_list block for " + objectId + ": LIST_ID parameter (index 1) did not resolve to a string. Value: " + listIdOp.asString(), 2,
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].get<string>();
+        string listIdToFind = listIdOp.asString();
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("add_value_to_list block for " + objectId + ": received an empty LIST_ID.", 2,
                                 executionThreadId);
             return;
-        }
-
-        // 2. 리스트에 추가할 값 가져오기
-        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        }        // 2. 리스트에 추가할 값 가져오기
+        OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         string valueToAdd = valueOp.asString(); // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
+
+        // 빈 문자열 체크
+        if (valueToAdd.empty() && valueOp.type == OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("add_value_to_list block for " + objectId + ": Cannot add empty value to list.", 1,
+                                executionThreadId);
+            return;
+        }
 
         // 3. 대상 리스트 찾기 (지역 리스트 우선, 없으면 전역 리스트)
         HUDVariableDisplay *targetListPtr = nullptr;
@@ -4365,14 +4392,16 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
 
         // 1. 리스트 ID 가져오기 (항상 드롭다운 메뉴의 문자열)
-        if (!block.paramsJson[0].is_string())
+        OperandValue listIdOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (listIdOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut(
-                "remove_value_from_list block for " + objectId + ": LIST_ID parameter (index 0) is not a string.", 2,
+                "remove_value_from_list block for " + objectId + ": LIST_ID parameter (index 0) did not resolve to a string. Value: " + listIdOp.asString(), 2,
                 executionThreadId);
             return;
         }
-        string listIdToFind = block.paramsJson[0].get<string>();
+        string listIdToFind = listIdOp.asString();
+
         if (listIdToFind.empty())
         {
             engine.EngineStdOut("remove_value_from_list block for " + objectId + ": received an empty LIST_ID.", 2,
@@ -4479,8 +4508,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         {
             engine.saveCloudVariablesToJson();
         }
-    }
-    else if (BlockType == "insert_value_to_list")
+    }    else if (BlockType == "insert_value_to_list")
     {
         // 특정 인덱스에 항목 삽입
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
@@ -4491,6 +4519,15 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue listIdToFindOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
+        
+        // 빈 문자열 체크
+        if (valueOp.asString().empty() && valueOp.type == OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("insert_value_to_list block for " + objectId + ": Cannot insert empty value to list.", 1,
+                                executionThreadId);
+            return;
+        }
+        
         double index_1_based_double = indexOp.asNumber();
         if (listIdToFindOp.type != OperandValue::Type::STRING || valueOp.type != OperandValue::Type::STRING)
         {
@@ -4551,8 +4588,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.saveCloudVariablesToJson();
         }
         engine.EngineStdOut("Inserted value '" + valueOp.asString() + "' at index " + to_string(index_1_based) + " (value: '" + valueOp.asString() + "') to list '");
-    }
-    else if (BlockType == "change_value_list_index")
+    }    else if (BlockType == "change_value_list_index")
     {
         // 특정 인덱스에 항목 변경
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
@@ -4563,6 +4599,14 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue listIdToFindOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
+
+        // 빈 문자열 체크
+        if (valueOp.asString().empty() && valueOp.type == OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("change_value_list_index block for " + objectId + ": Cannot set empty value to list.", 1,
+                                executionThreadId);
+            return;
+        }
         double index_1_based_double = indexOp.asNumber();
         if (listIdToFindOp.type != OperandValue::Type::STRING || valueOp.type != OperandValue::Type::STRING)
         {
@@ -4811,13 +4855,16 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         { // pThreadState가 여전히 nullptr이면 오류 처리
             engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_basic, or entity is null.", 2, executionThreadId);
             return; // 또는 예외 발생
-        }        int startIteration = 0;
+        }
+        int startIteration = 0;
         // Check if we are resuming this specific repeat_basic block
         if (pThreadState->loopCounters.count(block.id))
         {
             startIteration = pThreadState->loopCounters[block.id];
             engine.EngineStdOut("repeat_basic: " + objectId + " resuming from iteration " + to_string(startIteration) + "/" + to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
-        } else {
+        }
+        else
+        {
             engine.EngineStdOut("repeat_basic: " + objectId + " starting new loop with " + to_string(iterCount) + " iterations. Block ID: " + block.id, 3, executionThreadId);
         }
         // 반복 횟수만큼 내부 블록들을 동기적으로 실행
@@ -4855,7 +4902,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
             // 내부 블록 실행
             engine.EngineStdOut("repeat_basic: Executing iteration " + to_string(i) + " for block " + block.id, 3, executionThreadId);
-            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime);// 내부 블록 실행 후 대기 상태 확인
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime); // 내부 블록 실행 후 대기 상태 확인
             if (entity)
             {
                 bool shouldBreakLoop = false;
@@ -4907,24 +4954,25 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                         innerWaitType = it_check->second.currentWaitType;
                         innerWaitingBlockId = it_check->second.blockIdForWait;
                     }
-                }                if (innerBlockIsWaiting)
+                }
+                if (innerBlockIsWaiting)
                 {
                     // 내부 블록이 대기 중일 때
                     engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(i) +
-                        " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
-                        ". Will resume here.",
-                        3, executionThreadId);
+                                            " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(innerWaitType) +
+                                            ". Will resume here.",
+                                        3, executionThreadId);
                     return;
                 }
                 else
                 {
                     // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),33.0)); // 최소 1ms, 최대 33ms
+                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) + 
-                        " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
-                        3, executionThreadId);
+                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) +
+                                            " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
+                                        3, executionThreadId);
                     return;
                 }
             }

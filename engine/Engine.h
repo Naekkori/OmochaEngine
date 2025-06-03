@@ -12,6 +12,7 @@
 #include "util/AEhelper.h"
 #include "SDL3/SDL_stdinc.h"   // For SDL_PI_D
 #include "SDL3/SDL_render.h"   // SDL 렌더링
+#include "TextInput.h" // 텍스트 입력 관련 인터페이스
 #include "SDL3/SDL_scancode.h" // For SDL_Scancode
 #include "blocks/Block.h"
 #include <nlohmann/json.hpp>
@@ -116,7 +117,7 @@ struct HUDVariableDisplay
     float calculatedContentHeight = 0.0f; // 리스트 내용 전체 높이
     vector<ListItem> array;              // 리스트 항목 (리스트 전용)
 };
-class Engine
+class Engine : public TextInputInterface
 {
 private:
     map<string, vector<Script>> objectScripts;
@@ -318,12 +319,12 @@ public:
     std::shared_ptr<Entity> getEntityByIdNolockShared(const std::string &id); // New method
     void renderLoadingScreen();
     void handleRenderDeviceReset();
-    bool recreateAssetsIfNeeded();
-    void drawHUD(); // HUD 그리기 메서드 추가
+    bool recreateAssetsIfNeeded();    void drawHUD(); // HUD 그리기 메서드 추가
     void goToScene(const string &sceneId);
     void goToNextScene();
     void goToPreviousScene(); // LCOV_EXCL_LINE
     void triggerWhenSceneStartScripts();
+    void updateAnswerVariable(); // Update the answer variable with the latest text input
     void startProjectTimer();
     void stopProjectTimer();
     void activateTextInput(const std::string &requesterObjectId, const std::string &question, const std::string &executionThreadId);
@@ -384,4 +385,33 @@ private: // LCOV_EXCL_LINE
 public:
     uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환
     void submitTask(std::function<void()> task); // Task submission method
+
+    std::atomic<bool> m_needAnswerUpdate{false};
+    void requestAnswerUpdate() { m_needAnswerUpdate = true; }
+    bool checkAndClearAnswerUpdateFlag() {
+        bool expected = true;
+        return m_needAnswerUpdate.compare_exchange_strong(expected, false);
+    }
+
+    // TextInputInterface 구현
+    bool isTextInputActive() const override { return m_textInputActive; }
+    void clearTextInput() override {
+        m_currentTextInputBuffer.clear();
+        m_lastAnswer.clear();
+        m_textInputQuestionMessage.clear();
+    }
+    void deactivateTextInput() override {
+        if (m_textInputActive) {
+            m_textInputActive = false;
+            if (window) SDL_StopTextInput(window);
+            m_textInputCv.notify_all();
+            
+            Entity* entity = getEntityById_nolock(m_textInputRequesterObjectId);
+            if (entity) {
+                entity->removeDialog();
+            }
+            m_gameplayInputActive = true;
+        }
+    }
+    std::mutex& getTextInputMutex() override { return m_textInputMutex; }
 };

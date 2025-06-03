@@ -3226,7 +3226,7 @@ void Engine::drawHUD()
                 SDL_Color listNameTextColor = {0, 0, 0, 255};  // Light text for list name
                 SDL_Color listItemBgColor = {0, 120, 255, 255};      // Blue background for item data
                 SDL_Color listItemTextColor = {255, 255, 255, 255};  // White text for item data
-                SDL_Color listRowNumberColor = {230, 230, 230, 255}; // Light gray for row numbers
+                SDL_Color listRowNumberColor = {10, 10, 10, 255}; // Light gray for row numbers
 
                 float listCornerRadius = 5.0f;
                 float listBorderWidth = 1.0f;
@@ -3323,12 +3323,6 @@ void Engine::drawHUD()
 
                 for (size_t i = 0; i < var.array.size(); ++i)
                 {
-                    if (currentItemVisualY + itemRowHeight > itemsAreaStartY + itemsAreaRenderableHeight)
-                    {
-                        // 그릴 공간이 없으면 중단
-                        break;
-                    }
-
                     // 스크롤 오프셋 적용된 아이템 Y 위치
                     float itemRenderY = currentItemVisualY - var.scrollOffset_Y;
 
@@ -3846,11 +3840,12 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             if (event.key.scancode == SDL_SCANCODE_BACKSPACE && !m_currentTextInputBuffer.empty())
             {
                 m_currentTextInputBuffer.pop_back();
-            }
-            else if (event.key.scancode == SDLK_RETURN || event.key.scancode == SDLK_KP_ENTER || event.key.scancode == SDL_SCANCODE_RETURN)
+            }            else if (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)
             {
-                m_lastAnswer = m_currentTextInputBuffer;
-                m_textInputActive = false; // 입력 완료, 플래그 해제
+                // 현재 입력된 텍스트를 대답으로 저장 (비어있어도 저장)                m_lastAnswer = m_currentTextInputBuffer;
+                m_currentTextInputBuffer.clear();
+                m_textInputActive = false;
+                requestAnswerUpdate();  // 나중에 업데이트하도록 요청
 
                 // 질문 다이얼로그 제거
                 Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
@@ -3922,12 +3917,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                     static_cast<float>(mouseY) >= checkboxDestRect.y &&
                                     static_cast<float>(mouseY) <= checkboxDestRect.y + checkboxDestRect.h;
 
-                EngineStdOut("체크박스 클릭 검사: " + std::to_string(isInCheckbox), 0);
-
-                if (isInCheckbox)
-                {
-                    std::lock_guard<std::mutex> lock(m_textInputMutex);
-                    m_lastAnswer = m_currentTextInputBuffer;
+                EngineStdOut("체크박스 클릭 검사: " + std::to_string(isInCheckbox), 0);                if (isInCheckbox)
+                {                    std::lock_guard<std::mutex> lock(m_textInputMutex);
+                    m_lastAnswer = m_currentTextInputBuffer;  // 현재 입력된 텍스트를 대답으로 저장
+                    updateAnswerVariable();  // 대답 변수 업데이트
+                    m_currentTextInputBuffer.clear();  // 버퍼 초기화
                     m_textInputActive = false; // 입력 완료, 플래그 해제
 
                     Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
@@ -5140,14 +5134,19 @@ void Engine::activateTextInput(const std::string &requesterObjectId, const std::
             EngineStdOut("Warning: Entity " + requesterObjectId + " not found when trying to show 'ask' dialog.", 1,
                          executionThreadId);
         }
-    }
-    {
+    }    {
         std::unique_lock<std::mutex> inputLock(m_textInputMutex);
         EngineStdOut("Script thread " + executionThreadId + " waiting for text input...", 0, executionThreadId);
-
+        
         // 입력이 완료되거나 엔진이 종료될 때까지 대기
         m_textInputCv.wait(inputLock, [this]
-                           { return (!m_textInputActive && !m_currentTextInputBuffer.empty()) || m_isShuttingDown; });
+                           { return !m_textInputActive || m_isShuttingDown; });
+
+        // 엔진이 종료되는 경우 텍스트 입력 상태를 정리
+        if (m_isShuttingDown) {
+            clearTextInput();
+            deactivateTextInput();
+        }
 
         // 입력 완료 또는 엔진 종료로 대기 상태 해제
         SDL_StopTextInput(window);
@@ -5169,6 +5168,35 @@ std::string Engine::getLastAnswer() const
 {
     std::lock_guard<std::mutex> lock(m_textInputMutex); // Protect access to m_lastAnswer
     return m_lastAnswer;
+}
+
+void Engine::updateAnswerVariable()
+{
+    std::string currentAnswer;
+    {
+        std::unique_lock<std::mutex> inputLock(m_textInputMutex, std::try_to_lock);
+        if (!inputLock.owns_lock()) {
+            requestAnswerUpdate();  // 락을 얻지 못했다면 나중에 다시 시도
+            return;
+        }
+        currentAnswer = m_lastAnswer;
+    }
+
+    std::unique_lock<std::recursive_mutex> dataLock(m_engineDataMutex, std::try_to_lock);
+    if (!dataLock.owns_lock()) {
+        requestAnswerUpdate();  // 락을 얻지 못했다면 나중에 다시 시도
+        return;
+    }
+
+    for (auto &var : m_HUDVariables)
+    {
+        if (var.variableType == "answer")
+        {
+            var.value = currentAnswer;
+            EngineStdOut("Updated answer variable value to: " + currentAnswer, 3);
+            break;
+        }
+    }
 }
 
 /**

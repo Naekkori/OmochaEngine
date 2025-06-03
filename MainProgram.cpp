@@ -332,9 +332,7 @@ int main(int argc, char *argv[])
                 // 엔진의 현재 마우스 스테이지 좌표 업데이트
                 float windowMouseX_main, windowMouseY_main;
                 SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main);
-                engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main);
-
-                // 엔티티 업데이트
+                engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main);                // 엔티티 업데이트
                 { // std::lock_guard의 범위를 지정하기 위한 블록
                     std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
                     for (auto &[entity_key, entity_ptr] : engine.getEntities_Modifiable())
@@ -349,10 +347,22 @@ int main(int argc, char *argv[])
                     }
                 } // 여기서 lock_guard가 소멸되면서 뮤텍스 자동 해제
 
+                // answer 변수 업데이트가 필요한지 확인
+                if (engine.checkAndClearAnswerUpdateFlag()) {
+                    engine.updateAnswerVariable();
+                }
+
                 while (SDL_PollEvent(&event))
-                {
-                    if (event.type == SDL_EVENT_QUIT)
+                {                    if (event.type == SDL_EVENT_QUIT)
                     {
+                        // 텍스트 입력 중이라면 먼저 정리
+                        if (engine.isTextInputActive())
+                        {
+                            std::lock_guard<std::mutex> lock(engine.getTextInputMutex());
+                            engine.clearTextInput();
+                            engine.deactivateTextInput();
+                        }
+                        
                         string notice = PROJECT_NAME + " 을(를) 종료하시겠습니까?";
 
                         if (engine.showMessageBox(notice, engine.msgBoxIconType.ICON_INFORMATION, true))
