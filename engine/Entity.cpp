@@ -638,7 +638,9 @@ void Entity::setWidth(double newWidth)
             if (objInfo && objInfo->objectType != "textBox")
             {
                 pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for sprite entity " + this->id + ". ScaleX not changed.", 1);
-            } else if (!objInfo) {
+            }
+            else if (!objInfo)
+            {
                 // ObjectInfo itself is missing, which is a more general issue.
                 pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + this->id + ". ScaleX not changed.", 1);
             }
@@ -700,12 +702,14 @@ void Entity::setHeight(double newHeight)
         }
         else
         {
-                if (objInfo && objInfo->objectType != "textBox")
-                {
-                    pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for sprite entity " + this->id + ". ScaleY not changed.", 1);
-                } else if (!objInfo) {
-                    pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + this->id + ". ScaleY not changed.", 1);
-                }
+            if (objInfo && objInfo->objectType != "textBox")
+            {
+                pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for sprite entity " + this->id + ". ScaleY not changed.", 1);
+            }
+            else if (!objInfo)
+            {
+                pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + this->id + ". ScaleY not changed.", 1);
+            }
         }
     }
 }
@@ -810,7 +814,7 @@ bool Entity::isPointInside(double pX, double pY) const
     // Entity 생성 시 objectType을 멤버로 저장했다고 가정합니다.
     // if (this->objectType == "textBox") // Entity에 objectType 멤버가 있다고 가정
     // 또는 pEngineInstance를 통해 ObjectInfo 조회 (성능 및 뮤텍스 고려 필요)
-    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+    const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
     if (objInfo && objInfo->objectType == "textBox")
     {
         // 글상자는 회전하지 않고, 스케일은 1.0으로 가정합니다.
@@ -840,24 +844,34 @@ bool Entity::isPointInside(double pX, double pY) const
     double checkPY = rotatedPY;
 
     // X축 스케일 처리
-    if (std::abs(this->scaleX) < epsilon) { // X축 스케일이 거의 0인 경우
-        if (std::abs(this->width) > epsilon) return false; // 원본 너비가 있는데 스케일이 0이면 클릭 불가 (선)
+    if (std::abs(this->scaleX) < epsilon)
+    { // X축 스케일이 거의 0인 경우
+        if (std::abs(this->width) > epsilon)
+            return false; // 원본 너비가 있는데 스케일이 0이면 클릭 불가 (선)
         // 너비도 0이면 (점 또는 수직선), rotatedPX가 등록점의 X 위치와 일치해야 함.
         // 로컬 좌표계에서 등록점은 (0,0)이므로, rotatedPX가 0에 가까워야 함.
-        if (std::abs(rotatedPX) > epsilon) return false;
+        if (std::abs(rotatedPX) > epsilon)
+            return false;
         // checkPX는 -this->regX와 비교될 것이므로, 해당 값으로 설정 (width=0일 때 halfWidth=0, left/rightBound = -regX)
         checkPX = -this->regX;
-    } else {
+    }
+    else
+    {
         checkPX /= this->scaleX;
     }
 
     // Y축 스케일 처리
-    if (std::abs(this->scaleY) < epsilon) { // Y축 스케일이 거의 0인 경우
-        if (std::abs(this->height) > epsilon) return false; // 원본 높이가 있는데 스케일이 0이면 클릭 불가 (선)
+    if (std::abs(this->scaleY) < epsilon)
+    { // Y축 스케일이 거의 0인 경우
+        if (std::abs(this->height) > epsilon)
+            return false; // 원본 높이가 있는데 스케일이 0이면 클릭 불가 (선)
         // 높이도 0이면 (점 또는 수평선), rotatedPY가 등록점의 Y 위치와 일치해야 함.
-        if (std::abs(rotatedPY) > epsilon) return false;
+        if (std::abs(rotatedPY) > epsilon)
+            return false;
         checkPY = -this->regY;
-    } else {
+    }
+    else
+    {
         checkPY /= this->scaleY;
     }
 
@@ -1195,13 +1209,16 @@ void Entity::waitforPlaysound(const std::string &soundId)
         // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
         // 이 함수를 호출하는 컨텍스트에서 이 정보들을 전달받아야 합니다.
         std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
-        std::string callingBlockId = "placeholder_block_id";         // 실제 호출 블록 ID로 대체 필요
+        std::string callingBlockId = "placeholder_block_id";            // 실제 호출 블록 ID로 대체 필요
         // 예시: if (this->scriptThreadStates.count(currentExecutionThreadId)) { ... }
 
-        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id") {
+        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id")
+        {
             setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
             pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-        } else {
+        }
+        else
+        {
             pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing/placeholder thread/block ID. Sound will play without wait.", 1);
             // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
             // 또는, 여기서 에러를 발생시키거나 기본 블로킹 대기를 수행할 수 있지만, 비동기 패턴을 권장합니다.
@@ -1256,12 +1273,15 @@ void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seco
 
         // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
         std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
-        std::string callingBlockId = "placeholder_block_id";         // 실제 호출 블록 ID로 대체 필요
+        std::string callingBlockId = "placeholder_block_id";            // 실제 호출 블록 ID로 대체 필요
 
-        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id") {
+        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id")
+        {
             setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
             pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound (timed): " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-        } else {
+        }
+        else
+        {
             pEngineInstance->EngineStdOut("Entity " + id + " could not set timed sound wait due to missing/placeholder thread/block ID. Sound will play for duration without script pause.", 1);
         }
     }
@@ -1310,32 +1330,36 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
         {
             soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
         }
-    pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
+        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
 
-    // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
-    // 이 정보는 이 함수를 호출하는 컨텍스트(예: BlockExecutor)에서 전달받아야 합니다.
-    // 아래는 임시 플레이스홀더입니다. 실제 구현에서는 이 부분을 수정해야 합니다.
-    std::string currentExecutionThreadId = ""; // 실제 실행 스레드 ID로 대체 필요
-    std::string callingBlockId = "unknown_wait_block"; // 실제 호출 블록 ID로 대체 필요
+        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
+        // 이 정보는 이 함수를 호출하는 컨텍스트(예: BlockExecutor)에서 전달받아야 합니다.
+        // 아래는 임시 플레이스홀더입니다. 실제 구현에서는 이 부분을 수정해야 합니다.
+        std::string currentExecutionThreadId = "";         // 실제 실행 스레드 ID로 대체 필요
+        std::string callingBlockId = "unknown_wait_block"; // 실제 호출 블록 ID로 대체 필요
 
-    // 스레드 ID를 얻기 위한 임시 로직 (실제로는 더 안정적인 방법 필요)
-    // 예시: executeScript에서 현재 스레드 ID를 ScriptThreadState에 저장하고 여기서 읽어옴
-    // 또는, 이 함수에 executionThreadId와 blockId를 인자로 전달
-    {
-        std::lock_guard<std::recursive_mutex> read_lock(m_stateMutex);
-        // 가장 최근에 생성된 스레드 ID를 사용하려고 시도 (매우 불안정하며, 실제 사용 부적합)
-        if (!scriptThreadStates.empty()) {
-             // currentExecutionThreadId = scriptThreadStates.rbegin()->first; // 예시일 뿐, 사용 금지
+        // 스레드 ID를 얻기 위한 임시 로직 (실제로는 더 안정적인 방법 필요)
+        // 예시: executeScript에서 현재 스레드 ID를 ScriptThreadState에 저장하고 여기서 읽어옴
+        // 또는, 이 함수에 executionThreadId와 blockId를 인자로 전달
+        {
+            std::lock_guard<std::recursive_mutex> read_lock(m_stateMutex);
+            // 가장 최근에 생성된 스레드 ID를 사용하려고 시도 (매우 불안정하며, 실제 사용 부적합)
+            if (!scriptThreadStates.empty())
+            {
+                // currentExecutionThreadId = scriptThreadStates.rbegin()->first; // 예시일 뿐, 사용 금지
+            }
         }
-    }
 
-    if (!currentExecutionThreadId.empty() && !callingBlockId.empty()) {
-        setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
-        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-    } else {
-        pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing thread/block ID. Sound will play without wait.", 1);
-        // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
-    }
+        if (!currentExecutionThreadId.empty() && !callingBlockId.empty())
+        {
+            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
+        }
+        else
+        {
+            pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing thread/block ID. Sound will play without wait.", 1);
+            // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
+        }
     }
     else
     {
@@ -1409,17 +1433,24 @@ void Entity::processInternalContinuations(float deltaTime)
                 const ObjectInfo *objInfoCheck = pEngineInstance->getObjectInfoById(this->getId());
                 bool isGlobal = (objInfoCheck && (objInfoCheck->sceneId == "global" || objInfoCheck->sceneId.empty()));
                 std::string engineCurrentScene = pEngineInstance->getCurrentSceneId();
-                const std::string& scriptSceneContext = state.sceneIdAtDispatchForResume;
+                const std::string &scriptSceneContext = state.sceneIdAtDispatchForResume;
 
                 bool canResume = false;
-                if (!state.scriptPtrForResume) { // 스크립트 포인터가 유효하지 않으면 재개 불가
+                if (!state.scriptPtrForResume)
+                { // 스크립트 포인터가 유효하지 않으면 재개 불가
                     canResume = false;
                     pEngineInstance->EngineStdOut("WARNING: Entity " + getId() + " script thread " + execId + " is BLOCK_INTERNAL wait but scriptPtrForResume is null. Clearing wait.", 1, execId);
-                } else if (isGlobal) {
+                }
+                else if (isGlobal)
+                {
                     canResume = true;
-                } else {
-                    if (objInfoCheck && objInfoCheck->sceneId == scriptSceneContext) {
-                        if (engineCurrentScene == scriptSceneContext) {
+                }
+                else
+                {
+                    if (objInfoCheck && objInfoCheck->sceneId == scriptSceneContext)
+                    {
+                        if (engineCurrentScene == scriptSceneContext)
+                        {
                             canResume = true;
                         }
                     }
@@ -1436,7 +1467,8 @@ void Entity::processInternalContinuations(float deltaTime)
                 else
                 {
                     // 재개할 수 없는 경우, 대기 상태를 해제하여 무한 루프 방지
-                    if (state.scriptPtrForResume) { // 로그는 스크립트 포인터가 있을 때만 의미 있음
+                    if (state.scriptPtrForResume)
+                    { // 로그는 스크립트 포인터가 있을 때만 의미 있음
                         pEngineInstance->EngineStdOut("Internal continuation for " + getId() + " (Thread: " + execId + ") cancelled. Scene/Context mismatch or invalid script. EntityScene: " + (objInfoCheck ? objInfoCheck->sceneId : "N/A") + ", ScriptDispatchScene: " + scriptSceneContext + ", EngineCurrentScene: " + engineCurrentScene, 1, execId);
                     }
                     state.isWaiting = false;
@@ -1477,7 +1509,7 @@ void Entity::processInternalContinuations(float deltaTime)
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                     ? " (원본: " + sbee.blockType + ")"
                                                     : "") +
-                                               " 에서 사용 하는 객체 " +"("+entitiyInfo->getName()+")"+
+                                               " 에서 사용 하는 객체 " + "(" + entitiyInfo->getName() + ")" +
                                                "\n원본 오류: " + sbee.originalMessage;
             pEngineInstance->EngineStdOut("Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2, execId);
             if (pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR))
@@ -1490,13 +1522,15 @@ void Entity::processInternalContinuations(float deltaTime)
         {
             pEngineInstance->EngineStdOut(
                 "Generic exception caught in internal continuation for entity " + getId() +
-                " (Thread: " + execId + "): " + e.what(), 2, execId);
+                    " (Thread: " + execId + "): " + e.what(),
+                2, execId);
         }
         catch (...)
         {
             pEngineInstance->EngineStdOut(
                 "Unknown exception caught in internal continuation for entity " + getId() +
-                " (Thread: " + execId + ")", 2, execId);
+                    " (Thread: " + execId + ")",
+                2, execId);
         }
     }
 }
@@ -1720,19 +1754,20 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                           }
                           catch (const ScriptBlockExecutionError &sbee)
                           {
+                             Entity *entity = self->pEngineInstance->getEntityById(sbee.entityId);
                               // Handle script block execution errors
                               Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
                               std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
                               // Configure error message (sbee.entityId could be the entity referenced by the block where the error occurred,
                               // so explicitly stating self->id for the entity executing the script might be clearer.)
                               std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + self->getId() +
-                                                                 ") 블럭ID " + sbee.blockId +
-                                                                 " 의 타입 (" + koreanBlockTypeName +")"+
+                                                                " 블럭ID: " + sbee.blockId +
+                                                                 ") 의 타입 (" + koreanBlockTypeName +")"+
                                                                  (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                                       ? " (원본: " + sbee.blockType + ")"
                                                                       : "") +
-                                                                 " 에서 사용 하는 객체 " + sbee.entityId + // Object ID directly referenced by the error block
-                                                                 "\n원본 오류: " + sbee.originalMessage;
+                                                                 " 에서 사용 하는 객체 (" + entity->getName() +   // Object ID directly referenced by the error block
+                                                                 ")\n원본 오류: " + sbee.originalMessage;
 
                               // EngineStdOut은 이미 상세 메시지를 포함하므로, 여기서는 요약된 메시지 또는 상세 메시지 그대로 사용
                               self->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + self->getId() + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
