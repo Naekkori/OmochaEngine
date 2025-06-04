@@ -2972,21 +2972,6 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             return OperandValue(false);
         }
         string opStr = operatorOp.asString();
-
-        // Detailed logging for boolean_basic_operator
-        // START: Additional logging for hi86 == 0 specific case
-        if (block.id == "3b3s") { // ID of the boolean_basic_operator block for hi86 == 0
-            engine.EngineStdOut(
-                std::format("[DEBUG_HI86_COMPARE] boolean_basic_operator ({}): Left='{}'(type:{}, num_val:{}), Op='{}', Right='{}'(type:{}, num_val:{})",
-                            objectId, leftOp.asString(), static_cast<int>(leftOp.type), leftOp.number_val, opStr, rightOp.asString(), static_cast<int>(rightOp.type), rightOp.number_val),
-                0, executionThreadId); // Use level 0 for high visibility
-        }
-        // END: Additional logging
-        engine.EngineStdOut(
-            std::format("boolean_basic_operator ({}): Left='{}'(type:{}), Op='{}', Right='{}'(type:{})",
-                        objectId, leftOp.asString(), static_cast<int>(leftOp.type), opStr, rightOp.asString(), static_cast<int>(rightOp.type)),
-            3, executionThreadId);
-
         // 1. 먼저 양쪽 모두 엄격한 숫자인지 확인
         bool leftIsNumber = (leftOp.type == OperandValue::Type::NUMBER) ||
                             (leftOp.type == OperandValue::Type::STRING && is_number(leftOp.string_val));
