@@ -156,7 +156,10 @@ namespace Omocha
         BOOLEAN_AND_OR, //논리곱 또는 논리합
         BOOLEAN_NOT, //논리 부정
         IS_BOOST_MODE, //부스트 모드인가?
-        IS_CURRENT_DEVICE_TYPE // 현재 장치 유형 확인
+        IS_CURRENT_DEVICE_TYPE, // 현재 장치 유형 확인
+        // TextBox specific actions
+        TEXT_SET_FONT_COLOR,
+        TEXT_SET_BG_COLOR
     };
 
     /**

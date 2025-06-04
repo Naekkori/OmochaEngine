@@ -634,7 +634,14 @@ void Entity::setWidth(double newWidth)
         }
         else
         {
-            pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for entity " + this->id + ". ScaleX not changed.", 1);
+            // Only show warning if it's not a textBox, as textBoxes don't rely on costumes for scaling this way.
+            if (objInfo && objInfo->objectType != "textBox")
+            {
+                pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for sprite entity " + this->id + ". ScaleX not changed.", 1);
+            } else if (!objInfo) {
+                // ObjectInfo itself is missing, which is a more general issue.
+                pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + this->id + ". ScaleX not changed.", 1);
+            }
         }
     }
 }
@@ -647,6 +654,13 @@ void Entity::setHeight(double newHeight)
     if (pEngineInstance)
     { // setWidth와 유사한 로직으로 scaleY 업데이트
         const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
+        if (objInfo && objInfo->objectType == "textBox")
+        {
+            // For textBoxes, scaleY should typically be 1.0 unless explicitly set.
+            // Direct height setting shouldn't derive scaleY from costumes.
+            return; // Skip costume-based scaling for textBox
+        }
+
         if (objInfo && !objInfo->costumes.empty())
         {
             const Costume *selectedCostume = nullptr;
@@ -686,7 +700,12 @@ void Entity::setHeight(double newHeight)
         }
         else
         {
-            pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for entity " + this->id + ". ScaleY not changed.", 1);
+                if (objInfo && objInfo->objectType != "textBox")
+                {
+                    pEngineInstance->EngineStdOut("Warning: ObjectInfo or costumes not found for sprite entity " + this->id + ". ScaleY not changed.", 1);
+                } else if (!objInfo) {
+                    pEngineInstance->EngineStdOut("Warning: ObjectInfo not found for entity " + this->id + ". ScaleY not changed.", 1);
+                }
         }
     }
 }
@@ -787,6 +806,24 @@ bool Entity::isPointInside(double pX, double pY) const
     // 엔티티의 중심을 (0,0)으로 하는 로컬 좌표계로 변환
     double localPX = pX - this->x;
     double localPY = pY - this->y;
+    // 글상자 타입의 경우, 회전 및 복잡한 등록점 계산을 건너뛰고 단순 사각형 충돌 판정
+    // Entity 생성 시 objectType을 멤버로 저장했다고 가정합니다.
+    // if (this->objectType == "textBox") // Entity에 objectType 멤버가 있다고 가정
+    // 또는 pEngineInstance를 통해 ObjectInfo 조회 (성능 및 뮤텍스 고려 필요)
+    const ObjectInfo* objInfo = pEngineInstance->getObjectInfoById(this->id);
+    if (objInfo && objInfo->objectType == "textBox")
+    {
+        // 글상자는 회전하지 않고, 스케일은 1.0으로 가정합니다.
+        // this->width와 this->height는 실제 텍스트의 크기를 반영해야 합니다.
+        double halfWidth = this->width / 2.0;
+        double halfHeight = this->height / 2.0; // Y축이 위로 향하므로, 아래쪽은 -halfHeight, 위쪽은 +halfHeight
+
+        bool inX = (localPX >= -halfWidth && localPX <= halfWidth);
+        // Y축 방향 고려: 엔트리 좌표계는 Y가 위로 갈수록 증가. localPY도 위로 갈수록 증가.
+        // 따라서 로컬 Y 경계는 [-halfHeight, halfHeight]
+        bool inY = (localPY >= -halfHeight && localPY <= halfHeight);
+        return inX && inY;
+    }
 
     // SDL 각도는 시계 방향이므로, 점을 객체 프레임으로 가져오려면 반시계 방향(-rotation)으로 회전
     double angleRad = -this->rotation * (SDL_PI_D / 180.0);
@@ -1690,7 +1727,7 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                               // so explicitly stating self->id for the entity executing the script might be clearer.)
                               std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + self->getId() +
                                                                  ") 블럭ID " + sbee.blockId +
-                                                                 " 의 타입 " + koreanBlockTypeName +
+                                                                 " 의 타입 (" + koreanBlockTypeName +")"+
                                                                  (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                                       ? " (원본: " + sbee.blockType + ")"
                                                                       : "") +

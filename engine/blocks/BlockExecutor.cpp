@@ -345,6 +345,19 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             // Route to the main Calculator function, passing an empty string for executionThreadId as it's not available here.
             return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
         }
+        else if (fieldType == "text_color") // Added handler for text_color
+        {
+            // text_color 블록은 params[0]에 있는 HEX 색상 문자열을 반환합니다.
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty() && paramField["params"][0].is_string())
+            {
+                return OperandValue(paramField["params"][0].get<std::string>());
+            }
+            engine.EngineStdOut(
+                "Invalid 'text_color' block structure in parameter field for " + objectId +
+                    ". Expected params[0] to be a HEX string.", 1, executionThreadId);
+            return OperandValue("#000000"); // 기본값 또는 오류 처리
+        }
         else if (fieldType == "get_pictures")
         {
             // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
@@ -722,9 +735,9 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                 xOp.type != OperandValue::Type::NUMBER ||
                 yOp.type != OperandValue::Type::NUMBER)
             {
-                engine.EngineStdOut(                    std::format("move_xy_time block for {} has non-number parameters. Time: {}, X: {}, Y: {}", 
-                        objectId, timeOp.asString(), xOp.asString(), yOp.asString()),
-                    2, executionThreadId);
+                engine.EngineStdOut(std::format("move_xy_time block for {} has non-number parameters. Time: {}, X: {}, Y: {}",
+                                                objectId, timeOp.asString(), xOp.asString(), yOp.asString()),
+                                    2, executionThreadId);
                 state.isActive = false;
                 return;
             }
@@ -883,8 +896,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             if (!block.paramsJson.is_array() || block.paramsJson.size() < 2)
             {
                 // time, target 필요                engine.EngineStdOut(
-                    engine.EngineStdOut(format("locate_object_time block for {} is missing parameters. Expected TIME, TARGET_OBJECT_ID.", objectId),
-                    2, executionThreadId);
+                engine.EngineStdOut(format("locate_object_time block for {} is missing parameters. Expected TIME, TARGET_OBJECT_ID.", objectId),
+                                    2, executionThreadId);
                 // state.isActive는 false로 유지됩니다.
                 return;
             }
@@ -893,7 +906,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             OperandValue targetOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
 
             if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING)
-            {                engine.EngineStdOut(
+            {
+                engine.EngineStdOut(
                     std::format("locate_object_time block for {} has invalid parameters. Time should be number, target should be string.", objectId),
                     2, executionThreadId);
                 // state.isActive는 false로 유지됩니다.
@@ -924,8 +938,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                 }
                 else
                 {
-                    engine.EngineStdOut(                    std::format("locate_object_time: target object {} not found for {}.", state.targetObjectId, objectId),
-                        2, executionThreadId);
+                    engine.EngineStdOut(std::format("locate_object_time: target object {} not found for {}.", state.targetObjectId, objectId),
+                                        2, executionThreadId);
                 }
                 state.isActive = false; // 이동 완료, 이 틱에서 블록 실행 완료.
                 return;
@@ -937,7 +951,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         {
             Entity *targetEntity = engine.getEntityById(state.targetObjectId);
             if (!targetEntity)
-            {                engine.EngineStdOut(
+            {
+                engine.EngineStdOut(
                     std::format("locate_object_time: target object {} disappeared mid-move for {}.", state.targetObjectId, objectId),
                     2, executionThreadId);
                 state.isActive = false;
@@ -1003,7 +1018,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         OperandValue timeValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         if (timeValue.type != OperandValue::Type::NUMBER || angleValue.type != OperandValue::Type::NUMBER)
-        {            engine.EngineStdOut(std::format("rotate_by_time block for object {} has non-number parameters.", objectId), 2,
+        {
+            engine.EngineStdOut(std::format("rotate_by_time block for object {} has non-number parameters.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -1043,7 +1059,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (angle.type != OperandValue::Type::NUMBER)
-        {            engine.EngineStdOut(std::format("rotate_absolute block for object {} is not a number.", objectId), 2,
+        {
+            engine.EngineStdOut(std::format("rotate_absolute block for object {} is not a number.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -1054,7 +1071,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (angle.type != OperandValue::Type::NUMBER)
-        {            engine.EngineStdOut(std::format("direction_absolute block for object {}is not a number.", objectId), 2,
+        {
+            engine.EngineStdOut(std::format("direction_absolute block for object {}is not a number.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -1065,7 +1083,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     {
         OperandValue hasmouse = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (hasmouse.type != OperandValue::Type::STRING)
-        {            engine.EngineStdOut(std::format("see_angle_object block for object {}is not a string.", objectId), 2,
+        {
+            engine.EngineStdOut(std::format("see_angle_object block for object {}is not a string.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -1088,9 +1107,9 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             }
             else
             {
-                engine.EngineStdOut(                    std::format("see_angle_object block for object {}: target entity '{}' not found.", 
-                        objectId, hasmouse.string_val),
-                    2, executionThreadId);
+                engine.EngineStdOut(std::format("see_angle_object block for object {}: target entity '{}' not found.",
+                                                objectId, hasmouse.string_val),
+                                    2, executionThreadId);
             }
         }
     }
@@ -1122,7 +1141,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     if (BlockType == "calc_basic")
     {
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 3)
-        {            engine.EngineStdOut(
+        {
+            engine.EngineStdOut(
                 std::format("calc_basic block for object {} has invalid params structure. Expected 3 params.", objectId), 2,
                 executionThreadId);
             return OperandValue();
@@ -1133,7 +1153,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
 
         if (opVal.type != OperandValue::Type::STRING)
-        {            string errMsg = std::format("calc_basic operator is not a string for {}", objectId);
+        {
+            string errMsg = std::format("calc_basic operator is not a string for {}", objectId);
             engine.EngineStdOut(errMsg, 2, executionThreadId);
             // 사용자에게 보여줄 메시지와 내부 로그용 메시지를 구분하여 전달
             throw ScriptBlockExecutionError("계산 블록의 연산자 타입이 올바르지 않습니다.", block.id, BlockType, objectId, "Operator is not a string.");
@@ -1168,7 +1189,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         if (anOperator == "DIVIDE")
         {
             if (numRight == 0.0)
-            {                string errMsg = std::format("Division by zero in calc_basic for {}", objectId);
+            {
+                string errMsg = std::format("Division by zero in calc_basic for {}", objectId);
                 engine.EngineStdOut(errMsg, 2, executionThreadId);
                 throw ScriptBlockExecutionError("0으로 나눌 수 없습니다.", block.id, BlockType, objectId, "Division by zero.");
             }
@@ -2106,25 +2128,41 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             engine.EngineStdOut(
                 "change_rgb_to_hex block for " + objectId + " has invalid params structure. Expected 3 params.", 2,
                 executionThreadId);
-            return OperandValue();
+            return OperandValue("#000000");
         }
         OperandValue redOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue greenOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue blueOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-        if (redOp.type != OperandValue::Type::NUMBER || greenOp.type != OperandValue::Type::NUMBER || blueOp.type != OperandValue::Type::NUMBER)
+        // asNumber()를 사용하여 숫자형이 아닌 입력도 0으로 처리하고, 결과를 0-255 사이로 클램핑합니다.
+        // EntryJS는 보통 정수가 아닌 값을 버림(floor/truncate) 처리 후 클램핑합니다. round() 후 clamp()가 좀 더 일반적일 수 있습니다.
+        double r_double = redOp.asNumber();
+        double g_double = greenOp.asNumber();
+        double b_double = blueOp.asNumber();
+
+        // 입력이 엄밀한 숫자가 아니었을 경우 디버깅을 위해 로그를 남길 수 있습니다.
+        if (redOp.type != OperandValue::Type::NUMBER)
         {
-            engine.EngineStdOut("change_rgb_to_hex block for " + objectId + " has non-number parameter.", 2,
-                                executionThreadId);
-            return OperandValue();
+            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: R param (type {}, val '{}') coereced to {}", objectId, (int)redOp.type, redOp.asString(), r_double), 1, executionThreadId);
         }
-        int red = static_cast<int>(redOp.number_val);
-        int green = static_cast<int>(greenOp.number_val);
-        int blue = static_cast<int>(blueOp.number_val);
-        stringstream hexStream;
-        hexStream << hex << setw(2) << setfill('0') << red
-                  << setw(2) << setfill('0') << green
-                  << setw(2) << setfill('0') << blue;
-        return OperandValue("#" + hexStream.str());
+        if (greenOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: G param (type {}, val '{}') coereced to {}", objectId, (int)greenOp.type, greenOp.asString(), g_double), 1, executionThreadId);
+        }
+        if (blueOp.type != OperandValue::Type::NUMBER)
+        {
+            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: B param (type {}, val '{}') coereced to {}", objectId, (int)blueOp.type, blueOp.asString(), b_double), 1, executionThreadId);
+        }
+
+        int red = static_cast<int>(std::clamp(round(r_double), 0.0, 255.0));
+        int green = static_cast<int>(std::clamp(round(g_double), 0.0, 255.0));
+        int blue = static_cast<int>(std::clamp(round(b_double), 0.0, 255.0));
+
+        std::stringstream hexStream; // #include <sstream>, <iomanip> 필요
+        hexStream << "#" << std::setfill('0')
+                  << std::setw(2) << std::hex << red
+                  << std::setw(2) << std::hex << green
+                  << std::setw(2) << std::hex << blue;
+        return OperandValue(hexStream.str());
     }
     else if (BlockType == "change_hex_to_rgb")
     {
@@ -2133,21 +2171,21 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             engine.EngineStdOut(
                 "change_hex_to_rgb block for " + objectId + " has invalid params structure. Expected 1 param.", 2,
                 executionThreadId);
-            return OperandValue();
+            return OperandValue(0.0);
         }
         OperandValue hexOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (hexOp.type != OperandValue::Type::STRING)
         {
             engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has non-string parameter.", 2,
                                 executionThreadId);
-            return OperandValue();
+            return OperandValue(0.0);
         }
         string hexStr = hexOp.string_val;
         if (hexStr.length() != 7 || hexStr[0] != '#')
         {
             engine.EngineStdOut("change_hex_to_rgb block for " + objectId + " has invalid hex string: " + hexStr, 2,
                                 executionThreadId);
-            return OperandValue();
+            return OperandValue(0.0);
         }
         try
         {
@@ -5270,15 +5308,16 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             conditionResultString = "type " + std::to_string(static_cast<int>(conditionResult.type)) + " -> false";
         }
 
-        engine.EngineStdOut(std::format("Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (Raw condition result: {})", 
-            objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"), conditionResultString), 0, executionThreadId);
+        engine.EngineStdOut(std::format("Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (Raw condition result: {})",
+                                        objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"), conditionResultString),
+                            0, executionThreadId);
 
         if (conditionIsTrue)
         {
             if (block.statementScripts.empty())
             {
                 engine.EngineStdOut("Flow '_if' for " + objectId + ": No STACK (statement) found to execute even though condition was true. Block ID: " + block.id, 1, executionThreadId);
-                return; 
+                return;
             }
             const Script &doScript = block.statementScripts[0]; // STACK 스크립트 (statementsKeyMap: { STACK: 0 })
 
@@ -5585,6 +5624,88 @@ void TextBox(string BlockType, Engine &engine, const string &objectId, const Blo
         OperandValue textValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         string textToAppend = textValue.asString(); // 모든 타입을 문자열로 변환
         entity->prependText(textToAppend);
+    }
+    else if (BlockType == "text_change_font_color")
+    {
+        // params: [TARGET_TEXTBOX_ID_STRING, COLOR_HEX_STRING]
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1)
+        {
+            engine.EngineStdOut("text_set_font_color block for " + objectId + " has insufficient parameters. Expected COLOR_HEX.", 2, executionThreadId);
+            return;
+        }
+
+        OperandValue colorHexOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+
+        if (colorHexOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("text_set_font_color block for " + objectId + ": COLOR_HEX parameter is not a string.", 2, executionThreadId);
+            return;
+        }
+
+        string hexColor = colorHexOp.asString();
+        if (hexColor.length() == 7 && hexColor[0] == '#')
+        {
+            try
+            {
+                unsigned int r = stoul(hexColor.substr(1, 2), nullptr, 16);
+                unsigned int g = stoul(hexColor.substr(3, 2), nullptr, 16);
+                unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
+                engine.updateEntityTextColor(entity->getId(), {(Uint8)r, (Uint8)g, (Uint8)b, 255});
+                engine.EngineStdOut("TextBox " + objectId + " fontcolor changed to " + hexColor, 3, executionThreadId);
+            }
+            catch (const std::exception &e)
+            {
+                engine.EngineStdOut("Error parsing HEX color '" + hexColor + "' for text_set_font_color: " + e.what(), 2, executionThreadId);
+            }
+        }
+        else
+        {
+            engine.EngineStdOut("Invalid HEX color format '" + hexColor + "' for text_set_font_color. Expected #RRGGBB.", 2, executionThreadId);
+        }
+    }
+    else if (BlockType == "text_change_bg_color")
+    {
+        // params: [TARGET_TEXTBOX_ID_STRING, COLOR_HEX_STRING]
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) // JavaScript 코드에서는 파라미터가 하나 (색상 값)
+        {
+            engine.EngineStdOut("text_change_bg_color block for " + objectId + " has insufficient parameters. Expected COLOR_HEX.", 2, executionThreadId);
+            return;
+        }
+
+        OperandValue colorHexOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId); // 색상 값은 첫 번째 파라미터
+
+        if (colorHexOp.type != OperandValue::Type::STRING)
+        {
+            engine.EngineStdOut("text_change_bg_color block for " + objectId + ": COLOR_HEX parameter is not a string.", 2, executionThreadId);
+            return;
+        }
+
+        string hexColor = colorHexOp.asString();
+        // JavaScript 코드처럼 '#'이 없으면 추가
+        if (hexColor.rfind('#', 0) != 0)
+        { // starts_with('#')와 유사
+            hexColor = "#" + hexColor;
+        }
+
+        if (hexColor.length() == 7 && hexColor[0] == '#') // 유효한 #RRGGBB 형식인지 확인
+        {
+            try
+            {
+                unsigned int r = stoul(hexColor.substr(1, 2), nullptr, 16);
+                unsigned int g = stoul(hexColor.substr(3, 2), nullptr, 16);
+                unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
+                engine.updateEntityTextBoxBackgroundColor(entity->getId(), {(Uint8)r, (Uint8)g, (Uint8)b, 255}); // 현재 엔티티의 배경색 변경
+                engine.EngineStdOut("TextBox " + objectId + " background color changed to " + hexColor, 3, executionThreadId);
+            }
+            catch (const std::exception &e)
+            {
+                engine.EngineStdOut("Error parsing HEX color '" + hexColor + "' for text_change_bg_color: " + e.what(), 2, executionThreadId);
+            }
+        }
+        else
+        {
+            engine.EngineStdOut("Invalid HEX color format '" + hexColor + "' for text_change_bg_color. Expected #RRGGBB or RRGGBB.", 2, executionThreadId);
+        }
     }
 }
 /**

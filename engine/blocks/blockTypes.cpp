@@ -135,7 +135,10 @@ BlockTypeEnum stringToBlockTypeEnum(const std::string& typeStr) {
         {"boolean_and_or", BlockTypeEnum::BOOLEAN_AND_OR}, // 논리곱 또는 논리합
         {"boolean_not", BlockTypeEnum::BOOLEAN_NOT}, // 논리 부정
         {"is_boost_mode", BlockTypeEnum::IS_BOOST_MODE}, // 부스트 모드인가?
-        {"is_current_device_type", BlockTypeEnum::IS_CURRENT_DEVICE_TYPE}
+        {"is_current_device_type", BlockTypeEnum::IS_CURRENT_DEVICE_TYPE},
+        // TextBox specific
+        {"text_change_font_color", BlockTypeEnum::TEXT_SET_FONT_COLOR},
+        {"text_change_bg_color", BlockTypeEnum::TEXT_SET_BG_COLOR}
     };
     auto it = typeMap.find(typeStr);
     if (it != typeMap.end()) {
@@ -280,7 +283,10 @@ std::string blockTypeEnumToKoreanString(BlockTypeEnum type) {
         {BlockTypeEnum::BOOLEAN_AND_OR, "논리곱 또는 논리합"}, // 논리곱 또는 논리합
         {BlockTypeEnum::BOOLEAN_NOT, "논리 부정"}, // 논리 부정
         {BlockTypeEnum::IS_BOOST_MODE, "부스트 모드인가?"}, // 부스트 모드인가?
-        {BlockTypeEnum::IS_CURRENT_DEVICE_TYPE, "현재 장치 유형 확인"}
+        {BlockTypeEnum::IS_CURRENT_DEVICE_TYPE, "현재 장치 유형 확인"},
+        // TextBox specific
+        {BlockTypeEnum::TEXT_SET_FONT_COLOR, "글상자 글자색 바꾸기"},
+        {BlockTypeEnum::TEXT_SET_BG_COLOR, "글상자 배경색 바꾸기"}
     };
     auto it = koreanMap.find(type);
     if (it != koreanMap.end()) {

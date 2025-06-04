@@ -86,6 +86,7 @@ struct ObjectInfo
     string selectedCostumeId;
     vector<Costume> costumes;
     vector<SoundFile> sounds;
+    SDL_Color textBoxBackgroundColor; // 글상자 배경색 추가
     string textContent;
     SDL_Color textColor;
     string fontName;
@@ -349,6 +350,8 @@ public:
     bool isTouchSupported() const;
     void updateEntityTextContent(const std::string &entityId, const std::string &newText);
     void setStageClickedThisFrame(bool clicked);
+    void updateEntityTextColor(const std::string& entityId, const SDL_Color& newColor);
+    void updateEntityTextBoxBackgroundColor(const std::string& entityId, const SDL_Color& newColor);
     // HUD에 표시할 변수 목록을 설정하는 메서드    
     map<string, std::shared_ptr<Entity>> &getEntities_Modifiable() { return entities; } // Changed to shared_ptr
     void loadHUDVariablesFromJson(const nlohmann::json &variablesArrayJson);        // JSON에서 직접 로드하도록 변경

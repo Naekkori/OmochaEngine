@@ -1256,6 +1256,39 @@ bool Engine::loadProject(const string &projectFilePath)
                         objInfo.textColor = {0, 0, 0, 255};
                     }
 
+                    // textBoxBackgroundColor 파싱 (기본값: 흰색)
+                    if (entityJson.contains("bgColor") && entityJson["bgColor"].is_string())
+                    {
+                        string hexBgColor = entityJson["bgColor"].get<string>();
+                        if (hexBgColor.length() == 7 && hexBgColor[0] == '#')
+                        {
+                            try
+                            {
+                                unsigned int r = stoul(hexBgColor.substr(1, 2), nullptr, 16);
+                                unsigned int g = stoul(hexBgColor.substr(3, 2), nullptr, 16);
+                                unsigned int b = stoul(hexBgColor.substr(5, 2), nullptr, 16);
+                                objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
+                                EngineStdOut("INFO: textBox '" + objInfo.name + "' background color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 0);
+                            }
+                            catch (const exception &e)
+                            {
+                                EngineStdOut("Failed to parse textBoxBackgroundColor '" + hexBgColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #FFFFFF.", 2);
+                                objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                            }
+                        }
+                        else
+                        {
+                            EngineStdOut("textBox '" + objInfo.name + "' 'textBoxBackgroundColor' field is not a valid HEX string (#RRGGBB): " + hexBgColor + ". Using default #FFFFFF.", 1);
+                            objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                        }
+                    }
+                    else
+                    {
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'textBoxBackgroundColor' field or it's not a string. Using default #FFFFFF.", 1);
+                        objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                    }
+
+
                     if (entityJson.contains("font") && entityJson["font"].is_string())
                     {
                         // string fontString = getSafeStringFromJson(entityJson, "font", "textBox " + objInfo.name,
@@ -1372,6 +1405,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             "' is missing 'entity' block or it's not an object. Cannot load text box properties.",
                         1);
                     objInfo.textContent = "[NO ENTITY BLOCK]";
+                    objInfo.textBoxBackgroundColor = {255,255,255,255}; // 기본 배경색
                     objInfo.textColor = {0, 0, 0, 255};
                     objInfo.fontName = "";
                     objInfo.fontSize = 20;
@@ -1381,6 +1415,7 @@ bool Engine::loadProject(const string &projectFilePath)
             else
             {
                 objInfo.textContent = "";
+                objInfo.textBoxBackgroundColor = {255,255,255,255}; // 기본 배경색
                 objInfo.textColor = {0, 0, 0, 255};
                 objInfo.fontName = "";
                 objInfo.fontSize = 20;
@@ -2853,6 +2888,16 @@ void Engine::drawAllEntities()
                         float scaledWidth = textWidth * entityPtr->getScaleX();
                         float scaledHeight = textHeight * entityPtr->getScaleY();
                         SDL_FRect dstRect;
+
+                        // 글상자 배경 그리기
+                        SDL_FRect bgRect = { sdlX - scaledWidth / 2.0f, sdlY - scaledHeight / 2.0f, scaledWidth, scaledHeight };
+                         if (objInfo.objectType == "textBox") { // 배경색은 글상자 타입에만 적용
+                            SDL_SetRenderDrawColor(renderer, objInfo.textBoxBackgroundColor.r, objInfo.textBoxBackgroundColor.g, objInfo.textBoxBackgroundColor.b, objInfo.textBoxBackgroundColor.a);
+                            SDL_RenderFillRect(renderer, &bgRect);
+                        }
+
+
+
                         dstRect.w = scaledWidth;
                         dstRect.h = scaledHeight; // 텍스트 정렬 처리
                         // showMessageBox("textAlign:"+to_string(objInfo.textAlign),msgBoxIconType.ICON_INFORMATION);
@@ -7036,7 +7081,7 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
             { // 글상자 타입인지 확인
                 objInfo.textContent = newText;
                 found = true;
-                EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
+                //EngineStdOut("TextBox " + entityId + " text content updated to: \"" + newText + "\"", 3);
 
                 // 글상자의 텍스트가 변경되었으므로, 해당 Entity의 다이얼로그(또는 텍스트 렌더링 캐시)를
                 // 업데이트해야 할 수 있습니다. Entity 객체를 찾아 관련 플래그를 설정합니다.
@@ -7059,12 +7104,19 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
                         TTF_Font *tempFont = getFont(fontPath, objInfo.fontSize);
                         if (tempFont)
                         {
-                            int measuredW, measuredH;
-                            if (TTF_GetStringSize(tempFont, newText.c_str(), 0, &measuredW, &measuredH) == 0)
+                            int measuredW;
+                            size_t measuredLengthInBytes; // Correct type for TTF_MeasureString's last param
+                            if (TTF_MeasureString(tempFont, newText.c_str(), newText.length(), 0, &measuredW, &measuredLengthInBytes))
                             {
+                                int fontHeight = TTF_GetFontHeight(tempFont);
                                 entity->setWidth(static_cast<double>(measuredW));
-                                entity->setHeight(static_cast<double>(measuredH));
-                                EngineStdOut("TextBox " + entityId + " dimensions potentially updated after text change.", 3);
+                                if (fontHeight>0)
+                                {
+                                    entity->setHeight(static_cast<double>(fontHeight));
+                                }else{
+                                    EngineStdOut("Can't Get FontSize: ",2);
+                                }
+                                //EngineStdOut("TextBox " + entityId + " dimensions potentially updated after text change.", 3);
                             }
                             else
                             {
@@ -7089,5 +7141,46 @@ void Engine::updateEntityTextContent(const std::string &entityId, const std::str
     if (!found)
     {
         EngineStdOut("Warning: ObjectInfo not found for entity " + entityId + " when trying to update text content.", 1);
+    }
+}
+void Engine::updateEntityTextColor(const std::string& entityId, const SDL_Color& newColor) {
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+    bool found = false;
+    for (auto& objInfo : objects_in_order) {
+        if (objInfo.id == entityId) {
+            if (objInfo.objectType == "textBox") {
+                objInfo.textColor = newColor;
+                found = true;
+                EngineStdOut("TextBox " + entityId + " text color updated.", 3);
+                // Entity의 DialogState 등 텍스트 렌더링 캐시가 있다면 needsRedraw = true 설정 필요
+            } else {
+                EngineStdOut("Warning: Attempted to set text color for entity " + entityId + " which is not a textBox.", 1);
+            }
+            break;
+        }
+    }
+    if (!found) {
+        EngineStdOut("Warning: ObjectInfo not found for entity " + entityId + " when trying to update text color.", 1);
+    }
+}
+
+void Engine::updateEntityTextBoxBackgroundColor(const std::string& entityId, const SDL_Color& newColor) {
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+    bool found = false;
+    for (auto& objInfo : objects_in_order) {
+        if (objInfo.id == entityId) {
+            if (objInfo.objectType == "textBox") {
+                objInfo.textBoxBackgroundColor = newColor;
+                found = true;
+                EngineStdOut("TextBox " + entityId + " background color updated.", 3);
+                 // Entity의 DialogState 등 텍스트 렌더링 캐시가 있다면 needsRedraw = true 설정 필요
+            } else {
+                EngineStdOut("Warning: Attempted to set background color for entity " + entityId + " which is not a textBox.", 1);
+            }
+            break;
+        }
+    }
+    if (!found) {
+        EngineStdOut("Warning: ObjectInfo not found for entity " + entityId + " when trying to update background color.", 1);
     }
 }
