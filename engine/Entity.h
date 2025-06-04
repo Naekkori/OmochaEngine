@@ -33,13 +33,13 @@ public:
         : std::runtime_error(detailedOrigMsg), // Pass detailedOrigMsg or a combination to base
           blockId(bId), blockType(bType), entityId(eId), originalMessage(detailedOrigMsg)
     {
-        // 생성자 내에서 showMessageBox 및 exit 호출 제거
+        
     }
 };
 struct ScriptWaitState
 {
     bool isWaiting = false;
-    Uint32 waitEndTime = 0;
+    Uint64 waitEndTime = 0; // Changed from Uint32 to Uint64
     std::string waitingForBlockId = "";
     // std::string waitingOnExecutionThreadId = "";
 
@@ -72,8 +72,8 @@ public:
     struct ScriptThreadState
     {
         // ... 기존 스레드 상태 변수들 (예: currentBlockIndex, scriptStack 등) ...
-        bool isWaiting = false;
-        Uint32 waitEndTime = 0;
+        bool isWaiting = false; 
+        Uint64 waitEndTime = 0; // Changed from Uint32 to Uint64
         std::string blockIdForWait = "";           // 어떤 블록에 의해 대기가 시작되었는지 식별
         WaitType currentWaitType = WaitType::NONE; // 현재 대기 유형
         int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
@@ -146,7 +146,7 @@ public:
     };
 
     // 스크립트 대기 설정 함수 (시그니처 변경)
-    void setScriptWait(const std::string &executionThreadId, Uint32 endTime, const std::string &blockId, WaitType type);
+    void setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type);
 
     // 스크립트 대기 상태 확인 함수 (신규)
     bool isScriptWaiting(const std::string &executionThreadId) const;
@@ -263,7 +263,7 @@ public:
     DialogState m_currentDialog;
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
-    void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
+    void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint64 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
      void scheduleScriptExecutionOnPool(const Script* scriptPtr,
                                        const std::string& sceneIdAtDispatch,
                                        float deltaTime,

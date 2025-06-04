@@ -390,7 +390,6 @@ int main(int argc, char *argv[])
                     continue;
                 }
                 engine.drawAllEntities();
-                engine.drawDialogs();
                 engine.drawHUD();
                 SDL_RenderPresent(engine.getRenderer()); // SDL: 화면에 최종 프레임 표시
 

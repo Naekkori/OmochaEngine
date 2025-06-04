@@ -78,7 +78,7 @@ Entity::~Entity()
 {
 }
 
-void Entity::setScriptWait(const std::string &executionThreadId, Uint32 endTime, const std::string &blockId, WaitType type)
+void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type)
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     auto &threadState = scriptThreadStates[executionThreadId]; // Get or create
@@ -101,9 +101,9 @@ bool Entity::isScriptWaiting(const std::string &executionThreadId) const
     return false;
 }
 
-void Entity::performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint32 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait)
+void Entity::performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint64 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait)
 {
-    Uint32 entryTime = SDL_GetTicks();
+    Uint64 entryTime = SDL_GetTicks();
     // This method is called when the mutex is NOT held by this thread.
     pEngine->EngineStdOut("Enter performActiveWait for " + id + ", block " + waitedBlockId + ". waitEndTime=" + std::to_string(waitEndTime) + ", currentTicks=" + std::to_string(entryTime) + ", sceneIdAtDispatchForWait=" + sceneIdAtDispatchForWait + ". Expected duration (ms): " + (waitEndTime > entryTime ? std::to_string(waitEndTime - entryTime) : "0 or negative"), 0, executionThreadId);
 
@@ -222,7 +222,6 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         // 이 블록이 여전히 시간이 필요하면 다시 BLOCK_INTERNAL 대기를 설정할 것임.
         if (threadState.isWaiting && threadState.currentWaitType == WaitType::BLOCK_INTERNAL)
         {
-            bool canClearWait = true;
             if (threadState.resumeAtBlockIndex >= 1 && threadState.resumeAtBlockIndex < scriptPtr->blocks.size())
             {
                 if (threadState.blockIdForWait != scriptPtr->blocks[threadState.resumeAtBlockIndex].id)
@@ -233,13 +232,10 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                                                   1, executionThreadId);
                 }
             }
-            if (canClearWait)
-            {
-                // Only clear isWaiting if it was for BLOCK_INTERNAL.
-                // Other wait types (like EXPLICIT_WAIT_SECOND) are cleared by their respective handlers (e.g., performActiveWait)
-                threadState.isWaiting = false;
-                // threadState.currentWaitType = WaitType::NONE; // Also reset type
-            }
+            // Only clear isWaiting if it was for BLOCK_INTERNAL.
+            // Other wait types (like EXPLICIT_WAIT_SECOND) are cleared by their respective handlers (e.g., performActiveWait)
+            threadState.isWaiting = false;
+            // threadState.currentWaitType = WaitType::NONE; // Also reset type
         }
 
         // If resumeAtBlockIndex is set, it means we are resuming an existing script execution.
@@ -1428,7 +1424,6 @@ void Entity::processInternalContinuations(float deltaTime)
         const std::string &execId = std::get<0>(taskDetails);
         const Script *scriptToRun = std::get<1>(taskDetails);
         const std::string &sceneIdForRun = std::get<2>(taskDetails);
-
         // pEngineInstance->EngineStdOut("Executing internal continuation for entity: " + getId() + " (Thread: " + execId + ")", 5, execId);
 
         try
@@ -1437,6 +1432,7 @@ void Entity::processInternalContinuations(float deltaTime)
         }
         catch (const ScriptBlockExecutionError &sbee)
         {
+            Entity *entitiyInfo = pEngineInstance->getEntityById(sbee.entityId);
             Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
             std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
             std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
@@ -1444,7 +1440,7 @@ void Entity::processInternalContinuations(float deltaTime)
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                     ? " (원본: " + sbee.blockType + ")"
                                                     : "") +
-                                               " 에서 사용 하는 객체 " + sbee.entityId +
+                                               " 에서 사용 하는 객체 " +"("+entitiyInfo->getName()+")"+
                                                "\n원본 오류: " + sbee.originalMessage;
             pEngineInstance->EngineStdOut("Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2, execId);
             if (pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR))

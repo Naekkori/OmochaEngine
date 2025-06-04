@@ -12,7 +12,28 @@
 #include <functional> // For std::function
 #include <atomic> // For std::atomic
 #include <SDL3/SDL_stdinc.h> // For Uint32
+// Helper functions for trimming strings
+namespace { // Anonymous namespace for local helpers
+    // trim from start (in place)
+    static inline void ltrim(std::string &s) {
+        s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+        }));
+    }
 
+    // trim from end (in place)
+    static inline void rtrim(std::string &s) {
+        s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+            return !std::isspace(ch);
+        }).base(), s.end());
+    }
+
+    // trim from both ends (in place)
+    static inline void trim(std::string &s) {
+        ltrim(s);
+        rtrim(s);
+    }
+} // namespace
 // 전방 선언 (순환 참조 방지)
 class Engine;
 class PublicVariable{

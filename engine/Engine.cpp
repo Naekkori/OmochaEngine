@@ -230,12 +230,12 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                                   : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM, Engine::MAX_ZOOM)),
                    m_isDraggingZoomSlider(false), m_pressedObjectId(""),
                    logger("omocha_engine.log"), // threadPool 멤버 초기화 추가
-                   threadPool(std::make_unique<ThreadPool>(*this, (std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2))),
+                   threadPool(std::make_unique<ThreadPool>(*this, (max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2))),
                    m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false)
 {
     EngineStdOut(string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
-    startThreadPool((std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+    startThreadPool((max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
 }
 
 void Engine::workerLoop()
@@ -2894,7 +2894,9 @@ void Engine::drawAllEntities()
             }
         }
     }
-
+    // Draw dialogs onto the tempScreenTexture after entities
+    // The m_engineDataMutex is already held from the start of drawAllEntities
+    drawDialogs();
     SDL_SetRenderTarget(renderer, nullptr);
     // 화면 지우기 (검은색)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -3208,7 +3210,7 @@ void Engine::drawHUD()
 
             SDL_Color itemValueBoxBgColor;
             string valueToDisplay;
-            var.isAnswerList=false;
+            var.isAnswerList = false;
             if (var.variableType == "timer")
             {
                 itemValueBoxBgColor = {255, 150, 0, 255}; // 타이머는 주황색 배경
@@ -3221,12 +3223,12 @@ void Engine::drawHUD()
                     continue;
 
                 // List specific styling
-                SDL_Color listBgColor = {240, 240, 240, 220};        // Dark semi-transparent background for the list
-                SDL_Color listBorderColor = {150, 150, 150, 255};    // Light gray border
-                SDL_Color listNameTextColor = {0, 0, 0, 255};  // Light text for list name
-                SDL_Color listItemBgColor = {0, 120, 255, 255};      // Blue background for item data
-                SDL_Color listItemTextColor = {255, 255, 255, 255};  // White text for item data
-                SDL_Color listRowNumberColor = {10, 10, 10, 255}; // Light gray for row numbers
+                SDL_Color listBgColor = {240, 240, 240, 220};       // Dark semi-transparent background for the list
+                SDL_Color listBorderColor = {150, 150, 150, 255};   // Light gray border
+                SDL_Color listNameTextColor = {0, 0, 0, 255};       // Light text for list name
+                SDL_Color listItemBgColor = {0, 120, 255, 255};     // Blue background for item data
+                SDL_Color listItemTextColor = {255, 255, 255, 255}; // White text for item data
+                SDL_Color listRowNumberColor = {10, 10, 10, 255};   // Light gray for row numbers
 
                 float listCornerRadius = 5.0f;
                 float listBorderWidth = 1.0f;
@@ -3237,7 +3239,7 @@ void Engine::drawHUD()
                 float spacingBetweenRows = 2.0f;    // Vertical spacing between list item rows
                 float scrollbarWidth = 10.0f;       // 스크롤바 너비
                 bool needsScrollbar = false;
-                var.isAnswerList=true;
+                var.isAnswerList = true;
 
                 // 1. 리스트 컨테이너 테두리 그리기
                 // 1. Draw List Container Border
@@ -3304,11 +3306,13 @@ void Engine::drawHUD()
 
                 // 리스트 아이템 전체 높이 계산
                 var.calculatedContentHeight = 0.0f;
-                if (!var.array.empty()) {
+                if (!var.array.empty())
+                {
                     var.calculatedContentHeight = (var.array.size() * (itemRowHeight + spacingBetweenRows)) - spacingBetweenRows + (2 * contentPadding);
                 }
 
-                if (var.calculatedContentHeight > itemsAreaRenderableHeight) {
+                if (var.calculatedContentHeight > itemsAreaRenderableHeight)
+                {
                     needsScrollbar = true;
                 }
 
@@ -3327,7 +3331,8 @@ void Engine::drawHUD()
                     float itemRenderY = currentItemVisualY - var.scrollOffset_Y;
 
                     // 아이템이 보이는 영역 밖에 있으면 그리지 않음
-                    if (itemRenderY + itemRowHeight < itemsAreaStartY || itemRenderY > itemsAreaStartY + itemsAreaRenderableHeight) {
+                    if (itemRenderY + itemRowHeight < itemsAreaStartY || itemRenderY > itemsAreaStartY + itemsAreaRenderableHeight)
+                    {
                         currentItemVisualY += itemRowHeight + spacingBetweenRows;
                         continue;
                     }
@@ -3474,7 +3479,8 @@ void Engine::drawHUD()
                 }
 
                 // 4.5 스크롤바 그리기 (필요한 경우)
-                if (needsScrollbar) {
+                if (needsScrollbar)
+                {
                     SDL_Color scrollbarTrackColor = {200, 200, 200, 150}; // 연한 회색 트랙
                     SDL_Color scrollbarHandleColor = {80, 80, 80, 200};   // 어두운 회색 핸들
 
@@ -3490,14 +3496,13 @@ void Engine::drawHUD()
 
                     float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
                     float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio); // 최소 핸들 높이
-                    
+
                     float scrollPositionRatio = var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight);
                     scrollPositionRatio = clamp(scrollPositionRatio, 0.0f, 1.0f);
                     float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (itemsAreaRenderableHeight - scrollbarHandleHeight);
 
                     SDL_FRect scrollbarHandleRect = {
-                        scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight
-                    };
+                        scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight};
                     SDL_SetRenderDrawColor(renderer, scrollbarHandleColor.r, scrollbarHandleColor.g, scrollbarHandleColor.b, scrollbarHandleColor.a);
                     SDL_RenderFillRect(renderer, &scrollbarHandleRect);
                 }
@@ -3546,10 +3551,10 @@ void Engine::drawHUD()
             }
 
             // 디버그: "메시지3" 변수의 이름과 값을 로그로 출력
-            if (var.name == "메시지3") {
+            if (var.name == "메시지3")
+            {
                 EngineStdOut("DEBUG: Rendering variable '메시지3'. nameToDisplay: [" + nameToDisplay + "], valueToDisplay: [" + valueToDisplay + "]", 3);
             }
-
 
             SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
             SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
@@ -3822,7 +3827,7 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 }
 
 void Engine::processInput(const SDL_Event &event, float deltaTime)
-{    // 키보드 텍스트 입력 처리
+{ // 키보드 텍스트 입력 처리
     if (m_textInputActive)
     {
         // 텍스트 입력 모드가 활성화된 경우
@@ -3840,13 +3845,14 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             if (event.key.scancode == SDL_SCANCODE_BACKSPACE && !m_currentTextInputBuffer.empty())
             {
                 m_currentTextInputBuffer.pop_back();
-            }            else if (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)
+            }
+            else if (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)
             {
                 // 현재 입력된 텍스트를 대답으로 저장 (비어있어도 저장)
                 m_lastAnswer = m_currentTextInputBuffer;
                 m_currentTextInputBuffer.clear();
                 m_textInputActive = false;
-                
+
                 // 질문 다이얼로그 제거
                 Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
                 if (entity)
@@ -3856,7 +3862,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
 
                 // 즉시 대답 변수 업데이트
                 updateAnswerVariable();
-                
+
                 m_textInputCv.notify_all(); // 대기 중인 스크립트 스레드 깨우기
                 EngineStdOut("Enter pressed. Input complete. Answer: " + m_lastAnswer, 0);
             }
@@ -3887,7 +3893,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 this->m_isDraggingZoomSlider = true;
                 uiClicked = true;
             } // 체크 버튼 클릭 확인 (텍스트 입력 활성화 상태일 때만)
-            EngineStdOut("텍스트 입력 상태: " + std::to_string(m_textInputActive), 3);            bool isCheckboxClick = false;
+            EngineStdOut("텍스트 입력 상태: " + std::to_string(m_textInputActive), 3);
+            bool isCheckboxClick = false;
             if (!uiClicked && m_textInputActive)
             {
                 EngineStdOut("체크박스 클릭 체크 시작", 0);
@@ -3920,12 +3927,14 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                                     static_cast<float>(mouseY) >= checkboxDestRect.y &&
                                     static_cast<float>(mouseY) <= checkboxDestRect.y + checkboxDestRect.h;
 
-                EngineStdOut("체크박스 클릭 검사: " + std::to_string(isInCheckbox), 0);                if (isInCheckbox)
-                {                    std::lock_guard<std::mutex> lock(m_textInputMutex);
-                    m_lastAnswer = m_currentTextInputBuffer;  // 현재 입력된 텍스트를 대답으로 저장
-                    updateAnswerVariable();  // 대답 변수 업데이트
-                    m_currentTextInputBuffer.clear();  // 버퍼 초기화
-                    m_textInputActive = false; // 입력 완료, 플래그 해제
+                EngineStdOut("체크박스 클릭 검사: " + std::to_string(isInCheckbox), 0);
+                if (isInCheckbox)
+                {
+                    std::lock_guard<std::mutex> lock(m_textInputMutex);
+                    m_lastAnswer = m_currentTextInputBuffer; // 현재 입력된 텍스트를 대답으로 저장
+                    updateAnswerVariable();                  // 대답 변수 업데이트
+                    m_currentTextInputBuffer.clear();        // 버퍼 초기화
+                    m_textInputActive = false;               // 입력 완료, 플래그 해제
 
                     Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
                     if (entity)
@@ -4112,41 +4121,47 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             {
                 m_pressedObjectId = "";
             }
-             // 스크롤바 핸들 드래그 시작 확인 (다른 HUD 요소 드래그 확인 후, uiClicked가 false일 때)
-            if (!uiClicked && m_currentHUDDragState == HUDDragState::NONE) { // uiClicked가 false이고, 다른 드래그 상태가 아닐 때만
+            // 스크롤바 핸들 드래그 시작 확인 (다른 HUD 요소 드래그 확인 후, uiClicked가 false일 때)
+            if (!uiClicked && m_currentHUDDragState == HUDDragState::NONE)
+            { // uiClicked가 false이고, 다른 드래그 상태가 아닐 때만
                 // mouseX, mouseY는 이미 위에서 event.button.x/y로 설정됨
                 int windowW_render = 0, windowH_render = 0;
-                if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+                if (renderer)
+                    SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
                 float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
                 float screenCenterY = static_cast<float>(windowH_render) / 2.0f;
 
-                for (int i = static_cast<int>(m_HUDVariables.size()) - 1; i >= 0; --i) { // 역순으로 순회 (위에 있는 UI 우선)
+                for (int i = static_cast<int>(m_HUDVariables.size()) - 1; i >= 0; --i)
+                {                                                // 역순으로 순회 (위에 있는 UI 우선)
                     HUDVariableDisplay &var = m_HUDVariables[i]; // 참조로 가져와야 scrollOffset_Y 등 수정 가능
-                    if (var.isVisible && var.variableType == "list") {
+                    if (var.isVisible && var.variableType == "list")
+                    {
                         // 엔트리 좌표를 스크린 좌표로 변환
                         float itemScreenX = screenCenterX + var.x;
                         float itemScreenY = screenCenterY - var.y;
 
-                        float headerHeight = 30.0f;     // drawHUD와 일치
-                        float contentPadding = 5.0f;    // drawHUD와 일치
-                        float scrollbarWidth = 10.0f;   // drawHUD와 일치
+                        float headerHeight = 30.0f;   // drawHUD와 일치
+                        float contentPadding = 5.0f;  // drawHUD와 일치
+                        float scrollbarWidth = 10.0f; // drawHUD와 일치
 
                         // listContainerInnerRect 계산 (스크린 좌표 기준)
-                        SDL_FRect listContainerInnerRect = { itemScreenX + contentPadding, itemScreenY + contentPadding, var.width - (2 * contentPadding), var.height - (2 * contentPadding) };
+                        SDL_FRect listContainerInnerRect = {itemScreenX + contentPadding, itemScreenY + contentPadding, var.width - (2 * contentPadding), var.height - (2 * contentPadding)};
                         float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
                         float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
 
-                        if (var.calculatedContentHeight > itemsAreaRenderableHeight) { // 스크롤바가 있는 경우
+                        if (var.calculatedContentHeight > itemsAreaRenderableHeight)
+                        { // 스크롤바가 있는 경우
                             float scrollbarTrackX = listContainerInnerRect.x + listContainerInnerRect.w - contentPadding - scrollbarWidth;
                             float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
                             float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio);
                             float scrollPositionRatio = (var.calculatedContentHeight - itemsAreaRenderableHeight == 0) ? 0.0f : (var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight));
                             scrollPositionRatio = std::clamp(scrollPositionRatio, 0.0f, 1.0f);
                             float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (itemsAreaRenderableHeight - scrollbarHandleHeight);
-                            SDL_FRect scrollbarHandleRect = { scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight };
+                            SDL_FRect scrollbarHandleRect = {scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight};
 
                             if (static_cast<float>(mouseX) >= scrollbarHandleRect.x && static_cast<float>(mouseX) <= scrollbarHandleRect.x + scrollbarHandleRect.w &&
-                                static_cast<float>(mouseY) >= scrollbarHandleRect.y && static_cast<float>(mouseY) <= scrollbarHandleRect.y + scrollbarHandleRect.h) {
+                                static_cast<float>(mouseY) >= scrollbarHandleRect.y && static_cast<float>(mouseY) <= scrollbarHandleRect.y + scrollbarHandleRect.h)
+                            {
                                 m_currentHUDDragState = HUDDragState::SCROLLING_LIST_HANDLE;
                                 m_draggedScrollbarListIndex = i;
                                 m_scrollbarDragStartY = static_cast<float>(mouseY);
@@ -4294,7 +4309,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 {
                     draggedVar.height = min(draggedVar.height, static_cast<float>(windowH) - itemScreenY);
                 }
-            }else if (m_currentHUDDragState == HUDDragState::SCROLLING_LIST_HANDLE && m_draggedScrollbarListIndex != -1)
+            }
+            else if (m_currentHUDDragState == HUDDragState::SCROLLING_LIST_HANDLE && m_draggedScrollbarListIndex != -1)
             {
                 HUDVariableDisplay &var = m_HUDVariables[m_draggedScrollbarListIndex];
                 float dy = static_cast<float>(mouseY) - m_scrollbarDragStartY;
@@ -4307,22 +4323,31 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 // var.x, var.y는 엔트리 좌표. 스크린 좌표계의 listContainerInnerRect 계산 필요 없음.
                 // var.width, var.height는 HUDVariableDisplay에 저장된 리스트의 크기.
                 float itemsAreaRenderableHeight = var.height - (2 * contentPadding) - headerHeight - contentPadding;
-                
-                if (var.calculatedContentHeight <= itemsAreaRenderableHeight) { // 스크롤 불필요
+
+                if (var.calculatedContentHeight <= itemsAreaRenderableHeight)
+                { // 스크롤 불필요
                     var.scrollOffset_Y = 0.0f;
-                } else {
+                }
+                else
+                {
                     float totalScrollableContentHeight = var.calculatedContentHeight - itemsAreaRenderableHeight;
-                    if (totalScrollableContentHeight <= 0.0f) { // 이론상 발생 안 함
-                         var.scrollOffset_Y = 0.0f;
-                    } else {
+                    if (totalScrollableContentHeight <= 0.0f)
+                    { // 이론상 발생 안 함
+                        var.scrollOffset_Y = 0.0f;
+                    }
+                    else
+                    {
                         float scrollbarTrackHeight = itemsAreaRenderableHeight; // 스크롤바 트랙의 실제 높이
                         float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
                         float scrollbarHandleHeight = max(10.0f, scrollbarTrackHeight * handleHeightRatio);
                         float scrollbarEffectiveTrackHeight = scrollbarTrackHeight - scrollbarHandleHeight;
 
-                        if (scrollbarEffectiveTrackHeight <= 0.0f) { // 핸들이 트랙보다 크거나 같음
-                            var.scrollOffset_Y = 0.0f; 
-                        } else {
+                        if (scrollbarEffectiveTrackHeight <= 0.0f)
+                        { // 핸들이 트랙보다 크거나 같음
+                            var.scrollOffset_Y = 0.0f;
+                        }
+                        else
+                        {
                             // 마우스 이동량(dy)을 스크롤 가능한 트랙 높이 비율로 변환하고,
                             // 이를 전체 스크롤 가능한 콘텐츠 높이에 곱하여 실제 스크롤 오프셋 변경량 계산
                             float scrollOffsetChange = (dy / scrollbarEffectiveTrackHeight) * totalScrollableContentHeight;
@@ -4426,9 +4451,9 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
                 }
                 m_pressedObjectId = ""; // 눌린 오브젝트 ID 초기화
             }
-            
         }
-    }  else if (event.type == SDL_EVENT_MOUSE_WHEEL)
+    }
+    else if (event.type == SDL_EVENT_MOUSE_WHEEL)
     {
         // 마우스 휠 이벤트는 m_gameplayInputActive와 관계없이 처리 (HUD 스크롤용)
         float mouseX_wheel, mouseY_wheel;
@@ -4436,32 +4461,37 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
 
         // 화면 중앙 기준 좌표계 변환 (drawHUD와 일치시키기 위함)
         int windowW_render = 0, windowH_render = 0;
-        if (renderer) SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+        if (renderer)
+            SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
         float screenCenterX = static_cast<float>(windowW_render) / 2.0f;
         float screenCenterY = static_cast<float>(windowH_render) / 2.0f;
 
-        for (size_t i = 0; i < m_HUDVariables.size(); ++i) {
+        for (size_t i = 0; i < m_HUDVariables.size(); ++i)
+        {
             HUDVariableDisplay &var = m_HUDVariables[i]; // 값 변경을 위해 참조 사용
-            if (var.variableType == "list" && var.isVisible) {
+            if (var.variableType == "list" && var.isVisible)
+            {
                 // HUD 변수의 화면상 사각형 계산 (엔트리 좌표를 스크린 좌표로 변환)
                 float varScreenX = screenCenterX + var.x;
                 float varScreenY = screenCenterY - var.y; // Y축 반전
-                SDL_FRect listRect = { varScreenX, varScreenY, var.width, var.height };
+                SDL_FRect listRect = {varScreenX, varScreenY, var.width, var.height};
 
                 // 마우스가 해당 리스트 위에 있는지 확인
                 if (static_cast<float>(mouseX_wheel) >= listRect.x && static_cast<float>(mouseX_wheel) <= listRect.x + listRect.w &&
-                    static_cast<float>(mouseY_wheel) >= listRect.y && static_cast<float>(mouseY_wheel) <= listRect.y + listRect.h) {
-                    
+                    static_cast<float>(mouseY_wheel) >= listRect.y && static_cast<float>(mouseY_wheel) <= listRect.y + listRect.h)
+                {
+
                     // 스크롤 가능한 높이 계산 (drawHUD와 동일한 로직)
-                    float headerHeight = 30.0f; 
+                    float headerHeight = 30.0f;
                     float contentPadding = 5.0f;
                     float itemsAreaRenderableHeight = var.height - (2 * contentPadding) - headerHeight - contentPadding;
 
-                    if (var.calculatedContentHeight > itemsAreaRenderableHeight) { // 스크롤이 필요한 경우
+                    if (var.calculatedContentHeight > itemsAreaRenderableHeight)
+                    { // 스크롤이 필요한 경우
                         float maxScrollOffset = var.calculatedContentHeight - itemsAreaRenderableHeight;
                         // event.wheel.y > 0 이면 위로 스크롤 (내용이 아래로), < 0 이면 아래로 스크롤 (내용이 위로)
                         // scrollOffset_Y는 내용이 위로 올라간 정도를 나타내므로, 위로 스크롤 시 감소해야 함.
-                        var.scrollOffset_Y -= static_cast<float>(event.wheel.y) * MOUSE_WHEEL_SCROLL_SPEED; 
+                        var.scrollOffset_Y -= static_cast<float>(event.wheel.y) * MOUSE_WHEEL_SCROLL_SPEED;
                         var.scrollOffset_Y = std::clamp(var.scrollOffset_Y, 0.0f, maxScrollOffset);
                         break; // 가장 위에 있는 리스트만 스크롤
                     }
@@ -5126,7 +5156,7 @@ void Engine::activateTextInput(const std::string &requesterObjectId, const std::
     SDL_StartTextInput(window); // Entity에 질문 다이얼로그 표시 요청
     {
         std::lock_guard<std::recursive_mutex> guard(m_engineDataMutex);
-        Entity *entity = getEntityByIdShared(requesterObjectId).get();
+        std::shared_ptr<Entity> entity = getEntityByIdShared(requesterObjectId); // Use shared_ptr version
         if (entity)
         {
             entity->showDialog(question, "ask", 0); // 0 duration means it stays until explicitly removed
@@ -5137,16 +5167,18 @@ void Engine::activateTextInput(const std::string &requesterObjectId, const std::
             EngineStdOut("Warning: Entity " + requesterObjectId + " not found when trying to show 'ask' dialog.", 1,
                          executionThreadId);
         }
-    }    {
+    }
+    {
         std::unique_lock<std::mutex> inputLock(m_textInputMutex);
         EngineStdOut("Script thread " + executionThreadId + " waiting for text input...", 0, executionThreadId);
-        
+
         // 입력이 완료되거나 엔진이 종료될 때까지 대기
         m_textInputCv.wait(inputLock, [this]
                            { return !m_textInputActive || m_isShuttingDown; });
 
         // 엔진이 종료되는 경우 텍스트 입력 상태를 정리
-        if (m_isShuttingDown) {
+        if (m_isShuttingDown)
+        {
             clearTextInput();
             deactivateTextInput();
         }
@@ -5178,18 +5210,21 @@ void Engine::updateAnswerVariable()
     std::string currentAnswer;
     {
         std::unique_lock<std::mutex> inputLock(m_textInputMutex, std::try_to_lock);
-        if (!inputLock.owns_lock()) {
-            requestAnswerUpdate();  // 락을 얻지 못했다면 나중에 다시 시도
+        if (!inputLock.owns_lock())
+        {
+            requestAnswerUpdate(); // 락을 얻지 못했다면 나중에 다시 시도
             return;
         }
         currentAnswer = m_lastAnswer;
     }
 
     std::unique_lock<std::recursive_mutex> dataLock(m_engineDataMutex, std::try_to_lock);
-    if (!dataLock.owns_lock()) {
-        requestAnswerUpdate();  // 락을 얻지 못했다면 나중에 다시 시도
+    if (!dataLock.owns_lock())
+    {
+        requestAnswerUpdate(); // 락을 얻지 못했다면 나중에 다시 시도
         return;
-    }    for (auto &var : m_HUDVariables)
+    }
+    for (auto &var : m_HUDVariables)
     {
         if (var.variableType == "answer" || (var.variableType == "list" && var.isAnswerList))
         {
@@ -5335,7 +5370,18 @@ void Engine::goToScene(const string &sceneId)
                     EngineStdOut("Removed clone entity " + entityId + " during scene change", 0);
                 }
             }
-        } // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
+        }
+        // 2.5 모든 엔티티의 활성 다이얼로그 제거
+        EngineStdOut("Clearing active dialogs for scene change...", 0);
+        for (const auto &[entityId, entityPtr] : entities)
+        {
+            if (entityPtr)
+            {
+                entityPtr->removeDialog();
+            }
+        }
+
+        // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
         {
             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
             std::map<std::string, std::pair<double, double>> initialPositions;
@@ -5673,11 +5719,6 @@ void Engine::drawDialogs()
     if (!renderer || !tempScreenTexture)
         return;
 
-    // Lock the mutex that protects entities and their dialog states
-    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
-
-    SDL_SetRenderTarget(renderer, tempScreenTexture); // 스테이지 텍스처에 그립니다.
-
     TTF_Font *font = getDialogFont();
     if (!font)
         return;
@@ -5685,6 +5726,7 @@ void Engine::drawDialogs()
     for (auto &pair : entities)
     {
         // Entity의 DialogState를 수정할 수 있으므로 non-const 반복
+        std::lock_guard<std::recursive_mutex> entity_lock(pair.second->getStateMutex()); // Lock the entity's state mutex
         Entity *entity = pair.second.get();
         if (entity && entity->hasActiveDialog())
         {
@@ -5714,27 +5756,33 @@ void Engine::drawDialogs()
 
             // 2. 말풍선 위치 및 크기 계산
             float entitySdlX = static_cast<float>(entity->getX() + PROJECT_STAGE_WIDTH / 2.0);
-            float entitySdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entity->getY());
+            float entitySdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 3.0 - entity->getY());
 
-            // 엔티티의 시각적 너비/높이 추정 (단순화된 방식)
+            // 엔티티의 시각적 너비/높이
             float entityVisualWidth = static_cast<float>(entity->getWidth() * std::abs(entity->getScaleX()));
             float entityVisualHeight = static_cast<float>(entity->getHeight() * std::abs(entity->getScaleY()));
-
-            // 말풍선 기준점 (엔티티 등록점 기준 우측 상단 근처)
-            // 좀 더 정확한 위치는 엔티티의 실제 화면상 경계 상자를 사용해야 합니다.
-            float anchorX = entitySdlX + entityVisualWidth * 0.25f;
-            float anchorY = entitySdlY - entityVisualHeight * 0.25f;
 
             float padding = 8.0f;
             float bubbleWidth = dialog.textRect.w + 2 * padding;
             float bubbleHeight = dialog.textRect.h + 2 * padding;
-            float tailHeight = 10.0f;
-            float tailWidth = 15.0f;
 
-            // 말풍선 위치 (말풍선 내용 영역의 좌상단)
-            // 기준점 위에 말풍선이 위치하도록 조정
-            dialog.bubbleScreenRect.x = anchorX;
-            dialog.bubbleScreenRect.y = anchorY - bubbleHeight - tailHeight;
+            // 꼬리가 연결될 오브젝트 위의 지점 (오브젝트 중앙 상단)
+            float tailConnectToEntityX = entitySdlX;
+            float tailConnectToEntityY = entitySdlY - entityVisualHeight / 5.0f;
+
+            // 말풍선 기본 위치 설정 (오브젝트 위쪽)
+            float desiredGapAboveEntity = 10.0f; // 오브젝트 상단과 말풍선 하단 사이의 간격
+
+            // 말풍선 하단 Y좌표 계산
+            float bubbleBottomEdgeY = tailConnectToEntityY - desiredGapAboveEntity;
+
+            // 말풍선 최종 Y좌표 (상단 기준)
+            dialog.bubbleScreenRect.y = bubbleBottomEdgeY - bubbleHeight;
+
+            // 말풍선 X좌표 (오브젝트 중앙에 맞춤)
+            dialog.bubbleScreenRect.x = entitySdlX - bubbleWidth / 2.0f;
+
+            // 말풍선 너비 및 높이 설정
             dialog.bubbleScreenRect.w = bubbleWidth;
             dialog.bubbleScreenRect.h = bubbleHeight;
 
@@ -5753,8 +5801,8 @@ void Engine::drawDialogs()
             }
 
             // 3. 말풍선 배경 렌더링
-            SDL_Color bubbleBgColor = {255, 255, 255, 255};    // 흰색
-            SDL_Color bubbleBorderColor = {79, 128, 255, 255}; // 엔트리 블루 테두리
+            SDL_FColor bubbleBgColor = {255, 255, 255, 255};    // 흰색
+            SDL_FColor bubbleBorderColor = {79, 128, 255, 255}; // 엔트리 블루 테두리
             float cornerRadius = 8.0f;
 
             if (dialog.type == "think")
@@ -5774,35 +5822,70 @@ void Engine::drawDialogs()
                     static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.6f),
                     static_cast<int>(dialog.bubbleScreenRect.h * 0.5f));
                 // "생각" 풍선 꼬리 (작은 원들)
-                Helper_DrawFilledCircle(renderer, static_cast<int>(anchorX - 10), static_cast<int>(anchorY - 5), 5);
-                Helper_DrawFilledCircle(renderer, static_cast<int>(anchorX - 5), static_cast<int>(anchorY - 10), 4);
+                // 꼬리가 말풍선 본체에서 anchorPoint 방향으로 이어지도록 조정
+                float thinkBubbleCenterX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
+                float thinkBubbleBottomY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h; // 말풍선 하단 중앙
+
+                // 꼬리가 향할 지점 (오브젝트 중앙 상단)
+                float dx_think_tail = tailConnectToEntityX - thinkBubbleCenterX;
+                float dy_think_tail = tailConnectToEntityY - thinkBubbleBottomY;
+                float dist_think_tail = sqrt(dx_think_tail * dx_think_tail + dy_think_tail * dy_think_tail);
+
+                if (dist_think_tail > 0)
+                { // 거리가 있을 때만 꼬리 그리기
+                    float norm_dx_think = dx_think_tail / dist_think_tail;
+                    float norm_dy_think = dy_think_tail / dist_think_tail;
+
+                    Helper_DrawFilledCircle(renderer, static_cast<int>(thinkBubbleBottomY + norm_dx_think * (dist_think_tail * 0.3f)), static_cast<int>(thinkBubbleBottomY + norm_dy_think * (dist_think_tail * 0.3f)), 5);
+                    Helper_DrawFilledCircle(renderer, static_cast<int>(thinkBubbleBottomY + norm_dx_think * (dist_think_tail * 0.6f)), static_cast<int>(thinkBubbleBottomY + norm_dy_think * (dist_think_tail * 0.6f)), 4);
+                }
             }
             else
             {
                 // "speak"
-                // 테두리 먼저 그리기
+                // 꼬리 밑변 너비의 절반
+                float tailBaseWidth = 8.0f;
+
+                // 꼬리 꼭짓점 계산
+                // 꼬리 끝점 (오브젝트 중앙 상단)
+                dialog.tailVertices[2].position = {tailConnectToEntityX, tailConnectToEntityY};
+                // 꼬리 시작점 (말풍선 본체 아래쪽, 앵커 포인트를 향하도록 약간 조정)
+                // 말풍선 하단 중앙을 기준으로 좌우로 tailBaseWidth 만큼 떨어진 두 점
+                float bubbleBottomCenterX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
+                float bubbleBottomY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h;
+
+                dialog.tailVertices[0].position = {bubbleBottomCenterX - tailBaseWidth, bubbleBottomY};
+                dialog.tailVertices[1].position = {bubbleBottomCenterX + tailBaseWidth, bubbleBottomY};
+
+                // 꼬리 채우기를 위해 각 꼭짓점의 색상을 말풍선 배경색으로 설정
+                for (int k = 0; k < 3; ++k)
+                {
+                    dialog.tailVertices[k].color = bubbleBgColor;
+                }
+
+                // 꼬리 채우기 (말풍선 배경색과 동일하게)
+                // SDL_RenderGeometry는 texture가 NULL일 때 정점 색상을 사용합니다.
+                SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
+                SDL_RenderGeometry(renderer, nullptr, dialog.tailVertices, 3, nullptr, 0);
+
+                // 말풍선 본체 테두리 그리기 (테두리 색상으로 채워진 둥근 사각형)
                 SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b,
                                        bubbleBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &dialog.bubbleScreenRect, cornerRadius);
-                // 내부 배경 그리기 (테두리보다 약간 작게)
+
+                // 꼬리 테두리 그리기
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x), static_cast<int>(dialog.tailVertices[0].position.y),
+                               static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[1].position.x), static_cast<int>(dialog.tailVertices[1].position.y),
+                               static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
+                // 말풍선 본체와 꼬리 밑변이 만나는 부분은 둥근 사각형 테두리에 의해 이미 그려짐
+
+                // 내부 배경 그리기 (테두리보다 약간 작게, 꼬리 부분은 이미 채워짐)
                 SDL_FRect innerBgRect = {
                     dialog.bubbleScreenRect.x + 1.0f, dialog.bubbleScreenRect.y + 1.0f,
                     dialog.bubbleScreenRect.w - 2.0f, dialog.bubbleScreenRect.h - 2.0f};
                 SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &innerBgRect, cornerRadius - 1.0f);
-
-                // 4. "말하기" 풍선 꼬리 렌더링
-                dialog.tailVertices[0] = {
-                    dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.3f,
-                    dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
-                dialog.tailVertices[1] = {
-                    dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.4f,
-                    dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
-                dialog.tailVertices[2] = {anchorX, anchorY};
-
-                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b,
-                                       bubbleBorderColor.a);
-                SDL_RenderGeometry(renderer, nullptr, dialog.tailVertices, 3, nullptr, 0); // 테두리 색으로 채우기
             }
 
             // 5. 텍스트 렌더링
@@ -5814,7 +5897,6 @@ void Engine::drawDialogs()
             SDL_RenderTexture(renderer, dialog.textTexture, nullptr, &textDestRect);
         }
     }
-    SDL_SetRenderTarget(renderer, nullptr); // 렌더 타겟 리셋
 }
 
 SDL_Texture *Engine::LoadTextureFromSvgResource(SDL_Renderer *renderer, int resourceID)
@@ -6441,7 +6523,7 @@ void Engine::performProjectRestart()
     m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
 
     // Re-create the thread pool
-    startThreadPool((std::max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+    startThreadPool((max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
 
     resetProjectTimer();
     m_gameplayInputActive = false;
