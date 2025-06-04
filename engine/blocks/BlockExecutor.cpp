@@ -2956,9 +2956,6 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     else if (BlockType == "boolean_basic_operator")
     {
         // 두 값의 관계 비교
-        // params: [LEFTHAND (any type), OPERATOR (string), RIGHTHAND (any type)]
-        // paramsKeyMap: { LEFTHAND: 0, OPERATOR: 1, RIGHTHAND: 2 }
-
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
         {
             engine.EngineStdOut("boolean_basic_operator block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
@@ -2966,7 +2963,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         }
 
         OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        OperandValue operatorOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId); // This should be a direct string from Dropdown
+        OperandValue operatorOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
 
         if (operatorOp.type != OperandValue::Type::STRING)
@@ -2976,120 +2973,77 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         }
         string opStr = operatorOp.asString();
 
-        // JavaScript 코드처럼, 문자열이지만 숫자일 수 있는 경우 숫자로 변환 시도
-        double leftNum = 0.0, rightNum = 0.0;
-        bool leftIsStrictlyNumeric = false;
-        bool rightIsStrictlyNumeric = false;
+        // Detailed logging for boolean_basic_operator
+        // START: Additional logging for hi86 == 0 specific case
+        if (block.id == "3b3s") { // ID of the boolean_basic_operator block for hi86 == 0
+            engine.EngineStdOut(
+                std::format("[DEBUG_HI86_COMPARE] boolean_basic_operator ({}): Left='{}'(type:{}, num_val:{}), Op='{}', Right='{}'(type:{}, num_val:{})",
+                            objectId, leftOp.asString(), static_cast<int>(leftOp.type), leftOp.number_val, opStr, rightOp.asString(), static_cast<int>(rightOp.type), rightOp.number_val),
+                0, executionThreadId); // Use level 0 for high visibility
+        }
+        // END: Additional logging
+        engine.EngineStdOut(
+            std::format("boolean_basic_operator ({}): Left='{}'(type:{}), Op='{}', Right='{}'(type:{})",
+                        objectId, leftOp.asString(), static_cast<int>(leftOp.type), opStr, rightOp.asString(), static_cast<int>(rightOp.type)),
+            3, executionThreadId);
 
-        if (leftOp.type == OperandValue::Type::NUMBER)
-        {
-            leftNum = leftOp.number_val;
-            leftIsStrictlyNumeric = true;
-        }
-        else if (leftOp.type == OperandValue::Type::STRING && !leftOp.string_val.empty() && is_number(leftOp.string_val))
-        {
-            leftNum = leftOp.asNumber(); // asNumber() handles stod
-            leftIsStrictlyNumeric = true;
-        }
+        // 1. 먼저 양쪽 모두 엄격한 숫자인지 확인
+        bool leftIsNumber = (leftOp.type == OperandValue::Type::NUMBER) ||
+                            (leftOp.type == OperandValue::Type::STRING && is_number(leftOp.string_val));
+        bool rightIsNumber = (rightOp.type == OperandValue::Type::NUMBER) ||
+                             (rightOp.type == OperandValue::Type::STRING && is_number(rightOp.string_val));
 
-        if (rightOp.type == OperandValue::Type::NUMBER)
-        {
-            rightNum = rightOp.number_val;
-            rightIsStrictlyNumeric = true;
-        }
-        else if (rightOp.type == OperandValue::Type::STRING && !rightOp.string_val.empty() && is_number(rightOp.string_val))
-        {
-            rightNum = rightOp.asNumber();
-            rightIsStrictlyNumeric = true;
-        }
+        engine.EngineStdOut(
+            std::format("boolean_basic_operator ({}): leftIsNumber={}, rightIsNumber={}",
+                        objectId, leftIsNumber, rightIsNumber),
+            3, executionThreadId);
 
-        // 숫자 비교 우선
-        if (leftIsStrictlyNumeric && rightIsStrictlyNumeric)
+        // 2. 둘 다 숫자로 처리 가능한 경우
+        if (leftIsNumber && rightIsNumber)
         {
+            double leftNum = leftOp.asNumber();
+            double rightNum = rightOp.asNumber();
+            engine.EngineStdOut(std::format("boolean_basic_operator ({}): Numeric compare: {} {} {}", objectId, leftNum, opStr, rightNum), 3, executionThreadId);
             if (opStr == "EQUAL")
                 return OperandValue(leftNum == rightNum);
-            if (opStr == "NOT_EQUAL")
+            else if (opStr == "NOT_EQUAL")
                 return OperandValue(leftNum != rightNum);
-            if (opStr == "GREATER")
+            else if (opStr == "GREATER")
                 return OperandValue(leftNum > rightNum);
-            if (opStr == "LESS")
+            else if (opStr == "LESS")
                 return OperandValue(leftNum < rightNum);
-            if (opStr == "GREATER_OR_EQUAL")
+            else if (opStr == "GREATER_OR_EQUAL")
                 return OperandValue(leftNum >= rightNum);
-            if (opStr == "LESS_OR_EQUAL")
+            else if (opStr == "LESS_OR_EQUAL")
                 return OperandValue(leftNum <= rightNum);
         }
+        // 3. 숫자가 아닌 경우 문자열로 비교
         else
         {
-            // 하나라도 엄격한 숫자가 아니면 문자열로 비교 (EQUAL, NOT_EQUAL만 해당)
-            // EntryJS는 GREATER, LESS 등의 경우 문자열을 숫자로 강제 변환 (0으로) 후 비교하므로,
-            // 위에서 is_number()로 체크된 경우 이미 leftNum, rightNum에 변환된 값이 들어있거나,
-            // is_number()가 false였다면 0.0이 들어있을 것입니다.
-            // 따라서, 숫자 비교가 실패하면 문자열 비교로 넘어가는 로직은 EQUAL, NOT_EQUAL에만 적용하고,
-            // 나머지 연산자는 이미 위에서 처리된 숫자 값을 사용합니다.
-
             string leftStr = leftOp.asString();
             string rightStr = rightOp.asString();
-
+            engine.EngineStdOut(std::format("boolean_basic_operator ({}): String compare: \"{}\" {} \"{}\"", objectId, leftStr, opStr, rightStr), 3, executionThreadId);
             if (opStr == "EQUAL")
                 return OperandValue(leftStr == rightStr);
             if (opStr == "NOT_EQUAL")
                 return OperandValue(leftStr != rightStr);
 
-            // GREATER, LESS, GREATER_OR_EQUAL, LESS_OR_EQUAL의 경우,
-            // is_number()를 통과하지 못한 문자열은 asNumber() 호출 시 0.0으로 변환됩니다.
-            // 따라서, 위에서 leftIsStrictlyNumeric, rightIsStrictlyNumeric이 false였더라도
-            // leftNum, rightNum은 0.0 또는 변환된 숫자 값을 가집니다.
-            // 이 값들을 사용하여 비교합니다.
+            // 숫자가 아닌 값들에 대한 비교는 문자열을 0으로 취급
+            double leftVal = leftIsNumber ? leftOp.asNumber() : 0.0;
+            double rightVal = rightIsNumber ? rightOp.asNumber() : 0.0;
+
             if (opStr == "GREATER")
-                return OperandValue(leftOp.asNumber() > rightOp.asNumber());
+                return OperandValue(leftVal > rightVal);
             if (opStr == "LESS")
-                return OperandValue(leftOp.asNumber() < rightOp.asNumber());
+                return OperandValue(leftVal < rightVal);
             if (opStr == "GREATER_OR_EQUAL")
-                return OperandValue(leftOp.asNumber() >= rightOp.asNumber());
+                return OperandValue(leftVal >= rightVal);
             if (opStr == "LESS_OR_EQUAL")
-                return OperandValue(leftOp.asNumber() <= rightOp.asNumber());
+                return OperandValue(leftVal <= rightVal);
         }
 
-        engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": Unknown OPERATOR '" + opStr + "'.", 2, executionThreadId);
+        engine.EngineStdOut("boolean_basic_operator block for " + objectId + ": Unknown operator '" + opStr + "'.", 2, executionThreadId);
         return OperandValue(false);
-    }
-    else if (BlockType == "boolean_and_or")
-    {
-        /*
-         func(sprite, script) {
-                    const operator = script.getField('OPERATOR', script);
-                    let [leftValue, rightValue] = script.getValues(
-                        ['LEFTHAND', 'RIGHTHAND'],
-                        script
-                    );
-                    leftValue = Boolean(leftValue);
-                    rightValue = Boolean(rightValue);
-
-                    if (operator === 'AND') {
-                        return leftValue && rightValue;
-                    } else {
-                        return leftValue || rightValue;
-                    }
-                },
-        */
-        if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
-        {
-            engine.EngineStdOut("boolean_and_or block for " + objectId + " has insufficient parameters. Expected LEFTHAND, OPERATOR, RIGHTHAND.", 2, executionThreadId);
-            return OperandValue(false);
-        }
-
-        OperandValue leftOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        OperandValue operatorOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId); // This should be a direct string from Dropdown
-        OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-        if (operatorOp.asString() == "AND")
-        {
-            return OperandValue(leftOp.asBool() && rightOp.asBool());
-        }
-        else
-        {
-            return OperandValue(leftOp.asBool() || rightOp.asBool());
-        }
     }
     else if (BlockType == "boolean_not")
     {
@@ -4315,9 +4269,9 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.EngineStdOut("add_value_to_list block for " + objectId + ": received an empty LIST_ID.", 2,
                                 executionThreadId);
             return;
-        }        // 2. 리스트에 추가할 값 가져오기
+        } // 2. 리스트에 추가할 값 가져오기
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId); // 실제 추가할 값은 paramsJson[0]에서 가져옴
-        string valueToAdd = valueOp.asString(); // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
+        string valueToAdd = valueOp.asString();                                                           // 모든 Operand 타입을 문자열로 변환하여 리스트에 저장
 
         // 빈 문자열 체크
         if (valueToAdd.empty() && valueOp.type == OperandValue::Type::STRING)
@@ -4368,11 +4322,11 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             }
 
             targetListPtr->array.push_back({valueToAdd}); // 새로운 ListItem으로 추가
-            if (targetListPtr->isCloud) //클라우드 저장 흉내
+            if (targetListPtr->isCloud)                   // 클라우드 저장 흉내
             {
                 engine.saveCloudVariablesToJson();
             }
-            engine.EngineStdOut("DEBUG: add_value_to_list - block.paramsJson: " + block.paramsJson.dump(), 3, executionThreadId); 
+            engine.EngineStdOut("DEBUG: add_value_to_list - block.paramsJson: " + block.paramsJson.dump(), 3, executionThreadId);
         }
         else
         {
@@ -4510,7 +4464,8 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         {
             engine.saveCloudVariablesToJson();
         }
-    }    else if (BlockType == "insert_value_to_list")
+    }
+    else if (BlockType == "insert_value_to_list")
     {
         // 특정 인덱스에 항목 삽입
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
@@ -4521,7 +4476,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         OperandValue indexOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue listIdToFindOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue valueOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-        
+
         // 빈 문자열 체크
         if (valueOp.asString().empty() && valueOp.type == OperandValue::Type::STRING)
         {
@@ -4529,7 +4484,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 executionThreadId);
             return;
         }
-        
+
         double index_1_based_double = indexOp.asNumber();
         if (listIdToFindOp.type != OperandValue::Type::STRING || valueOp.type != OperandValue::Type::STRING)
         {
@@ -4590,7 +4545,8 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.saveCloudVariablesToJson();
         }
         engine.EngineStdOut("Inserted value '" + valueOp.asString() + "' at index " + to_string(index_1_based) + " (value: '" + valueOp.asString() + "') to list '");
-    }    else if (BlockType == "change_value_list_index")
+    }
+    else if (BlockType == "change_value_list_index")
     {
         // 특정 인덱스에 항목 변경
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3)
@@ -5295,6 +5251,10 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     }
     else if (BlockType == "_if")
     {
+        engine.EngineStdOut(
+            std::format("Flow (_if): Evaluating _if block (ID: {}) for object '{}'. Condition param JSON: {}",
+                        block.id, objectId, block.paramsJson[0].dump()),
+            3, executionThreadId);
         // params: [CONDITION_BLOCK (BOOL), Indicator]
         // statements: [DO_SCRIPT (STACK)]
         if (!block.paramsJson.is_array() || block.paramsJson.empty())
@@ -5304,6 +5264,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
 
         const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
+        engine.EngineStdOut(
+            std::format("Flow (_if): Evaluating condition for object '{}', block ID '{}'. Condition JSON: {}",
+                        objectId, block.id, conditionParamJson.dump()),
+            3, executionThreadId);
+
         OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
 
         bool conditionIsTrue = false;
@@ -5325,7 +5290,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         else
         {
             // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
-            engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 0, executionThreadId);
+            engine.EngineStdOut(
+                std::format("Flow (_if) for object '{}': Condition (block ID '{}') evaluated to {} (type: {}, string_val: '{}', number_val: {}, boolean_val: {}).",
+                            objectId, block.id, (conditionIsTrue ? "true" : "false"),
+                            static_cast<int>(conditionResult.type), conditionResult.string_val, conditionResult.number_val, conditionResult.boolean_val),
+                0, executionThreadId);
         }
         if (conditionIsTrue)
         {
@@ -5754,9 +5723,8 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                                 // Entity::ScriptThreadState& currentThreadState, // This might be needed for more complex state management
                                 const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
+    engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()) + ". Thread: " + executionThreadId, 3, executionThreadId);
     Entity *entity = engine.getEntityById_nolock(objectId);
-    // engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()), 3, executionThreadId);
-
     for (size_t i = 0; i < blocks.size(); ++i)
     {
         const Block &block = blocks[i];
@@ -5826,11 +5794,11 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                     typeOfWait == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
                     typeOfWait == Entity::WaitType::TEXT_INPUT)
                 {
-                    // engine.EngineStdOut("executeBlocksSynchronously: Block " + block.id + " (Type: " + block.type + ") set wait (" + BlockTypeEnumToString(typeOfWait) + "). Pausing synchronous execution chain for " + objectId + ".", 3, executionThreadId);
+                    engine.EngineStdOut("executeBlocksSynchronously: Block " + block.id + " (Type: " + block.type + ") set wait (" + BlockTypeEnumToString(typeOfWait) + "). Pausing synchronous execution chain for " + objectId + ".", 3, executionThreadId);
                     return; // 동기적 블록 목록 실행을 여기서 중단합니다.
                 }
             }
         }
     }
-    // engine.EngineStdOut("Exit executeBlocksSynchronously for " + objectId + ". Loop " + (blocks.empty() ? "was not entered (empty blocks)." : "completed or exited."), 3, executionThreadId);
+    engine.EngineStdOut("Exit executeBlocksSynchronously for " + objectId + ". Loop " + (blocks.empty() ? "was not entered (empty blocks)." : "completed or exited."), 3, executionThreadId);
 }
