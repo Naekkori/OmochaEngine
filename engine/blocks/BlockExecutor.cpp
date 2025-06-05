@@ -114,7 +114,7 @@ double OperandValue::asNumber() const
     if (type == Type::STRING)
     {
         const std::regex integer_regex("^[-+]?\\d+$");
-        const std::regex double_regex("^[-+]?(\\d*\\.?\\d+|\\d+\\.?)\\s*([eE][-+]?\\d+)?$");
+        const std::regex double_regex(R"(^[-+]?(\d*\.?\d+|\d+\.?)\s*([eE][-+]?\d+)?$)");
 
         std::string temp_str = string_val; // Create a mutable copy
         trim(temp_str);                    // Trim whitespace
@@ -218,7 +218,7 @@ bool OperandValue::asBool() const
         // "0" is false.
         // Otherwise, true.
         string lower_str = string_val;
-        transform(lower_str.begin(), lower_str.end(), lower_str.begin(), ::tolower);
+        ranges::transform(lower_str, lower_str.begin(), ::tolower);
         return !string_val.empty() && lower_str != "false" && string_val != "0";
     }
     // EMPTY or unhandled types are false
@@ -279,13 +279,13 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
     if (paramField.is_null())
     {
         engine.EngineStdOut("getOperandValue received a Null paramField for object " + objectId + ". Returning empty OperandValue.", 1, executionThreadId);
-        return OperandValue(); // Null 값은 빈 OperandValue로 처리
+        return {}; // Null 값은 빈 OperandValue로 처리
     }
 
     if (paramField.is_string())
     {
         string str_val_for_op = paramField.get<string>();
-        return OperandValue(str_val_for_op);
+        return OperandValue({str_val_for_op});
     }
     else if (paramField.is_object()) // paramField가 Null이 아님을 위에서 확인했으므로 is_object() 호출이 좀 더 안전해집니다.
     {
@@ -314,26 +314,26 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                     std::string num_str_param = param_zero.get<std::string>();
                     OperandValue temp_op_val(num_str_param); // 문자열로부터 OperandValue 생성
                     double numeric_value = temp_op_val.asNumber(); // OperandValue::asNumber()는 내부에 숫자 변환 로직을 포함하며, 실패 시 0.0 반환
-                    return OperandValue(numeric_value);
+                    return OperandValue({numeric_value});
                 }
                 else if (param_zero.is_number())
                 {
                     // 파라미터가 직접 숫자인 경우 해당 값을 사용
-                    return OperandValue(param_zero.get<double>());
+                    return OperandValue({param_zero.get<double>()});
                 }
             }
             engine.EngineStdOut("Invalid 'number' or 'text_reporter_number' block structure in parameter field for " + objectId + ". Expected params[0] to be a string or number.", 1, executionThreadId);
-            return OperandValue(0.0);
+            return {0.0};
         }
         else if (fieldType == "text" || fieldType == "text_reporter_string")
         {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string())
             {
-                return OperandValue(paramField["params"][0].get<string>());
+                return OperandValue({paramField["params"][0].get<string>()});
             }
             engine.EngineStdOut("Invalid 'text' or 'text_reporter_string' block structure in parameter field for " + objectId + ". Expected params[0] to be a string.", 1, executionThreadId);
-            return OperandValue(""); // 문자열 타입이므로 빈 문자열 반환
+            return {""}; // 문자열 타입이므로 빈 문자열 반환
         }
         else if (fieldType == "calc_basic" || fieldType == "calc_rand" || fieldType == "quotient_and_mod" || fieldType == "calc_operation" ||
                  fieldType == "distance_something" || fieldType == "length_of_string" || fieldType == "reverse_of_string" ||
@@ -5274,13 +5274,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
-        engine.EngineStdOut(
-            std::format("Flow (_if): Evaluating condition for object '{}', block ID '{}'. Condition JSON: {}",
-                        objectId, block.id, conditionParamJson.dump()),
-            3, executionThreadId);
-
-        OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
+        OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
         bool conditionIsTrue = false;
         std::string conditionResultString = "N/A"; // For logging
@@ -5291,7 +5285,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         else if (conditionResult.type == OperandValue::Type::NUMBER)
         {
-            conditionIsTrue = (conditionResult.asNumber() != 0.0); // 0이 아니면 참
+            conditionIsTrue = (conditionResult.asNumber() != 0); // 0이 아니면 참
         }
         else if (conditionResult.type == OperandValue::Type::STRING)
         {
@@ -5354,8 +5348,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
-        OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
+        OperandValue conditionResult = getOperandValue(engine, objectId,block.paramsJson[0], executionThreadId);
 
         bool conditionIsTrue = false;
         if (conditionResult.type == OperandValue::Type::BOOLEAN)
