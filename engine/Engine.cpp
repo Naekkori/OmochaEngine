@@ -1015,7 +1015,11 @@ bool Engine::loadProject(const string &projectFilePath)
                         {
                             ctu.fileurl = "";
                         }
-
+                        if (pictureJson.contains("demension") && pictureJson["demension"].is_object()) {
+                            ctu.demension.width = pictureJson["demension"]["width"].get<int>();
+                            ctu.demension.height = pictureJson["demension"]["height"].get<int>();
+                            ctu.demension.scaleX = pictureJson["demension"]["scaleX"].get<double>();
+                        }
                         objInfo.costumes.push_back(ctu);
                         EngineStdOut(
                             "  Parsed costume: " + ctu.name + " (ID: " + ctu.id + ", File: " + ctu.filename + ")", 3); // LEVEL 0 -> 3
@@ -1273,19 +1277,19 @@ bool Engine::loadProject(const string &projectFilePath)
                             catch (const exception &e)
                             {
                                 EngineStdOut("Failed to parse textBoxBackgroundColor '" + hexBgColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #FFFFFF.", 2);
-                                objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
+                                objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 투명
                             }
                         }
                         else
                         {
                             EngineStdOut("textBox '" + objInfo.name + "' 'textBoxBackgroundColor' field is not a valid HEX string (#RRGGBB): " + hexBgColor + ". Using default #FFFFFF.", 1);
-                            objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
+                            objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 투명
                         }
                     }
                     else
                     {
                         EngineStdOut("textBox '" + objInfo.name + "' is missing 'textBoxBackgroundColor' field or it's not a string. Using default #FFFFFF.", 1);
-                        objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
+                        objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 투명
                     }
 
 
