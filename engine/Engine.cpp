@@ -1257,12 +1257,9 @@ bool Engine::loadProject(const string &projectFilePath)
                     }
 
                     // textBoxBackgroundColor 파싱 (기본값: 흰색)
+                    // 투명 제외
                     if (entityJson.contains("bgColor") && entityJson["bgColor"].is_string())
                     {
-                        if(entityJson["bgColor"]=="transparent"){
-                            //투명일경우 넘어갑니다.
-                            return;
-                        }
                         string hexBgColor = entityJson["bgColor"].get<string>();
                         if (hexBgColor.length() == 7 && hexBgColor[0] == '#')
                         {
@@ -1271,7 +1268,14 @@ bool Engine::loadProject(const string &projectFilePath)
                                 unsigned int r = stoul(hexBgColor.substr(1, 2), nullptr, 16);
                                 unsigned int g = stoul(hexBgColor.substr(3, 2), nullptr, 16);
                                 unsigned int b = stoul(hexBgColor.substr(5, 2), nullptr, 16);
-                                objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
+                                string isTransperant = entityJson["bgColor"].get<string>();
+                                if (isTransperant == "transparent")
+                                {
+                                    objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b, 0};
+                                }else{
+                                    objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b,255};
+                                }
+                                
                                 EngineStdOut("INFO: textBox '" + objInfo.name + "' background color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 0);
                             }
                             catch (const exception &e)
