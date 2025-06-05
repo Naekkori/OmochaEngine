@@ -23,7 +23,6 @@ public:
     std::string blockType;
     std::string entityId;
     std::string originalMessage; // 원본 std::exception의 what() 메시지
-
     // 생성자: 예외 상태만 초기화
     ScriptBlockExecutionError(const std::string &shortErrorDescription, // 사용자에게 표시될 간략한 오류 메시지
                               const std::string &bId,
@@ -263,7 +262,6 @@ public:
     DialogState m_currentDialog;
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
-    void performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint64 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait);
      void scheduleScriptExecutionOnPool(const Script* scriptPtr,
                                        const std::string& sceneIdAtDispatch,
                                        float deltaTime,

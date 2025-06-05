@@ -75,8 +75,7 @@ Entity::Entity(Engine *engine, const std::string &entityId, const std::string &e
 }
 
 Entity::~Entity()
-{
-}
+= default;
 
 void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type)
 {
@@ -100,99 +99,6 @@ bool Entity::isScriptWaiting(const std::string &executionThreadId) const
     }
     return false;
 }
-
-void Entity::performActiveWait(const std::string &executionThreadId, const std::string &waitedBlockId, Uint64 waitEndTime, Engine *pEngine, const std::string &sceneIdAtDispatchForWait)
-{
-    Uint64 entryTime = SDL_GetTicks();
-    // This method is called when the mutex is NOT held by this thread.
-    pEngine->EngineStdOut("Enter performActiveWait for " + id + ", block " + waitedBlockId + ". waitEndTime=" + std::to_string(waitEndTime) + ", currentTicks=" + std::to_string(entryTime) + ", sceneIdAtDispatchForWait=" + sceneIdAtDispatchForWait + ". Expected duration (ms): " + (waitEndTime > entryTime ? std::to_string(waitEndTime - entryTime) : "0 or negative"), 0, executionThreadId);
-
-    while (SDL_GetTicks() < waitEndTime)
-    {
-        { // Check terminateRequested
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-            auto it_thread_state = scriptThreadStates.find(executionThreadId);
-            if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested)
-            {
-                pEngine->EngineStdOut("performActiveWait: terminateRequested true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
-                pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " (Thread: " + executionThreadId + ") cancelled due to script termination request.", 1, executionThreadId);
-                // No need to reset state here, executeScript will handle it upon return
-                // The isWaiting flag will remain true, and executeScript will see terminateRequested.
-                return; // Exit wait
-            }
-        }
-
-        if (pEngine->m_isShuttingDown.load(std::memory_order_relaxed))
-        {
-            pEngine->EngineStdOut("performActiveWait: m_isShuttingDown true for " + waitedBlockId + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
-            pEngine->EngineStdOut("Wait for block " + waitedBlockId + " cancelled due to engine shutdown for entity: " + this->getId(), 1, executionThreadId);
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-            auto it_cleanup = scriptThreadStates.find(executionThreadId);
-            if (it_cleanup != scriptThreadStates.end() && it_cleanup->second.blockIdForWait == waitedBlockId)
-            {
-                // Instead of erase, reset the state for this thread
-                it_cleanup->second.isWaiting = false;
-                it_cleanup->second.waitEndTime = 0;
-                it_cleanup->second.blockIdForWait = "";
-                it_cleanup->second.currentWaitType = WaitType::NONE;
-                it_cleanup->second.resumeAtBlockIndex = -1; // Ensure no accidental resume
-            }
-            return;
-        }
-
-        // Check for scene change during wait
-        std::string currentEngineScene = pEngine->getCurrentSceneId();
-        const ObjectInfo *objInfoPtr = pEngine->getObjectInfoById(this->id); // 'this->id' is the entity's ID
-        bool isGlobal = (objInfoPtr && (objInfoPtr->sceneId == "global" || objInfoPtr->sceneId.empty()));
-
-        // If the current scene is different from the scene when the script (containing this wait) was dispatched,
-        // and this entity is not global, then interrupt the wait.
-        if (!isGlobal && currentEngineScene != sceneIdAtDispatchForWait)
-        {
-            pEngine->EngineStdOut("performActiveWait: Scene changed for " + waitedBlockId + ". Current: " + currentEngineScene + ", Expected: " + sceneIdAtDispatchForWait + " at " + std::to_string(SDL_GetTicks()), 1, executionThreadId);
-            pEngine->EngineStdOut("Wait for block " + waitedBlockId + " on entity " + this->id + " cancelled. Scene changed from " + sceneIdAtDispatchForWait + " to " + currentEngineScene + " during wait.", 1, executionThreadId);
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Re-lock to clean up
-            auto it_cleanup = scriptThreadStates.find(executionThreadId);
-            if (it_cleanup != scriptThreadStates.end() && it_cleanup->second.blockIdForWait == waitedBlockId)
-            {
-                // Reset state
-                it_cleanup->second.isWaiting = false;
-                it_cleanup->second.waitEndTime = 0;
-                it_cleanup->second.blockIdForWait = "";
-                it_cleanup->second.currentWaitType = WaitType::NONE;
-                it_cleanup->second.resumeAtBlockIndex = -1; // Ensure no accidental resume
-            }
-            return; // Exit wait
-        }
-        // Also, a more direct check: if the entity itself is no longer part of the *current* scene (e.g., if it was moved or its sceneId property changed)
-        // This is a bit redundant if the above check is comprehensive, but can catch edge cases.
-        // The main check in executeScript will handle this after the wait if not caught here.
-        // For now, the check against sceneIdAtDispatchForWait is the primary one for wait interruption.
-
-        SDL_Delay(1); // CPU 사용량 감소를 위한 짧은 지연
-    }
-
-    // Wait finished normally, re-lock to clean up
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    pEngine->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") finished waiting for block " + waitedBlockId, 0, executionThreadId);
-    auto it_cleanup = scriptThreadStates.find(executionThreadId);
-    // Check if the state is still for the same block and this thread.
-    // It's possible another wait_second block for the same thread overwrote the state,
-    // but that would mean this waitEndTime was for an older wait.
-    // The crucial part is that *a* wait for this thread, identified by waitEndTime, has completed.
-    // For robustness, ensure we are clearing the state that corresponds to the waitEndTime we just used.
-    if (it_cleanup != scriptThreadStates.end() &&
-        it_cleanup->second.blockIdForWait == waitedBlockId &&
-        it_cleanup->second.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND) // waitEndTime 비교 제거
-    {
-        it_cleanup->second.isWaiting = false;
-        it_cleanup->second.waitEndTime = 0;
-        it_cleanup->second.blockIdForWait = "";
-        it_cleanup->second.currentWaitType = WaitType::NONE;
-        // resumeAtBlockIndex should have been set by executeScript before calling performActiveWait
-    }
-}
-
 // OperandValue 구조체 및 블록 처리 함수들은 BlockExecutor.h에 선언되어 있고,
 // BlockExecutor.cpp에 구현되어 있으므로 Entity.cpp에서 중복 선언/정의할 필요가 없습니다.
 
@@ -607,29 +513,45 @@ void Entity::setWidth(double newWidth)
                 }
             }
 
-            if (selectedCostume && selectedCostume->imageHandle)
+            if (selectedCostume) // Check selectedCostume first
             {
-                float texW = 0, texH = 0;
-                if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH) == 0)
+                pEngineInstance->EngineStdOut("DEBUG: setWidth for " + this->id + ", costume '" + selectedCostume->name + "'. imageHandle: " + (selectedCostume->imageHandle ? "VALID_PTR" : "NULL_PTR"), 3);
+                if (selectedCostume->imageHandle) // Then check imageHandle
                 {
-                    if (texW > 0.00001f)
+                float texW = 0, texH = 0;
+                    SDL_ClearError(); // Clear previous SDL errors
+                    int texture_size_result = SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH);
+
+                if (texture_size_result == 0) // SDL3: 0 on success
+                {
+                        pEngineInstance->EngineStdOut("DEBUG: SDL_GetTextureSize success for " + selectedCostume->name + ". texW: " + std::to_string(texW) + ", texH: " + std::to_string(texH), 3);
+                        if (texW > 0.00001f)
                     { // 0으로 나누기 방지 (매우 작은 값보다 클 때)
                         this->scaleX = newWidth / static_cast<double>(texW);
                     }
                     else
                     {
                         this->scaleX = 1.0; // 원본 텍스처 너비가 0이면 스케일 1로 설정 (오류 상황)
-                        pEngineInstance->EngineStdOut("Warning: Original texture width is 0 for costume " + selectedCostume->name + " of entity " + this->id + ". Cannot accurately set scaleX.", 1);
+                        pEngineInstance->EngineStdOut("Warning: Original texture width is 0 for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. Cannot accurately set scaleX.", 1);
+                        pEngineInstance->EngineStdOut("DEBUG: Calculated scaleX: " + std::to_string(this->scaleX) + " (newWidth: " + std::to_string(newWidth) + ", texW: " + std::to_string(texW) + ")", 3);
                     }
                 }
                 else
                 {
-                    pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume " + selectedCostume->name + " of entity " + this->id + ". ScaleX not changed.", 1);
+                    const char *err = SDL_GetError();
+                        std::string sdlErrorString = (err && err[0] != '\0') ? err : "None (or error string was empty)";
+                        pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. SDL_GetTextureSize result: " + std::to_string(texture_size_result) + ", SDL Error: " + sdlErrorString + ". ScaleX not changed.", 1);
+                    if (err && err[0] != '\0') SDL_ClearError();
+                }
+            }
+                else // selectedCostume->imageHandle is NULL
+                {
+                    pEngineInstance->EngineStdOut("Warning: selectedCostume->imageHandle is NULL for costume '" + selectedCostume->name + "' of entity " + this->id + ". ScaleX not changed.", 1);
                 }
             }
             else
             {
-                pEngineInstance->EngineStdOut("Warning: Selected costume or image handle not found for entity " + this->id + ". ScaleX not changed.", 1);
+                pEngineInstance->EngineStdOut("Warning: Selected costume is NULL for entity " + this->id + ". ScaleX not changed.", 1);
             }
         }
         else
@@ -678,7 +600,7 @@ void Entity::setHeight(double newHeight)
             if (selectedCostume && selectedCostume->imageHandle)
             {
                 float texW = 0, texH = 0;
-                if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH) == 0)
+                if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH)==true)
                 {
                     if (texH > 0.00001f)
                     { // 0으로 나누기 방지
@@ -687,12 +609,15 @@ void Entity::setHeight(double newHeight)
                     else
                     {
                         this->scaleY = 1.0;
-                        pEngineInstance->EngineStdOut("Warning: Original texture height is 0 for costume " + selectedCostume->name + " of entity " + this->id + ". Cannot accurately set scaleY.", 1);
+                        pEngineInstance->EngineStdOut("Warning: Original texture height is 0 for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. Cannot accurately set scaleY.", 1);
                     }
                 }
                 else
                 {
-                    pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume " + selectedCostume->name + " of entity " + this->id + ". ScaleY not changed.", 1);
+                    const char *err = SDL_GetError();
+                    std::string sdlErrorString = (err && err[0] != '\0') ? err : "None";
+                    pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. SDL Error: " + sdlErrorString + ". ScaleY not changed.", 1);
+                    if (err && err[0] != '\0') SDL_ClearError();
                 }
             }
             else
@@ -740,7 +665,7 @@ void Entity::resetScaleSize()
                 if (selectedCostume && selectedCostume->imageHandle)
                 {
                     float texW_float = 0, texH_float = 0;
-                    if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW_float, &texH_float) == 0)
+                    if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW_float, &texH_float) == true)
                     {
                         newOriginalWidth = static_cast<double>(texW_float);
                         newOriginalHeight = static_cast<double>(texH_float);
@@ -748,10 +673,12 @@ void Entity::resetScaleSize()
                     else
                     {
                         pEngineInstance->EngineStdOut(
-                            "Warning: Entity::resetScaleSize - Could not get texture size for costume '" +
-                                selectedCostume->name + "' of entity '" + this->id + "'. SDL Error: " + SDL_GetError() +
+                            "Warning: Entity::resetScaleSize - Could not get texture size for costume '" + selectedCostume->name + 
+                            "' of entity '" + this->id + "'. SDL Error: " + 
+                            ([&]() { const char *err = SDL_GetError(); return (err && err[0] != '\0') ? std::string(err) : "None"; }()) +
                                 ". Original width/height will be set to 0.",
                             1);
+                        SDL_ClearError(); // Clear error after logging it
                         newOriginalWidth = 0.0; // 텍스처 데이터 문제 시 0으로 설정
                         newOriginalHeight = 0.0;
                     }
@@ -1502,15 +1429,36 @@ void Entity::processInternalContinuations(float deltaTime)
         catch (const ScriptBlockExecutionError &sbee)
         {
             Entity *entitiyInfo = pEngineInstance->getEntityById(sbee.entityId);
-            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
-            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
-            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
-                                               " 의 타입 " + koreanBlockTypeName +
-                                               (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
-                                                    ? " (원본: " + sbee.blockType + ")"
+            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType); // sbee.blockType을 사용해야 합니다.
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum); // 변환된 enum 사용
+
+            // Helper lambda to truncate strings safely
+            auto truncate_string = [](const std::string& str, size_t max_len) {
+                if (str.length() > max_len) {
+                    return str.substr(0, max_len) + "...(truncated)";
+                }
+                return str;
+            };
+
+            const size_t MAX_ID_LEN = 128;    // Max length for IDs/types in error messages
+            const size_t MAX_MSG_LEN = 512;   // Max length for original message part
+            const size_t MAX_NAME_LEN = 256;  // Max length for entity name
+
+            std::string entityNameStr = "[정보 없음]";
+            if (entitiyInfo) {
+                entityNameStr = truncate_string(entitiyInfo->getName(), MAX_NAME_LEN);
+            } else {
+                entityNameStr = "[객체 ID: " + truncate_string(sbee.entityId, MAX_ID_LEN) + " 찾을 수 없음]";
+            }
+
+            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + truncate_string(sbee.blockId, MAX_ID_LEN) +
+                                               " 의 타입 " + truncate_string(koreanBlockTypeName, MAX_ID_LEN) + // koreanBlockTypeName 사용
+                                               (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty() // blockTypeEnum 사용
+                                                    ? " (원본: " + truncate_string(sbee.blockType, MAX_ID_LEN) + ")" // sbee.blockType 사용
                                                     : "") +
-                                               " 에서 사용 하는 객체 " + "(" + entitiyInfo->getName() + ")" +
-                                               "\n원본 오류: " + sbee.originalMessage;
+                                               " 에서 사용 하는 객체 " + "(" + entityNameStr + ")" +
+                                               "\n원본 오류: " + truncate_string(sbee.originalMessage, MAX_MSG_LEN);
+
             pEngineInstance->EngineStdOut("Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2, execId);
             if (pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, pEngineInstance->msgBoxIconType.ICON_ERROR))
             {
@@ -1520,10 +1468,26 @@ void Entity::processInternalContinuations(float deltaTime)
         }
         catch (const std::exception &e)
         {
-            pEngineInstance->EngineStdOut(
-                "Generic exception caught in internal continuation for entity " + getId() +
-                    " (Thread: " + execId + "): " + e.what(),
-                2, execId);
+            // Helper lambda to truncate strings safely
+            auto truncate_string = [](const std::string& str, size_t max_len) {
+                if (str.length() > max_len) {
+                    return str.substr(0, max_len) + "...(truncated)";
+                }
+                return str;
+            };
+
+            const size_t MAX_ID_LEN = 128;    // Max length for entity/thread IDs in error messages
+            const size_t MAX_MSG_LEN = 512;   // Max length for exception message part
+
+            std::string entityIdStr = truncate_string(getId(), MAX_ID_LEN);
+            std::string threadIdStr = truncate_string(execId, MAX_ID_LEN); // execId is the thread ID
+            std::string exceptionWhatStr = truncate_string(e.what(), MAX_MSG_LEN);
+
+            // Construct the detailed error message using truncated parts
+            std::string detailedErrorMessage = "Generic exception caught in internal continuation for entity " + entityIdStr +
+                                               " (Thread: " + threadIdStr + "): " + exceptionWhatStr;
+
+            pEngineInstance->EngineStdOut(detailedErrorMessage, 2, execId);
         }
         catch (...)
         {
@@ -1760,8 +1724,8 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                               std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
                               // Configure error message (sbee.entityId could be the entity referenced by the block where the error occurred,
                               // so explicitly stating self->id for the entity executing the script might be clearer.)
-                              std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. (스크립트 소유 객체: " + self->getId() +
-                                                                " 블럭ID: " + sbee.blockId +
+                              std::string detailedErrorMessage = "블록 을 실행하는데 오류가 발생하였습니다.\n(스크립트 소유 객체: " + self->getId() +
+                                                                " 블록ID: " + sbee.blockId +
                                                                  ") 의 타입 (" + koreanBlockTypeName +")"+
                                                                  (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty()
                                                                       ? " (원본: " + sbee.blockType + ")"
@@ -1771,7 +1735,7 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
 
                               // EngineStdOut은 이미 상세 메시지를 포함하므로, 여기서는 요약된 메시지 또는 상세 메시지 그대로 사용
                               self->pEngineInstance->EngineStdOut("Script Execution Error (Entity: " + self->getId() + ", Thread " + execIdToUse + "): " + detailedErrorMessage, 2, execIdToUse);
-                              self->pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage, self->pEngineInstance->msgBoxIconType.ICON_ERROR);
+                              self->pEngineInstance->showMessageBox(detailedErrorMessage, self->pEngineInstance->msgBoxIconType.ICON_ERROR);
                               exit(EXIT_FAILURE); // 프로그램 종료
                           }
                           catch (const std::length_error &le)

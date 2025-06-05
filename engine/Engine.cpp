@@ -1501,12 +1501,12 @@ bool Engine::loadProject(const string &projectFilePath)
                                            ? entityJson["visible"].get<bool>()
                                            : true;
                 Entity::RotationMethod currentRotationMethod = Entity::RotationMethod::FREE;
-                if (objectJson.contains("rotationMethod") && objectJson["rotationMethod"].is_string())
+                if (objectJson.contains("rotateMethod") && objectJson["rotateMethod"].is_string())
                 {
                     // 이정도 있는것으로 예상됨 하지만 발견 못한것 도 있을수 있음
                     // string rotationMethodStr = getSafeStringFromJson(objectJson, "rotationMethod",
                     //                                                  "object " + objInfo.name, "free", false, true); // Problematic
-                    std::string rotationMethodStr = objectJson["rotationMethod"].get<string>();
+                    std::string rotationMethodStr = objectJson["rotateMethod"].get<string>();
                     if (rotationMethodStr == "free")
                     {
                         currentRotationMethod = Entity::RotationMethod::FREE;
@@ -2486,8 +2486,7 @@ bool Engine::loadImages()
                 {
                     failedCount++;
                     EngineStdOut(
-                        "IMG_LoadTexture failed for '" + objInfo.name + "' shape '" + costume.name + "' from path: " +
-                            imagePath + ". SDL_" + SDL_GetError(),
+                        "IMG_LoadTexture failed for '" + objInfo.name + "' shape '" + costume.name +" " + SDL_GetError(),
                         2);
                 }
 
@@ -2671,7 +2670,7 @@ void Engine::drawAllEntities()
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 배경색 흰색으로 설정
     SDL_RenderClear(renderer);
-
+    SDL_SetRenderDrawBlendMode(renderer,SDL_BLENDMODE_BLEND);
     for (int i = static_cast<int>(objects_in_order.size()) - 1; i >= 0; --i)
     {
         const ObjectInfo &objInfo = objects_in_order[i];
@@ -5560,17 +5559,16 @@ void Engine::triggerWhenSceneStartScripts()
 {
     if (currentSceneId.empty())
     {
-        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1); // 현재 씬 ID 없음
+        EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
         return;
     }
     EngineStdOut("Triggering 'when_scene_start' scripts for scene: " + currentSceneId, 0);
     for (const auto &scriptPair : m_whenStartSceneLoadedScripts)
     {
-        // 씬 시작 시 실행될 스크립트들 순회
         const string &objectId = scriptPair.first;
         const Script *scriptPtr = scriptPair.second;
 
-        bool executeForScene = false; // 해당 오브젝트가 현재 씬에서 실행되어야 하는지 확인
+        bool executeForScene = false;
         for (const auto &objInfo : objects_in_order)
         {
             if (objInfo.id == objectId && (objInfo.sceneId == currentSceneId || objInfo.sceneId == "global" || objInfo.sceneId.empty()))
@@ -5582,7 +5580,7 @@ void Engine::triggerWhenSceneStartScripts()
 
         if (executeForScene)
         {
-            EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 3); // LEVEL 0 -> 3
+            EngineStdOut("  -> Running 'when_scene_start' script for object ID: " + objectId + " in scene " + currentSceneId, 3);
             this->dispatchScriptForExecution(objectId, scriptPtr, currentSceneId, 0.0);
         }
     }
@@ -6218,78 +6216,6 @@ void Engine::dispatchScriptForExecution(const std::string &entityId, const Scrip
     // 이 변경은 Entity 클래스에 scheduleScriptExecutionOnPool (가칭)과 같은 새 메소드 구현을 필요로 합니다.
     // 해당 메소드는 이전에 dispatchScriptForExecution의 람다가 수행하던 로직 (스레드 ID 생성, 로깅, executeScript 호출, 오류 처리)을 포함해야 합니다.
     entity->scheduleScriptExecutionOnPool(scriptPtr, sceneIdAtDispatch, deltaTime, existingExecutionThreadId);
-
-    // --- 아래 로직은 Entity 클래스의 새로운 메소드로 이동되어야 합니다 ---
-    // 주석 처리된 부분은 Engine이 직접 스레드 풀에 작업을 게시하던 기존 방식입니다.
-    // 사용자의 요청에 따라, 이 책임은 Entity로 이전됩니다.
-    /*
-    if (existingExecutionThreadId.empty() && (scriptPtr->blocks.empty() || scriptPtr->blocks.size() <= 1))
-    {
-        // 첫번째 블록은 이벤트 트리거
-        EngineStdOut(
-            "dispatchScriptForExecution: Script for object " + entityId + " has no executable blocks. Skipping.", 1);
-        return;
-    }
-
-    boost::asio::post(m_scriptThreadPool, [this, entity, scriptPtr, sceneIdAtDispatch, deltaTime, existingExecutionThreadId]() { // entityId 대신 entity 포인터 직접 사용
-        std::string thread_id_str;
-        if (!existingExecutionThreadId.empty()) {
-            thread_id_str = existingExecutionThreadId;
-            EngineStdOut("Worker thread resuming script for entity: " + entityId, 5, thread_id_str);
-        } else {
-            // 새 스크립트 실행을 위한 ID 생성
-            std::thread::id physical_thread_id = std::this_thread::get_id();
-            std::stringstream ss_full_hex;
-            ss_full_hex << std::hex << std::hash<std::thread::id>{}(physical_thread_id);
-            std::string full_hex_str = ss_full_hex.str();
-
-            // 4자리 해시로 조정
-            std::string short_hex_str;
-            if (full_hex_str.length() >= 4) {
-                short_hex_str = full_hex_str.substr(0, 4);
-            } else {
-                // 4자리보다 짧으면 앞에 0을 채움
-                short_hex_str = std::string(4 - full_hex_str.length(), '0') + full_hex_str;
-            }
-
-            thread_id_str = "script_" + short_hex_str;
-            EngineStdOut("Worker thread starting new script for entity: " + entityId + " with 4-digit hex thread_id: " + short_hex_str, 5, thread_id_str);
-        }
-
-        try {
-            if (entity) {
-                entity->executeScript(scriptPtr, thread_id_str, sceneIdAtDispatch, deltaTime);
-            } else {
-                // 이 경우는 위에서 entity 포인터를 이미 확인했으므로 발생하지 않아야 합니다.
-                // EngineStdOut("Entity not found (should not happen here) for script in worker thread " + thread_id_str, 1, thread_id_str);
-            }
-        } catch (const ScriptBlockExecutionError &sbee) {
-            // ScriptBlockExecutionError를 여기서 처리하여 상세 한글 오류 메시지 생성
-            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
-            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
-
-            std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + sbee.blockId +
-                                               " 의 타입 " + koreanBlockTypeName +
-                                               (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.
-                                                empty()
-                                                    ? " (원본: " + sbee.blockType + ")"
-                                                    : "") +
-                                               " 에서 사용 하는 객체 " + (entity ? entity->getId() : sbee.entityId) + // entityId 대신 entity->getId() 사용
-                                               "\n원본 오류: " + sbee.originalMessage;
-
-            EngineStdOut("Script Execution Error (Thread " + thread_id_str + "): " + detailedErrorMessage, 2,
-                         thread_id_str);
-            this->showMessageBox("오류가 발생했습니다!\n" + detailedErrorMessage,SDL_MESSAGEBOX_ERROR);
-        } catch (const std::exception &e) {
-            EngineStdOut( // entityId 대신 entity->getId() 사용
-                "Generic exception caught in worker thread " + thread_id_str + " executing script for entity " +
-                (entity ? entity->getId() : "UNKNOWN_ENTITY") + ": " + e.what(), 2, thread_id_str);
-        } catch (...) {
-            EngineStdOut( // entityId 대신 entity->getId() 사용
-                "Unknown exception caught in worker thread " + thread_id_str + " executing script for entity " +
-                (entity ? entity->getId() : "UNKNOWN_ENTITY"), 2, thread_id_str);
-        } });
-    */
 }
 
 /**
@@ -6568,7 +6494,7 @@ void Engine::performProjectRestart()
     m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
 
     // Re-create the thread pool
-    startThreadPool((max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+    startThreadPool((max)(2u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2u));
 
     resetProjectTimer();
     m_gameplayInputActive = false;

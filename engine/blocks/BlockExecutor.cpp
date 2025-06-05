@@ -113,27 +113,65 @@ double OperandValue::asNumber() const
         return number_val;
     if (type == Type::STRING)
     {
+        const std::regex integer_regex("^[-+]?\\d+$");
+        const std::regex double_regex("^[-+]?(\\d*\\.?\\d+|\\d+\\.?)\\s*([eE][-+]?\\d+)?$");
+
         std::string temp_str = string_val; // Create a mutable copy
         trim(temp_str);                    // Trim whitespace
         if (temp_str.empty())
             return 0.0; // Empty string after trim is 0.0
 
+        std::size_t pos = 0;
         try
         {
-            size_t idx = 0;
-            double val = stod(temp_str, &idx); // Use trimmed string
-            if (idx == temp_str.length())      // Ensure the whole trimmed string was parsed
+            if (std::regex_match(temp_str, double_regex))
             {
-                return val;
+                double double_val = std::stod(temp_str, &pos);
+                if (pos == temp_str.length())
+                {
+                    return double_val;
+                }
+                else
+                {
+                    throw std::invalid_argument("String contains non-numeric characters after number.");
+                }
             }
         }
-        catch (const invalid_argument &)
+        catch (const std::invalid_argument &)
         {
-            throw runtime_error("Number conversion error");
+            // double 변환 실패 시 int로 변환 시도
+            try
+            {
+                if (std::regex_match(temp_str, integer_regex))
+                {
+                    std::size_t int_pos = 0;
+                    int int_val = std::stoi(temp_str, &int_pos);
+
+                    if (int_pos == temp_str.length())
+                    {
+                        return static_cast<double>(int_val);
+                    }
+                    else
+                    {
+                        throw std::invalid_argument("String cannot be converted to a valid integer.");
+                    }
+                }
+            }
+            catch (const std::invalid_argument &)
+            {
+                // int 변환도 실패
+                throw std::runtime_error("Invalid number format.");
+            }
+            catch (const std::out_of_range &)
+            {
+                // int 범위 초과
+                throw std::runtime_error("Number out of int range.");
+            }
         }
-        catch (const out_of_range &)
+        catch (const std::out_of_range &)
         {
-            throw runtime_error("number out of Range");
+            // double 범위 초과
+            throw std::runtime_error("Number out of double range.");
         }
     }
     return 0.0; // Default for non-convertible types or errors
@@ -268,22 +306,23 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
         if (fieldType == "number" || fieldType == "text_reporter_number")
         {
             if (paramField.contains("params") && paramField["params"].is_array() &&
-                !paramField["params"].empty() && paramField["params"][0].is_string())
+                !paramField["params"].empty())
             {
-                try
+                const auto& param_zero = paramField["params"][0];
+                if (param_zero.is_string())
                 {
-                    return OperandValue(stod(paramField["params"][0].get<string>()));
+                    std::string num_str_param = param_zero.get<std::string>();
+                    OperandValue temp_op_val(num_str_param); // 문자열로부터 OperandValue 생성
+                    double numeric_value = temp_op_val.asNumber(); // OperandValue::asNumber()는 내부에 숫자 변환 로직을 포함하며, 실패 시 0.0 반환
+                    return OperandValue(numeric_value);
                 }
-                catch (const exception &e)
+                else if (param_zero.is_number())
                 {
-                    engine.EngineStdOut(
-                        "Error converting number param: " + paramField["params"][0].get<string>() + " for " +
-                            objectId + " - " + e.what(),
-                        2);
-                    return nan("");
+                    // 파라미터가 직접 숫자인 경우 해당 값을 사용
+                    return OperandValue(param_zero.get<double>());
                 }
             }
-            engine.EngineStdOut("Invalid 'number' block structure in parameter field for " + objectId, 1);
+            engine.EngineStdOut("Invalid 'number' or 'text_reporter_number' block structure in parameter field for " + objectId + ". Expected params[0] to be a string or number.", 1, executionThreadId);
             return OperandValue(0.0);
         }
         else if (fieldType == "text" || fieldType == "text_reporter_string")
@@ -293,8 +332,8 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             {
                 return OperandValue(paramField["params"][0].get<string>());
             }
-            engine.EngineStdOut("Invalid 'text' block structure in parameter field for " + objectId, 1);
-            return nan("");
+            engine.EngineStdOut("Invalid 'text' or 'text_reporter_string' block structure in parameter field for " + objectId + ". Expected params[0] to be a string.", 1, executionThreadId);
+            return OperandValue(""); // 문자열 타입이므로 빈 문자열 반환
         }
         else if (fieldType == "calc_basic" || fieldType == "calc_rand" || fieldType == "quotient_and_mod" || fieldType == "calc_operation" ||
                  fieldType == "distance_something" || fieldType == "length_of_string" || fieldType == "reverse_of_string" ||
@@ -355,7 +394,8 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             }
             engine.EngineStdOut(
                 "Invalid 'text_color' block structure in parameter field for " + objectId +
-                    ". Expected params[0] to be a HEX string.", 1, executionThreadId);
+                    ". Expected params[0] to be a HEX string.",
+                1, executionThreadId);
             return OperandValue("#000000"); // 기본값 또는 오류 처리
         }
         else if (fieldType == "get_pictures")
@@ -445,14 +485,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId); // paramField 전달
         OperandValue direction = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
-        if (distance.type != OperandValue::Type::NUMBER || direction.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("move_direction block for object {} has non-numeric params.", objectId), 2,
-                                executionThreadId);
-            return;
-        }
-        double dist = distance.number_val;
-        double dir = direction.number_val;
+        double dist = distance.asNumber();
+        double dir = direction.asNumber();
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist * cos(dir * SDL_PI_D / 180.0);
         double newY = entity->getY() - dist * sin(dir * SDL_PI_D / 180.0);
@@ -674,13 +708,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (distance.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("move_x block for object {} has non-numeric params.", objectId), 2,
-                                executionThreadId);
-            return;
-        }
-        double dist = distance.number_val;
+        double dist = distance.asNumber();
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newX = entity->getX() + dist;
         // engine.EngineStdOut("move_x objId: " + objectId + " newX: " + to_string(newX), 0, executionThreadId);
@@ -696,13 +724,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (distance.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("move_y block for object {} has non-numeric params.", objectId), 2,
-                                executionThreadId);
-            return;
-        }
-        double dist = distance.number_val;
+        double dist = distance.asNumber();
         // entity는 함수 시작 시 이미 검증되었습니다.
         double newY = entity->getY() + dist;
         // engine.EngineStdOut("move_y objId: " + objectId + " newY: " + to_string(newY), 0, executionThreadId);
@@ -730,18 +752,6 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
             OperandValue xOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
             OperandValue yOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-
-            if (timeOp.type != OperandValue::Type::NUMBER ||
-                xOp.type != OperandValue::Type::NUMBER ||
-                yOp.type != OperandValue::Type::NUMBER)
-            {
-                engine.EngineStdOut(std::format("move_xy_time block for {} has non-number parameters. Time: {}, X: {}, Y: {}",
-                                                objectId, timeOp.asString(), xOp.asString(), yOp.asString()),
-                                    2, executionThreadId);
-                state.isActive = false;
-                return;
-            }
-
             double timeValue = timeOp.asNumber();
             state.targetX = xOp.asNumber();
             state.targetY = yOp.asNumber();
@@ -806,12 +816,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     else if (BlockType == "locate_x")
     {
         OperandValue valueX = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (valueX.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("locate_x block for object {} is not a number.", objectId), 2, executionThreadId);
-            return;
-        }
-        double x = valueX.number_val;
+        double x = valueX.asNumber();
         // entity는 함수 시작 시 이미 검증되었습니다.
         // engine.EngineStdOut("locate_x objId: " + objectId + " newX: " + to_string(x), 3, executionThreadId);
         entity->setX(x);
@@ -819,13 +824,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     else if (BlockType == "locate_y")
     {
         OperandValue valueY = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (valueY.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("locate_y block for object {} is not a number.", objectId), 2, executionThreadId);
-            return;
-        }
         // entity는 함수 시작 시 이미 검증되었습니다.
-        double y = valueY.number_val;
+        double y = valueY.asNumber();
         // engine.EngineStdOut("locate_y objId: " + objectId + " newX: " + to_string(y), 3, executionThreadId);
         entity->setY(y);
     }
@@ -1011,7 +1011,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
-        entity->setDirection(value.number_val + entity->getDirection());
+        entity->setDirection(value.asNumber() + entity->getDirection());
     }
     else if (BlockType == "rotate_by_time" || BlockType == "direction_relative_duration")
     {
@@ -1023,8 +1023,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                                 executionThreadId);
             return;
         }
-        double time = timeValue.number_val;
-        double angle = angleValue.number_val;
+        double time = timeValue.asNumber();
+        double angle = angleValue.asNumber();
 
         // entity는 함수 시작 시 이미 검증되었습니다.
         // 이전의 if (!entity) 체크는 불필요합니다.
@@ -1065,7 +1065,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
-        entity->setRotation(angle.number_val);
+        entity->setRotation(angle.asNumber());
     }
     else if (BlockType == "direction_absolute")
     {
@@ -1077,7 +1077,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
-        entity->setDirection(angle.number_val);
+        entity->setDirection(angle.asNumber());
     }
     else if (BlockType == "see_angle_object")
     {
@@ -1124,8 +1124,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             return;
         }
         // entity는 함수 시작 시 이미 검증되었습니다.
-        double angle = setAngle.number_val;
-        double distance = setDesnitance.number_val;
+        double angle = setAngle.asNumber();
+        double distance = setDesnitance.asNumber();
         entity->setX(entity->getX() + distance * cos(angle * SDL_PI_D / 180.0));
         entity->setY(entity->getY() + distance * sin(angle * SDL_PI_D / 180.0));
     }
@@ -1152,14 +1152,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         OperandValue opVal = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue rightOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
 
-        if (opVal.type != OperandValue::Type::STRING)
-        {
-            string errMsg = std::format("calc_basic operator is not a string for {}", objectId);
-            engine.EngineStdOut(errMsg, 2, executionThreadId);
-            // 사용자에게 보여줄 메시지와 내부 로그용 메시지를 구분하여 전달
-            throw ScriptBlockExecutionError("계산 블록의 연산자 타입이 올바르지 않습니다.", block.id, BlockType, objectId, "Operator is not a string.");
-        }
-        string anOperator = opVal.string_val;
+        string anOperator = opVal.asString();
 
         // EntryJS-like behavior: PLUS can be string concatenation or numeric addition
         if (anOperator == "PLUS")
@@ -1477,16 +1470,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         OperandValue left_op = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue operator_op = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue right_op = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-
-        if (operator_op.type != OperandValue::Type::STRING)
-        {
-            engine.EngineStdOut("quotient_and_mod block for " + objectId + " has non-string operator parameter.", 2,
-                                executionThreadId);
-            throw ScriptBlockExecutionError(
-                "몫과 나머지 블록의 연산자 파라미터 타입이 올바르지 않습니다.", block.id, BlockType, objectId,
-                "Operator parameter for quotient_and_mod block is not a string.");
-        }
-        string anOperator = operator_op.string_val;
+        string anOperator = operator_op.asString();
 
         double left_val = left_op.asNumber();
         double right_val = right_op.asNumber();
@@ -3418,20 +3402,20 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
         if (effectName == "color")
         {
             entity->setEffectHue(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + to_string(value), 0,
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed to " + to_string(value), 3,
                                 executionThreadId);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(value);
-            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + to_string(value), 0,
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed to " + to_string(value), 3,
                                 executionThreadId);
         }
         else if (effectName == "transparency")
         {
             entity->setEffectAlpha(1 - (value / 100.0));
             engine.EngineStdOut(
-                "Entity " + objectId + " effect 'transparency' (alpha) changed to " + to_string(value), 0);
+                "Entity " + objectId + " effect 'transparency' (alpha) changed to " + to_string(value), 3);
         }
     }
     else if (BlockType == "erase_all_effects")
@@ -3444,25 +3428,44 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     else if (BlockType == "change_scale_size")
     {
         OperandValue size = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        entity->setScaleX(entity->getScaleX() + size.asNumber());
-        entity->setScaleY(entity->getScaleY() + size.asNumber());
+        double changePercent = size.asNumber();
+
+        // 현재 스케일 팩터를 퍼센트로 변환, 변경량을 더한 후 다시 팩터로 변환하여 적용
+        double currentScaleXFactor = entity->getScaleX();
+        double newPercentX = (currentScaleXFactor * 100.0) + changePercent;
+        entity->setScaleX(newPercentX / 100.0);
+
+        double currentScaleYFactor = entity->getScaleY();
+        double newPercentY = (currentScaleYFactor * 100.0) + changePercent;
+        entity->setScaleY(newPercentY / 100.0);
+
+        //debug
+        engine.EngineStdOut("SCALE: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
     }
     else if (BlockType == "set_scale_size")
     {
         OperandValue setSize = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        entity->setScaleX(setSize.asNumber());
-        entity->setScaleY(setSize.asNumber());
+        double percent = setSize.asNumber();
+        // 입력된 퍼센트 값을 스케일 팩터로 변환하여 적용
+        entity->setScaleX(percent / 100.0);
+        entity->setScaleY(percent / 100.0);
+        //debug
+        engine.EngineStdOut("SCALE: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
     }
     else if (BlockType == "stretch_scale_size")
     {
         OperandValue setWidth = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue setHeight = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
-        entity->setWidth(setWidth.asNumber());
-        entity->setHeight(setHeight.asNumber());
+        // 입력된 x, y 퍼센트 값을 각각 스케일 팩터로 변환하여 적용
+        entity->setScaleX(setWidth.asNumber() / 100.0);
+        entity->setScaleY(setHeight.asNumber() / 100.0);
+        //debug
+        engine.EngineStdOut("STRETCH SCALE_FACTORS: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
     }
     else if (BlockType == "reset_scale_size")
     {
-        entity->resetScaleSize();
+        entity->setScaleX(1.0); // 100% 크기
+        entity->setScaleY(1.0); // 100% 크기
     }
     else if (BlockType == "flip_x")
     {
