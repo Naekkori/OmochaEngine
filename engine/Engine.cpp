@@ -1019,6 +1019,7 @@ bool Engine::loadProject(const string &projectFilePath)
                             ctu.demension.width = pictureJson["demension"]["width"].get<int>();
                             ctu.demension.height = pictureJson["demension"]["height"].get<int>();
                             ctu.demension.scaleX = pictureJson["demension"]["scaleX"].get<double>();
+                            ctu.demension.scaleY = pictureJson["demension"]["scaleY"].get<double>();
                         }
                         objInfo.costumes.push_back(ctu);
                         EngineStdOut(
