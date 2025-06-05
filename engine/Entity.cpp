@@ -132,10 +132,10 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             {
                 if (threadState.blockIdForWait != scriptPtr->blocks[threadState.resumeAtBlockIndex].id)
                 {
-                    pEngineInstance->EngineStdOut("Warning: Mismatch in blockIdForWait (" + threadState.blockIdForWait +
+                    pEngineInstance->EngineStdOut("Mismatch in blockIdForWait (" + threadState.blockIdForWait +
                                                       ") and block at resumeAtBlockIndex (" + scriptPtr->blocks[threadState.resumeAtBlockIndex].id +
                                                       ") for " + id + ". Clearing wait.",
-                                                  1, executionThreadId);
+                                                  3, executionThreadId);
                 }
             }
             // Only clear isWaiting if it was for BLOCK_INTERNAL.

@@ -5286,19 +5286,19 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         std::string conditionResultString = "N/A"; // For logging
         if (conditionResult.type == OperandValue::Type::BOOLEAN)
         {
-            conditionIsTrue = conditionResult.boolean_val;
-            conditionResultString = conditionResult.boolean_val ? "true (boolean)" : "false (boolean)";
+            conditionIsTrue = conditionResult.asBool();
+            conditionResultString = conditionResult.asBool() ? "true (boolean)" : "false (boolean)";
         }
         else if (conditionResult.type == OperandValue::Type::NUMBER)
         {
-            conditionIsTrue = (conditionResult.number_val != 0.0); // 0이 아니면 참
+            conditionIsTrue = (conditionResult.asNumber() != 0.0); // 0이 아니면 참
         }
         else if (conditionResult.type == OperandValue::Type::STRING)
         {
             // 엔트리JS는 빈 문자열, "0", "false"를 거짓으로 간주. 그 외는 참.
-            conditionIsTrue = !conditionResult.string_val.empty() &&
-                              conditionResult.string_val != "0" &&
-                              conditionResult.string_val != "false";
+            conditionIsTrue = !conditionResult.asString().empty() &&
+                              conditionResult.asString() != "0" &&
+                              conditionResult.asString() != "false";
             conditionResultString = "\"" + conditionResult.string_val + "\" (string) -> " + (conditionIsTrue ? "true" : "false");
         }
         else
@@ -5313,7 +5313,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         engine.EngineStdOut(std::format("Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (Raw condition result: {})",
                                         objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"), conditionResultString),
-                            0, executionThreadId);
+                            3, executionThreadId);
 
         if (conditionIsTrue)
         {
@@ -5326,7 +5326,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
             if (doScript.blocks.empty())
             {
-                engine.EngineStdOut("Flow '_if' for " + objectId + ": STACK (statement) is empty. Block ID: " + block.id, 1, executionThreadId);
+                engine.EngineStdOut("Flow '_if' for " + objectId + ": STACK (statement) is empty. Block ID: " + block.id, 3, executionThreadId);
                 // STACK이 비어있는 것은 유효한 상황일 수 있으므로, 여기서 return하지 않습니다.
             }
             else
@@ -5360,17 +5360,17 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         bool conditionIsTrue = false;
         if (conditionResult.type == OperandValue::Type::BOOLEAN)
         {
-            conditionIsTrue = conditionResult.boolean_val;
+            conditionIsTrue = conditionResult.asBool();
         }
         else if (conditionResult.type == OperandValue::Type::NUMBER)
         {
-            conditionIsTrue = (conditionResult.number_val != 0.0);
+            conditionIsTrue = (conditionResult.asNumber() != 0);
         }
         else if (conditionResult.type == OperandValue::Type::STRING)
         {
-            conditionIsTrue = !conditionResult.string_val.empty() &&
-                              conditionResult.string_val != "0" &&
-                              conditionResult.string_val != "false";
+            conditionIsTrue = !conditionResult.asString().empty() &&
+                              conditionResult.asString() != "0" &&
+                              conditionResult.asString() != "false";
         }
         else
         {
