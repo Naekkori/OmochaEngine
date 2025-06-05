@@ -1273,19 +1273,19 @@ bool Engine::loadProject(const string &projectFilePath)
                             catch (const exception &e)
                             {
                                 EngineStdOut("Failed to parse textBoxBackgroundColor '" + hexBgColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #FFFFFF.", 2);
-                                objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                                objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
                             }
                         }
                         else
                         {
                             EngineStdOut("textBox '" + objInfo.name + "' 'textBoxBackgroundColor' field is not a valid HEX string (#RRGGBB): " + hexBgColor + ". Using default #FFFFFF.", 1);
-                            objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                            objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
                         }
                     }
                     else
                     {
                         EngineStdOut("textBox '" + objInfo.name + "' is missing 'textBoxBackgroundColor' field or it's not a string. Using default #FFFFFF.", 1);
-                        objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                        objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 흰색
                     }
 
 
