@@ -1268,32 +1268,26 @@ bool Engine::loadProject(const string &projectFilePath)
                                 unsigned int r = stoul(hexBgColor.substr(1, 2), nullptr, 16);
                                 unsigned int g = stoul(hexBgColor.substr(3, 2), nullptr, 16);
                                 unsigned int b = stoul(hexBgColor.substr(5, 2), nullptr, 16);
-                                string isTransperant = entityJson["bgColor"].get<string>();
-                                if (isTransperant == "transparent")
-                                {
-                                    objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b, 0};
-                                }else{
-                                    objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b,255};
-                                }
+                                objInfo.textBoxBackgroundColor = {(Uint8)r, (Uint8)g, (Uint8)b, 255};
                                 
                                 EngineStdOut("INFO: textBox '" + objInfo.name + "' background color parsed: R=" + to_string(r) + ", G=" + to_string(g) + ", B=" + to_string(b), 0);
                             }
                             catch (const exception &e)
                             {
-                                EngineStdOut("Failed to parse textBoxBackgroundColor '" + hexBgColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default #FFFFFF.", 2);
-                                objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                                EngineStdOut("Failed to parse textBoxBackgroundColor '" + hexBgColor + "' for object '" + objInfo.name + "': " + e.what() + ". Using default transperant.", 2);
+                                objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 기본값은 투명이였음
                             }
                         }
                         else
                         {
-                            EngineStdOut("textBox '" + objInfo.name + "' 'textBoxBackgroundColor' field is not a valid HEX string (#RRGGBB): " + hexBgColor + ". Using default #FFFFFF.", 1);
-                            objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                            EngineStdOut("textBox '" + objInfo.name + "' 'textBoxBackgroundColor' field is not a valid HEX string (#RRGGBB): " + hexBgColor + ". Using default transperant.", 1);
+                            objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 기본값은 투명이였음
                         }
                     }
                     else
                     {
-                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'textBoxBackgroundColor' field or it's not a string. Using default #FFFFFF.", 1);
-                        objInfo.textBoxBackgroundColor = {255, 255, 255, 255}; // 흰색
+                        EngineStdOut("textBox '" + objInfo.name + "' is missing 'textBoxBackgroundColor' field or it's not a string. Using default transperant.", 1);
+                        objInfo.textBoxBackgroundColor = {255, 255, 255, 0}; // 기본값은 투명이였음
                     }
 
 
