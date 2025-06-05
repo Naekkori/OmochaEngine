@@ -1259,6 +1259,10 @@ bool Engine::loadProject(const string &projectFilePath)
                     // textBoxBackgroundColor 파싱 (기본값: 흰색)
                     if (entityJson.contains("bgColor") && entityJson["bgColor"].is_string())
                     {
+                        if(entityJson["bgColor"]=="transparent"{
+                            //투명일경우 넘어갑니다.
+                            return;
+                        }
                         string hexBgColor = entityJson["bgColor"].get<string>();
                         if (hexBgColor.length() == 7 && hexBgColor[0] == '#')
                         {
