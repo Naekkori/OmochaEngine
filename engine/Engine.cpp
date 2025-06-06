@@ -1451,15 +1451,15 @@ bool Engine::loadProject(const string &projectFilePath)
                 double initial_direction = entityJson.contains("direction") && entityJson["direction"].is_number()
                                                ? entityJson["direction"].get<double>()
                                                : 90.0;
-                double initial_width = entityJson.contains("width") && entityJson["width"].is_number()
-                                           ? entityJson["width"].get<double>()
-                                           : 100.0;
-                double initial_height = entityJson.contains("height") && entityJson["height"].is_number()
-                                            ? entityJson["height"].get<double>()
-                                            : 100.0;
+                int initial_width = entityJson.contains("width") && entityJson["width"].is_number()
+                                           ? entityJson["width"].get<int>()
+                                           : 100;
+                int initial_height = entityJson.contains("height") && entityJson["height"].is_number()
+                                            ? entityJson["height"].get<int>()
+                                            : 100;
 
-                double entity_constructor_width = initial_width;
-                double entity_constructor_height = initial_height;
+                int entity_constructor_width = initial_width;
+                int entity_constructor_height = initial_height;
 
                 if (objInfo.objectType == "textBox")
                 {

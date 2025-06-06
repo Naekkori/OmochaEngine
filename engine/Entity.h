@@ -211,10 +211,12 @@ private:
     double regY;
     double scaleX;
     double scaleY;
+    double OrigineScaleX;
+    double OrigineScaleY;
     double rotation;
     double direction;
-    double width;
-    double height;
+    int width;
+    int height;
     std::atomic<bool> visible; // Changed to std::atomic<bool>
     RotationMethod rotateMethod;
     // Effects
@@ -256,7 +258,7 @@ public:
     Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
            double initial_x, double initial_y, double initial_regX, double initial_regY,
            double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
-           double initial_width, double initial_height, bool initial_visible, RotationMethod rotationMethod);
+           int initial_width, int initial_height, bool initial_visible, RotationMethod rotationMethod);
 
     ~Entity();
     DialogState m_currentDialog;
@@ -303,13 +305,19 @@ public:
     void setText(const std::string &text);
     void appendText(const std::string& textToAppend); // 텍스트 추가 메서드 선언
     void prependText(const std::string& prependToText);
+
+    double getSize(bool toFixedSize=false) const;
+
+    void setSize(double size);
+
+    void resetSize();
+
     void setScaleY(double newScaleY);
     void setRotation(double newRotation);
     void setDirection(double newDirection);
     void setWidth(double newWidth);
     void setHeight(double newHeight);
     void setVisible(bool newVisible);
-    void resetScaleSize();
     // Effect getters/setters
     double getEffectBrightness() const;
     void setEffectBrightness(double brightness);

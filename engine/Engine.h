@@ -28,10 +28,10 @@ using namespace std;
 #include <set>      // For std::set
 #include <atomic> // For std::atomic
 
-const int WINDOW_WIDTH = 480 * 3;
-const int WINDOW_HEIGHT = 270 * 3;
-static const int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
-static const int PROJECT_STAGE_HEIGHT = 270; // 실제 프로젝트의 세로 크기(16:9 비율)에 맞춤
+constexpr int WINDOW_WIDTH = 480 * 3;
+constexpr int WINDOW_HEIGHT = 270 * 3;
+static constexpr int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
+static constexpr int PROJECT_STAGE_HEIGHT = 270; // 실제 프로젝트의 세로 크기(16:9 비율)에 맞춤
 
 // HUD 상수 정의
 static const int SLIDER_X = 10;
@@ -240,6 +240,8 @@ private:
     std::unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
 
 public:
+    static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}
+    static int getProjectstageHeight(){return PROJECT_STAGE_HEIGHT;}
     // --- Engine Special Configuration ---
     static const float MIN_LIST_WIDTH;  // 리스트 최소 너비
     static const float MIN_LIST_HEIGHT; // 리스트 최소 높이

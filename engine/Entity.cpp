@@ -2,12 +2,12 @@
 #include <iostream>
 #include <mutex> // For std::lock_guard
 #include <string>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include "Engine.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
-
 Entity::PenState::PenState(Engine *enginePtr)
     : pEngine(enginePtr),
       stop(false), // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
@@ -15,6 +15,33 @@ Entity::PenState::PenState(Engine *enginePtr)
       lastStagePosition({0.0f, 0.0f}),
       color{0, 0, 0, 255}
 {
+}
+// Helper function to mimic parseFloat(num.toFixed(2))
+static double helper_parseFloatNumToFixed2(double num, Engine *pEngineInstanceForLog)
+{
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << num; // 소수점 2자리로 포맷
+    std::string s = oss.str();
+    try
+    {
+        return std::stod(s); // 문자열을 double로 변환
+    }
+    catch (const std::invalid_argument &ia)
+    {
+        if (pEngineInstanceForLog)
+        {
+            pEngineInstanceForLog->EngineStdOut("Error in helper_parseFloatNumToFixed2 (invalid_argument): " + std::string(ia.what()) + " for string '" + s + "'", 2);
+        }
+        return std::nan(""); // 변환 실패 시 NaN 반환
+    }
+    catch (const std::out_of_range &oor)
+    {
+        if (pEngineInstanceForLog)
+        {
+            pEngineInstanceForLog->EngineStdOut("Error in helper_parseFloatNumToFixed2 (out_of_range): " + std::string(oor.what()) + " for string '" + s + "'", 2);
+        }
+        return std::nan(""); // 변환 실패 시 NaN 반환
+    }
 }
 
 void Entity::PenState::setPenDown(bool down, float currentStageX, float currentStageY)
@@ -62,7 +89,7 @@ void Entity::DialogState::clear()
 Entity::Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
                double initial_x, double initial_y, double initial_regX, double initial_regY,
                double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
-               double initial_width, double initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod) // timedMoveState 추가
+               int initial_width, int initial_height, bool initial_visible, Entity::RotationMethod initial_rotationMethod) // timedMoveState 추가
     : pEngineInstance(engine), id(entityId), name(entityName),
       x(initial_x), y(initial_y), regX(initial_regX), regY(initial_regY),
       scaleX(initial_scaleX), scaleY(initial_scaleY), rotation(initial_rotation), direction(initial_direction),
@@ -72,10 +99,12 @@ Entity::Entity(Engine *engine, const std::string &entityId, const std::string &e
       m_effectAlpha(1.0),      // 1.0: 완전 불투명,
       m_effectHue(0.0)         // 0: 색조 변경 없음
 {                              // Initialize PenState members
+    // 초기스케일 복사
+    OrigineScaleX = initial_scaleX;
+    OrigineScaleY = initial_scaleY;
 }
 
-Entity::~Entity()
-= default;
+Entity::~Entity() = default;
 
 void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type)
 {
@@ -429,12 +458,18 @@ void Entity::setRegY(double newRegY)
 void Entity::setScaleX(double newScaleX)
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    scaleX = newScaleX;
+    if (!m_isClone)
+    {
+        scaleX = newScaleX;
+    }
 }
 void Entity::setScaleY(double newScaleY)
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    scaleY = newScaleY;
+    if (!m_isClone)
+    {
+        scaleY = newScaleY;
+    }
 }
 void Entity::setRotation(double newRotation)
 {
@@ -518,32 +553,33 @@ void Entity::setWidth(double newWidth)
                 pEngineInstance->EngineStdOut("DEBUG: setWidth for " + this->id + ", costume '" + selectedCostume->name + "'. imageHandle: " + (selectedCostume->imageHandle ? "VALID_PTR" : "NULL_PTR"), 3);
                 if (selectedCostume->imageHandle) // Then check imageHandle
                 {
-                float texW = 0, texH = 0;
+                    float texW = 0, texH = 0;
                     SDL_ClearError(); // Clear previous SDL errors
                     int texture_size_result = SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH);
 
-                if (texture_size_result == 0) // SDL3: 0 on success
-                {
+                    if (texture_size_result == 0) // SDL3: 0 on success
+                    {
                         pEngineInstance->EngineStdOut("DEBUG: SDL_GetTextureSize success for " + selectedCostume->name + ". texW: " + std::to_string(texW) + ", texH: " + std::to_string(texH), 3);
                         if (texW > 0.00001f)
-                    { // 0으로 나누기 방지 (매우 작은 값보다 클 때)
-                        this->scaleX = newWidth / static_cast<double>(texW);
+                        { // 0으로 나누기 방지 (매우 작은 값보다 클 때)
+                            this->scaleX = newWidth / static_cast<double>(texW);
+                        }
+                        else
+                        {
+                            this->scaleX = 1.0; // 원본 텍스처 너비가 0이면 스케일 1로 설정 (오류 상황)
+                            pEngineInstance->EngineStdOut("Warning: Original texture width is 0 for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. Cannot accurately set scaleX.", 1);
+                            pEngineInstance->EngineStdOut("DEBUG: Calculated scaleX: " + std::to_string(this->scaleX) + " (newWidth: " + std::to_string(newWidth) + ", texW: " + std::to_string(texW) + ")", 3);
+                        }
                     }
                     else
                     {
-                        this->scaleX = 1.0; // 원본 텍스처 너비가 0이면 스케일 1로 설정 (오류 상황)
-                        pEngineInstance->EngineStdOut("Warning: Original texture width is 0 for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. Cannot accurately set scaleX.", 1);
-                        pEngineInstance->EngineStdOut("DEBUG: Calculated scaleX: " + std::to_string(this->scaleX) + " (newWidth: " + std::to_string(newWidth) + ", texW: " + std::to_string(texW) + ")", 3);
-                    }
-                }
-                else
-                {
-                    const char *err = SDL_GetError();
+                        const char *err = SDL_GetError();
                         std::string sdlErrorString = (err && err[0] != '\0') ? err : "None (or error string was empty)";
                         pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. SDL_GetTextureSize result: " + std::to_string(texture_size_result) + ", SDL Error: " + sdlErrorString + ". ScaleX not changed.", 1);
-                    if (err && err[0] != '\0') SDL_ClearError();
+                        if (err && err[0] != '\0')
+                            SDL_ClearError();
+                    }
                 }
-            }
                 else // selectedCostume->imageHandle is NULL
                 {
                     pEngineInstance->EngineStdOut("Warning: selectedCostume->imageHandle is NULL for costume '" + selectedCostume->name + "' of entity " + this->id + ". ScaleX not changed.", 1);
@@ -600,7 +636,7 @@ void Entity::setHeight(double newHeight)
             if (selectedCostume && selectedCostume->imageHandle)
             {
                 float texW = 0, texH = 0;
-                if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH)==true)
+                if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW, &texH) == true)
                 {
                     if (texH > 0.00001f)
                     { // 0으로 나누기 방지
@@ -617,7 +653,8 @@ void Entity::setHeight(double newHeight)
                     const char *err = SDL_GetError();
                     std::string sdlErrorString = (err && err[0] != '\0') ? err : "None";
                     pEngineInstance->EngineStdOut("Warning: Could not get texture size for costume '" + selectedCostume->name + "' of entity '" + this->id + "'. SDL Error: " + sdlErrorString + ". ScaleY not changed.", 1);
-                    if (err && err[0] != '\0') SDL_ClearError();
+                    if (err && err[0] != '\0')
+                        SDL_ClearError();
                 }
             }
             else
@@ -637,75 +674,6 @@ void Entity::setHeight(double newHeight)
             }
         }
     }
-}
-void Entity::resetScaleSize()
-{
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    this->scaleX = 1.0;
-    this->scaleY = 1.0;
-
-    double newOriginalWidth = 100.0;
-    double newOriginalHeight = 100.0;
-
-    if (pEngineInstance)
-    {
-        const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
-        if (objInfo && !objInfo->costumes.empty())
-        {
-            const Costume *selectedCostume = nullptr;
-            const std::string &currentCostumeId = objInfo->selectedCostumeId;
-            for (const auto &costume_ref : objInfo->costumes)
-            {
-                if (costume_ref.id == currentCostumeId)
-                {
-                    selectedCostume = &costume_ref;
-                    break;
-                }
-
-                if (selectedCostume && selectedCostume->imageHandle)
-                {
-                    float texW_float = 0, texH_float = 0;
-                    if (SDL_GetTextureSize(selectedCostume->imageHandle, &texW_float, &texH_float) == true)
-                    {
-                        newOriginalWidth = static_cast<double>(texW_float);
-                        newOriginalHeight = static_cast<double>(texH_float);
-                    }
-                    else
-                    {
-                        pEngineInstance->EngineStdOut(
-                            "Warning: Entity::resetScaleSize - Could not get texture size for costume '" + selectedCostume->name + 
-                            "' of entity '" + this->id + "'. SDL Error: " + 
-                            ([&]() { const char *err = SDL_GetError(); return (err && err[0] != '\0') ? std::string(err) : "None"; }()) +
-                                ". Original width/height will be set to 0.",
-                            1);
-                        SDL_ClearError(); // Clear error after logging it
-                        newOriginalWidth = 0.0; // 텍스처 데이터 문제 시 0으로 설정
-                        newOriginalHeight = 0.0;
-                    }
-                }
-                else
-                {
-                    pEngineInstance->EngineStdOut(
-                        "Warning: Entity::resetScaleSize - Selected costume or image handle not found for entity '" +
-                            this->id + "'. Using default original size (100x100).",
-                        1);
-                }
-            }
-        }
-        else
-        {
-            pEngineInstance->EngineStdOut(
-                "Warning: Entity::resetScaleSize - ObjectInfo or costumes not found for entity '" +
-                    this->id + "'. Using default original size (100x100).",
-                1);
-        }
-    }
-    else
-    {
-        std::cerr << "Critical Warning: Entity::resetScaleSize - pEngineInstance is null for entity '" << this->id << "'. Using default original size (100x100)." << std::endl;
-    }
-    this->width = newOriginalWidth;
-    this->height = newOriginalHeight;
 }
 void Entity::setVisible(bool newVisible)
 {
@@ -1429,32 +1397,37 @@ void Entity::processInternalContinuations(float deltaTime)
         catch (const ScriptBlockExecutionError &sbee)
         {
             Entity *entitiyInfo = pEngineInstance->getEntityById(sbee.entityId);
-            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType); // sbee.blockType을 사용해야 합니다.
+            Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);  // sbee.blockType을 사용해야 합니다.
             std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum); // 변환된 enum 사용
 
             // Helper lambda to truncate strings safely
-            auto truncate_string = [](const std::string& str, size_t max_len) {
-                if (str.length() > max_len) {
+            auto truncate_string = [](const std::string &str, size_t max_len)
+            {
+                if (str.length() > max_len)
+                {
                     return str.substr(0, max_len) + "...(truncated)";
                 }
                 return str;
             };
 
-            const size_t MAX_ID_LEN = 128;    // Max length for IDs/types in error messages
-            const size_t MAX_MSG_LEN = 512;   // Max length for original message part
-            const size_t MAX_NAME_LEN = 256;  // Max length for entity name
+            const size_t MAX_ID_LEN = 128;   // Max length for IDs/types in error messages
+            const size_t MAX_MSG_LEN = 512;  // Max length for original message part
+            const size_t MAX_NAME_LEN = 256; // Max length for entity name
 
             std::string entityNameStr = "[정보 없음]";
-            if (entitiyInfo) {
+            if (entitiyInfo)
+            {
                 entityNameStr = truncate_string(entitiyInfo->getName(), MAX_NAME_LEN);
-            } else {
+            }
+            else
+            {
                 entityNameStr = "[객체 ID: " + truncate_string(sbee.entityId, MAX_ID_LEN) + " 찾을 수 없음]";
             }
 
             std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + truncate_string(sbee.blockId, MAX_ID_LEN) +
-                                               " 의 타입 " + truncate_string(koreanBlockTypeName, MAX_ID_LEN) + // koreanBlockTypeName 사용
+                                               " 의 타입 " + truncate_string(koreanBlockTypeName, MAX_ID_LEN) +            // koreanBlockTypeName 사용
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.empty() // blockTypeEnum 사용
-                                                    ? " (원본: " + truncate_string(sbee.blockType, MAX_ID_LEN) + ")" // sbee.blockType 사용
+                                                    ? " (원본: " + truncate_string(sbee.blockType, MAX_ID_LEN) + ")"       // sbee.blockType 사용
                                                     : "") +
                                                " 에서 사용 하는 객체 " + "(" + entityNameStr + ")" +
                                                "\n원본 오류: " + truncate_string(sbee.originalMessage, MAX_MSG_LEN);
@@ -1469,15 +1442,17 @@ void Entity::processInternalContinuations(float deltaTime)
         catch (const std::exception &e)
         {
             // Helper lambda to truncate strings safely
-            auto truncate_string = [](const std::string& str, size_t max_len) {
-                if (str.length() > max_len) {
+            auto truncate_string = [](const std::string &str, size_t max_len)
+            {
+                if (str.length() > max_len)
+                {
                     return str.substr(0, max_len) + "...(truncated)";
                 }
                 return str;
             };
 
-            const size_t MAX_ID_LEN = 128;    // Max length for entity/thread IDs in error messages
-            const size_t MAX_MSG_LEN = 512;   // Max length for exception message part
+            const size_t MAX_ID_LEN = 128;  // Max length for entity/thread IDs in error messages
+            const size_t MAX_MSG_LEN = 512; // Max length for exception message part
 
             std::string entityIdStr = truncate_string(getId(), MAX_ID_LEN);
             std::string threadIdStr = truncate_string(execId, MAX_ID_LEN); // execId is the thread ID
@@ -1849,5 +1824,96 @@ void Entity::prependText(const std::string &prependToText)
     else
     {
         std::cerr << "Error: Entity " << id << " has no pEngineInstance to append text." << std::endl;
+    }
+}
+/**
+ * @brief 사이즈 가져오기 (엔트리)
+ * @param toFixedSize 자리수
+ */
+double Entity::getSize(bool toFixedSize) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    // 스테이지 너비를 기준으로 현재 엔티티의 시각적 너비가 차지하는 비율을 계산합니다.
+    // this->width는 엔티티의 원본 이미지 너비입니다.
+    // this->getScaleX()는 원본 이미지 너비에 대한 스케일 팩터입니다.
+    // 따라서 (this->width * std::abs(this->getScaleX())) 가 현재 시각적 너비입니다.
+
+    double visualWidth = this->width * std::abs(this->getScaleX());
+    double stageWidth = static_cast<double>(Engine::getProjectstageWidth()); // Engine 클래스에서 스테이지 너비 가져오기
+    if (pEngineInstance)
+    { // 디버깅 로그 추가
+        pEngineInstance->EngineStdOut(format("Entity::getSize - Debug - visualWidth: {}, stageWidth: {}, this->width: {}, this->getScaleX(): {}", visualWidth, stageWidth, this->width, this->getScaleX()), 3);
+    }
+    double current_percentage = 0.0;
+    current_percentage = std::abs(this->getScaleX()) * 100.0; 
+
+    // pEngineInstance가 유효한지 확인 후 로그 출력
+    if (pEngineInstance)
+    {
+        // pEngineInstance->EngineStdOut(format("Entity::getSize W={} H={} V={}", visualWidth, visualHeight, value), 3); // 이전 로그
+        // pEngineInstance->EngineStdOut(format("Entity::getSize OW={} OH={}", this->getWidth(),this->getHeight()), 3); // 이전 로그
+        pEngineInstance->EngineStdOut(format("Entity::getSize - ScaleX: {}, Calculated Percentage: {}", this->getScaleX(), current_percentage), 3);
+    }
+
+    if (toFixedSize)
+    {
+        // 엔트리는 크기 값을 소수점 첫째 자리까지 표시합니다. (예: 123.4%)
+        return std::round(current_percentage * 10.0) / 10.0;
+    }
+    return current_percentage;
+}
+/**
+ * @bref 크기 정하기 (엔트리)
+ * @param size 크기
+ */
+void Entity::setSize(double size)
+{
+    lock_guard<recursive_mutex> lock(m_stateMutex);
+    // 목표 시각적 너비는 (스테이지 너비 * (size / 100.0)) 입니다.
+    // 이 목표 시각적 너비를 엔티티의 원본 너비(this->width)로 나누어
+    // 새로운 scaleX (및 scaleY)를 계산합니다.
+
+    double stageWidth = static_cast<double>(Engine::getProjectstageWidth()); // Engine 클래스에서 스테이지 너비 가져오기
+    double targetVisualWidth = stageWidth * (size / 83.0); // 80.0을 100.0으로 수정
+
+    double newCalculatedScaleX = 1.0; // 기본값
+    if (this->width > 0.00001)
+    { // 엔티티의 원본 너비가 0이 아닐 때
+        newCalculatedScaleX = targetVisualWidth / this->width;
+    }
+    else
+    {
+        // 엔티티의 원본 너비가 0인 경우, 스케일 변경이 의미 없거나 오류 상황입니다.
+        // 이 경우, 이전처럼 size/100.0을 직접 스케일로 사용하거나, 오류를 로깅하고 스케일을 1로 설정할 수 있습니다.
+        // 여기서는 이전 방식을 따르되, 경고를 출력합니다.
+        newCalculatedScaleX = size / 100.0; // 직접 스케일로 사용
+        if (pEngineInstance)
+        {
+            pEngineInstance->EngineStdOut(
+                "Warning: Entity::setSize - Entity original width is zero. Applying 'size' directly as scale factor.", 1);
+        }
+    }
+    if (!this->m_isClone)
+    { // 복제본 이 아닌경우 변경
+        this->setScaleX(newCalculatedScaleX);
+        this->setScaleY(newCalculatedScaleX); // 가로세로 비율 유지를 위해 동일한 스케일 적용
+    }
+    if (pEngineInstance)
+    { // pEngineInstance 유효성 검사 추가
+        pEngineInstance->EngineStdOut(format("Entity::setSize TargetPercentage: {} NewScaleFactor: {}", size, newCalculatedScaleX), 3);
+    }
+}
+/**
+ * @bref 크기 리셋 (엔트리)
+ */
+void Entity::resetSize()
+{
+    lock_guard<recursive_mutex> lock(m_stateMutex);
+    if (!this->m_isClone)
+    {
+        // 복제본이 아닌 경우, 저장된 원본 스케일로 복원합니다.
+        // 이 원본 스케일은 엔티티 생성 시 project.json에서 로드된 값입니다.
+        this->setScaleX(this->OrigineScaleX);
+        this->setScaleY(this->OrigineScaleY);
     }
 }

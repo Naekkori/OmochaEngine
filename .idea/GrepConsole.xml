@@ -17,17 +17,20 @@
                   <option name="pins">
                     <list>
                       <Pin>
-                        <option name="consoleUUID" value="180e8977-c1df-433e-9fcf-01be82eecf37" />
+                        <option name="consoleUUID" value="b3b38838-6e12-4184-95a7-a47f096b67a0" />
                         <option name="contentType" value="ConsoleContent" />
                         <option name="grepCompositeModel">
                           <GrepCompositeModel>
                             <option name="models">
                               <list>
                                 <GrepModel>
-                                  <option name="expression" value="Entity::setSize " />
+                                  <option name="expression" value="Entity::setSize SCALE" />
                                 </GrepModel>
                                 <GrepModel>
                                   <option name="expression" value="FACTOR:" />
+                                </GrepModel>
+                                <GrepModel>
+                                  <option name="expression" value="Entity::getSize" />
                                 </GrepModel>
                               </list>
                             </option>

@@ -333,7 +333,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 return OperandValue({paramField["params"][0].get<string>()});
             }
             engine.EngineStdOut("Invalid 'text' or 'text_reporter_string' block structure in parameter field for " + objectId + ". Expected params[0] to be a string.", 1, executionThreadId);
-            return {""}; // 문자열 타입이므로 빈 문자열 반환
+            return OperandValue(""); // 문자열 타입이므로 빈 문자열 반환
         }
         else if (fieldType == "calc_basic" || fieldType == "calc_rand" || fieldType == "quotient_and_mod" || fieldType == "calc_operation" ||
                  fieldType == "distance_something" || fieldType == "length_of_string" || fieldType == "reverse_of_string" ||
@@ -3427,45 +3427,64 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
     }
     else if (BlockType == "change_scale_size")
     {
+        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+            engine.EngineStdOut("change_scale_size block for"+objectId+"has insufficient parameters. Expected VALUE.",2);
+        }
         OperandValue size = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (size.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("change_scale_size block for " + objectId + ": VALUE parameter is not a number. Value: " + size.asString(), 2);
+        }
         double changePercent = size.asNumber();
-
-        // 현재 스케일 팩터를 퍼센트로 변환, 변경량을 더한 후 다시 팩터로 변환하여 적용
-        double currentScaleXFactor = entity->getScaleX();
-        double newPercentX = (currentScaleXFactor * 100.0) + changePercent;
-        entity->setScaleX(newPercentX / 100.0);
-
-        double currentScaleYFactor = entity->getScaleY();
-        double newPercentY = (currentScaleYFactor * 100.0) + changePercent;
-        entity->setScaleY(newPercentY / 100.0);
-
-        //debug
-        engine.EngineStdOut("SCALE: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
+        entity->setSize(entity->getSize()+changePercent);
+        engine.EngineStdOut(format("FACTOR: {}",changePercent),3);
     }
     else if (BlockType == "set_scale_size")
     {
+        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+            engine.EngineStdOut("set_scale_size block for"+objectId+"has insufficient parameters. Expected VALUE.",2);
+        }
         OperandValue setSize = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        if (setSize.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("set_scale_size block for " + objectId + ": VALUE parameter is not a number. Value: " + setSize.asString(), 2);
+        }
         double percent = setSize.asNumber();
-        // 입력된 퍼센트 값을 스케일 팩터로 변환하여 적용
-        entity->setScaleX(percent / 100.0);
-        entity->setScaleY(percent / 100.0);
-        //debug
-        engine.EngineStdOut("SCALE: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
+        entity->setSize(percent);
+        engine.EngineStdOut(format("FACTOR: {}",percent),3);
     }
     else if (BlockType == "stretch_scale_size")
     {
-        OperandValue setWidth = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        OperandValue setHeight = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        /**
+        func(sprite, script) {
+                    const dimension = script.getValue('DIMENSION', script);
+                    const sizeValue = script.getNumberValue('VALUE', script);
+                    if (dimension === 'WIDTH') {
+                        sprite.setXSize(sprite.getSize() + sizeValue);
+                    } else {
+                        sprite.setYSize(sprite.getSize() + sizeValue);
+                    }
+                    return script.callReturn();
+                },
+         */
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
+            engine.EngineStdOut("stretch_scale_size block for"+objectId+"has insufficient parameters. Expected [DIMENSION, SIZE].",2);
+        }
+        OperandValue dimensionDropdown = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue sizeValue = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+        if (dimensionDropdown.type != OperandValue::Type::NUMBER && sizeValue.type != OperandValue::Type::NUMBER) {
+            engine.EngineStdOut("stretch_scale_size block for " + objectId + ": VALUE parameter is not a number. Value: " + sizeValue.asString(), 2);
+        }
         // 입력된 x, y 퍼센트 값을 각각 스케일 팩터로 변환하여 적용
-        entity->setScaleX(setWidth.asNumber() / 100.0);
-        entity->setScaleY(setHeight.asNumber() / 100.0);
+        if (dimensionDropdown.asString()=="WIDTH") {
+            entity->setScaleX(entity->getSize() + sizeValue.asNumber());
+        }else {
+            entity->setScaleY(entity->getSize() + sizeValue.asNumber());
+        }
         //debug
-        engine.EngineStdOut("STRETCH SCALE_FACTORS: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
+        engine.EngineStdOut("STRETCH SCALE: " + to_string(entity->getScaleX()) + ", " + to_string(entity->getScaleY()), 3);
     }
     else if (BlockType == "reset_scale_size")
     {
-        entity->setScaleX(1.0); // 100% 크기
-        entity->setScaleY(1.0); // 100% 크기
+        entity->resetSize();
     }
     else if (BlockType == "flip_x")
     {
