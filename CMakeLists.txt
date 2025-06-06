@@ -17,7 +17,7 @@ set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_
 
 set(DEVELOPER_NAME "Naekkori")
 set(GITHUB "https://github.com/Naekkori/OmochaEngine")
-project("OmochaEngine" VERSION 1.0.0)
+project("OmochaEngine" VERSION 0.0.56)
 
 if(MSVC)
     add_compile_options(/utf-8) # MSVC uses /utf-8 for UTF-8 source/execution charsets
