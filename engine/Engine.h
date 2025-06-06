@@ -46,12 +46,6 @@ extern string WINDOW_TITLE;                                      // Declaration 
 
 // Forward declaration for ThreadPool
 class ThreadPool;
-struct Demension {
-    int width;
-    int height;
-    int scaleX;
-    int scaleY;
-};
 struct Costume
 {
     string id;
@@ -60,7 +54,6 @@ struct Costume
     SDL_Texture *imageHandle = nullptr; // Initialize to nullptr
     string filename;
     string fileurl;
-    Demension demension;
 };
 /*
 "sounds": [
