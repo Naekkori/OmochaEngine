@@ -1857,11 +1857,10 @@ double Entity::getSize(bool toFixedSize) const
  */
 void Entity::setSize(double size)
 {
-    lock_guard<recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
 
-    double stageWidth = static_cast<double>(Engine::getProjectstageWidth()); // Engine 클래스에서 스테이지 너비 가져오기
+    double stageWidth = Engine::getProjectstageWidth(); // Engine 클래스에서 스테이지 너비 가져오기
     double targetVisualWidth = stageWidth * (size / 83.0);
-
     double newCalculatedScaleX = 1.0; // 기본값
     if (this->width > 0.00001)
     { // 엔티티의 원본 너비가 0이 아닐 때
@@ -1869,9 +1868,6 @@ void Entity::setSize(double size)
     }
     else
     {
-        // 엔티티의 원본 너비가 0인 경우, 스케일 변경이 의미 없거나 오류 상황입니다.
-        // 이 경우, 이전처럼 size/100.0을 직접 스케일로 사용하거나, 오류를 로깅하고 스케일을 1로 설정할 수 있습니다.
-        // 여기서는 이전 방식을 따르되, 경고를 출력합니다.
         newCalculatedScaleX = size / 100.0; // 직접 스케일로 사용
         if (pEngineInstance)
         {

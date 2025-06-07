@@ -1550,7 +1550,7 @@ bool Engine::loadProject(const string &projectFilePath)
                 // Initialize pen positions
                 newEntity->brush.reset(initial_x, initial_y);
                 newEntity->paint.reset(initial_x, initial_y);
-                lock_guard<recursive_mutex> lock(m_engineDataMutex);
+                std::lock_guard lock(m_engineDataMutex);
                 entities[objectId] = std::shared_ptr<Entity>(newEntity);
                 // newEntity->startLogicThread(); // This seems to be commented out already
                 EngineStdOut("INFO: Created Entity for object ID: " + objectId, 0);
