@@ -16,7 +16,6 @@
 #include <boost/asio/thread_pool.hpp> // 추가
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
-#include "blocks/BlockExecutor.h" // ThreadPool 정의를 위해 추가 (BlockExecutor.h로 옮겨졌다고 가정)
 #include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
 #include <resource.h>
@@ -561,10 +560,11 @@ bool Engine::loadProject(const string &projectFilePath)
         PROJECT_NAME = "Omocha Project";
         EngineStdOut("'name' field missing or not a string in project root. Using default: " + PROJECT_NAME, 1);
     }
-
+    if (m_restartRequested.load()==true) {
+        SDL_SetWindowTitle(window,string(PROJECT_NAME).c_str());
+    }
     WINDOW_TITLE = PROJECT_NAME.empty() ? "Omocha Engine" : PROJECT_NAME;
     EngineStdOut("Project Name: " + (PROJECT_NAME.empty() ? "[Not Set]" : PROJECT_NAME), 0);
-
     // TARGET_FPS 파싱
     if (document.contains("speed") && document["speed"].is_number())
     {
@@ -6521,6 +6521,7 @@ void Engine::requestProjectRestart()
 
 void Engine::performProjectRestart()
 {
+    SDL_SetWindowTitle(window,"재시작 하는중...");
     aeHelper.stopAllSounds(); //실행중 사운드 전부 종료
     EngineStdOut("Project restart sequence initiated...", 0);
     m_isShuttingDown.store(true, std::memory_order_relaxed); // 모든 시스템에 종료 신호
