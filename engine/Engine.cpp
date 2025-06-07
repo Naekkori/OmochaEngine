@@ -6936,11 +6936,9 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
         }
 
         // Remove from objects_in_order
-        objects_in_order.erase(
-            std::remove_if(objects_in_order.begin(), objects_in_order.end(),
-                           [&entityIdToDelete](const ObjectInfo &oi)
-                           { return oi.id == entityIdToDelete; }),
-            objects_in_order.end());
+        std::erase_if(objects_in_order,
+                      [&entityIdToDelete](const ObjectInfo &oi)
+                      { return oi.id == entityIdToDelete; });
         EngineStdOut(std::format("Removed ObjectInfo for {} from rendering order.", safe_log_id(entityIdToDelete)), 0);
 
         // Remove from objectScripts
@@ -6948,11 +6946,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
         if (scriptIt != objectScripts.end())
         {
             objectScripts.erase(scriptIt);
-            // EngineStdOut("Removed script entries for " + entityIdToDelete + ".", 0); // 로그 메시지 생성 전 ID 길이 제한
         }
-
-        // Finally, delete the Entity object itself
-        delete entityPtr;
 
         // 로그 메시지 생성 전 ID 길이 제한
         std::string truncatedId = entityIdToDelete;

@@ -84,7 +84,7 @@ public:
         bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
         bool continueLoopRequested = false; // Flag to signal a 'continue_repeat'
 
-        ScriptThreadState() : isWaiting(false), waitEndTime(0), currentWaitType(WaitType::NONE), resumeAtBlockIndex(-1) {}
+        ScriptThreadState()= default;
     };
     std::map<std::string, ScriptThreadState> scriptThreadStates;
     enum class RotationMethod
