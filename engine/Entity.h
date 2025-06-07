@@ -273,11 +273,9 @@ public:
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();
-    void update(float deltaTime);
     void updateDialog(float deltaTime); // Changed from Uint64 currentTimeMs
     void processInternalContinuations(float deltaTime); // BLOCK_INTERNAL 상태 스크립트 직접 처리
-    void resumeExplicitWaitScripts(float deltaTime); 
-    void resumeInternalBlockScripts(float deltaTime); // 추가: BLOCK_INTERNAL 상태의 스크립트 재개
+    void resumeExplicitWaitScripts(float deltaTime);
     void resumeSoundWaitScripts(float deltaTime);      // 추가: SOUND_FINISH 상태의 스크립트 재개
     bool hasActiveDialog() const;
     bool isPointInside(double pX, double pY) const;
@@ -305,13 +303,9 @@ public:
     void setText(const std::string &text);
     void appendText(const std::string& textToAppend); // 텍스트 추가 메서드 선언
     void prependText(const std::string& prependToText);
-
     double getSize(bool toFixedSize=false) const;
-
     void setSize(double size);
-
     void resetSize();
-
     void setScaleY(double newScaleY);
     void setRotation(double newRotation);
     void setDirection(double newDirection);
@@ -334,9 +328,6 @@ public:
     void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to);
     void terminateScriptThread(const std::string& threadId);
     void terminateAllScriptThread(const std::string& execeptThreadId);
-    // void terminateAllScriptThread(const std::string& exceptThreadId = ""); // Declaration with default argument
-
-    void cleanupTerminatedScriptThreads(Engine* enginePtr);
 };
 
 // Declare BlockTypeEnumToString as a free function

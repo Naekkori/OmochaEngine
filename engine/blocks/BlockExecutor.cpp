@@ -216,52 +216,6 @@ bool OperandValue::asBool() const
 
 OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohmann::json &paramField, const string &executionThreadId)
 {
-    // paramField 내용을 로깅하여 문제 파악
-    string paramField_summary = "Unknown Type";
-    if (paramField.is_null())
-    {
-        paramField_summary = "Null";
-    }
-    else if (paramField.is_string())
-    {
-        string str_val = paramField.get<string>();
-        if (str_val.length() > 50)
-        { // 너무 긴 문자열은 자르기
-            paramField_summary = "String (len=" + to_string(str_val.length()) + "): \"" + str_val.substr(0, 47) + "...\"";
-        }
-        else
-        {
-            paramField_summary = "String: \"" + str_val + "\"";
-        }
-    }
-    else if (paramField.is_number())
-    {
-        paramField_summary = "Number: " + to_string(paramField.get<double>());
-    }
-    else if (paramField.is_boolean())
-    {
-        paramField_summary = "Boolean: " + string(paramField.get<bool>() ? "true" : "false");
-    }
-    else if (paramField.is_object())
-    {
-        if (paramField.contains("type") && paramField["type"].is_string())
-        {
-            paramField_summary = "Object (block type: " + paramField["type"].get<string>() + ")";
-        }
-        else
-        {
-            paramField_summary = "Object (structure unknown or missing 'type' field)";
-        }
-    }
-    else if (paramField.is_array())
-    {
-        paramField_summary = "Array (size: " + to_string(paramField.size()) + ")";
-    }
-    // 상세 로깅으로 인한 성능 저하 가능성이 있으므로, 디버그 시에만 활성화하거나 로그 레벨 조정
-    // 예: if (engine.specialConfig.enableVerboseLogging) engine.EngineStdOut(...);
-    // engine.EngineStdOut("getOperandValue (obj: " + objectId + ", thread: " + executionThreadId + ") processing paramField - Summary: " + paramField_summary + ", RawType: " + paramField.type_name(), 3, executionThreadId);
-
-    // 가장 먼저 paramField가 Null인지 확인합니다. Null이면 대부분의 is_object(), is_string() 등에서 문제를 일으킬 수 있습니다.
     if (paramField.is_null())
     {
         engine.EngineStdOut("getOperandValue received a Null paramField for object " + objectId + ". Returning empty OperandValue.", 1, executionThreadId);
@@ -912,8 +866,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             // 시간이 0 또는 1프레임 이동이면 즉시 이동하고 완료합니다.
             if (state.totalFrames <= 1.0)
             {
-                Entity *targetEntity = engine.getEntityById(state.targetObjectId);
-                if (targetEntity)
+                if (Entity *targetEntity = engine.getEntityById(state.targetObjectId))
                 {
                     entity->setX(targetEntity->getX());
                     entity->setY(targetEntity->getY());
@@ -1795,7 +1748,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         }
         else
         {
-            Entity *targetEntity = engine.getEntityById(targetId);
+            auto *targetEntity = engine.getEntityById(targetId);
             if (!targetEntity)
             {
                 engine.EngineStdOut(
@@ -2745,7 +2698,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     }
     else if (BlockType == "reach_something")
     { // ~에 닿았는가?
-        Entity *self = engine.getEntityById(objectId);
+        auto *self = engine.getEntityById(objectId);
         if (!self)
         {
             engine.EngineStdOut("reach_something: Self entity " + objectId + " not found.", 2, executionThreadId);
@@ -2826,7 +2779,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 
         // Sprite collision
         vector<Entity *> entitiesToTest;
-        Entity *mainTargetSprite = engine.getEntityById(targetId);
+        auto *mainTargetSprite = engine.getEntityById(targetId);
 
         if (mainTargetSprite)
         {
@@ -5821,7 +5774,7 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
                                 const string &executionThreadId, const string &sceneIdAtDispatch, float deltaTime)
 {
     engine.EngineStdOut("Enter executeBlocksSynchronously for " + objectId + ". blocks.size() = " + to_string(blocks.size()) + ". Thread: " + executionThreadId, 3, executionThreadId);
-    Entity *entity = engine.getEntityById_nolock(objectId);
+    const auto *entity = engine.getEntityById_nolock(objectId);
     for (size_t i = 0; i < blocks.size(); ++i)
     {
         const Block &block = blocks[i];

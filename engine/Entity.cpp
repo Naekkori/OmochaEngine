@@ -108,7 +108,7 @@ Entity::~Entity() = default;
 
 void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     auto &threadState = scriptThreadStates[executionThreadId]; // Get or create
     threadState.isWaiting = true;
     threadState.waitEndTime = endTime; // For EXPLICIT_WAIT_SECOND, this is the absolute time
@@ -120,7 +120,7 @@ void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime,
 bool Entity::isScriptWaiting(const std::string &executionThreadId) const
 {
     // This function is often called to check if a script *should* pause.
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     auto it = scriptThreadStates.find(executionThreadId);
     if (it != scriptThreadStates.end())
     {
@@ -148,7 +148,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
     std::string blockIdToResumeOnLog;                             // 로그용 변수
     WaitType waitTypeToResumeOnLog = WaitType::NONE;              // 로그용 변수
     {                                                             // Lock scope for initial state check and modification
-        std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Critical section for threadState access
+        std::lock_guard lock(m_stateMutex); // Critical section for threadState access
         // 스레드 상태 가져오기 (없으면 생성)
         auto &threadState = scriptThreadStates[executionThreadId];
 
@@ -200,7 +200,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
     for (size_t i = startIndex; i < scriptPtr->blocks.size(); ++i)
     {
         { // Scope for checking terminateRequested before executing any block
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+            std::lock_guard lock(m_stateMutex);
             auto it_thread_state = scriptThreadStates.find(executionThreadId);
             if (it_thread_state != scriptThreadStates.end() && it_thread_state->second.terminateRequested)
             {
@@ -267,7 +267,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         // 블록 실행 후 대기 상태 확인 (뮤텍스로 보호)
         {
             // std::unique_lock<std::mutex> lock(m_stateMutex); // Use std::lock_guard if lock is held for the whole scope
-            std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Critical section
+            std::lock_guard lock(m_stateMutex); // Critical section
             // scriptThreadStates에서 현재 스레드 상태를 다시 가져와야 할 수 있음 (setScriptWait에서 변경되었으므로)
             auto &currentThreadState = scriptThreadStates[executionThreadId];
 
@@ -321,7 +321,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
     // 모든 블록 실행 완료
     {
-        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        std::lock_guard lock(m_stateMutex);
         auto &threadState = scriptThreadStates[executionThreadId]; // 뮤텍스 하에서 threadState 다시 참조
         // 스크립트가 정상적으로 끝까지 실행된 경우, 스레드 상태 초기화
         threadState.isWaiting = false;
@@ -361,63 +361,63 @@ const std::string &Entity::getName() const { return name; }
 
 double Entity::getX() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return x;
 }
 double Entity::getY() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return y;
 }
 double Entity::getRegX() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return regX;
 }
 double Entity::getRegY() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return regY;
 }
 double Entity::getScaleX() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return scaleX;
 }
 double Entity::getScaleY() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return scaleY;
 }
 double Entity::getRotation() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return rotation;
 }
 double Entity::getDirection() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return direction;
 }
 double Entity::getWidth() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return width;
 }
 double Entity::getHeight() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return height;
 }
 bool Entity::isVisible() const
 {
-    // std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Lock removed
+    // std::lock_guard lock(m_stateMutex); // Lock removed
     return visible.load(std::memory_order_relaxed);
 }
 
 SDL_FRect Entity::getVisualBounds() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     // 엔티티의 현재 위치(x, y는 중심점), 크기, 스케일을 기반으로 경계 상자를 계산합니다.
     // 회전은 이 예제에서 고려하지 않았습니다. 필요시 추가 구현이 필요합니다.
     // 엔트리 좌표계 (Y축 위쪽) 및 중심점 기준입니다.
@@ -439,27 +439,27 @@ SDL_FRect Entity::getVisualBounds() const
 
 void Entity::setX(double newX)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     x = newX;
 }
 void Entity::setY(double newY)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     y = newY;
 }
 void Entity::setRegX(double newRegX)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     regX = newRegX;
 }
 void Entity::setRegY(double newRegY)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     regY = newRegY;
 }
 void Entity::setScaleX(double newScaleX)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     if (!m_isClone)
     {
         scaleX = newScaleX;
@@ -467,7 +467,7 @@ void Entity::setScaleX(double newScaleX)
 }
 void Entity::setScaleY(double newScaleY)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     if (!m_isClone)
     {
         scaleY = newScaleY;
@@ -475,13 +475,13 @@ void Entity::setScaleY(double newScaleY)
 }
 void Entity::setRotation(double newRotation)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     rotation = newRotation;
 }
 
 void Entity::setDirection(double newDirection)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     // 방향 업데이트
     direction = newDirection;
 
@@ -528,7 +528,7 @@ void Entity::setDirection(double newDirection)
 }
 void Entity::setWidth(double newWidth)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     // 엔티티의 내부 width 값을 업데이트합니다.
     // 이 값은 충돌 감지 등에 사용될 수 있으며, scaleX와 함께 시각적 크기를 결정합니다.
     this->width = newWidth;
@@ -610,7 +610,7 @@ void Entity::setWidth(double newWidth)
 
 void Entity::setHeight(double newHeight)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     this->height = newHeight; // 내부 height 값 업데이트
 
     if (pEngineInstance)
@@ -679,25 +679,25 @@ void Entity::setHeight(double newHeight)
 }
 void Entity::setVisible(bool newVisible)
 {
-    // std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // Lock removed
+    // std::lock_guard lock(m_stateMutex); // Lock removed
     visible.store(newVisible, std::memory_order_relaxed);
 }
 
 Entity::RotationMethod Entity::getRotateMethod() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return rotateMethod;
 }
 
 void Entity::setRotateMethod(RotationMethod method)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     rotateMethod = method;
 }
 
 bool Entity::isPointInside(double pX, double pY) const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
 
     if (!visible || m_effectAlpha < 0.1)
     { // 투명도가 90% 이상이면 클릭 불가
@@ -798,13 +798,13 @@ bool Entity::isPointInside(double pX, double pY) const
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return lastCollisionSide;
 }
 
 void Entity::setLastCollisionSide(CollisionSide side)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     lastCollisionSide = side;
 }
 // processMathematicalBlock, Moving, Calculator 등의 함수 구현도 여기에 유사하게 이동/정의해야 합니다.
@@ -813,7 +813,7 @@ void Entity::setLastCollisionSide(CollisionSide side)
 
 void Entity::showDialog(const std::string &message, const std::string &dialogType, Uint64 duration)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     m_currentDialog.clear();
 
     m_currentDialog.text = message.empty() ? "    " : message;
@@ -833,7 +833,7 @@ void Entity::showDialog(const std::string &message, const std::string &dialogTyp
 
 void Entity::removeDialog()
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     if (m_currentDialog.isActive)
     {
         m_currentDialog.clear();
@@ -842,7 +842,7 @@ void Entity::removeDialog()
 
 void Entity::updateDialog(float deltaTime) // deltaTime is in seconds
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     if (m_currentDialog.isActive && m_currentDialog.totalDurationMs > 0) // Check totalDurationMs to see if it's a timed dialog
     {
         m_currentDialog.remainingDurationMs -= (deltaTime * 1000.0f); // Convert deltaTime to ms and decrement
@@ -858,13 +858,13 @@ void Entity::updateDialog(float deltaTime) // deltaTime is in seconds
 }
 bool Entity::hasActiveDialog() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return m_currentDialog.isActive;
 }
 
 std::string Entity::getWaitingBlockId(const std::string &executionThreadId) const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     auto it = scriptThreadStates.find(executionThreadId);
     if (it != scriptThreadStates.end() && it->second.isWaiting)
     {
@@ -875,7 +875,7 @@ std::string Entity::getWaitingBlockId(const std::string &executionThreadId) cons
 
 Entity::WaitType Entity::getCurrentWaitType(const std::string &executionThreadId) const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     auto it = scriptThreadStates.find(executionThreadId);
     if (it != scriptThreadStates.end() && it->second.isWaiting)
     {
@@ -887,34 +887,34 @@ Entity::WaitType Entity::getCurrentWaitType(const std::string &executionThreadId
 // Effect Getters and Setters
 double Entity::getEffectBrightness() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return m_effectBrightness;
 }
 void Entity::setEffectBrightness(double brightness)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     m_effectBrightness = std::clamp(brightness, -100.0, 100.0);
 }
 
 double Entity::getEffectAlpha() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return m_effectAlpha;
 }
 void Entity::setEffectAlpha(double alpha)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     m_effectAlpha = std::clamp(alpha, 0.0, 1.0);
 }
 
 double Entity::getEffectHue() const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     return m_effectHue;
 }
 void Entity::setEffectHue(double hue)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     m_effectHue = std::fmod(hue, 360.0);
     if (m_effectHue < 0)
         m_effectHue += 360.0;
@@ -922,7 +922,7 @@ void Entity::setEffectHue(double hue)
 
 void Entity::playSound(const std::string &soundId)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
 
     if (!pEngineInstance)
     {
@@ -1016,7 +1016,7 @@ void Entity::playSoundWithSeconds(const std::string &soundId, double seconds)
 }
 void Entity::playSoundWithFromTo(const std::string &soundId, double from, double to)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
 
     if (!pEngineInstance)
     {
@@ -1239,7 +1239,7 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
         // 예시: executeScript에서 현재 스레드 ID를 ScriptThreadState에 저장하고 여기서 읽어옴
         // 또는, 이 함수에 executionThreadId와 blockId를 인자로 전달
         {
-            std::lock_guard<std::recursive_mutex> read_lock(m_stateMutex);
+            std::lock_guard read_lock(m_stateMutex);
             // 가장 최근에 생성된 스레드 ID를 사용하려고 시도 (매우 불안정하며, 실제 사용 부적합)
             if (!scriptThreadStates.empty())
             {
@@ -1266,7 +1266,7 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
 
 void Entity::terminateScriptThread(const std::string &threadId)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     auto it = scriptThreadStates.find(threadId);
     if (it != scriptThreadStates.end())
     {
@@ -1287,7 +1287,7 @@ void Entity::terminateScriptThread(const std::string &threadId)
 
 void Entity::terminateAllScriptThread(const std::string &exceptThreadId)
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     int markedCount = 0;
     for (auto &pair : scriptThreadStates)
     {
@@ -1319,7 +1319,7 @@ void Entity::processInternalContinuations(float deltaTime)
     std::vector<std::tuple<std::string, const Script *, std::string>> tasksToRunInline;
 
     {
-        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        std::lock_guard lock(m_stateMutex);
         for (auto it_state = scriptThreadStates.begin(); it_state != scriptThreadStates.end(); /* manual increment */)
         {
             auto &execId = it_state->first;
@@ -1485,7 +1485,7 @@ void Entity::resumeExplicitWaitScripts(float deltaTime)
     std::vector<std::tuple<std::string, const Script *, std::string, int>> tasksToDispatch; // execId, script, sceneId, resumeIndex
 
     {
-        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        std::lock_guard lock(m_stateMutex);
         for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
         {
             auto &execId = it->first;
@@ -1552,7 +1552,7 @@ void Entity::resumeSoundWaitScripts(float deltaTime)
     std::vector<std::tuple<std::string, const Script *, std::string, int>> tasksToDispatch; // execId, script, sceneId, resumeIndex
 
     {
-        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        std::lock_guard lock(m_stateMutex);
         for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); /* no increment here */)
         {
             auto &execId = it->first;
@@ -1673,8 +1673,6 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                                 {
                           if (self->pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed))
                           {
-                              // 엔진 종료 중이면 스크립트 실행을 취소합니다. (선택적 로깅)
-                              // self->pEngineInstance->EngineStdOut("Script execution for " + self->id + " (Thread: " + execIdToUse + ") cancelled due to engine shutdown.", 1, execIdToUse);
                               return;
                           }
 
@@ -1746,7 +1744,7 @@ void Entity::setText(const std::string &newText)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
+        std::lock_guard lock(pEngineInstance->m_engineDataMutex);
         // Engine 클래스를 통해 ObjectInfo의 textContent를 업데이트합니다.
         pEngineInstance->updateEntityTextContent(this->id, newText);
     }
@@ -1761,14 +1759,7 @@ void Entity::appendText(const std::string &textToAppend)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
-        // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
-        // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
-        // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.
-        // 현재 Engine::updateEntityTextContent는 전체 텍스트를 설정하므로,
-        // 기존 텍스트를 가져와서 이어붙이는 로직이 필요합니다.
-
-        // 1. 현재 ObjectInfo 가져오기
+        std::lock_guard lock(pEngineInstance->m_engineDataMutex);
         ObjectInfo *objInfo = const_cast<ObjectInfo *>(pEngineInstance->getObjectInfoById(this->id));
         if (objInfo)
         {
@@ -1798,11 +1789,7 @@ void Entity::prependText(const std::string &prependToText)
 {
     if (pEngineInstance)
     {
-        std::lock_guard<std::recursive_mutex> lock(pEngineInstance->m_engineDataMutex);
-        // Engine 클래스를 통해 ObjectInfo의 textContent를 가져와서 업데이트합니다.
-        // 이 방식은 ObjectInfo가 Engine 내부에만 존재하고 Entity가 직접 접근하지 않는 경우에 적합합니다.
-        // 만약 Entity가 ObjectInfo의 복사본을 가지고 있다면, 해당 복사본을 직접 수정해야 합니다.
-
+        std::lock_guard lock(pEngineInstance->m_engineDataMutex);
         // 1. 현재 ObjectInfo 가져오기
         ObjectInfo *objInfo = const_cast<ObjectInfo *>(pEngineInstance->getObjectInfoById(this->id));
         if (objInfo)
@@ -1834,7 +1821,7 @@ void Entity::prependText(const std::string &prependToText)
  */
 double Entity::getSize(bool toFixedSize) const
 {
-    std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    std::lock_guard lock(m_stateMutex);
     // 스테이지 너비를 기준으로 현재 엔티티의 시각적 너비가 차지하는 비율을 계산합니다.
     // this->width는 엔티티의 원본 이미지 너비입니다.
     // this->getScaleX()는 원본 이미지 너비에 대한 스케일 팩터입니다.
@@ -1907,7 +1894,7 @@ void Entity::setSize(double size)
  */
 void Entity::resetSize()
 {
-    lock_guard<recursive_mutex> lock(m_stateMutex);
+    lock_guard lock(m_stateMutex);
     if (!this->m_isClone)
     {
         // 복제본이 아닌 경우, 저장된 원본 스케일로 복원합니다.
