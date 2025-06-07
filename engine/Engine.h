@@ -144,6 +144,8 @@ private:
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     vector<pair<string, const Script *>> m_whenCloneStartScripts;               // 복제본 생성 시 실행될 스크립트
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
+    bool m_showScriptDebugger = false;                                         // 스크립트 디버거 표시 여부
+    float m_debuggerScrollOffsetY = 0.0f;                                      // 스크립트 디버거 스크롤 오프셋
     // --- Text Input Members (for ask_and_wait) ---
     std::string m_currentTextInputBuffer;     // 현재 입력 중인 텍스트 버퍼
     bool m_textInputActive = false;           // 텍스트 입력 모드 활성화 여부
@@ -304,6 +306,7 @@ public:
     void showProjectTimer(bool show); 
     void EngineStdOut(string s, int LEVEL = 0, string TREADID = "") const; 
     void processInput(const SDL_Event &event, float deltaTime);
+    void drawScriptDebuggerUI();
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();

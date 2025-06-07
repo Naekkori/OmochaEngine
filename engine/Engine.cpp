@@ -3793,6 +3793,10 @@ void Engine::drawHUD()
         // 목록이 아예 표시되지 않거나 비어있으면 기본 너비
         m_maxVariablesListContentWidth = 180.0f;
     }
+
+    if (m_showScriptDebugger) {
+        drawScriptDebuggerUI();
+    }
 }
 
 bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const
@@ -3870,7 +3874,39 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 }
 
 void Engine::processInput(const SDL_Event &event, float deltaTime)
-{ // 키보드 텍스트 입력 처리
+{
+    // 디버거 열기
+    if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12) {
+        m_showScriptDebugger = !m_showScriptDebugger;
+    }
+    // 마우스 휠 이벤트 처리 (디버그)
+    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        if (m_showScriptDebugger) {
+            float mouse_x_float, mouse_y_float;
+            SDL_GetMouseState(&mouse_x_float, &mouse_y_float);
+
+
+            int windowW_render = 0, windowH_render = 0;
+            if (renderer) { // 렌더러 유효성 확인
+                SDL_GetRenderOutputSize(renderer, &windowW_render, &windowH_render);
+            }
+
+            SDL_FRect debuggerPanelRect = { 10.0f, 50.0f, static_cast<float>(windowW_render) - 20.0f, static_cast<float>(windowH_render) - 60.0f };
+
+            // 마우스가 디버거 패널 위에 있을 때만 스크롤 작동
+            if (mouse_x_float >= debuggerPanelRect.x && mouse_x_float <= debuggerPanelRect.x + debuggerPanelRect.w &&
+                mouse_y_float >= debuggerPanelRect.y && mouse_y_float <= debuggerPanelRect.y + debuggerPanelRect.h)
+            {
+                const float scrollSpeed = 30.0f; // 스크롤 속도 (조정 가능)
+                m_debuggerScrollOffsetY -= static_cast<float>(event.wheel.y) * scrollSpeed; // event.wheel.y 사용
+                // m_debuggerScrollOffsetY의 최소값은 0으로 제한 (최대값은 drawScriptDebuggerUI에서 계산 후 제한)
+                if (m_debuggerScrollOffsetY < 0.0f) {
+                    m_debuggerScrollOffsetY = 0.0f;
+                }
+            }
+        }
+    }
+    // 키보드 텍스트 입력 처리
     if (m_textInputActive)
     {
         // 텍스트 입력 모드가 활성화된 경우
@@ -6815,7 +6851,7 @@ void Engine::deleteEntity(const std::string &entityIdToDelete)
     {
         if (id.length() > max_len)
         {
-            return id.substr(0, max_len) + "...(truncated)";
+            return id.substr(0, max_len) + "...";
         }
         return id;
     };
@@ -7107,5 +7143,216 @@ void Engine::updateEntityTextBoxBackgroundColor(const std::string& entityId, con
     }
     if (!found) {
         EngineStdOut("Warning: ObjectInfo not found for entity " + entityId + " when trying to update background color.", 1);
+    }
+}
+
+void Engine::drawScriptDebuggerUI(){
+    auto truncate_str_len = [](const std::string& str, size_t max_len) {
+      if (str.length() > max_len) {
+          return str.substr(0, max_len) + "...(Truncated)";
+      }
+        return str;
+    };
+
+    if (!m_showScriptDebugger || !renderer || !hudFont) {
+        return;
+    }
+
+    int windowW, windowH;
+    SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+
+    SDL_FRect debuggerPanelRect = { 10.0f, 50.0f, static_cast<float>(windowW) - 20.0f, static_cast<float>(windowH) - 60.0f };
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 20, 20, 40, 200);
+    SDL_RenderFillRect(renderer, &debuggerPanelRect);
+
+    SDL_Color textColor = { 220, 220, 220, 255 };
+    float lineSpacing = 18.0f;
+    float indent = 20.0f;
+
+    // contentLayoutY는 스크롤 없이 모든 콘텐츠가 그려질 때의 Y 위치를 추적합니다.
+    float contentLayoutY = debuggerPanelRect.y + 10.0f;
+    float initialContentLayoutY = contentLayoutY; // 총 높이 계산을 위한 시작점
+
+    // 제목 렌더링
+    SDL_Surface* surfTitle = TTF_RenderText_Blended(hudFont, "Script Debugger", 0, textColor);
+    if (surfTitle) {
+        SDL_FRect titleRect = { debuggerPanelRect.x + 10.0f, 0 /*임시*/, static_cast<float>(surfTitle->w), static_cast<float>(surfTitle->h) };
+        float renderY = contentLayoutY - m_debuggerScrollOffsetY;
+
+        SDL_Texture* texTitleCorrect = SDL_CreateTextureFromSurface(renderer, surfTitle);
+        if (texTitleCorrect) {
+             if (renderY + titleRect.h > debuggerPanelRect.y && renderY < debuggerPanelRect.y + debuggerPanelRect.h) {
+                SDL_FRect actualTitleRect = { titleRect.x, renderY, titleRect.w, titleRect.h };
+                SDL_RenderTexture(renderer, texTitleCorrect, nullptr, &actualTitleRect);
+            }
+            SDL_DestroyTexture(texTitleCorrect);
+        }
+        SDL_DestroySurface(surfTitle);
+        contentLayoutY += titleRect.h + lineSpacing;
+    }
+
+    std::lock_guard<std::recursive_mutex> engine_lock(m_engineDataMutex);
+
+    for (const auto& entityPair : entities) {
+        if (!entityPair.second) continue;
+        Entity* entity = entityPair.second.get();
+        std::string truncatedEName = truncate_str_len(entity->getName(), 20);
+        std::string entityDisplayName = "Entity: " + entity->getId() + " (" + truncatedEName + ")";
+
+        SDL_Surface* surfEntityName = TTF_RenderText_Blended(hudFont, entityDisplayName.c_str(), 0, textColor);
+        if (surfEntityName) {
+            SDL_FRect entityNameRect = { debuggerPanelRect.x + 10.0f, 0, static_cast<float>(surfEntityName->w), static_cast<float>(surfEntityName->h) };
+            float renderY = contentLayoutY - m_debuggerScrollOffsetY;
+            SDL_Texture* texEntityName = SDL_CreateTextureFromSurface(renderer, surfEntityName);
+            if (texEntityName) {
+                if (renderY + entityNameRect.h > debuggerPanelRect.y && renderY < debuggerPanelRect.y + debuggerPanelRect.h) {
+                    SDL_FRect actualEntityNameRect = { entityNameRect.x, renderY, entityNameRect.w, entityNameRect.h };
+                    SDL_RenderTexture(renderer, texEntityName, nullptr, &actualEntityNameRect);
+                }
+                SDL_DestroyTexture(texEntityName);
+            }
+            SDL_DestroySurface(surfEntityName);
+            contentLayoutY += entityNameRect.h + 5.0f;
+        }
+
+        std::lock_guard<std::recursive_mutex> entity_state_lock(entity->getStateMutex());
+        if (entity->scriptThreadStates.empty()) {
+            SDL_Surface* surfNoThreads = TTF_RenderText_Blended(hudFont, "  (No active script threads)", 0, textColor);
+            if (surfNoThreads) {
+                SDL_FRect noThreadsRect = { debuggerPanelRect.x + indent, 0, static_cast<float>(surfNoThreads->w), static_cast<float>(surfNoThreads->h) };
+                float renderY = contentLayoutY - m_debuggerScrollOffsetY;
+                SDL_Texture* texNoThreads = SDL_CreateTextureFromSurface(renderer, surfNoThreads);
+                if (texNoThreads) {
+                    if (renderY + noThreadsRect.h > debuggerPanelRect.y && renderY < debuggerPanelRect.y + debuggerPanelRect.h) {
+                        SDL_FRect actualNoThreadsRect = { noThreadsRect.x, renderY, noThreadsRect.w, noThreadsRect.h };
+                        SDL_RenderTexture(renderer, texNoThreads, nullptr, &actualNoThreadsRect);
+                    }
+                    SDL_DestroyTexture(texNoThreads);
+                }
+                SDL_DestroySurface(surfNoThreads);
+                contentLayoutY += noThreadsRect.h + lineSpacing;
+            }
+        }
+
+        for (const auto& threadPair : entity->scriptThreadStates) {
+            const std::string& threadId = threadPair.first;
+            const Entity::ScriptThreadState& state = threadPair.second;
+            std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
+            info += " | Waiting: " + std::string(state.isWaiting ? "Yes" : "No");
+            info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);
+
+            if (state.isWaiting && !state.blockIdForWait.empty()) {
+                info += " | Block: " + truncate_str_len(state.blockIdForWait, 15);
+            }
+            // ResumingAt 정보 추가 (유효성 검사 강화)
+            if (state.resumeAtBlockIndex != -1 && state.scriptPtrForResume) { // scriptPtrForResume 유효성 검사
+                if (state.resumeAtBlockIndex >= 0 && static_cast<size_t>(state.resumeAtBlockIndex) < state.scriptPtrForResume->blocks.size()) {
+                    info += " | ResumingAt: " + truncate_str_len(state.scriptPtrForResume->blocks[state.resumeAtBlockIndex].id, 15) +
+                              " (idx " + std::to_string(state.resumeAtBlockIndex) + ")";
+                } else {
+                    info += " | ResumingAt: Invalid Index (" + std::to_string(state.resumeAtBlockIndex) + ")";
+                }
+            } else if (state.resumeAtBlockIndex != -1) { // scriptPtrForResume이 null인 경우
+                 info += " | ResumingAt: (null script ptr, idx " + std::to_string(state.resumeAtBlockIndex) + ")";
+                 // EngineStdOut 로그는 const 함수 내에서 직접 호출 불가, 필요시 멤버 함수로 분리 또는 const 제거
+            }
+
+            if (state.terminateRequested) {
+                info += " | Terminating!";
+            }
+
+            SDL_Surface* surf = TTF_RenderText_Blended_Wrapped(hudFont, info.c_str(), 0, textColor, static_cast<Uint32>(debuggerPanelRect.w - indent - 20.0f));
+            if (surf) {
+                SDL_FRect dstRect = { debuggerPanelRect.x + indent, 0, static_cast<float>(surf->w), static_cast<float>(surf->h) };
+                float renderY = contentLayoutY - m_debuggerScrollOffsetY;
+                SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
+                if (tex) {
+                    if (renderY + dstRect.h > debuggerPanelRect.y && renderY < debuggerPanelRect.y + debuggerPanelRect.h) {
+                        SDL_FRect actualDstRect = { dstRect.x, renderY, dstRect.w, dstRect.h };
+                        SDL_RenderTexture(renderer, tex, nullptr, &actualDstRect);
+                    }
+                    SDL_DestroyTexture(tex);
+                }
+                SDL_DestroySurface(surf);
+                contentLayoutY += dstRect.h + 2.0f;
+            }
+
+            if (!state.loopCounters.empty()) {
+                std::string loopInfoStr = "    Loop Counters: ";
+                int counter = 0;
+                for (const auto& loopPair : state.loopCounters) {
+                    if(counter++ > 3) { // 너무 많은 루프 카운터 표시 방지 (예: 최대 4개)
+                        loopInfoStr += "...";
+                        break;
+                    }
+                    loopInfoStr += "[" + truncate_str_len(loopPair.first, 10) + ":" + std::to_string(loopPair.second) + "] ";
+                }
+                SDL_Surface* surfLoop = TTF_RenderText_Blended_Wrapped(hudFont, loopInfoStr.c_str(), 0, textColor, static_cast<Uint32>(debuggerPanelRect.w - indent - 30.0f));
+                if (surfLoop) {
+                    SDL_FRect loopRect = { debuggerPanelRect.x + indent + 10.0f, 0, static_cast<float>(surfLoop->w), static_cast<float>(surfLoop->h) };
+                    float renderY = contentLayoutY - m_debuggerScrollOffsetY;
+                    SDL_Texture* texLoop = SDL_CreateTextureFromSurface(renderer, surfLoop);
+                    if (texLoop) {
+                        if (renderY + loopRect.h > debuggerPanelRect.y && renderY < debuggerPanelRect.y + debuggerPanelRect.h) {
+                            SDL_FRect actualLoopRect = { loopRect.x, renderY, loopRect.w, loopRect.h };
+                            SDL_RenderTexture(renderer, texLoop, nullptr, &actualLoopRect);
+                        }
+                        SDL_DestroyTexture(texLoop);
+                    }
+                    SDL_DestroySurface(surfLoop);
+                    contentLayoutY += loopRect.h + 2.0f;
+                }
+            }
+        }
+        contentLayoutY += lineSpacing / 2.0f;
+    }
+
+    float totalCalculatedContentHeight = contentLayoutY - initialContentLayoutY + 10.0f; // 마지막 패딩 추가
+    float visibleHeight = debuggerPanelRect.h;
+
+    // 스크롤 오프셋 제한
+    if (totalCalculatedContentHeight <= visibleHeight) {
+        m_debuggerScrollOffsetY = 0.0f;
+    } else {
+        if (m_debuggerScrollOffsetY > totalCalculatedContentHeight - visibleHeight) {
+            m_debuggerScrollOffsetY = totalCalculatedContentHeight - visibleHeight;
+        }
+        // m_debuggerScrollOffsetY < 0 은 processInput에서 이미 처리됨
+    }
+
+    // 스크롤바 그리기
+    if (totalCalculatedContentHeight > visibleHeight) {
+        float scrollbarWidth = 10.0f;
+        float scrollbarPadding = 2.0f;
+
+        SDL_FRect scrollbarTrackRect = {
+            debuggerPanelRect.x + debuggerPanelRect.w - scrollbarWidth - scrollbarPadding,
+            debuggerPanelRect.y + scrollbarPadding,
+            scrollbarWidth,
+            visibleHeight - 2 * scrollbarPadding
+        };
+        SDL_SetRenderDrawColor(renderer, 70, 70, 90, 200); // 트랙 색상
+        SDL_RenderFillRect(renderer, &scrollbarTrackRect);
+
+        float handleHeightRatio = visibleHeight / totalCalculatedContentHeight;
+        float scrollbarHandleHeight = std::max(20.0f, scrollbarTrackRect.h * handleHeightRatio);
+
+        float scrollableContentRange = totalCalculatedContentHeight - visibleHeight;
+        float scrollbarTrackScrollableRange = scrollbarTrackRect.h - scrollbarHandleHeight;
+
+        float handleYOffset = 0.0f;
+        if (scrollableContentRange > 0.001f) { // 0으로 나누기 방지
+            handleYOffset = (m_debuggerScrollOffsetY / scrollableContentRange) * scrollbarTrackScrollableRange;
+        }
+
+        SDL_FRect scrollbarHandleRect = {
+            scrollbarTrackRect.x,
+            scrollbarTrackRect.y + handleYOffset,
+            scrollbarWidth,
+            scrollbarHandleHeight
+        };
+        SDL_SetRenderDrawColor(renderer, 160, 160, 180, 220); // 핸들 색상
+        SDL_RenderFillRect(renderer, &scrollbarHandleRect);
     }
 }

@@ -110,73 +110,59 @@ PublicVariable publicVariable; // 전역 PublicVariable 인스턴스
 double OperandValue::asNumber() const
 {
     if (type == Type::NUMBER)
+    {
         return number_val;
+    }
     if (type == Type::STRING)
     {
-        const std::regex integer_regex("^[-+]?\\d+$");
-        const std::regex double_regex(R"(^[-+]?(\d*\.?\d+|\d+\.?)\s*([eE][-+]?\d+)?$)");
-
-        std::string temp_str = string_val; // Create a mutable copy
-        trim(temp_str);                    // Trim whitespace
+        std::string temp_str = string_val;
+        trim(temp_str); // 앞뒤 공백 제거 (이미 수정된 것으로 확인됨)
         if (temp_str.empty())
-            return 0.0; // Empty string after trim is 0.0
+        {
+            return 0.0;
+        }
 
-        std::size_t pos = 0;
-        try
-        {
-            if (std::regex_match(temp_str, double_regex))
-            {
-                double double_val = std::stod(temp_str, &pos);
-                if (pos == temp_str.length())
-                {
-                    return double_val;
-                }
-                else
-                {
-                    throw std::invalid_argument("String contains non-numeric characters after number.");
-                }
-            }
-        }
-        catch (const std::invalid_argument &)
-        {
-            // double 변환 실패 시 int로 변환 시도
-            try
-            {
-                if (std::regex_match(temp_str, integer_regex))
-                {
-                    std::size_t int_pos = 0;
-                    int int_val = std::stoi(temp_str, &int_pos);
+        // 1. double로 파싱 시도 (로케일 독립적인 방식)
+        std::istringstream iss_double(temp_str);
+        iss_double.imbue(std::locale::classic()); // "C" 로케일 사용
+        double double_val;
+        iss_double >> double_val;
 
-                    if (int_pos == temp_str.length())
-                    {
-                        return static_cast<double>(int_val);
-                    }
-                    else
-                    {
-                        throw std::invalid_argument("String cannot be converted to a valid integer.");
-                    }
-                }
-            }
-            catch (const std::invalid_argument &)
-            {
-                // int 변환도 실패
-                throw std::runtime_error("Invalid number format.");
-            }
-            catch (const std::out_of_range &)
-            {
-                // int 범위 초과
-                throw std::runtime_error("Number out of int range.");
-            }
-        }
-        catch (const std::out_of_range &)
+        // 파싱 성공하고 문자열 전체가 소모되었는지 확인
+        // eof는 모든 문자가 소모된 후 다음 읽기 시도 시 설정됨.
+        // 따라서, 파싱 성공 후 추가적인 문자가 없는지 확인하기 위해 iss_double.peek() == EOF 또는 iss_double.rdbuf()->in_avail() == 0 등을 사용할 수 있음.
+        // 더 간단하게는, 파싱 후 스트림의 상태만 확인하고, 남은 문자가 있다면 아래 정수 파싱으로 넘어가지 않도록 처리.
+        if (!iss_double.fail() && iss_double.eof()) // 모든 문자가 성공적으로 double로 변환된 경우
         {
-            // double 범위 초과
-            throw std::runtime_error("Number out of double range.");
+            return double_val;
         }
+
+        // 파싱 실패 또는 일부만 성공 시 스트림 상태 초기화
+        iss_double.clear(); // 오류 플래그 초기화
+        iss_double.seekg(0); // 스트림 위치 처음으로
+
+        // 2. double 파싱이 완벽하지 않았거나 실패 시, long long (정수)으로 파싱 시도
+        std::istringstream iss_long_long(temp_str);
+        iss_long_long.imbue(std::locale::classic()); // "C" 로케일 사용
+        long long ll_val;
+        iss_long_long >> ll_val;
+
+        if (!iss_long_long.fail() && iss_long_long.eof()) // 모든 문자가 성공적으로 long long으로 변환된 경우
+        {
+            return static_cast<double>(ll_val);
+        }
+
+        // 3. 두 방식 모두 실패 시 0.0 반환 (EntryJS 유사 동작)
+        // engine.EngineStdOut("OperandValue::asNumber: String '" + temp_str + "' could not be converted to a number.", 1); // 필요시 로그
+        return 0.0;
     }
-    return 0.0; // Default for non-convertible types or errors
+    if (type == Type::BOOLEAN)
+    {
+        return boolean_val ? 1.0 : 0.0;
+    }
+    // EMPTY 또는 처리되지 않은 타입
+    return 0.0;
 }
-
 string OperandValue::asString() const
 {
     if (type == Type::STRING)

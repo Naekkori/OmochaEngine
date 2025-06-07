@@ -186,6 +186,8 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         {                                        // Not resuming, or invalid resume index, so start from default.
             threadState.resumeAtBlockIndex = -1; // Ensure it's reset if it was invalid
         }
+
+        pEngineInstance->EngineStdOut(format("TheadId {} isWaiting {} BlockId {} Type {}", executionThreadId, threadState.isWaiting, blockIdToResumeOnLog, BlockTypeEnumToString(waitTypeToResumeOnLog)),3);
     } // End lock scope
 
     if (startIndex > 1)
