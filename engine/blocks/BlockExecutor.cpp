@@ -796,7 +796,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             engine.EngineStdOut(std::format("locate block for object {} is not a string.", objectId), 2, executionThreadId);
             return;
         }
-        if (target.string_val == "mouse")
+        if (target.asString() == "mouse")
         {
             if (engine.isMouseCurrentlyOnStage())
             {
@@ -807,9 +807,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         }
         else
         {
-            Entity *targetEntity = engine.getEntityById(target.string_val);
             // entity (현재 객체)는 함수 시작 시 이미 검증되었습니다.
-            if (targetEntity)
+            if (Entity *targetEntity = engine.getEntityById(target.asString()))
             {
                 entity->setX(targetEntity->getX());
                 entity->setY(targetEntity->getY());
@@ -858,7 +857,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             state.targetObjectId = targetOp.asString();
             // 목표 엔티티 유효성 검사는 매 프레임 진행
 
-            const double fps = static_cast<double>(engine.getTargetFps());
+            const double fps = engine.getTargetFps();
             state.totalFrames = max(1.0, floor(timeValue * fps));
             state.remainingFrames = state.totalFrames;
             state.isActive = true;
@@ -4891,17 +4890,14 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                                         3, executionThreadId);
                     return;
                 }
-                else
-                {
-                    // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
-                    double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
-                    entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
-                    engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) +
-                                            " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
-                                        3, executionThreadId);
-                    return;
-                }
+                // 내부 블록이 대기하지 않는 경우 프레임 동기화를 위한 대기 추가
+                double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+                Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS), 33.0)); // 최소 1ms, 최대 33ms
+                entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) +
+                                    " completed, adding frame sync wait (" + to_string(frameDelay) + "ms)",
+                                    3, executionThreadId);
+                return;
             }
         }
         // Loop finished all iterations normally

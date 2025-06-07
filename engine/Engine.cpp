@@ -7190,7 +7190,7 @@ void Engine::updateEntityTextBoxBackgroundColor(const std::string& entityId, con
 void Engine::drawScriptDebuggerUI(){
     auto truncate_str_len = [](const std::string& str, size_t max_len) {
       if (str.length() > max_len) {
-          return str.substr(0, max_len) + "...(Truncated)";
+          return str.substr(0, max_len) + "...";
       }
         return str;
     };
@@ -7299,10 +7299,7 @@ void Engine::drawScriptDebuggerUI(){
                  // EngineStdOut 로그는 const 함수 내에서 직접 호출 불가, 필요시 멤버 함수로 분리 또는 const 제거
             }
 
-            if (state.terminateRequested) {
-                info += " | Terminating!";
-            }
-
+            if (!state.terminateRequested) {
             SDL_Surface* surf = TTF_RenderText_Blended_Wrapped(hudFont, info.c_str(), 0, textColor, static_cast<Uint32>(debuggerPanelRect.w - indent - 20.0f));
             if (surf) {
                 SDL_FRect dstRect = { debuggerPanelRect.x + indent, 0, static_cast<float>(surf->w), static_cast<float>(surf->h) };
@@ -7345,6 +7342,7 @@ void Engine::drawScriptDebuggerUI(){
                     contentLayoutY += loopRect.h + 2.0f;
                 }
             }
+            }
         }
         contentLayoutY += lineSpacing / 2.0f;
     }
@@ -7377,7 +7375,7 @@ void Engine::drawScriptDebuggerUI(){
         SDL_RenderFillRect(renderer, &scrollbarTrackRect);
 
         float handleHeightRatio = visibleHeight / totalCalculatedContentHeight;
-        float scrollbarHandleHeight = std::max(20.0f, scrollbarTrackRect.h * handleHeightRatio);
+        float scrollbarHandleHeight = max(20.0f, scrollbarTrackRect.h * handleHeightRatio);
 
         float scrollableContentRange = totalCalculatedContentHeight - visibleHeight;
         float scrollbarTrackScrollableRange = scrollbarTrackRect.h - scrollbarHandleHeight;
