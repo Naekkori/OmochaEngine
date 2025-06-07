@@ -5319,7 +5319,6 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             if (block.statementScripts.empty())
             {
                 engine.EngineStdOut("Flow '_if' for " + objectId + ": No STACK (statement) found to execute even though condition was true. Block ID: " + block.id, 1, executionThreadId);
-                return;
             }
             const Script &doScript = block.statementScripts[0]; // STACK 스크립트 (statementsKeyMap: { STACK: 0 })
 
@@ -5337,7 +5336,6 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 if (entity && entity->isScriptWaiting(executionThreadId))
                 {
                     engine.EngineStdOut("Flow '_if' for " + objectId + " pausing because an inner block in STACK set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
-                    return;                                                                                                                                                       // Flow 함수 종료, Entity::executeScript가 대기 처리
                 }
             }
         }
@@ -5416,7 +5414,6 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 if (entity && entity->isScriptWaiting(executionThreadId))
                 {
                     engine.EngineStdOut("Flow 'if_else' for " + objectId + " pausing because an inner block in " + stackToExecuteName + " set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
-                    return;
                 }
             }
         }

@@ -135,12 +135,12 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 {
     if (!pEngineInstance)
     {
-        std::cerr << "ERROR: Entity " << id << " has no valid Engine instance for script execution (Thread: " << executionThreadId << ")." << std::endl;
+        pEngineInstance->EngineStdOut(format("Entity {} has no valid Engine instance for script execution ThreadID {}", id, executionThreadId),2);
         return;
     }
     if (!scriptPtr)
     {
-        pEngineInstance->EngineStdOut("executeScript called with null script pointer for object: " + id, 2, executionThreadId);
+        pEngineInstance->EngineStdOut(format("executeScript called with null script pointer for object {}", id),2);
         return;
     }
 
@@ -245,15 +245,15 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
         try
         {
-            Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
-            Calculator(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            TextBox(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
-            Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch, deltaTime);
+                Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
+                Calculator(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Sound(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Variable(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Function(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                TextBox(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
+                Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch, deltaTime);
         }
         catch (const ScriptBlockExecutionError &sbee)
         {
@@ -1871,12 +1871,9 @@ double Entity::getSize(bool toFixedSize) const
 void Entity::setSize(double size)
 {
     lock_guard<recursive_mutex> lock(m_stateMutex);
-    // 목표 시각적 너비는 (스테이지 너비 * (size / 100.0)) 입니다.
-    // 이 목표 시각적 너비를 엔티티의 원본 너비(this->width)로 나누어
-    // 새로운 scaleX (및 scaleY)를 계산합니다.
 
     double stageWidth = static_cast<double>(Engine::getProjectstageWidth()); // Engine 클래스에서 스테이지 너비 가져오기
-    double targetVisualWidth = stageWidth * (size / 83.0); // 80.0을 100.0으로 수정
+    double targetVisualWidth = stageWidth * (size / 83.0);
 
     double newCalculatedScaleX = 1.0; // 기본값
     if (this->width > 0.00001)

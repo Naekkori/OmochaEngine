@@ -3878,6 +3878,15 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
     // 디버거 열기
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12) {
         m_showScriptDebugger = !m_showScriptDebugger;
+    }else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_HOME) {
+        if (m_showScriptDebugger) {
+            m_debuggerScrollOffsetY =0.0f;
+        }
+    }else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F5) {
+        if (showMessageBox("재시작 하시겠습니까?",msgBoxIconType.ICON_INFORMATION,true)==true) {
+            requestProjectRestart();
+            performProjectRestart();
+        }
     }
     // 마우스 휠 이벤트 처리 (디버그)
     if (event.type == SDL_EVENT_MOUSE_WHEEL) {
@@ -3897,7 +3906,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime)
             if (mouse_x_float >= debuggerPanelRect.x && mouse_x_float <= debuggerPanelRect.x + debuggerPanelRect.w &&
                 mouse_y_float >= debuggerPanelRect.y && mouse_y_float <= debuggerPanelRect.y + debuggerPanelRect.h)
             {
-                const float scrollSpeed = 30.0f; // 스크롤 속도 (조정 가능)
+                const float scrollSpeed = 50.0f; // 스크롤 속도 (조정 가능)
                 m_debuggerScrollOffsetY -= static_cast<float>(event.wheel.y) * scrollSpeed; // event.wheel.y 사용
                 // m_debuggerScrollOffsetY의 최소값은 0으로 제한 (최대값은 drawScriptDebuggerUI에서 계산 후 제한)
                 if (m_debuggerScrollOffsetY < 0.0f) {
@@ -6512,111 +6521,143 @@ void Engine::requestProjectRestart()
 
 void Engine::performProjectRestart()
 {
+    aeHelper.stopAllSounds(); //실행중 사운드 전부 종료
     EngineStdOut("Project restart sequence initiated...", 0);
+    m_isShuttingDown.store(true, std::memory_order_relaxed); // 모든 시스템에 종료 신호
 
-    // 1. Stop all current script activities
-    stopThreadPool(); // Stop existing thread pool
-
-    // Clear script states from entities
-    for (auto &pair : entities)
+    // 1. 모든 엔티티의 스크립트에 종료 요청
+    EngineStdOut("Requesting termination of all entity scripts...", 0);
+    std::vector<std::shared_ptr<Entity>> currentEntitiesSnapshot;
     {
-        if (pair.second)
-        {
-            pair.second->scriptThreadStates.clear();
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 맵 접근 보호
+        for (auto const& [id, entity_ptr] : entities) {
+            currentEntitiesSnapshot.push_back(entity_ptr);
         }
     }
 
-    m_isShuttingDown.store(false, std::memory_order_relaxed); // Reset shutdown flag for re-run
+    for (auto& entity_ptr : currentEntitiesSnapshot) {
+        if (entity_ptr) {
+            // 각 엔티티의 스레드 상태 뮤텍스는 terminateAllScriptThread 내부에서 처리됨
+            entity_ptr->terminateAllScriptThread("");
+        }
+    }
 
-    // Re-create the thread pool
-    startThreadPool((max)(2u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2u));
+    // 2. Engine의 메인 작업 스레드 풀 중지 및 조인
+    EngineStdOut("Stopping main worker thread pool (m_workerThreads)...", 0);
+    stopThreadPool(); // m_workerThreads 중지 및 조인
 
+    // 3. BlockExecutor의 스레드 풀 중지 및 조인 (unique_ptr의 reset()이 소멸자 호출)
+    if (threadPool) { // threadPool은 BlockExecutor의 ThreadPool 인스턴스를 가리키는 unique_ptr
+        EngineStdOut("Stopping BlockExecutor::ThreadPool (engine.threadPool)...", 0);
+        threadPool.reset(); // ThreadPool 소멸자가 호출되어 내부 작업자 스레드들을 join합니다.
+        EngineStdOut("BlockExecutor::ThreadPool stopped.", 0);
+    }
+
+    // 4. 스레드가 모두 중지된 후 엔티티별 상태 정리 (스크립트 상태, 다이얼로그 등)
+    EngineStdOut("Clearing script states and dialogs from entities...", 0);
+    for (auto& entity_ptr : currentEntitiesSnapshot) {
+        if (entity_ptr) {
+            std::lock_guard<std::recursive_mutex> entity_lock(entity_ptr->getStateMutex()); // 개별 엔티티 상태 보호
+            entity_ptr->scriptThreadStates.clear();
+            entity_ptr->removeDialog();
+            // 필요하다면 다른 Entity 내부 상태 초기화 (예: timedMoveState 등)
+            entity_ptr->timedMoveState = {};
+            entity_ptr->timedMoveObjState = {};
+            entity_ptr->timedRotationState = {};
+        }
+    }
+
+    // 5. 엔진의 핵심 컬렉션 정리 및 엔티티 소멸
+    EngineStdOut("Clearing engine collections and deleting entities...", 0);
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 모든 컬렉션 접근 보호
+        entities.clear(); // shared_ptr 참조 카운트가 0이 되면 Entity 소멸자 호출
+        objects_in_order.clear();
+        objectScripts.clear();
+
+        // 이벤트 스크립트 목록 초기화
+        startButtonScripts.clear();
+        keyPressedScripts.clear();
+        m_mouseClickedScripts.clear();
+        m_mouseClickCanceledScripts.clear();
+        m_whenObjectClickedScripts.clear();
+        m_whenObjectClickCanceledScripts.clear();
+        m_messageReceivedScripts.clear();
+        m_whenStartSceneLoadedScripts.clear();
+        m_whenCloneStartScripts.clear();
+
+        m_HUDVariables.clear();
+        scenes.clear();
+        m_sceneOrder.clear(); // 씬 순서도 초기화
+        m_cloneCounters.clear(); // 복제본 카운터 초기화
+    }
+
+    // 6. 엔진 상태 변수들 리셋
+    EngineStdOut("Resetting engine state...", 0);
+    m_isShuttingDown.store(false, std::memory_order_relaxed); // 재실행을 위해 종료 플래그 리셋
     resetProjectTimer();
     m_gameplayInputActive = false;
     m_pressedObjectId = "";
-    for (auto &pair : entities)
-    {
-        if (pair.second)
-        {
-            pair.second->removeDialog();
-        }
-    }
-    // Any other state resets (e.g., pen drawings) would go here.
+    m_stageWasClickedThisFrame.store(false, std::memory_order_relaxed);
+    currentSceneId = ""; // 현재 씬 ID 초기화
+    firstSceneIdInOrder = ""; // 첫 씬 ID 초기화
+    m_debuggerScrollOffsetY = 0.0f; // 디버거 스크롤 위치 초기화
 
-    // 2. Reload project data
+
+    // 7. 스레드 풀들 재 생성
+    EngineStdOut("Re-creating thread pools...", 0);
+    startThreadPool((max)(2u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2u));
+    if (!threadPool) { // BlockExecutor의 스레드 풀이 reset()으로 해제되었으므로 다시 생성
+        threadPool = std::make_unique<ThreadPool>(*this, (max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
+    }
+
+    // 8. 프로젝트 데이터 리로드
     EngineStdOut("Reloading project data...", 0);
-    if (m_currentProjectFilePath.empty())
-    {
+    if (m_currentProjectFilePath.empty()) {
         EngineStdOut("Error: Current project file path is empty. Cannot restart project.", 2);
         m_restartRequested.store(false, std::memory_order_relaxed);
         return;
     }
-
-    // Clear existing entity objects before reloading
-    for (auto &pair : entities)
-    {
-        delete pair.second.get();
-    }
-    entities.clear();
-    objects_in_order.clear();
-    objectScripts.clear();
-    startButtonScripts.clear();
-    keyPressedScripts.clear();
-    m_mouseClickedScripts.clear();
-    m_mouseClickCanceledScripts.clear();
-    m_whenObjectClickedScripts.clear();
-    m_whenObjectClickCanceledScripts.clear();
-    m_messageReceivedScripts.clear();
-    m_whenStartSceneLoadedScripts.clear();
-    m_HUDVariables.clear();
-    scenes.clear(); // Clear scenes map as well, loadProject will repopulate it
-
-    if (!loadProject(m_currentProjectFilePath))
-    {
+    if (!loadProject(m_currentProjectFilePath)) {
         EngineStdOut("Error: Failed to reload project during restart. Restart aborted.", 2);
         showMessageBox("프로젝트를 다시 시작하는 중 오류가 발생했습니다: 프로젝트 파일을 다시 로드할 수 없습니다.", msgBoxIconType.ICON_ERROR);
         m_restartRequested.store(false, std::memory_order_relaxed);
+        // 심각한 오류이므로, 여기서 프로그램을 안전하게 종료하는 것을 고려할 수 있습니다.
+        // exit(EXIT_FAILURE);
         return;
     }
 
-    // Reload assets
+    // 9. 에셋(이미지, 사운드) 리로드
     EngineStdOut("Reloading assets...", 0);
-    if (!loadImages())
-    { // loadImages should handle clearing old textures
+    if (!loadImages()) { // loadImages는 내부적으로 기존 텍스처를 해제해야 합니다.
         EngineStdOut("Warning: Failed to reload images during restart.", 1);
     }
-    if (!loadSounds())
-    { // loadSounds should handle clearing old sounds if necessary
+    if (!loadSounds()) { // loadSounds도 필요시 기존 사운드 데이터 정리 로직 포함해야 합니다.
         EngineStdOut("Warning: Failed to reload sounds during restart.", 1);
     }
 
-    // 3. Start project execution
+    // 10. 프로젝트 실행 시작
     EngineStdOut("Restarting project execution...", 0);
-    // currentSceneId should be correctly set by loadProject via firstSceneIdInOrder logic
-    if (scenes.count(firstSceneIdInOrder))
-    { // Ensure the start scene ID from loadProject is valid
+    // currentSceneId는 loadProject에 의해 firstSceneIdInOrder를 통해 설정되어야 합니다.
+    if (scenes.count(firstSceneIdInOrder)) {
         currentSceneId = firstSceneIdInOrder;
-    }
-    else if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front()))
-    { // Fallback if firstSceneIdInOrder was not set
+    } else if (!m_sceneOrder.empty() && scenes.count(m_sceneOrder.front())) {
         currentSceneId = m_sceneOrder.front();
-        EngineStdOut("Warning: firstSceneIdInOrder was not set, falling back to the first scene in m_sceneOrder for restart.", 1);
-    }
-    else
-    {
+        EngineStdOut("Warning: firstSceneIdInOrder was not set or invalid, falling back to the first scene in m_sceneOrder for restart.", 1);
+    } else {
         EngineStdOut("Error: No valid start scene found after reloading project. Cannot start execution.", 2);
+        showMessageBox("프로젝트 재시작 오류: 유효한 시작 장면을 찾을 수 없습니다.", msgBoxIconType.ICON_ERROR);
         m_restartRequested.store(false, std::memory_order_relaxed);
+        // exit(EXIT_FAILURE);
         return;
     }
 
-    triggerWhenSceneStartScripts();
-    runStartButtonScripts();
-    m_gameplayInputActive = true;
+    triggerWhenSceneStartScripts(); // 새 씬의 시작 스크립트 트리거
+    runStartButtonScripts();      // 시작 버튼 스크립트 실행 (이 함수 내부에서 m_gameplayInputActive = true 설정)
 
-    m_restartRequested.store(false, std::memory_order_relaxed);
+    m_restartRequested.store(false, std::memory_order_relaxed); // 재시작 요청 플래그 리셋
     EngineStdOut("Project restart sequence complete.", 0);
 }
-
 void Engine::requestStopObject(const std::string &callingEntityId, const std::string &callingThreadId, const std::string &targetOption)
 {
     EngineStdOut("Engine::requestStopObject called by Entity: " + callingEntityId + ", Thread: " + callingThreadId + ", Option: " + targetOption, 0, callingThreadId);
@@ -6693,7 +6734,6 @@ void Engine::stopThreadPool()
     EngineStdOut("Stopping thread pool...", 0);
     // m_isShuttingDown is typically set by the caller (destructor or restart logic)
     // If not, it should be set here:
-    // m_isShuttingDown.store(true, std::memory_order_relaxed);
 
     m_taskQueueCV_std.notify_all(); // Wake up all workers
     for (std::thread &worker : m_workerThreads)
