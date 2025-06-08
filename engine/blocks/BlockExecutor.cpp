@@ -5653,6 +5653,23 @@ void TextBox(string BlockType, Engine &engine, const string &objectId, const Blo
         {
             engine.EngineStdOut("Invalid HEX color format '" + hexColor + "' for text_change_bg_color. Expected #RRGGBB or RRGGBB.", 2, executionThreadId);
         }
+    }else if (BlockType == "text_change_effect"){
+        // params: [EFFECT_DROPDOWN, MODE_DROPDOWN]
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
+            engine.EngineStdOut("text_change_effect for " + objectId + " has insufficient params. Expected EFFECT and MODE.", 2, executionThreadId);
+            return;
+        }
+        OperandValue effectOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        OperandValue modeOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
+
+        if (effectOp.type != OperandValue::Type::STRING || modeOp.type != OperandValue::Type::STRING) {
+            engine.EngineStdOut("text_change_effect for " + objectId + " has non-string params. Effect: " + effectOp.asString() + ", Mode: " + modeOp.asString(), 2, executionThreadId);
+            return;
+        }
+        std::string effect = effectOp.asString(); // "strike", "underLine", "fontItalic", "fontBold"
+        bool setOn = (modeOp.asString() == "on");
+
+        engine.updateEntityTextEffect(objectId, effect, setOn);
     }
 }
 /**

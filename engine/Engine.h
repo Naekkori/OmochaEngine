@@ -89,6 +89,10 @@ struct ObjectInfo
     string textContent;
     SDL_Color textColor;
     string fontName;
+    bool Underline=false;
+    bool Strike=false;
+    bool Bold=false;
+    bool Italic=false;
     bool lineBreak;
     int fontSize;
     int textAlign;
@@ -308,6 +312,9 @@ public:
     void EngineStdOut(string s, int LEVEL = 0, string TREADID = "") const; 
     void processInput(const SDL_Event &event, float deltaTime);
     void drawScriptDebuggerUI();
+
+    void updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn);
+
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
     void updateFps();
