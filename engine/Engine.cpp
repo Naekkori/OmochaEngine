@@ -2495,24 +2495,30 @@ void Engine::drawAllEntities() {
                     g_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
                     b_final_mod = static_cast<Uint8>(std::clamp(255.0f * brightness_factor, 0.0f, 255.0f));
                 }
+                // Engine.cpp - Engine::drawAllEntities() 내 스프라이트 렌더링 로직
+
+                // ... (기존 코드) ...
+
                 if (colorModApplied) {
                     SDL_SetTextureColorMod(selectedCostume->imageHandle, r_final_mod, g_final_mod, b_final_mod);
                 }
+
                 double alpha_effect = entityPtr->getEffectAlpha();
-                if (abs(alpha_effect - 1.0) > 0.01) {
+                if (abs(alpha_effect - 1.0) > 0.01) { // 알파 값이 1.0 (불투명)이 아닐 때만 적용
                     alphaModApplied = true;
                     Uint8 alpha_sdl_mod = static_cast<Uint8>(std::clamp(alpha_effect * 255.0, 0.0, 255.0));
                     SDL_SetTextureAlphaMod(selectedCostume->imageHandle, alpha_sdl_mod);
                 }
 
+                SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
+
+                // 렌더링 후 원래 상태로 복원
                 if (colorModApplied) {
-                    SDL_SetTextureColorMod(selectedCostume->imageHandle, 255, 255, 255);
+                    SDL_SetTextureColorMod(selectedCostume->imageHandle, 255, 255, 255); // 기본 색상으로 복원
                 }
                 if (alphaModApplied) {
-                    SDL_SetTextureAlphaMod(selectedCostume->imageHandle, 255);
+                    SDL_SetTextureAlphaMod(selectedCostume->imageHandle, 255); // 기본 알파(불투명)로 복원
                 }
-                SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center,
-                                         SDL_FLIP_NONE);
             }
         } else if (objInfo.objectType == "textBox") {
             // 텍스트 상자 타입 오브젝트 그리기

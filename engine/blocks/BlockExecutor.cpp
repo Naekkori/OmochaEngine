@@ -2055,25 +2055,9 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         OperandValue redOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue greenOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         OperandValue blueOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-        // asNumber()를 사용하여 숫자형이 아닌 입력도 0으로 처리하고, 결과를 0-255 사이로 클램핑합니다.
-        // EntryJS는 보통 정수가 아닌 값을 버림(floor/truncate) 처리 후 클램핑합니다. round() 후 clamp()가 좀 더 일반적일 수 있습니다.
         double r_double = redOp.asNumber();
         double g_double = greenOp.asNumber();
         double b_double = blueOp.asNumber();
-
-        // 입력이 엄밀한 숫자가 아니었을 경우 디버깅을 위해 로그를 남길 수 있습니다.
-        if (redOp.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: R param (type {}, val '{}') coereced to {}", objectId, (int)redOp.type, redOp.asString(), r_double), 1, executionThreadId);
-        }
-        if (greenOp.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: G param (type {}, val '{}') coereced to {}", objectId, (int)greenOp.type, greenOp.asString(), g_double), 1, executionThreadId);
-        }
-        if (blueOp.type != OperandValue::Type::NUMBER)
-        {
-            engine.EngineStdOut(std::format("change_rgb_to_hex for {}: B param (type {}, val '{}') coereced to {}", objectId, (int)blueOp.type, blueOp.asString(), b_double), 1, executionThreadId);
-        }
 
         int red = static_cast<int>(std::clamp(round(r_double), 0.0, 255.0));
         int green = static_cast<int>(std::clamp(round(g_double), 0.0, 255.0));
@@ -3288,12 +3272,12 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
         {
             // JavaScript의 'hsv'에 해당, 여기서는 색조(hue)로 처리
             entity->setEffectHue(entity->getEffectHue() + value);
-            // engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectHue()), 0);
+            engine.EngineStdOut("Entity " + objectId + " effect 'color' (hue) changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectHue()), 3);
         }
         else if (effectName == "brightness")
         {
             entity->setEffectBrightness(entity->getEffectBrightness() + value);
-            // engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectBrightness()), 0);
+            engine.EngineStdOut("Entity " + objectId + " effect 'brightness' changed by " + to_string(value) + ", new value: " + to_string(entity->getEffectBrightness()), 3);
         }
         else if (effectName == "transparency")
         {
@@ -3301,7 +3285,7 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
             // 여기서 effectValue는 0-100 범위의 값으로, 투명도를 증가시킵니다 (알파 값을 감소시킴).
             // Entity의 m_effectAlpha는 0.0(투명) ~ 1.0(불투명) 범위입니다.
             entity->setEffectAlpha(entity->getEffectAlpha() - (value / 100.0));
-            // engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + to_string(value) + "%, new value: " + to_string(entity->getEffectAlpha()), 0);
+            engine.EngineStdOut("Entity " + objectId + " effect 'transparency' (alpha) changed by " + to_string(value) + "%, new value: " + to_string(entity->getEffectAlpha()), 3);
         }
         else
         {
