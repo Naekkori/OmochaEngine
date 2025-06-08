@@ -89,6 +89,7 @@ struct ObjectInfo
     string textContent;
     SDL_Color textColor;
     string fontName;
+    bool lineBreak;
     int fontSize;
     int textAlign;
     nlohmann::json entity; // Store the raw entity JSON object

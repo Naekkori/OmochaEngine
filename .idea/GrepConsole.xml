@@ -32,9 +32,6 @@
                                 <GrepModel>
                                   <option name="expression" value="Entity::getSize" />
                                 </GrepModel>
-                                <GrepModel>
-                                  <option name="expression" value="TheadId" />
-                                </GrepModel>
                               </list>
                             </option>
                           </GrepCompositeModel>

@@ -1396,6 +1396,12 @@ bool Engine::loadProject(const string &projectFilePath)
                                 "' is missing 'textAlign' field or it's not numeric. Using default alignment 0.",
                             1);
                     }
+
+                    if (entityJson.contains("lineBreak") && entityJson["lineBreak"].is_boolean()) {
+                        objInfo.lineBreak = entityJson["lineBreak"].get<bool>();
+                    }else {
+                        objInfo.lineBreak = false;
+                    }
                 }
                 else
                 {
@@ -2818,7 +2824,6 @@ void Engine::drawAllEntities()
                 string fontfamily = objInfo.fontName;
                 string fontAsset = string(FONT_ASSETS);
                 int fontSize = objInfo.fontSize;
-                SDL_Color textColor = objInfo.textColor; // 텍스트 색상
                 FontName fontLoadEnum = getFontNameFromString(fontfamily);
                 TTF_Font *Usefont = nullptr;
                 int currentFontSize = objInfo.fontSize;
@@ -2866,8 +2871,18 @@ void Engine::drawAllEntities()
                     Usefont = hudFont; // 폰트 로드 실패 시 HUD 기본 폰트 사용
                 }
 
-                SDL_Surface *textSurface = TTF_RenderText_Blended(Usefont, objInfo.textContent.c_str(),
+                SDL_Surface *textSurface = nullptr;
+                if (objInfo.lineBreak) {
+                    float wrapLengthPixels = entityPtr->getWidth() * entityPtr->getScaleX();
+                    if (wrapLengthPixels<=0) {
+                        wrapLengthPixels = PROJECT_STAGE_WIDTH;
+                    }
+                    textSurface = TTF_RenderText_Blended_Wrapped(Usefont, objInfo.textContent.c_str(),objInfo.textContent.length(),
+                                                                  objInfo.textColor, wrapLengthPixels);
+                }else {
+                    textSurface = TTF_RenderText_Blended(Usefont, objInfo.textContent.c_str(),
                                                                   objInfo.textContent.size(), objInfo.textColor);
+                }
                 updateEntityTextContent(entityPtr->getId(), objInfo.textContent);
                 if (textSurface)
                 {

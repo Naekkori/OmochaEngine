@@ -1841,7 +1841,7 @@ double Entity::getSize(bool toFixedSize) const
     {
         // pEngineInstance->EngineStdOut(format("Entity::getSize W={} H={} V={}", visualWidth, visualHeight, value), 3); // 이전 로그
         // pEngineInstance->EngineStdOut(format("Entity::getSize OW={} OH={}", this->getWidth(),this->getHeight()), 3); // 이전 로그
-        pEngineInstance->EngineStdOut(format("Entity::getSize - ScaleX: {}, Calculated Percentage: {}", this->getScaleX(), current_percentage), 3);
+        pEngineInstance->EngineStdOut(format("Entity::getSize - ScaleX: {}, Calculated Percentage: {}, objectId: {}, name: {}", this->getScaleX(), current_percentage, this->getId(), this->getName()), 3);
     }
 
     if (toFixedSize)
