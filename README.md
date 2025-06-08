@@ -83,7 +83,7 @@ OmochaEngine v1.0.0 by Maiteil
 
 | Name           | License URL                                                                                          |
 |----------------|------------------------------------------------------------------------------------------------------|
-| RapidJSON      | [https://github.com/Tencent/rapidjson/blob/master/license.txt](https://github.com/Tencent/rapidjson/blob/master/license.txt) |
+| nlomannJson      | [https://github.com/nlohmann/json/blob/develop/LICENSE.MIT](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT) |
 | SDL            | [https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt) |
 | SDL_image      | [https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt) |
 | SDL_ttf        | [https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt) |
