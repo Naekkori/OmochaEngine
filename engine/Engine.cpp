@@ -679,28 +679,38 @@ bool Engine::loadProject(const string &projectFilePath) {
                 if (valNode.is_string()) {
                     currentVarDisplay.value = valNode.get<string>();
                 } else if (valNode.is_number()) {
-                    currentVarDisplay.value = NlohmannJsonToString(valNode);
+                    // 숫자를 문자열로 변환 (소수점 처리 방식은 기존 OperandValue::asString과 유사하게)
+                    double num_val = valNode.get<double>();
+                    if (isnan(num_val)) currentVarDisplay.value = "NaN";
+                    else if (isinf(num_val)) currentVarDisplay.value = (num_val > 0 ? "Infinity" : "-Infinity");
+                    else {
+                        std::string s = std::to_string(num_val);
+                        s.erase(s.find_last_not_of('0') + 1, string::npos);
+                        if (!s.empty() && s.back() == '.') {
+                            s.pop_back();
+                        }
+                        currentVarDisplay.value = s;
+                    }
                 } else if (valNode.is_boolean()) {
                     currentVarDisplay.value = valNode.get<bool>() ? "true" : "false";
                 } else if (valNode.is_null()) {
-                    currentVarDisplay.value = "";
+                    currentVarDisplay.value = "0"; // 엔트리는 초기화되지 않은 변수를 0으로 취급하는 경향
                     EngineStdOut(
                         "Variable '" + currentVarDisplay.name +
-                        "' has a null value. Interpreting as empty string for 'value' field.", 1);
+                        "' has a null value. Interpreting as \"0\".", 1);
                 } else {
-                    currentVarDisplay.value = "";
+                    currentVarDisplay.value = "0"; // 예상치 못한 타입도 "0"으로
                     EngineStdOut(
                         "Variable '" + currentVarDisplay.name +
-                        "' has an unexpected type for 'value' field. Interpreting as empty string. Value: " +
+                        "' has an unexpected type for 'value' field. Interpreting as \"0\". Value: " +
                         NlohmannJsonToString(valNode), 1);
                 }
             } else {
-                currentVarDisplay.value = "";
+                currentVarDisplay.value = "0"; // 'value' 필드가 없으면 "0"으로 초기화
                 EngineStdOut(
-                    "Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as empty string.",
+                    "Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as \"0\".",
                     1);
             }
-
             if (currentVarDisplay.value.empty()) {
                 EngineStdOut(
                     "Variable value is effectively empty for variable '" + currentVarDisplay.name +
@@ -1245,7 +1255,7 @@ bool Engine::loadProject(const string &projectFilePath) {
                     //엔티티 속성에 있는것.
                     if (entityJson.contains("underLine") && entityJson["underLine"].is_boolean()) {
                         objInfo.Underline = entityJson["underLine"].get<bool>();
-                    }else if (entityJson.contains("strike") && entityJson["strike"].is_boolean()) {
+                    } else if (entityJson.contains("strike") && entityJson["strike"].is_boolean()) {
                         objInfo.Strike = entityJson["strike"].get<bool>();
                     }
                     if (entityJson.contains("textAlign") && entityJson["textAlign"].is_number()) {
@@ -2504,13 +2514,15 @@ void Engine::drawAllEntities() {
                 }
 
                 double alpha_effect = entityPtr->getEffectAlpha();
-                if (abs(alpha_effect - 1.0) > 0.01) { // 알파 값이 1.0 (불투명)이 아닐 때만 적용
+                if (abs(alpha_effect - 1.0) > 0.01) {
+                    // 알파 값이 1.0 (불투명)이 아닐 때만 적용
                     alphaModApplied = true;
                     Uint8 alpha_sdl_mod = static_cast<Uint8>(std::clamp(alpha_effect * 255.0, 0.0, 255.0));
                     SDL_SetTextureAlphaMod(selectedCostume->imageHandle, alpha_sdl_mod);
                 }
 
-                SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center, SDL_FLIP_NONE);
+                SDL_RenderTextureRotated(renderer, selectedCostume->imageHandle, nullptr, &dstRect, sdlAngle, &center,
+                                         SDL_FLIP_NONE);
 
                 // 렌더링 후 원래 상태로 복원
                 if (colorModApplied) {
@@ -2584,7 +2596,7 @@ void Engine::drawAllEntities() {
                     if (objInfo.Strike) {
                         style |= TTF_STYLE_STRIKETHROUGH;
                     }
-                    TTF_SetFontStyle(Usefont,style);
+                    TTF_SetFontStyle(Usefont, style);
                 }
                 SDL_Surface *textSurface = nullptr;
                 if (objInfo.lineBreak) {
@@ -6729,10 +6741,10 @@ void Engine::drawScriptDebuggerUI() {
         SDL_RenderFillRect(renderer, &scrollbarHandleRect);
     }
 }
-void Engine::updateEntityTextEffect(const std::string& entityId, const std::string& effect, bool setOn)
-{
+
+void Engine::updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn) {
     std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // ObjectInfo 접근 보호
-    for (auto& objInfo : objects_in_order) {
+    for (auto &objInfo: objects_in_order) {
         if (objInfo.id == entityId && objInfo.objectType == "textBox") {
             if (effect == "strike") {
                 objInfo.Strike = setOn;

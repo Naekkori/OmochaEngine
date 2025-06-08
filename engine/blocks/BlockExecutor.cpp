@@ -2366,6 +2366,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             if (hudVar.id == variableIdToFind && hudVar.objectId == objectId)
             {
                 targetListPtr = &hudVar;
+                engine.EngineStdOut(format("Found Value from local ID {} Value {}", hudVar.id, hudVar.value),3);
                 break; // Found local, no need to search further
             }
         }
@@ -2379,6 +2380,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 if (hudVar.id == variableIdToFind && hudVar.objectId.empty())
                 {
                     targetListPtr = &hudVar;
+                    engine.EngineStdOut(format("Found Value from Global ID {} Value {}", hudVar.id, hudVar.value),3);
                     break; // Found global
                 }
             }
@@ -2390,14 +2392,11 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                                 1, executionThreadId);
             return OperandValue(0.0);
         }
-        else
+        if (targetListPtr->isCloud)
         {
-            if (targetListPtr->isCloud)
-            {
-                engine.loadCloudVariablesFromJson();
-            }
-            return OperandValue(targetListPtr->value);
+            engine.loadCloudVariablesFromJson();
         }
+        return OperandValue(targetListPtr->value);
     }
     else if (BlockType == "value_of_index_from_list")
     {
@@ -5198,14 +5197,13 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         // 이 블록은 대기를 설정하지 않습니다. 플래그는 루프 구문에서 확인합니다.
     }
-    else if (BlockType == "_if")
+   else if (BlockType == "_if")
     {
         engine.EngineStdOut(
             std::format("Flow (_if): Evaluating _if block (ID: {}) for object '{}'. Condition param JSON: {}",
-                        block.id, objectId, block.paramsJson[0].dump()),
+                        block.id, objectId, block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"), // 안전한 dump 호출
             3, executionThreadId);
-        // params: [CONDITION_BLOCK (BOOL), Indicator]
-        // statements: [DO_SCRIPT (STACK)]
+
         if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow '_if' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
@@ -5213,38 +5211,11 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
 
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        bool conditionIsTrue = conditionResult.asBool(); // OperandValue::asBool() 직접 사용
 
-        bool conditionIsTrue = false;
-        std::string conditionResultString = "N/A"; // For logging
-        if (conditionResult.type == OperandValue::Type::BOOLEAN)
-        {
-            conditionIsTrue = conditionResult.asBool();
-            conditionResultString = conditionResult.asBool() ? "true (boolean)" : "false (boolean)";
-        }
-        else if (conditionResult.type == OperandValue::Type::NUMBER)
-        {
-            conditionIsTrue = (conditionResult.asNumber() != 0); // 0이 아니면 참
-        }
-        else if (conditionResult.type == OperandValue::Type::STRING)
-        {
-            // 엔트리JS는 빈 문자열, "0", "false"를 거짓으로 간주. 그 외는 참.
-            conditionIsTrue = !conditionResult.asString().empty() &&
-                              conditionResult.asString() != "0" &&
-                              conditionResult.asString() != "false";
-            conditionResultString = "\"" + conditionResult.string_val + "\" (string) -> " + (conditionIsTrue ? "true" : "false");
-        }
-        else
-        {
-            engine.EngineStdOut(
-                std::format("Flow (_if) for object '{}': Condition (block ID '{}') evaluated to {} (type: {}, string_val: '{}', number_val: {}, boolean_val: {}).",
-                            objectId, block.id, (conditionIsTrue ? "true" : "false"),
-                            static_cast<int>(conditionResult.type), conditionResult.string_val, conditionResult.number_val, conditionResult.boolean_val),
-                3, executionThreadId);
-            conditionResultString = "type " + std::to_string(static_cast<int>(conditionResult.type)) + " -> false";
-        }
-
-        engine.EngineStdOut(std::format("Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (Raw condition result: {})",
-                                        objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"), conditionResultString),
+        engine.EngineStdOut(std::format("Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
+                                        objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
+                                        static_cast<int>(conditionResult.type), conditionResult.string_val, conditionResult.number_val, conditionResult.boolean_val),
                             3, executionThreadId);
 
         if (conditionIsTrue)
@@ -5253,66 +5224,56 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             {
                 engine.EngineStdOut("Flow '_if' for " + objectId + ": No STACK (statement) found to execute even though condition was true. Block ID: " + block.id, 1, executionThreadId);
             }
-            const Script &doScript = block.statementScripts[0]; // STACK 스크립트 (statementsKeyMap: { STACK: 0 })
-
-            if (doScript.blocks.empty())
+            else // statementScripts가 비어있지 않은 경우에만 접근
             {
-                engine.EngineStdOut("Flow '_if' for " + objectId + ": STACK (statement) is empty. Block ID: " + block.id, 3, executionThreadId);
-                // STACK이 비어있는 것은 유효한 상황일 수 있으므로, 여기서 return하지 않습니다.
-            }
-            else
-            {
-                engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition true, executing STACK (statement). Block ID: " + block.id, 3, executionThreadId);
-                executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime);
+                const Script &doScript = block.statementScripts[0]; // STACK 스크립트
 
-                // 내부 블록 실행 후 대기 상태 확인
-                if (entity && entity->isScriptWaiting(executionThreadId))
+                if (doScript.blocks.empty())
                 {
-                    engine.EngineStdOut("Flow '_if' for " + objectId + " pausing because an inner block in STACK set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
+                    engine.EngineStdOut("Flow '_if' for " + objectId + ": STACK (statement) is empty. Block ID: " + block.id, 3, executionThreadId);
+                }
+                else
+                {
+                    engine.EngineStdOut("Flow '_if' for " + objectId + ": Condition true, executing STACK (statement). Block ID: " + block.id, 3, executionThreadId);
+                    executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime);
+
+                    if (entity && entity->isScriptWaiting(executionThreadId))
+                    {
+                        engine.EngineStdOut("Flow '_if' for " + objectId + " pausing because an inner block in STACK set a wait state. Block ID: " + block.id, 3, executionThreadId);
+                    }
                 }
             }
         }
-        // 조건이 거짓이거나, 참이었지만 내부 블록 실행이 (대기 없이) 완료된 경우, 이 블록의 실행은 완료.
     }
     else if (BlockType == "if_else")
     {
-        // params: [CONDITION_BLOCK (BOOL), Indicator, LineBreak]
-        // statements: [DO_SCRIPT_IF (STACK_IF), DO_SCRIPT_ELSE (STACK_ELSE)]
+        engine.EngineStdOut(
+            std::format("Flow (if_else): Evaluating if_else block (ID: {}) for object '{}'. Condition param JSON: {}",
+                        block.id, objectId, block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"), // 안전한 dump 호출
+            3, executionThreadId);
+
         if (!block.paramsJson.is_array() || block.paramsJson.empty())
         {
             engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId, "Missing condition parameter.");
         }
 
-        OperandValue conditionResult = getOperandValue(engine, objectId,block.paramsJson[0], executionThreadId);
+        OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        bool conditionIsTrue = conditionResult.asBool(); // OperandValue::asBool() 직접 사용
 
-        bool conditionIsTrue = false;
-        if (conditionResult.type == OperandValue::Type::BOOLEAN)
-        {
-            conditionIsTrue = conditionResult.asBool();
-        }
-        else if (conditionResult.type == OperandValue::Type::NUMBER)
-        {
-            conditionIsTrue = (conditionResult.asNumber() != 0);
-        }
-        else if (conditionResult.type == OperandValue::Type::STRING)
-        {
-            conditionIsTrue = !conditionResult.asString().empty() &&
-                              conditionResult.asString() != "0" &&
-                              conditionResult.asString() != "false";
-        }
-        else
-        {
-            engine.EngineStdOut("Flow 'if_else' for " + objectId + ": Condition evaluated to " + (conditionIsTrue ? "true" : "false") + ". Block ID: " + block.id, 3, executionThreadId);
-        }
+        engine.EngineStdOut(std::format("Flow 'if_else' for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
+                                        objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
+                                        static_cast<int>(conditionResult.type), conditionResult.string_val, conditionResult.number_val, conditionResult.boolean_val),
+                            3, executionThreadId);
+
         const Script *scriptToExecute = nullptr;
         string stackToExecuteName;
 
         if (conditionIsTrue)
         {
-            if (block.statementScripts.size() > 0) // STACK_IF (index 0)
+            if (block.statementScripts.size() > 0)
             {
-                scriptToExecute = &block.statementScripts[0];
+                scriptToExecute = &block.statementScripts[0]; // STACK_IF
                 stackToExecuteName = "STACK_IF";
             }
             else
@@ -5322,9 +5283,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         else // Condition is false
         {
-            if (block.statementScripts.size() > 1) // STACK_ELSE (index 1)
+            if (block.statementScripts.size() > 1)
             {
-                scriptToExecute = &block.statementScripts[1];
+                scriptToExecute = &block.statementScripts[1]; // STACK_ELSE
                 stackToExecuteName = "STACK_ELSE";
             }
             else
@@ -5346,11 +5307,10 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
                 if (entity && entity->isScriptWaiting(executionThreadId))
                 {
-                    engine.EngineStdOut("Flow 'if_else' for " + objectId + " pausing because an inner block in " + stackToExecuteName + " set a wait state. Block ID: " + block.id, 3, executionThreadId); // WARN -> DEBUG
+                    engine.EngineStdOut("Flow 'if_else' for " + objectId + " pausing because an inner block in " + stackToExecuteName + " set a wait state. Block ID: " + block.id, 3, executionThreadId);
                 }
             }
         }
-        // 조건에 따라 해당 스택이 없거나, 있었지만 내부 블록 실행이 (대기 없이) 완료된 경우, 이 블록의 실행은 완료.
     }
     else if (BlockType == "wait_until_true")
     {
