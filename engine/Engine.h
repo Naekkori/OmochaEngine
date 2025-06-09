@@ -285,7 +285,7 @@ public:
     // Optionally, define or default move constructor and move assignment operator if needed
     Engine(Engine&&) = default;
     Engine& operator=(Engine&&) = default;
-    ~Engine();
+    ~Engine() override;
     bool IsSysMenu = false;
     bool IsScriptStart = false; // 스크립트 시작 여부
     bool loadProject(const string &projectFilePath);
@@ -298,10 +298,10 @@ public:
     bool saveCloudVariablesToJson();
     bool loadCloudVariablesFromJson();
     void drawAllEntities();
-    int GET_WINDOW_WIDTH() const{
+    static int GET_WINDOW_WIDTH() {
         return WINDOW_WIDTH; // LCOV_EXCL_LINE
     };
-    int GET_WINDOW_HEIGHT() const{
+    static int GET_WINDOW_HEIGHT() {
         return WINDOW_HEIGHT;
     };
     const string &getCurrentSceneId() const;
@@ -343,7 +343,6 @@ public:
     void activateTextInput(const std::string &requesterObjectId, const std::string &question, const std::string &executionThreadId);
     std::string getLastAnswer() const;
     void resetProjectTimer();
-    void setProjectTimerVisibility(bool show); // 이름 변경 및 기능 수정
     double getProjectTimerValue() const; // LCOV_EXCL_LINE
     void showAnswerValue(bool show); // Declaration
     void updateCurrentMouseStageCoordinates(int windowMouseX, int windowMouseY); // 스테이지 마우스 좌표 업데이트 메서드
@@ -365,7 +364,6 @@ public:
     void updateEntityTextBoxBackgroundColor(const std::string& entityId, const SDL_Color& newColor);
     // HUD에 표시할 변수 목록을 설정하는 메서드    
     map<string, std::shared_ptr<Entity>> &getEntities_Modifiable() { return entities; } // Changed to shared_ptr
-    void loadHUDVariablesFromJson(const nlohmann::json &variablesArrayJson);        // JSON에서 직접 로드하도록 변경
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
     void engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness);
