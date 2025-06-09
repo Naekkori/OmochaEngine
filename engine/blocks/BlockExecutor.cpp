@@ -4365,7 +4365,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // params: [CONDITION_BLOCK]
         // statements: [DO_SCRIPT]
 
-        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) {
             engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + ": Missing condition parameter.", 2,
                                 executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 부족합니다.", block.id, BlockType, objectId,
@@ -4377,7 +4377,6 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             return; // 반복할 내용이 없으면 바로 종료
         }
 
-        const nlohmann::json &conditionJson = block.paramsJson[0]; // Condition block JSON
         const Script &doScript = block.statementScripts[0]; // First statementScript is the DO block
 
         engine.EngineStdOut("repeat_while_true: " + objectId + " starting loop. Block ID: " + block.id, 0,
@@ -4401,12 +4400,12 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
 
             // Evaluate the condition
-            OperandValue conditionResult = getOperandValue(engine, objectId, conditionJson, executionThreadId);
+            OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
             // The loop continues AS LONG AS the condition is TRUE.
             // So, if the condition is FALSE, we break the loop.
             // The condition is evaluated *before* executing the inner blocks.
-            if (conditionResult.type != OperandValue::Type::BOOLEAN || !conditionResult.boolean_val) {
+            if (conditionResult.type != OperandValue::Type::BOOLEAN) {
                 engine.EngineStdOut(
                     "repeat_while_true for " + objectId +
                     ": Condition is false or not boolean. Exiting loop. Block ID: " + block.id, 0, executionThreadId);
@@ -4587,7 +4586,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // 안전한 dump 호출
             3, executionThreadId);
 
-        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) {
             engine.EngineStdOut(
                 "Flow 'if_else' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2,
                 executionThreadId);
@@ -4650,16 +4649,14 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
     } else if (BlockType == "wait_until_true") {
         // params: [CONDITION_BLOCK (BOOL), Indicator]
-        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) {
             engine.EngineStdOut(
                 "Flow 'wait_until_true' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.
                 id, 2, executionThreadId);
             throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId,
                                             "Missing condition parameter.");
         }
-
-        const nlohmann::json &conditionParamJson = block.paramsJson[0]; // BOOL 파라미터 (paramsKeyMap: { BOOL: 0 })
-        OperandValue conditionResult = getOperandValue(engine, objectId, conditionParamJson, executionThreadId);
+        OperandValue conditionResult = getOperandValue(engine, objectId,  block.paramsJson[0], executionThreadId);
 
         bool conditionIsTrue = false;
         if (conditionResult.type == OperandValue::Type::BOOLEAN) {
@@ -4727,7 +4724,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
     } else if (BlockType == "create_clone") {
         // params: [VALUE (DropdownDynamic with menuName 'clone'), Indicator]
         // VALUE will be the ID of the object to clone, or "self"
-        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) {
             engine.EngineStdOut(
                 "Flow 'create_clone' for " + objectId + ": Missing target parameter. Block ID: " + block.id, 2,
                 executionThreadId);
@@ -4756,7 +4753,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         engine.EngineStdOut(
             "Flow 'create_clone': Object " + objectId + " requests clone of " + actualOriginalId + ". Block ID: " +
-            block.id, 0, executionThreadId);
+            block.id, 3, executionThreadId);
         // sceneIdAtDispatch는 복제본의 "when_clone_start" 스크립트에 대한 씬 컨텍스트입니다.
         engine.createCloneOfEntity(actualOriginalId, sceneIdAtDispatch);
     } else if (BlockType == "delete_clone") {
