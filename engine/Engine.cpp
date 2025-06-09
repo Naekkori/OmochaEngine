@@ -2184,23 +2184,28 @@ void Engine::handleRenderDeviceReset() {
 
 bool Engine::loadImages() {
     LOADING_METHOD_NAME = "Loading Sprites...";
-    chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now(); // 이미지 로딩 시작 시간
-    EngineStdOut("Starting image loading...", 0); // 이미지 로딩 시작
+    chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now();
+    EngineStdOut("Starting image loading...", 0);
     totalItemsToLoad = 0;
     loadedItemCount = 0;
 
-    for (auto &objInfo: objects_in_order) {
+    // 기존 텍스처 및 서피스 핸들 해제
+    for (auto &objInfo : objects_in_order) {
         if (objInfo.objectType == "sprite") {
-            for (auto &costume: objInfo.costumes) {
+            for (auto &costume : objInfo.costumes) {
                 if (costume.imageHandle) {
                     SDL_DestroyTexture(costume.imageHandle);
                     costume.imageHandle = nullptr;
+                }
+                if (costume.surfaceHandle) { // 추가: 서피스 핸들도 해제
+                    SDL_DestroySurface(costume.surfaceHandle);
+                    costume.surfaceHandle = nullptr;
                 }
             }
         }
     }
 
-    for (const auto &objInfo: objects_in_order) {
+    for (const auto &objInfo : objects_in_order) {
         if (objInfo.objectType == "sprite") {
             totalItemsToLoad += static_cast<int>(objInfo.costumes.size());
         }
@@ -2208,16 +2213,16 @@ bool Engine::loadImages() {
     EngineStdOut("Total image items to load: " + to_string(totalItemsToLoad), 0);
 
     if (totalItemsToLoad == 0) {
-        EngineStdOut("No image items to load.", 0); // 로드할 이미지 항목 없음
+        EngineStdOut("No image items to load.", 0);
         return true;
     }
 
     int loadedCount = 0;
     int failedCount = 0;
     string imagePath = "";
-    for (auto &objInfo: objects_in_order) {
+    for (auto &objInfo : objects_in_order) { // objInfo를 참조로 받도록 수정
         if (objInfo.objectType == "sprite") {
-            for (auto &costume: objInfo.costumes) {
+            for (auto &costume : objInfo.costumes) { // costume을 참조로 받도록 수정
                 if (IsSysMenu) {
                     imagePath = "sysmenu/" + costume.fileurl;
                 } else {
@@ -2225,42 +2230,55 @@ bool Engine::loadImages() {
                 }
 
                 if (!this->renderer) {
-                    EngineStdOut("CRITICAL: Renderer is NULL before IMG_LoadTexture for " + imagePath, 2);
+                    EngineStdOut("CRITICAL: Renderer is NULL before image loading for " + imagePath, 2);
+                    failedCount++; // 렌더러가 없으면 로드 실패로 간주
+                    incrementLoadedItemCount();
+                    continue; // 다음 코스튬으로
                 }
                 SDL_ClearError();
 
-                costume.imageHandle = IMG_LoadTexture(this->renderer, imagePath.c_str());
-                if (!costume.imageHandle) // 텍스처 로드 실패 시 렌더러 포인터 값 로깅
-                {
-                    EngineStdOut(
-                        "Renderer pointer value at IMG_LoadTexture failure: " + to_string(
-                            reinterpret_cast<uintptr_t>(this->renderer)),
-                        3);
-                }
-                if (costume.imageHandle) {
-                    loadedCount++;
-                    EngineStdOut(
-                        "  Shape '" + costume.name + "' (" + imagePath + ") image loaded successfully as SDL_Texture.",
-                        3); // LEVEL 0 -> 3
+                // 1. IMG_Load를 사용하여 SDL_Surface로 로드
+                SDL_Surface* tempSurface = IMG_Load(imagePath.c_str());
+
+                if (tempSurface) {
+                    costume.surfaceHandle = tempSurface; // 서피스 핸들 저장
+
+                    // 2. SDL_Surface로부터 SDL_Texture 생성
+                    costume.imageHandle = SDL_CreateTextureFromSurface(this->renderer, tempSurface);
+
+                    if (costume.imageHandle) {
+                        loadedCount++;
+                        EngineStdOut(
+                            "  Shape '" + costume.name + "' (" + imagePath + ") loaded successfully. Surface and Texture created.",
+                            3);
+                        // SDL_Surface는 costume.surfaceHandle에 저장되어 있으므로 여기서 해제하지 않음
+                        // 해제는 Costume 소멸 시 또는 이미지 재로드 시 수행
+                    } else {
+                        failedCount++;
+                        EngineStdOut(
+                            "SDL_CreateTextureFromSurface failed for '" + objInfo.name + "' shape '" + costume.name + "': " +
+                            SDL_GetError(),
+                            2);
+                        SDL_DestroySurface(tempSurface); // 텍스처 생성 실패 시 서피스 즉시 해제
+                        costume.surfaceHandle = nullptr;
+                    }
                 } else {
                     failedCount++;
                     EngineStdOut(
-                        "IMG_LoadTexture failed for '" + objInfo.name + "' shape '" + costume.name + " " +
+                        "IMG_Load failed for '" + objInfo.name + "' shape '" + costume.name + "': " +
                         SDL_GetError(),
                         2);
+                    costume.surfaceHandle = nullptr; // 로드 실패 시 null로 설정
                 }
 
                 incrementLoadedItemCount();
 
-                if (loadedItemCount % 5 == 0 || loadedItemCount == totalItemsToLoad || costume.imageHandle == nullptr) {
+                if (loadedItemCount % 5 == 0 || loadedItemCount == totalItemsToLoad || !costume.imageHandle) {
                     renderLoadingScreen();
-
-                    SDL_Event e; // 이벤트 폴링은 메인 루프에서 처리하는 것이 더 일반적입니다.
-                    // 로딩 중 UI 업데이트를 위해 최소한의 이벤트 처리는 필요할 수 있습니다.
+                    SDL_Event e;
                     while (SDL_PollEvent(&e)) {
-                        // SDL_PollEvent의 반환 값을 확인합니다.
                         if (e.type == SDL_EVENT_QUIT) {
-                            EngineStdOut("Image loading cancelled by user.", 1); // 사용자에 의해 이미지 로딩 취소됨
+                            EngineStdOut("Image loading cancelled by user.", 1);
                             return false;
                         }
                     }
@@ -2269,9 +2287,8 @@ bool Engine::loadImages() {
         }
     }
 
-    EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount),
-                 0);
-    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double> >(
+    EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount), 0);
+    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double>>(
         chrono::steady_clock::now() - startTime);
     string greething = "";
     double duration = loadingDuration.count();
@@ -2285,17 +2302,14 @@ bool Engine::loadImages() {
     }
     EngineStdOut("Time to load entire image " + to_string(loadingDuration.count()) + " seconds " + greething);
     if (failedCount > 0 && loadedCount == 0 && totalItemsToLoad > 0) {
-        EngineStdOut("All images failed to load. This may cause issues.", 2); // 모든 이미지 로드 실패
+        EngineStdOut("All images failed to load. This may cause issues.", 2);
         showMessageBox("Fatal No images could be loaded. Check asset paths and file integrity.",
                        msgBoxIconType.ICON_ERROR);
-        // return false; // 여기서 프로그램을 종료하는 대신, 경고 후 계속 진행하도록 변경
     } else if (failedCount > 0) {
-        // 일부 이미지 로드 실패
         EngineStdOut("Some images failed to load, processing with available resources.", 1);
     }
     return true;
 }
-
 bool Engine::loadSounds() {
     LOADING_METHOD_NAME = "Loading Sounds...";
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now();
@@ -3631,7 +3645,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
     }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         // 마우스 버튼 누름 이벤트
-        if (event.button.button == SDL_BUTTON_LEFT) {
+        // 엔트리는 마우스 버튼 구별하지않음
+        if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT) {
             bool uiClicked = false; // UI 요소 클릭 여부
             int mouseX = event.button.x;
             int mouseY = event.button.y;
@@ -3805,7 +3820,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
 
                         Entity *entity = getEntityById(objectId);
                         // 엔티티 유효성, 가시성, 투명도 체크 강화
-                        if (!entity || !entity->isVisible() || entity->getEffectAlpha() < 0.1f) {
+                        if (!entity || !entity->isVisible()) {
                             continue;
                         }
                         EngineStdOut("Checking click for entity: " + objectId + " at stage pos (" +
@@ -4080,7 +4095,8 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
             }
         }
     } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-        if (event.button.button == SDL_BUTTON_LEFT) // 마우스 왼쪽 버튼 뗌 이벤트
+        //엔트리 는 마우스 좌/우 클릭 구별 안함
+        if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT) // 마우스 왼쪽 버튼 뗌 이벤트
         {
             bool uiInteractionReleased = false; // UI 상호작용 (드래그/리사이즈) 해제 여부
             if (this->m_isDraggingZoomSlider) {
@@ -4104,7 +4120,9 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                 m_draggedScrollbarListIndex = -1;
                 uiInteractionReleased = true; // UI 상호작용으로 처리
             }
-
+            if (m_gameplayInputActive) {
+                this->setStageClickedThisFrame(false);
+            }
             if (m_gameplayInputActive && !uiInteractionReleased) {
                 // 게임플레이 입력 활성화 상태이고 UI 상호작용이 해제되지 않은 경우
 
@@ -4113,7 +4131,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                         const string &objectId = scriptPair.first;
                         const Script *scriptPtr = scriptPair.second;
                         Entity *currentEntity = getEntityById(objectId);
-                        if (currentEntity && currentEntity->isVisible()) {
+                        if (currentEntity && currentEntity->isVisible()==true) {
                             // 엔티티가 존재하고 보이는 경우
                             // 현재 씬에 속하거나 전역 오브젝트인지 확인
                             const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기

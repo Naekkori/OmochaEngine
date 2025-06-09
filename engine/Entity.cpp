@@ -6,6 +6,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "Engine.h"
+#include "SDL3/SDL_pixels.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
 Entity::PenState::PenState(Engine *enginePtr)
@@ -694,107 +695,165 @@ void Entity::setRotateMethod(RotationMethod method)
     std::lock_guard lock(m_stateMutex);
     rotateMethod = method;
 }
+Uint32 get_pixel(SDL_Surface *surface, int x, int y) {
+    if (!surface) return 0; // Surface가 null이면 0 반환
+    if (x < 0 || x >= surface->w || y < 0 || y >= surface->h) return 0; // 범위 초과 시 0 반환
+
+    int bpp = SDL_BYTESPERPIXEL(surface->format);
+    /* Here p is the address to the pixel we want to retrieve */
+    Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
+
+    switch (bpp) {
+        case 1:
+            return *p;
+            break;
+
+        case 2:
+            return *(Uint16 *)p;
+            break;
+
+        case 3:
+            if (SDL_ISPIXELFORMAT_ALPHA(surface->format)) { // 일반적으로 3bpp는 알파가 없지만, 혹시 모를 경우
+                 return 0; // 또는 특정 에러 처리
+            } else {
+                if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                    return p[0] << 16 | p[1] << 8 | p[2];
+                } else {
+                    return p[0] | p[1] << 8 | p[2] << 16;
+                }
+            }
+            break;
+
+        case 4:
+            return *(Uint32 *)p;
+            break;
+
+        default:
+            return 0;
+            break;
+    }
+}
 
 bool Entity::isPointInside(double pX, double pY) const
 {
     std::lock_guard lock(m_stateMutex);
 
-    if (!visible || m_effectAlpha < 0.1)
-    { // 투명도가 90% 이상이면 클릭 불가
+    // 0. 기본적인 가시성 및 알파 효과 체크 (선택적)
+    if (!visible.load(std::memory_order_relaxed) || m_effectAlpha < 0.01) { // 거의 투명하면 클릭 불가
         return false;
     }
 
-    // 엔티티의 중심을 (0,0)으로 하는 로컬 좌표계로 변환
+    // 1. 엔티티의 중심을 (0,0)으로 하는 로컬 좌표계로 변환
     double localPX = pX - this->x;
-    double localPY = pY - this->y;
-    // 글상자 타입의 경우, 회전 및 복잡한 등록점 계산을 건너뛰고 단순 사각형 충돌 판정
-    // Entity 생성 시 objectType을 멤버로 저장했다고 가정합니다.
-    // if (this->objectType == "textBox") // Entity에 objectType 멤버가 있다고 가정
-    // 또는 pEngineInstance를 통해 ObjectInfo 조회 (성능 및 뮤텍스 고려 필요)
+    double localPY = pY - this->y; // 엔트리 Y축 (위로 증가) 기준
+
     const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
+
+    // 2. 글상자 타입의 경우, 단순 사각형 충돌 판정 (기존 로직 유지)
     if (objInfo && objInfo->objectType == "textBox")
     {
-        // 글상자는 회전하지 않고, 스케일은 1.0으로 가정합니다.
-        // this->width와 this->height는 실제 텍스트의 크기를 반영해야 합니다.
         double halfWidth = this->width / 2.0;
-        double halfHeight = this->height / 2.0; // Y축이 위로 향하므로, 아래쪽은 -halfHeight, 위쪽은 +halfHeight
-
+        double halfHeight = this->height / 2.0;
         bool inX = (localPX >= -halfWidth && localPX <= halfWidth);
-        // Y축 방향 고려: 엔트리 좌표계는 Y가 위로 갈수록 증가. localPY도 위로 갈수록 증가.
-        // 따라서 로컬 Y 경계는 [-halfHeight, halfHeight]
-        bool inY = (localPY >= -halfHeight && localPY <= halfHeight);
+        bool inY = (localPY >= -halfHeight && localPY <= halfHeight); // 엔트리 Y축 기준
         return inX && inY;
     }
 
-    // SDL 각도는 시계 방향이므로, 점을 객체 프레임으로 가져오려면 반시계 방향(-rotation)으로 회전
+    // 3. 일반 스프라이트: 회전 및 스케일 고려한 좌표 변환
+    // 점을 객체 프레임으로 가져오기 위해 반시계 방향(-rotation)으로 회전
     double angleRad = -this->rotation * (SDL_PI_D / 180.0);
     double rotatedPX = localPX * std::cos(angleRad) - localPY * std::sin(angleRad);
     double rotatedPY = localPX * std::sin(angleRad) + localPY * std::cos(angleRad);
 
-    // rotatedPX, rotatedPY는 엔티티의 로컬 회전은 풀렸지만, 여전히 월드 공간 기준의 스케일.
-    // 이를 엔티티의 고유 스케일(scaleX, scaleY로 나눈 값)로 변환하여
-    // 엔티티의 원본 크기(width, height) 및 등록점(regX, regY) 기준 경계와 비교.
+    // 4. 스케일 역변환: 회전된 좌표를 엔티티의 원본 크기 기준으로 변환
+    const double epsilon = 1e-9;
+    double unscaledPX = rotatedPX;
+    double unscaledPY = rotatedPY;
 
-    const double epsilon = 1e-9; // 부동 소수점 비교를 위한 작은 값
-
-    double checkPX = rotatedPX;
-    double checkPY = rotatedPY;
-
-    // X축 스케일 처리
-    if (std::abs(this->scaleX) < epsilon)
-    { // X축 스케일이 거의 0인 경우
-        if (std::abs(this->width) > epsilon)
-            return false; // 원본 너비가 있는데 스케일이 0이면 클릭 불가 (선)
-        // 너비도 0이면 (점 또는 수직선), rotatedPX가 등록점의 X 위치와 일치해야 함.
-        // 로컬 좌표계에서 등록점은 (0,0)이므로, rotatedPX가 0에 가까워야 함.
-        if (std::abs(rotatedPX) > epsilon)
-            return false;
-        // checkPX는 -this->regX와 비교될 것이므로, 해당 값으로 설정 (width=0일 때 halfWidth=0, left/rightBound = -regX)
-        checkPX = -this->regX;
-    }
-    else
-    {
-        checkPX /= this->scaleX;
+    if (std::abs(this->scaleX) < epsilon) { // X 스케일이 거의 0
+        if (std::abs(this->width) > epsilon) return false; // 너비가 있는데 스케일 0이면 클릭 불가
+        if (std::abs(rotatedPX) > epsilon) return false;   // 너비도 0이면, 회전된 X도 0이어야 함
+    } else {
+        unscaledPX /= this->scaleX;
     }
 
-    // Y축 스케일 처리
-    if (std::abs(this->scaleY) < epsilon)
-    { // Y축 스케일이 거의 0인 경우
-        if (std::abs(this->height) > epsilon)
-            return false; // 원본 높이가 있는데 스케일이 0이면 클릭 불가 (선)
-        // 높이도 0이면 (점 또는 수평선), rotatedPY가 등록점의 Y 위치와 일치해야 함.
-        if (std::abs(rotatedPY) > epsilon)
-            return false;
-        checkPY = -this->regY;
-    }
-    else
-    {
-        checkPY /= this->scaleY;
+    if (std::abs(this->scaleY) < epsilon) { // Y 스케일이 거의 0
+        if (std::abs(this->height) > epsilon) return false;
+        if (std::abs(rotatedPY) > epsilon) return false;
+    } else {
+        unscaledPY /= this->scaleY;
     }
 
-    // 이제 checkPX, checkPY는 엔티티의 1x1 스케일 기준 로컬 좌표.
-    // 경계는 엔티티의 원본 크기(width, height)와 등록점(regX, regY)을 기준으로 계산.
-    // (checkPX, checkPY)는 등록점을 원점으로 하는 좌표.
-    // this->regX, this->regY가 코스튬의 좌상단 (0,0)으로부터 등록점까지의 오프셋이라고 가정.
-    // 엔진 전체적으로 Y축은 위쪽을 향함. this->regY도 이 규칙을 따른다고 가정.
-    // (예: 코스튬 높이가 100이고, 등록점이 코스튬의 가장 위쪽 가장자리에 있다면 regY는 100 또는 0, 가장 아래쪽이면 0 또는 -100 등, 기준점에 따라 달라짐)
-    // 여기서는 this->regY가 코스튬의 좌상단(Y축 기준 0)으로부터 Y축 위쪽 방향으로의 오프셋이라고 가정.
-    // 즉, 코스튬의 좌상단은 (checkPX, checkPY) 좌표계에서 (-this->regX, -this->regY)에 해당. (이 가정은 일반적이지 않음)
+    // 5. 등록점(regX, regY)을 고려하여 텍스처 좌표 계산
+    // unscaledPX, unscaledPY는 현재 등록점을 (0,0)으로 하는 좌표.
+    // regX, regY는 코스튬의 좌상단 (0,0)에서 등록점까지의 오프셋.
+    // 텍스처 좌표는 코스튬의 좌상단을 (0,0)으로 함.
+    // 엔트리 Y축은 위로 증가, SDL 텍스처 Y축은 아래로 증가.
 
-    // 일반적인 경우: this->regX, this->regY는 코스튬의 좌상단(0,0)을 기준으로 한 등록점의 위치.
-    // 코스튬의 Y좌표는 아래로 증가한다고 가정하고, checkPY는 위로 증가.
-    // 코스튬의 좌상단은 (checkPX, checkPY) 좌표계에서 (-this->regX, this->regY) 에 위치.
-    // 코스튬의 우하단은 (checkPX, checkPY) 좌표계에서 (this->width - this->regX, this->regY - this->height) 에 위치.
-    double leftBound = -this->regX;
-    double rightBound = this->width - this->regX;
-    double bottomBound = this->regY - this->height; // (regY가 코스튬 상단 Y좌표일 때)
-    double topBound = this->regY;                   // (regY가 코스튬 상단 Y좌표일 때)
+    // 텍스처의 (0,0)을 기준으로 한 클릭 지점의 상대 좌표
+    // unscaledPX = 클릭점의 X - 등록점의 X (로컬 원본 스케일 기준)
+    // texClickX = unscaledPX + regX
+    int texClickX = static_cast<int>(std::round(unscaledPX + this->regX));
 
-    // 스케일 조정된 점(checkPX, checkPY)이 원본 크기 기준 경계 내에 있는지 확인 (부동소수점 오차 감안)
-    bool inX = (checkPX >= leftBound - epsilon && checkPX <= rightBound + epsilon);
-    bool inY = (checkPY >= bottomBound - epsilon && checkPY <= topBound + epsilon);
+    // 엔트리 Y축(위로 증가)을 SDL 텍스처 Y축(아래로 증가)으로 변환 고려
+    // unscaledPY는 등록점 기준 위쪽 방향.
+    // 텍스처 Y좌표는 코스튬 상단에서 아래로 증가.
+    // regY가 코스튬 상단에서 등록점까지의 아래쪽 방향 오프셋이라고 가정하면:
+    // texClickY = regY - unscaledPY (만약 regY가 위쪽 방향 오프셋이면 regY + unscaledPY 후 전체 높이에서 빼는 등 조정 필요)
+    // 여기서는 엔트리처럼 regY가 코스튬의 (0,0)에서 Y축 양의 방향(위쪽)으로의 오프셋이라고 가정하고,
+    // 텍스처 좌표계(Y 아래로 증가)로 변환합니다.
+    // 코스튬의 (0,0)을 기준으로 한 unscaledPY의 위치는 this->regY - unscaledPY (Y축 반전)
+    int texClickY = static_cast<int>(std::round(this->regY - unscaledPY));
 
-    return inX && inY;
+
+    // 6. 바운딩 박스 체크 (텍스처 좌표 기준)
+    if (texClickX < 0 || texClickX >= static_cast<int>(std::round(this->width)) ||
+        texClickY < 0 || texClickY >= static_cast<int>(std::round(this->height))) {
+        return false; // 텍스처 바운딩 박스 벗어남
+    }
+
+    // 7. 픽셀 단위 알파 값 확인
+    if (objInfo && !objInfo->costumes.empty()) {
+        const Costume* selectedCostume = nullptr;
+        // 현재 선택된 Costume 찾기 (Engine 클래스에 해당 Costume의 SDL_Surface를 가져오는 함수가 있다고 가정)
+        // 예시: selectedCostume = pEngineInstance->getSelectedCostumeForEntity(this->id);
+        // 또는 ObjectInfo에서 직접 접근
+        for(const auto& costume : objInfo->costumes) {
+            if (costume.id == objInfo->selectedCostumeId) {
+                selectedCostume = &costume;
+                break;
+            }
+        }
+
+        if (selectedCostume && selectedCostume->surfaceHandle) { // surfaceHandle이 SDL_Surface* 라고 가정
+            Uint32 pixel = get_pixel(selectedCostume->surfaceHandle, texClickX, texClickY);
+            if (pixel == 0 && (texClickX < 0 || texClickX >= selectedCostume->surfaceHandle->w || texClickY < 0 || texClickY >= selectedCostume->surfaceHandle->h)) {
+                // get_pixel이 범위를 벗어나 0을 반환한 경우 (이미 위에서 바운딩 박스 체크했지만, 안전장치)
+                return false;
+            }
+
+            Uint8 r, g, b, a;
+            const SDL_PixelFormatDetails *details = SDL_GetPixelFormatDetails(selectedCostume->surfaceHandle->format);
+            SDL_GetRGBA(pixel, details,nullptr, &r, &g, &b, &a);
+
+            const Uint8 ALPHA_THRESHOLD = 10; // 알파 임계값 (이 값보다 커야 클릭된 것으로 간주)
+            if (a > ALPHA_THRESHOLD) {
+                return true; // 불투명한 영역 클릭
+            }
+        } else {
+            // 서피스 핸들이 없으면 기존 사각형 충돌 판정 결과(여기까지 왔다면 true)를 따르거나, false 처리
+            // 여기서는 일단 true로 두지만, 로깅 등으로 확인 필요
+            if(pEngineInstance) pEngineInstance->EngineStdOut("Warning: Entity " + id + " has no surfaceHandle for pixel collision.", 1);
+            // 이 경우, 픽셀 체크를 못하므로 바운딩 박스 충돌로 간주 (위의 바운딩 박스 체크 통과 시)
+            return true;
+        }
+    } else {
+         // 코스튬 정보가 없으면 기존 사각형 충돌 판정 결과(여기까지 왔다면 true)를 따르거나, false 처리
+        if(pEngineInstance && objInfo) pEngineInstance->EngineStdOut("Warning: Entity " + id + " has no costume info for pixel collision.", 1);
+        return true;
+    }
+
+    return false; // 알파 값이 임계값 이하이거나 기타 오류
 }
 Entity::CollisionSide Entity::getLastCollisionSide() const
 {

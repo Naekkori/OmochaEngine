@@ -52,6 +52,7 @@ struct Costume
     string name;
     string assetId;
     SDL_Texture *imageHandle = nullptr; // Initialize to nullptr
+    SDL_Surface *surfaceHandle = nullptr;
     string filename;
     string fileurl;
 };
