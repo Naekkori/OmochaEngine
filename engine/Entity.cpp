@@ -1218,8 +1218,6 @@ void Entity::waitforPlaysound(const std::string &soundId, const std::string &exe
 }
 void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seconds, const std::string &executionThreadId, const std::string &callingBlockId)
 {
-    // std::unique_lock<std::recursive_mutex> lock(m_stateMutex); // Lock removed for initial part
-
     if (!pEngineInstance)
     {
         pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.", 2);
@@ -1254,7 +1252,18 @@ void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seco
         {
             soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
         }
-        pEngineInstance->aeHelper.playSoundForDuration(this->getId(), soundFilePath, seconds); // Engine의 public aeHelper 사용
+        auto it_state = scriptThreadStates.find(executionThreadId);
+        if (it_state == scriptThreadStates.end()) {
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") - ScriptThreadState not found for waitforPlaysoundWithFromTo. Cannot set wait.", 2, executionThreadId);
+            // 스레드 상태가 없으면 사운드만 재생하고 대기 설정 없이 반환
+            pEngineInstance->aeHelper.playSoundForDuration(this->getId(), soundFilePath, seconds); // Engine의 public aeHelper 사용
+            pEngineInstance->EngineStdOut("Entity " + id + " playing sound (from-to, no wait): " + soundToPlay->name, 0, executionThreadId);
+            return;
+        }
+        ScriptThreadState &threadState = it_state->second;
+        // 새로운 promise와 future 생성
+        threadState.completionPromise = {}; // 이전 promise가 있다면 리셋
+        threadState.completionFuture = threadState.completionPromise.get_future();
         // setScriptWait는 ScriptThreadState를 직접 수정하므로, promise/future 설정 후에 호출
         setScriptWait(executionThreadId, seconds, callingBlockId, WaitType::SOUND_FINISH);
         // pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);

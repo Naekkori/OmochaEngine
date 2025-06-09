@@ -325,7 +325,8 @@ public:
     void playSoundWithFromTo(const std::string &soundId, double from, double to);
     void waitforPlaysound(const std::string &soundId, const std::string &executionThreadId, const std::string &callingBlockId);
     void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds, const std::string &executionThreadId, const std::string &callingBlockId);
-    void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to, std::string executionThreadId, std::string callingBlockId);
+    void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to, const std::string &executionThreadId, const std::string &
+                                    callingBlockId);
     void terminateScriptThread(const std::string& threadId);
     void terminateAllScriptThread(const std::string& execeptThreadId);
 };
