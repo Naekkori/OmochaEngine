@@ -125,7 +125,6 @@ struct HUDVariableDisplay
 };
 class Engine : public TextInputInterface
 {
-private:
     map<string, vector<Script>> objectScripts;
     vector<pair<string, const Script *>> startButtonScripts;                   // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
@@ -245,7 +244,7 @@ private:
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
 
     std::unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
-
+    std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
     static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}
     static int getProjectstageHeight(){return PROJECT_STAGE_HEIGHT;}
@@ -396,9 +395,6 @@ public:
     std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
     std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
     mutable std::recursive_mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
-private: // LCOV_EXCL_LINE
-    std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
-public:
     uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환
     void submitTask(std::function<void()> task); // Task submission method
 

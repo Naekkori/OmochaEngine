@@ -68,9 +68,6 @@ namespace {
         paramsArray = filteredArray; // Replace the original array with the filtered one
     }
 
-    // Forward declaration for recursive use if ParseBlockDataInternal calls itself for nested statements.
-    Block ParseBlockDataInternal(const nlohmann::json &blockJson, Engine &engine, const std::string &contextForLog);
-
     Block ParseBlockDataInternal(const nlohmann::json &blockJson, Engine &engine, const std::string &contextForLog) {
         Block newBlock; // Default constructor initializes paramsJson to kNullType
 
