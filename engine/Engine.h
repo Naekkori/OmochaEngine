@@ -141,6 +141,7 @@ class Engine : public TextInputInterface
     map<string, string> scenes;
     SDL_Texture *tempScreenTexture;
     mutable mutex m_logMutex;
+    mutable mutex m_fileMutex;
     string m_pressedObjectId; // ID of the object currently being pressed by the mouse
     vector<pair<string, const Script *>> m_mouseClickedScripts;
     vector<pair<string, const Script *>> m_mouseClickCanceledScripts;

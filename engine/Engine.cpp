@@ -13,7 +13,6 @@
 #include <memory>
 #include <chrono> // std::chrono 타입 및 함수 사용을 위해 필요
 #include <format>
-#include <boost/asio/thread_pool.hpp> // 추가
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
@@ -473,39 +472,95 @@ std::string Engine::getSafeStringFromJson(const nlohmann::json &parentValue,
 bool Engine::loadProject(const string &projectFilePath) {
     EngineStdOut("Initial Project JSON file parsing...", 0);
     this->m_currentProjectFilePath = projectFilePath;
+    nlohmann::json document; {
+        lock_guard lock(m_fileMutex);
+        ifstream projectFile(projectFilePath);
+        if (!projectFile.is_open()) {
+            showMessageBox("Failed to open project file: " + projectFilePath, msgBoxIconType.ICON_ERROR);
+            EngineStdOut("Failed to open project file: " + projectFilePath, 2);
+            return false;
+        }
 
-    ifstream projectFile(projectFilePath);
-    if (!projectFile.is_open()) {
-        showMessageBox("Failed to open project file: " + projectFilePath, msgBoxIconType.ICON_ERROR);
-        EngineStdOut("Failed to open project file: " + projectFilePath, 2);
-        return false;
+        try {
+            document = nlohmann::json::parse(projectFile);
+            projectFile.close();
+        } catch (const nlohmann::json::parse_error &e) {
+            string errorMsg = "Failed to parse project file: " + string(e.what()) +
+                              " (byte offset: " + to_string(e.byte) + ")";
+            EngineStdOut(errorMsg, 2);
+            showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
+            projectFile.close();
+            return false;
+        }
+    }
+    // --- 기존 데이터 초기화 ---
+    // 기존에 있던 초기화
+    {
+        lock_guard lock(m_engineDataMutex);
+        objects_in_order.clear();
+        entities.clear();
+        objectScripts.clear();
+        m_mouseClickedScripts.clear();
+        m_mouseClickCanceledScripts.clear();
+        m_whenObjectClickedScripts.clear();
+        m_whenObjectClickCanceledScripts.clear();
+        m_messageReceivedScripts.clear();
+        m_whenCloneStartScripts.clear();
+        m_pressedObjectId = "";
+        firstSceneIdInOrder = ""; // currentSceneId는 이 값 또는 파싱된 값으로 설정됩니다.
+        m_sceneOrder.clear();
     }
 
-    nlohmann::json document;
-    try {
-        document = nlohmann::json::parse(projectFile);
-    } catch (const nlohmann::json::parse_error &e) {
-        string errorMsg = "Failed to parse project file: " + string(e.what()) +
-                          " (byte offset: " + to_string(e.byte) + ")";
-        EngineStdOut(errorMsg, 2);
-        showMessageBox("Failed to parse project file", msgBoxIconType.ICON_ERROR);
-        projectFile.close();
-        return false;
+    // 추가된 초기화
+    {
+        lock_guard lock(m_engineDataMutex);
+        m_HUDVariables.clear();
+        scenes.clear();
+        m_cloneCounters.clear();
+
+        m_scriptExecutionCounter.store(0, std::memory_order_relaxed);
+        m_needsTextureRecreation = false;
+
+        resetProjectTimer(); // m_projectTimerValue, m_projectTimerRunning, m_projectTimerStartTime 초기화
+        m_gameplayInputActive = false; // 게임플레이 입력 상태 초기화
+
+        // 마우스 상태 초기화
+        m_currentStageMouseX = 0.0f;
+        m_currentStageMouseY = 0.0f;
+        m_isMouseOnStage = false;
+        m_stageWasClickedThisFrame.store(false, std::memory_order_relaxed);
+
+        // HUD 변수 드래그 및 UI 상태 초기화
+        m_draggedHUDVariableIndex = -1;
+        m_currentHUDDragState = HUDDragState::NONE;
+        m_draggedHUDVariableMouseOffsetX = 0.0f;
+        m_draggedHUDVariableMouseOffsetY = 0.0f;
+        m_draggedScrollbarListIndex = -1;
+        m_scrollbarDragStartY = 0.0f;
+        m_scrollbarDragInitialOffset = 0.0f;
+        m_maxVariablesListContentWidth = 180.0f; // 기본값으로 리셋
     }
 
-    // 기존 데이터 초기화
-    objects_in_order.clear();
-    entities.clear();
-    objectScripts.clear();
-    m_mouseClickedScripts.clear();
-    m_mouseClickCanceledScripts.clear();
-    m_whenObjectClickedScripts.clear();
-    m_whenObjectClickCanceledScripts.clear();
-    m_messageReceivedScripts.clear();
-    m_whenCloneStartScripts.clear();
-    m_pressedObjectId = "";
-    firstSceneIdInOrder = "";
-    m_sceneOrder.clear();
+    // 텍스트 입력 관련 상태 (별도 뮤텍스 필요 시 해당 스코프 내에서 처리)
+    // clearTextInput(); // 이 함수를 호출하거나 아래처럼 직접 초기화
+    clearTextInput();
+    m_needAnswerUpdate.store(false, std::memory_order_relaxed);
+
+
+    // 키보드 입력 상태 (별도 뮤텍스 필요 시 해당 스코프 내에서 처리)
+    {
+        std::lock_guard<std::mutex> lock(m_pressedKeysMutex);
+        m_pressedKeys.clear();
+    }
+
+    // 디버거 스크롤 위치 초기화
+    m_debuggerScrollOffsetY = 0.0f;
+
+    // 줌 관련 상태 초기화 (zoomFactor는 specialConfig 파싱 후 설정됨)
+    m_isDraggingZoomSlider = false;
+    // zoomFactor = 1.0f; // 기본값. specialConfig.setZoomfactor에 의해 덮어쓰여질 것임
+
+    initFps(); // FPS 카운터 관련 변수들 초기화
 
     // PROJECT_NAME 파싱
     if (document.contains("name") && document["name"].is_string()) {
@@ -673,20 +728,47 @@ bool Engine::loadProject(const string &projectFilePath) {
             // value 파싱
             if (variableJson.contains("value")) {
                 const auto &valNode = variableJson["value"];
-                if (valNode.is_string()) {
-                    currentVarDisplay.value = valNode.get<string>();
-                } else if (valNode.is_number()) {
-                    // 숫자를 문자열로 변환 (소수점 처리 방식은 기존 OperandValue::asString과 유사하게)
-                    double num_val = valNode.get<double>();
-                    if (isnan(num_val)) currentVarDisplay.value = "NaN";
-                    else if (isinf(num_val)) currentVarDisplay.value = (num_val > 0 ? "Infinity" : "-Infinity");
+            if (valNode.is_string()) {
+                std::string raw_value = valNode.get<std::string>();
+                std::string sanitized_value;
+                for (char c : raw_value) {
+                    auto uc = static_cast<unsigned char>(c);
+
+                    // 1. 일반적인 출력 가능 ASCII 문자 (스페이스 포함)
+                    // 2. 탭, 줄바꿈, 캐리지 리턴
+                    // 3. 0x7F (DEL) 보다 큰 바이트 (멀티바이트 UTF-8 문자의 일부일 가능성이 높음)
+                    if ((uc >= 32 && uc <= 126) || // Printable ASCII
+                        uc == '\t' || uc == '\n' || uc == '\r' || // Common whitespace
+                        uc > 0x7F) // Likely part of a multi-byte UTF-8 character (e.g., Korean, emoji)
+                    {
+                        sanitized_value += c;
+                    }
+                    // else: 0-31 범위의 제어 문자 (탭, 줄바꿈, 캐리지리턴 제외) 및 127 (DEL)은 제거됩니다.
+                }
+                currentVarDisplay.value = sanitized_value;
+
+                // 정제 후 문자열이 비어있고, 리스트 타입이 아니라면 "0"으로 설정
+                if (currentVarDisplay.variableType != "list" && currentVarDisplay.value.empty()) {
+                    currentVarDisplay.value = "0";
+                    // 로그 메시지는 필요에 따라 추가/수정
+                    EngineStdOut(
+                        "Variable '" + currentVarDisplay.name +
+                        "' had an empty or fully sanitized string value. Defaulting to \"0\".", 1);
+                }
+            } else if (valNode.is_number_integer()) {
+                    long long int_val = valNode.get<long long>();
+                    currentVarDisplay.value = std::to_string(int_val); // CORRECT
+                } else if (valNode.is_number_float()) {
+                    double float_val = valNode.get<double>();
+                    if (isnan(float_val)) currentVarDisplay.value = "NaN";
+                    else if (isinf(float_val)) currentVarDisplay.value = (float_val > 0 ? "Infinity" : "-Infinity");
                     else {
-                        std::string s = std::to_string(num_val);
-                        s.erase(s.find_last_not_of('0') + 1, string::npos);
+                        std::string s = std::to_string(float_val);
+                        s.erase(s.find_last_not_of('0') + 1, std::string::npos);
                         if (!s.empty() && s.back() == '.') {
                             s.pop_back();
                         }
-                        currentVarDisplay.value = s;
+                        currentVarDisplay.value = s; // CORRECT
                     }
                 } else if (valNode.is_boolean()) {
                     currentVarDisplay.value = valNode.get<bool>() ? "true" : "false";
@@ -708,12 +790,13 @@ bool Engine::loadProject(const string &projectFilePath) {
                     "Variable '" + currentVarDisplay.name + "' is missing 'value' field. Interpreting as \"0\".",
                     1);
             }
-            if (currentVarDisplay.value.empty()) {
+            if (currentVarDisplay.variableType != "list" && currentVarDisplay.value.empty()) {
+                currentVarDisplay.value = "0"; // Default to "0" if empty after parsing
                 EngineStdOut(
-                    "Variable value is effectively empty for variable '" + currentVarDisplay.name +
-                    ". Skipping variable.", 1);
-                continue;
+                    "Variable '" + currentVarDisplay.name +
+                    "' had an empty or fully sanitized string value after parsing. Defaulting to \"0\".", 1);
             }
+            // ... then push_back under lock ...
 
             // visible 파싱
             currentVarDisplay.isVisible = false;
@@ -1652,16 +1735,6 @@ bool Engine::loadProject(const string &projectFilePath) {
     /**
      * @brief 특정 이벤트에 연결될 스크립트 식별 (예: 시작 버튼 클릭, 키 입력, 메시지 수신 등)
      */
-    EngineStdOut("Identifying 'Start Button Clicked' scripts...", 0);
-    startButtonScripts.clear();
-    keyPressedScripts.clear();
-    m_mouseClickedScripts.clear();
-    m_mouseClickCanceledScripts.clear();
-    m_whenObjectClickedScripts.clear();
-    m_whenObjectClickCanceledScripts.clear();
-    m_messageReceivedScripts.clear();
-    m_whenStartSceneLoadedScripts.clear();
-    m_whenCloneStartScripts.clear();
 
     for (auto const &[objectId, scriptsVec]: objectScripts) // Iterate over fully populated objectScripts
     {
@@ -2190,14 +2263,15 @@ bool Engine::loadImages() {
     loadedItemCount = 0;
 
     // 기존 텍스처 및 서피스 핸들 해제
-    for (auto &objInfo : objects_in_order) {
+    for (auto &objInfo: objects_in_order) {
         if (objInfo.objectType == "sprite") {
-            for (auto &costume : objInfo.costumes) {
+            for (auto &costume: objInfo.costumes) {
                 if (costume.imageHandle) {
                     SDL_DestroyTexture(costume.imageHandle);
                     costume.imageHandle = nullptr;
                 }
-                if (costume.surfaceHandle) { // 추가: 서피스 핸들도 해제
+                if (costume.surfaceHandle) {
+                    // 추가: 서피스 핸들도 해제
                     SDL_DestroySurface(costume.surfaceHandle);
                     costume.surfaceHandle = nullptr;
                 }
@@ -2205,7 +2279,7 @@ bool Engine::loadImages() {
         }
     }
 
-    for (const auto &objInfo : objects_in_order) {
+    for (const auto &objInfo: objects_in_order) {
         if (objInfo.objectType == "sprite") {
             totalItemsToLoad += static_cast<int>(objInfo.costumes.size());
         }
@@ -2220,9 +2294,11 @@ bool Engine::loadImages() {
     int loadedCount = 0;
     int failedCount = 0;
     string imagePath = "";
-    for (auto &objInfo : objects_in_order) { // objInfo를 참조로 받도록 수정
+    for (auto &objInfo: objects_in_order) {
+        // objInfo를 참조로 받도록 수정
         if (objInfo.objectType == "sprite") {
-            for (auto &costume : objInfo.costumes) { // costume을 참조로 받도록 수정
+            for (auto &costume: objInfo.costumes) {
+                // costume을 참조로 받도록 수정
                 if (IsSysMenu) {
                     imagePath = "sysmenu/" + costume.fileurl;
                 } else {
@@ -2238,7 +2314,7 @@ bool Engine::loadImages() {
                 SDL_ClearError();
 
                 // 1. IMG_Load를 사용하여 SDL_Surface로 로드
-                SDL_Surface* tempSurface = IMG_Load(imagePath.c_str());
+                SDL_Surface *tempSurface = IMG_Load(imagePath.c_str());
 
                 if (tempSurface) {
                     costume.surfaceHandle = tempSurface; // 서피스 핸들 저장
@@ -2249,14 +2325,16 @@ bool Engine::loadImages() {
                     if (costume.imageHandle) {
                         loadedCount++;
                         EngineStdOut(
-                            "  Shape '" + costume.name + "' (" + imagePath + ") loaded successfully. Surface and Texture created.",
+                            "  Shape '" + costume.name + "' (" + imagePath +
+                            ") loaded successfully. Surface and Texture created.",
                             3);
                         // SDL_Surface는 costume.surfaceHandle에 저장되어 있으므로 여기서 해제하지 않음
                         // 해제는 Costume 소멸 시 또는 이미지 재로드 시 수행
                     } else {
                         failedCount++;
                         EngineStdOut(
-                            "SDL_CreateTextureFromSurface failed for '" + objInfo.name + "' shape '" + costume.name + "': " +
+                            "SDL_CreateTextureFromSurface failed for '" + objInfo.name + "' shape '" + costume.name +
+                            "': " +
                             SDL_GetError(),
                             2);
                         SDL_DestroySurface(tempSurface); // 텍스처 생성 실패 시 서피스 즉시 해제
@@ -2287,8 +2365,9 @@ bool Engine::loadImages() {
         }
     }
 
-    EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount), 0);
-    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double>>(
+    EngineStdOut("Image loading finished. Success: " + to_string(loadedCount) + ", Failed: " + to_string(failedCount),
+                 0);
+    chrono::duration<double> loadingDuration = chrono::duration_cast<chrono::duration<double> >(
         chrono::steady_clock::now() - startTime);
     string greething = "";
     double duration = loadingDuration.count();
@@ -2310,6 +2389,7 @@ bool Engine::loadImages() {
     }
     return true;
 }
+
 bool Engine::loadSounds() {
     LOADING_METHOD_NAME = "Loading Sounds...";
     chrono::time_point<chrono::steady_clock> startTime = chrono::steady_clock::now();
@@ -2957,6 +3037,7 @@ void Engine::drawHUD() {
 
     // --- HUD 변수 그리기 (일반 변수 및 리스트) ---
     if (!m_HUDVariables.empty()) {
+        lock_guard lock(m_engineDataMutex);
         int window_w, window_h;
         float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
         int visibleVarsCount = 0; // 보이는 변수 개수
@@ -4131,7 +4212,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                         const string &objectId = scriptPair.first;
                         const Script *scriptPtr = scriptPair.second;
                         Entity *currentEntity = getEntityById(objectId);
-                        if (currentEntity && currentEntity->isVisible()==true) {
+                        if (currentEntity && currentEntity->isVisible() == true) {
                             // 엔티티가 존재하고 보이는 경우
                             // 현재 씬에 속하거나 전역 오브젝트인지 확인
                             const ObjectInfo *objInfoPtr = getObjectInfoById(objectId); // ObjectInfo 가져오기

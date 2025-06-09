@@ -684,6 +684,9 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         // engine.EngineStdOut("locate_y objId: " + objectId + " newX: " + to_string(y), 3, executionThreadId);
         entity->setY(y);
     } else if (BlockType == "locate_xy") {
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
+            engine.EngineStdOut(format("locate_xy block is Over or Under Param Size for object {}.", objectId),1);
+        }
         OperandValue valueXOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue valueYOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
 
@@ -3297,6 +3300,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         // engine.activateTextInput은 내부적으로 m_lastAnswer를 설정해야 합니다.
         engine.activateTextInput(objectId, questionMessage, executionThreadId);
     } else if (BlockType == "change_variable") {
+        lock_guard lock(engine.m_engineDataMutex);
         // params: [VARIABLE_ID_STRING, VALUE_TO_ADD_OR_CONCAT, null, null]
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
             engine.EngineStdOut(
@@ -3412,7 +3416,9 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         if (targetVarPtr->isCloud) {
             engine.saveCloudVariablesToJson();
         }
+
     } else if (BlockType == "set_variable") {
+        lock_guard lock(engine.m_engineDataMutex);
         // params: [VARIABLE_ID_STRING, VALUE_TO_ADD_OR_CONCAT, null, null]
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
             engine.EngineStdOut(
@@ -3553,6 +3559,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
         }
         targetVarPtr->isVisible = false;
     } else if (BlockType == "add_value_to_list") {
+        lock_guard lock(engine.m_engineDataMutex);
         // 리스트에 항목을 추가합니다.
         // 파라미터: [LIST_ID_STRING (드롭다운), VALUE_TO_ADD (모든 타입 가능)]
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
@@ -3633,6 +3640,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
                                 1, executionThreadId);
         }
     } else if (BlockType == "remove_value_from_list") {
+        lock_guard lock(engine.m_engineDataMutex);
         // 리스트에서 특정 인덱스의 항목을 삭제합니다.
         // 파라미터: [LIST_ID_STRING (드롭다운), INDEX_TO_REMOVE (숫자 또는 숫자 반환 블록)]
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
@@ -3750,6 +3758,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             engine.saveCloudVariablesToJson();
         }
     } else if (BlockType == "insert_value_to_list") {
+        lock_guard lock(engine.m_engineDataMutex);
         // 특정 인덱스에 항목 삽입
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3) {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
@@ -3824,6 +3833,7 @@ void Variable(string BlockType, Engine &engine, const string &objectId, const Bl
             "Inserted value '" + valueOp.asString() + "' at index " + to_string(index_1_based) + " (value: '" + valueOp.
             asString() + "') to list '");
     } else if (BlockType == "change_value_list_index") {
+        lock_guard lock(engine.m_engineDataMutex);
         // 특정 인덱스에 항목 변경
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 3) {
             engine.EngineStdOut("insert_value_to_list block for " + objectId + ": insufficient parameters", 2);
@@ -3961,6 +3971,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         return;
     }
     if (BlockType == "wait_second") {
+
         // Flow 함수는 Entity의 setScriptWait를 호출하여 대기 상태 설정을 요청합니다.
         // 실제 대기(SDL_Delay)는 Entity::executeScript의 메인 루프에서 처리됩니다.
         if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null()) {
