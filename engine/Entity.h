@@ -8,6 +8,7 @@
 #include "SDL3/SDL_rect.h"   // For SDL_FRect, SDL_FPoint
 #include "SDL3/SDL_render.h" // For SDL_Texture, SDL_Vertex
 #include <atomic>            // For std::atomic
+#include <future>
 #include <map>               // For std::map
 #include <memory>            // For std::shared_ptr, std::enable_shared_from_this
 
@@ -63,7 +64,7 @@ public:
         EXPLICIT_WAIT_SECOND, // 'wait_second' 블록에 의한 명시적 시간 대기
         BLOCK_INTERNAL,       // 'move_xy_time' 등 시간 소요 블록 내부의 프레임 간 대기
         TEXT_INPUT,           // 'ask_and_wait' 블록에 의한 사용자 입력 대기
-        SOUND_FINISH          // 소리 재생 완료 대기 (신규)
+        SOUND_FINISH,          // 소리 재생 완료 대기 (신규)
         // 필요에 따라 다른 대기 유형 추가 가능
     };
 
@@ -81,7 +82,8 @@ public:
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
         bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
         bool continueLoopRequested = false; // Flag to signal a 'continue_repeat'
-
+        std::promise<void> completionPromise;
+        std::future<void> completionFuture;
         ScriptThreadState()= default;
     };
     std::map<std::string, ScriptThreadState> scriptThreadStates;
@@ -321,9 +323,9 @@ public:
     void playSound(const std::string &soundId);
     void playSoundWithSeconds(const std::string &soundId, double seconds);
     void playSoundWithFromTo(const std::string &soundId, double from, double to);
-    void waitforPlaysound(const std::string &soundId);
-    void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds);
-    void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to);
+    void waitforPlaysound(const std::string &soundId, const std::string &executionThreadId, const std::string &callingBlockId);
+    void waitforPlaysoundWithSeconds(const std::string &soundId, double seconds, const std::string &executionThreadId, const std::string &callingBlockId);
+    void waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to, std::string executionThreadId, std::string callingBlockId);
     void terminateScriptThread(const std::string& threadId);
     void terminateAllScriptThread(const std::string& execeptThreadId);
 };

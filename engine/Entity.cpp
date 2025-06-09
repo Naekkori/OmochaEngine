@@ -9,6 +9,8 @@
 #include "SDL3/SDL_pixels.h"
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
+string THREAD_ID_INTERNAL;
+string BLOCK_ID_INTERNAL;
 Entity::PenState::PenState(Engine *enginePtr)
     : pEngine(enginePtr),
       stop(false), // 기본적으로 그리기가 중지되지 않은 상태 (활성화)
@@ -115,6 +117,12 @@ void Entity::setScriptWait(const std::string &executionThreadId, Uint64 endTime,
     threadState.waitEndTime = endTime; // For EXPLICIT_WAIT_SECOND, this is the absolute time
     threadState.blockIdForWait = blockId;
     threadState.currentWaitType = type;
+
+    // Initialize or re-initialize promise and future for this wait instance.
+    // This ensures a fresh future is available for any new wait period.
+    threadState.completionPromise = std::promise<void>();
+    threadState.completionFuture = threadState.completionPromise.get_future();
+
     // resumeAtBlockIndex, scriptPtrForResume, sceneIdAtDispatchForResume are set by executeScript when it decides to pause
 }
 
@@ -243,7 +251,8 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         const Block &block = scriptPtr->blocks[i];
         // 각 블록 실행 시 로깅은 성능에 영향을 줄 수 있으므로, 디버그 시에만 활성화하거나 로그 레벨 조정
         // pEngineInstance->EngineStdOut("  Executing Block ID: " + block.id + ", Type: " + block.type + " for object: " + id, 3, executionThreadId); // LEVEL 5 -> 3
-
+        THREAD_ID_INTERNAL = executionThreadId;
+        BLOCK_ID_INTERNAL = block.id;
         try
         {
                 Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
@@ -1120,21 +1129,22 @@ void Entity::playSoundWithFromTo(const std::string &soundId, double from, double
         pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
     }
 }
-void Entity::waitforPlaysound(const std::string &soundId)
+// Entity.cpp
+void Entity::waitforPlaysound(const std::string &soundId, const std::string &executionThreadId, const std::string &callingBlockId)
 {
-    std::unique_lock<std::recursive_mutex> lock(m_stateMutex);
+    // m_stateMutex는 이 함수 시작 시점에 잠그지 않고, ScriptThreadState 접근 시에만 잠급니다.
+    // 사운드 재생 자체는 비동기일 수 있기 때문입니다.
 
     if (!pEngineInstance)
     {
-        // std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
-        pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.", 2);
+        // pEngineInstance가 null인 경우 즉시 반환 (오류 로깅은 생성자 또는 초기화에서 처리)
         return;
     }
 
     const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
     if (!objInfo)
     {
-        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
+        pEngineInstance->EngineStdOut("Entity::waitforPlaysound - ObjectInfo not found for entity: " + this->id, 2, executionThreadId);
         return;
     }
 
@@ -1157,35 +1167,56 @@ void Entity::waitforPlaysound(const std::string &soundId)
         }
         else
         {
-            soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
+            soundFilePath = std::string(BASE_ASSETS) + soundToPlay->fileurl;
         }
+
+        // ScriptThreadState에 접근하기 전에 뮤텍스 잠금
+        std::unique_lock<std::recursive_mutex> lock(m_stateMutex);
+        auto it_state = scriptThreadStates.find(executionThreadId);
+        if (it_state == scriptThreadStates.end()) {
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") - ScriptThreadState not found for waitforPlaysound. Cannot set wait.", 2, executionThreadId);
+            // 스레드 상태가 없으면 사운드만 재생하고 대기 설정 없이 반환 (또는 오류 처리)
+            pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath); // 사운드는 재생
+            pEngineInstance->EngineStdOut("Entity " + id + " playing sound (no wait): " + soundToPlay->name, 0, executionThreadId);
+            return;
+        }
+        ScriptThreadState &threadState = it_state->second;
+
+        // 새로운 promise와 future 생성
+        threadState.completionPromise = {}; // 이전 promise가 있다면 리셋 (기본 생성자로 새 promise 할당)
+        threadState.completionFuture = threadState.completionPromise.get_future();
+
+        // AudioEngineHelper의 playSound 함수가 이 promise를 알고, 사운드 완료 시 resolve하도록 수정 필요.
+        // 예를 들어, playSound 함수가 promise의 참조나 포인터를 받을 수 있습니다.
+        // pEngineInstance->aeHelper.playSoundAndNotifyPromise(this->getId(), soundFilePath, threadState.completionPromise);
+        // 위와 같은 함수가 AudioEngineHelper에 구현되어야 합니다.
+        // 현재는 기존 playSound를 호출합니다. AudioEngineHelper 수정 없이는 future가 자동으로 resolve되지 않습니다.
         pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
-        pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
 
-        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
-        // 이 함수를 호출하는 컨텍스트에서 이 정보들을 전달받아야 합니다.
-        std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
-        std::string callingBlockId = "placeholder_block_id";            // 실제 호출 블록 ID로 대체 필요
-        // 예시: if (this->scriptThreadStates.count(currentExecutionThreadId)) { ... }
 
-        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id")
-        {
-            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
-            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-        }
-        else
-        {
-            pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing/placeholder thread/block ID. Sound will play without wait.", 1);
-            // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
-            // 또는, 여기서 에러를 발생시키거나 기본 블로킹 대기를 수행할 수 있지만, 비동기 패턴을 권장합니다.
-        }
+        pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0, executionThreadId);
+
+        // setScriptWait는 ScriptThreadState를 직접 수정하므로, promise/future 설정 후에 호출
+        // SOUND_FINISH 타입으로 대기를 설정합니다.
+        // resumeSoundWaitScripts에서 completionFuture를 확인하여 스크립트를 재개합니다.
+        // waitEndTime은 SOUND_FINISH 타입에서는 직접 사용되지 않을 수 있지만,
+        // 만약 future가 타임아웃되거나 하는 경우를 대비해 사운드 길이를 넣어둘 수 있습니다.
+        double soundDuration = pEngineInstance->aeHelper.getSoundFileDuration(soundFilePath);
+        Uint64 estimatedEndTime = SDL_GetTicks() + static_cast<Uint64>(soundDuration * 1000.0);
+
+        setScriptWait(executionThreadId, estimatedEndTime, callingBlockId, WaitType::SOUND_FINISH);
+
+        // ScriptThreadState의 completionFuture는 resumeSoundWaitScripts에서 사용됩니다.
+        // AudioEngineHelper가 사운드 완료 시 threadState.completionPromise.set_value()를 호출해야 합니다.
+
+        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") waiting for sound (future set): " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, executionThreadId);
     }
     else
     {
-        pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
+        pEngineInstance->EngineStdOut("Entity::waitforPlaysound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1, executionThreadId);
     }
 }
-void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seconds)
+void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seconds, const std::string &executionThreadId, const std::string &callingBlockId)
 {
     // std::unique_lock<std::recursive_mutex> lock(m_stateMutex); // Lock removed for initial part
 
@@ -1224,22 +1255,11 @@ void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seco
             soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
         }
         pEngineInstance->aeHelper.playSoundForDuration(this->getId(), soundFilePath, seconds); // Engine의 public aeHelper 사용
+        // setScriptWait는 ScriptThreadState를 직접 수정하므로, promise/future 설정 후에 호출
+        setScriptWait(executionThreadId, seconds, callingBlockId, WaitType::SOUND_FINISH);
         // pEngineInstance->EngineStdOut("Entity " + id + " playing sound: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
         pEngineInstance->EngineStdOut("Entity " + id + " playing sound for " + std::to_string(seconds) + "s: " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0);
 
-        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
-        std::string currentExecutionThreadId = "placeholder_thread_id"; // 실제 실행 스레드 ID로 대체 필요
-        std::string callingBlockId = "placeholder_block_id";            // 실제 호출 블록 ID로 대체 필요
-
-        if (!currentExecutionThreadId.empty() && !callingBlockId.empty() && currentExecutionThreadId != "placeholder_thread_id")
-        {
-            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
-            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound (timed): " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-        }
-        else
-        {
-            pEngineInstance->EngineStdOut("Entity " + id + " could not set timed sound wait due to missing/placeholder thread/block ID. Sound will play for duration without script pause.", 1);
-        }
     }
     else
     {
@@ -1247,21 +1267,24 @@ void Entity::waitforPlaysoundWithSeconds(const std::string &soundId, double seco
     }
 }
 
-void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to)
+// Entity.cpp
+void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from, double to, const std::string &executionThreadId, const std::string &callingBlockId)
 {
+    // m_stateMutex는 ScriptThreadState 접근 및 수정을 보호하기 위해 사용됩니다.
     std::unique_lock<std::recursive_mutex> lock(m_stateMutex);
 
     if (!pEngineInstance)
     {
-        // std::cerr << "ERROR: Entity " << id << " has no pEngineInstance to play sound." << std::endl;
-        pEngineInstance->EngineStdOut("Entity " + id + " has no pEngineInstance to play sound.", 2);
+        // pEngineInstance가 null인 경우 즉시 반환 (오류 로깅은 생성자 또는 초기화에서 처리)
+        // EngineStdOut은 pEngineInstance를 사용하므로, 여기서는 직접 로깅하거나 반환합니다.
+        // std::cerr << "Error in waitforPlaysoundWithFromTo: pEngineInstance is null for entity " << id << std::endl;
         return;
     }
 
     const ObjectInfo *objInfo = pEngineInstance->getObjectInfoById(this->id);
     if (!objInfo)
     {
-        pEngineInstance->EngineStdOut("Entity::playSound - ObjectInfo not found for entity: " + this->id, 2);
+        pEngineInstance->EngineStdOut("Entity::waitforPlaysoundWithFromTo - ObjectInfo not found for entity: " + this->id, 2, executionThreadId);
         return;
     }
 
@@ -1284,45 +1307,60 @@ void Entity::waitforPlaysoundWithFromTo(const std::string &soundId, double from,
         }
         else
         {
-            soundFilePath = string(BASE_ASSETS) + soundToPlay->fileurl;
+            soundFilePath = std::string(BASE_ASSETS) + soundToPlay->fileurl;
         }
-        pEngineInstance->aeHelper.playSound(this->getId(), soundFilePath);
 
-        // 중요: currentExecutionThreadId와 callingBlockId를 올바르게 가져와야 합니다.
-        // 이 정보는 이 함수를 호출하는 컨텍스트(예: BlockExecutor)에서 전달받아야 합니다.
-        // 아래는 임시 플레이스홀더입니다. 실제 구현에서는 이 부분을 수정해야 합니다.
-        std::string currentExecutionThreadId = "";         // 실제 실행 스레드 ID로 대체 필요
-        std::string callingBlockId = "unknown_wait_block"; // 실제 호출 블록 ID로 대체 필요
+        auto it_state = scriptThreadStates.find(executionThreadId);
+        if (it_state == scriptThreadStates.end()) {
+            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") - ScriptThreadState not found for waitforPlaysoundWithFromTo. Cannot set wait.", 2, executionThreadId);
+            // 스레드 상태가 없으면 사운드만 재생하고 대기 설정 없이 반환
+            pEngineInstance->aeHelper.playSoundFromTo(this->getId(), soundFilePath, from, to);
+            pEngineInstance->EngineStdOut("Entity " + id + " playing sound (from-to, no wait): " + soundToPlay->name, 0, executionThreadId);
+            return;
+        }
+        ScriptThreadState &threadState = it_state->second;
 
-        // 스레드 ID를 얻기 위한 임시 로직 (실제로는 더 안정적인 방법 필요)
-        // 예시: executeScript에서 현재 스레드 ID를 ScriptThreadState에 저장하고 여기서 읽어옴
-        // 또는, 이 함수에 executionThreadId와 blockId를 인자로 전달
-        {
-            std::lock_guard read_lock(m_stateMutex);
-            // 가장 최근에 생성된 스레드 ID를 사용하려고 시도 (매우 불안정하며, 실제 사용 부적합)
-            if (!scriptThreadStates.empty())
-            {
-                // currentExecutionThreadId = scriptThreadStates.rbegin()->first; // 예시일 뿐, 사용 금지
+        // 새로운 promise와 future 생성
+        threadState.completionPromise = {}; // 이전 promise가 있다면 리셋
+        threadState.completionFuture = threadState.completionPromise.get_future();
+
+        // AudioEngineHelper의 playSoundFromTo 함수가 이 promise를 알고,
+        // 사운드 재생 완료 시 resolve하도록 수정되어야 합니다.
+        // 예: pEngineInstance->aeHelper.playSoundFromToAndNotifyPromise(this->getId(), soundFilePath, from, to, std::move(threadState.completionPromise));
+        // 현재는 AudioEngineHelper 수정 없이 기존 함수를 호출합니다.
+        // 이 경우 future는 자동으로 resolve되지 않으며, resumeSoundWaitScripts에서 isSoundPlaying을 폴링하거나 타임아웃에 의존해야 합니다.
+        pEngineInstance->aeHelper.playSoundFromTo(this->getId(), soundFilePath, from, to);
+
+        pEngineInstance->EngineStdOut("Entity " + id + " playing sound (from " + std::to_string(from) + "s to " + std::to_string(to) + "s): " + soundToPlay->name + " (ID: " + soundId + ", Path: " + soundFilePath + ")", 0, executionThreadId);
+
+        // SOUND_FINISH 타입으로 대기를 설정합니다.
+        // waitEndTime은 SOUND_FINISH 타입에서는 future가 주 메커니즘이므로 참고용입니다.
+        double durationSeconds = 0.0;
+        if (to > from) {
+            durationSeconds = to - from;
+        } else {
+            // 'to'가 'from'보다 작거나 같으면, 재생 시간이 0이거나 매우 짧을 수 있습니다.
+            // 또는 miniaudio의 동작에 따라 'from'부터 끝까지 재생될 수도 있습니다.
+            // 여기서는 명시적 구간이므로 (to - from)이 음수/0이면 0으로 처리합니다.
+            durationSeconds = 0.0;
+            if (pEngineInstance) { // pEngineInstance 유효성 검사
+                 pEngineInstance->EngineStdOut("Warning: 'to' (" + std::to_string(to) + ") is not greater than 'from' (" + std::to_string(from) + ") for sound " + soundId + ". Effective duration for wait might be 0.", 1, executionThreadId);
             }
         }
+        Uint64 estimatedEndTime = SDL_GetTicks() + static_cast<Uint64>(durationSeconds * 1000.0);
 
-        if (!currentExecutionThreadId.empty() && !callingBlockId.empty())
-        {
-            setScriptWait(currentExecutionThreadId, 0, callingBlockId, WaitType::SOUND_FINISH);
-            pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + currentExecutionThreadId + ") waiting for sound: " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, currentExecutionThreadId);
-        }
-        else
-        {
-            pEngineInstance->EngineStdOut("Entity " + id + " could not set sound wait due to missing thread/block ID. Sound will play without wait.", 1);
-            // 이전의 블로킹 대기 방식은 제거되었으므로, ID를 모르면 대기 없이 진행됩니다.
-        }
+        // setScriptWait는 ScriptThreadState를 직접 수정하므로, promise/future 설정 후에 호출합니다.
+        setScriptWait(executionThreadId, estimatedEndTime, callingBlockId, WaitType::SOUND_FINISH);
+        // ScriptThreadState의 completionFuture는 resumeSoundWaitScripts에서 사용됩니다.
+        // AudioEngineHelper가 사운드 완료 시 threadState.completionPromise.set_value()를 호출해야 합니다.
+
+        pEngineInstance->EngineStdOut("Entity " + id + " (Thread: " + executionThreadId + ") waiting for sound (from-to, future set): " + soundToPlay->name + " (Block: " + callingBlockId + ")", 0, executionThreadId);
     }
     else
     {
-        pEngineInstance->EngineStdOut("Entity::playSound - Sound ID '" + soundId + "' not found for entity: " + this->id, 1);
+        pEngineInstance->EngineStdOut("Entity::waitforPlaysoundWithFromTo - Sound ID '" + soundId + "' not found for entity: " + this->id, 1, executionThreadId);
     }
 }
-
 void Entity::terminateScriptThread(const std::string &threadId)
 {
     std::lock_guard lock(m_stateMutex);
