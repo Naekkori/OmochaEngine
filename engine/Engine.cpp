@@ -3650,7 +3650,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
         if (m_showScriptDebugger) {
             m_debuggerScrollOffsetY = 0.0f;
         }
-    } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F5) {
+    } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_END) {
+        if (m_showScriptDebugger) {
+            m_debuggerScrollOffsetY = -1.0f;
+        }
+    }else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F5) {
         if (showMessageBox("재시작 하시겠습니까?", msgBoxIconType.ICON_INFORMATION, true) == true) {
             requestProjectRestart();
             performProjectRestart();
@@ -3880,7 +3884,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
             }
             if (!uiClicked && m_gameplayInputActive) {
                 // UI 클릭이 아니고 게임플레이 입력이 활성화된 경우
-                this->setStageClickedThisFrame(true);
+                setStageClickedThisFrame(true);
                 float stageMouseX = 0.0f, stageMouseY = 0.0f;
                 if (mapWindowToStageCoordinates(mouseX, mouseY, stageMouseX, stageMouseY)) // 윈도우 좌표를 스테이지 좌표로 변환
                 {
@@ -4200,9 +4204,6 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                 m_currentHUDDragState = HUDDragState::NONE;
                 m_draggedScrollbarListIndex = -1;
                 uiInteractionReleased = true; // UI 상호작용으로 처리
-            }
-            if (m_gameplayInputActive) {
-                this->setStageClickedThisFrame(false);
             }
             if (m_gameplayInputActive && !uiInteractionReleased) {
                 // 게임플레이 입력 활성화 상태이고 UI 상호작용이 해제되지 않은 경우
@@ -5060,19 +5061,66 @@ void Engine::goToScene(const string &sceneId) {
 
         // 3. 새로운 씬으로 전환하기 전에 엔티티들을 초기 위치로 리셋
         {
-            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
-            std::map<std::string, std::pair<double, double> > initialPositions;
+            lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
+            map<std::string, std::pair<double, double> > initialPositions;
+            map<string,pair<double,double>> scale;
+            map<string,bool> visiblity;
+            map<string,double> rot;
+            map<string,double> dir;
+            //map<string,pair<double,double>> resolution;
             for (const auto &obj: objects_in_order) {
+                /*
+                    "entity": {
+                    "x": 281.28,
+                    "y": 7.07,
+                    "regX": 228,
+                    "regY": 228,
+                    "scaleX": 0.22704740084134606,
+                    "scaleY": 0.22704740084134606,
+                    "rotation": 0,
+                    "direction": 90,
+                    "width": 456,
+                    "height": 456,
+                    "font": "undefinedpx ",
+                    "visible": true
+                  }
+                 *
+                 */
                 if (obj.sceneId == sceneId || obj.sceneId == "global" || obj.sceneId.empty()) {
                     // entity 필드에서 x, y 좌표 가져오기
                     double x = 0.0, y = 0.0;
+                    double scale_x,scale_y;
+                    double w,h;
                     if (obj.entity.contains("x") && obj.entity["x"].is_number()) {
                         x = obj.entity["x"].get<double>();
                     }
                     if (obj.entity.contains("y") && obj.entity["y"].is_number()) {
                         y = obj.entity["y"].get<double>();
                     }
+                    if (obj.entity.contains("visible") && obj.entity["visible"].is_boolean()) {
+                        visiblity[obj.id] = obj.entity["visible"].get<bool>();
+                    }
+                    if (obj.entity.contains("scaleX") && obj.entity["scaleX"].is_number()) {
+                        scale_x = obj.entity["scaleX"].get<double>();
+                    }
+                    if (obj.entity.contains("scaleY") && obj.entity["scaleY"].is_number()) {
+                        scale_y = obj.entity["scaleY"].get<double>();
+                    }
+                    if (obj.entity.contains("rotation") && obj.entity["rotation"].is_number()){
+                        rot[obj.id] = obj.entity["rotation"].get<double>();
+                    }
+                    if (obj.entity.contains("direction") && obj.entity["direction"].is_number()) {
+                        dir[obj.id] = obj.entity["direction"].get<double>();
+                    }
+                    /*if (obj.entity.contains("width") && obj.entity["width"].is_number()) {
+                        w = obj.entity["width"].get<double>();
+                    }
+                    if (obj.entity.contains("height") && obj.entity["height"].is_number()) {
+                        h = obj.entity["height"].get<double>();
+                    }*/
                     initialPositions[obj.id] = std::make_pair(x, y);
+                    //resolution[obj.id] = std::make_pair(w,h);
+                    scale[obj.id] = std::make_pair(scale_x,scale_y);
                 }
             }
 
@@ -5089,7 +5137,29 @@ void Engine::goToScene(const string &sceneId) {
                         entity->setX(posIt->second.first);
                         entity->setY(posIt->second.second);
                     }
-
+                    auto scaleIt = scale.find(entityId);
+                    if (scaleIt != scale.end()) {
+                        entity->setScaleX(scaleIt->second.first);
+                        entity->setScaleY(scaleIt->second.second);
+                    }
+                    auto visIt = visiblity.find(entityId);
+                    if (visIt != visiblity.end()) {
+                        entity->setVisible(visIt->second);
+                    }
+                    auto rotIt = rot.find(entityId);
+                    if (rotIt != rot.end()) {
+                        entity->setRotation(rotIt->second);
+                    }
+                    auto dirIt = dir.find(entityId);
+                    if (dirIt != dir.end()) {
+                        entity->setDirection(dirIt->second);
+                    }
+                    //레이아웃 망가져서 제외
+                    /*auto resIt = resolution.find(entityId);
+                    if (resIt != resolution.end()) {
+                        entity->setWidth(resIt->second.first);
+                        entity->setHeight(resIt->second.second);
+                    }*/
                     EngineStdOut("Reset entity " + entityId + " to initial position for new scene", 0);
                 }
             }
@@ -6703,9 +6773,11 @@ void Engine::drawScriptDebuggerUI() {
         for (const auto &threadPair: entity->scriptThreadStates) {
             const std::string &threadId = threadPair.first;
             const Entity::ScriptThreadState &state = threadPair.second;
-            std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
+            /*std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
             info += " | Waiting: " + std::string(state.isWaiting ? "Yes" : "No");
-            info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);
+            info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);*/
+            string info = format("Thread:{} | Waiting:{} | Type:{} | BlockName->{}",truncate_str_len(threadId, 25),string(state.isWaiting ? "Yes" : "No"),BlockTypeEnumToString(state.currentWaitType)
+                ,Omocha::blockTypeEnumToKoreanString(Omocha::stringToBlockTypeEnum(entity->blockName)));
 
             if (state.isWaiting && !state.blockIdForWait.empty()) {
                 info += " | Block: " + truncate_str_len(state.blockIdForWait, 15);
@@ -6788,17 +6860,35 @@ void Engine::drawScriptDebuggerUI() {
         contentLayoutY += lineSpacing / 2.0f;
     }
 
+    // In Engine::drawScriptDebuggerUI(), near the end of the function
+
     float totalCalculatedContentHeight = contentLayoutY - initialContentLayoutY + 10.0f; // 마지막 패딩 추가
     float visibleHeight = debuggerPanelRect.h;
 
     // 스크롤 오프셋 제한
-    if (totalCalculatedContentHeight <= visibleHeight) {
-        m_debuggerScrollOffsetY = 0.0f;
-    } else {
-        if (m_debuggerScrollOffsetY > totalCalculatedContentHeight - visibleHeight) {
-            m_debuggerScrollOffsetY = totalCalculatedContentHeight - visibleHeight;
+    if (m_debuggerScrollOffsetY == -1.0f) { // END 키에 의해 설정된 특수 값 감지
+        if (totalCalculatedContentHeight > visibleHeight) {
+            m_debuggerScrollOffsetY = totalCalculatedContentHeight - visibleHeight; // 맨 아래로 스크롤
+        } else {
+            m_debuggerScrollOffsetY = 0.0f; // 내용이 패널보다 작으면 맨 위
         }
-        // m_debuggerScrollOffsetY < 0 은 processInput에서 이미 처리됨
+    } else {
+        // 일반적인 스크롤 오프셋 제한 (HOME 키 또는 마우스 휠 스크롤)
+        if (totalCalculatedContentHeight <= visibleHeight) {
+            m_debuggerScrollOffsetY = 0.0f;
+        } else {
+            // m_debuggerScrollOffsetY < 0.0f (HOME 키)는 processInput에서 이미 0.0f로 처리됨
+            // 또는 여기서도 m_debuggerScrollOffsetY = max(0.0f, m_debuggerScrollOffsetY); 로 처리 가능
+            if (m_debuggerScrollOffsetY > totalCalculatedContentHeight - visibleHeight) {
+                m_debuggerScrollOffsetY = totalCalculatedContentHeight - visibleHeight;
+            }
+            // HOME 키에 의해 m_debuggerScrollOffsetY가 0.0f로 설정된 경우, 이 조건들로 인해 0.0f로 유지됩니다.
+            // 마우스 휠에 의한 m_debuggerScrollOffsetY < 0.0f는 processInput에서 이미 0.0f로 제한됩니다.
+            // 만약 여기서도 음수 값을 방지하고 싶다면:
+            if (m_debuggerScrollOffsetY < 0.0f) {
+                m_debuggerScrollOffsetY = 0.0f;
+            }
+        }
     }
 
     // 스크롤바 그리기

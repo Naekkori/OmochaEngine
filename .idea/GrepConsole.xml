@@ -38,36 +38,6 @@
                         </option>
                       </Pin>
                       <Pin>
-                        <option name="consoleUUID" value="36c8e295-380a-4a31-be0f-bde77b03ea65" />
-                        <option name="contentType" value="ConsoleContent" />
-                        <option name="grepCompositeModel">
-                          <GrepCompositeModel>
-                            <option name="models">
-                              <list>
-                                <GrepModel>
-                                  <option name="expression" value="resuming from iteration" />
-                                </GrepModel>
-                              </list>
-                            </option>
-                          </GrepCompositeModel>
-                        </option>
-                      </Pin>
-                      <Pin>
-                        <option name="consoleUUID" value="1a653c84-47f3-498c-b1b2-37ded6ab9df5" />
-                        <option name="contentType" value="ConsoleContent" />
-                        <option name="grepCompositeModel">
-                          <GrepCompositeModel>
-                            <option name="models">
-                              <list>
-                                <GrepModel>
-                                  <option name="expression" value=" effect 'transparency' (alpha) changed by " />
-                                </GrepModel>
-                              </list>
-                            </option>
-                          </GrepCompositeModel>
-                        </option>
-                      </Pin>
-                      <Pin>
                         <option name="consoleUUID" value="3b73cbc9-9d44-44d0-81f3-08b084f6302b" />
                         <option name="contentType" value="ConsoleContent" />
                         <option name="grepCompositeModel">
@@ -91,6 +61,21 @@
                               <list>
                                 <GrepModel>
                                   <option name="expression" value="[INFO] Click handled by entity:" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="b683c428-2587-42e1-820f-9f045b4f3c33" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value=" effect 'transparency' (alpha) changed by " />
                                 </GrepModel>
                               </list>
                             </option>

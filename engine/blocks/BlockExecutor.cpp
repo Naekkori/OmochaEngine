@@ -2264,11 +2264,6 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         if (!self) {
             engine.EngineStdOut("reach_something: Self entity " + objectId + " not found.", 2, executionThreadId);
             return OperandValue(false);
-        } // self->isVisible() 로 변경하거나, 엔트리 로직에 맞춰 이 조건 제거
-        if (!self->isVisible()) {
-            // 엔트리는 보이지 않아도 충돌 판정함. 이 조건은 주석 처리하거나 로직에 맞게 조정.
-            // engine.EngineStdOut("reach_something: Self entity " + objectId + " is not visible.", 0, executionThreadId);
-            // return OperandValue(false); // 엔트리 동작과 맞추려면 이 줄 주석 처리
         }
 
         if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
@@ -4658,19 +4653,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         OperandValue conditionResult = getOperandValue(engine, objectId,  block.paramsJson[0], executionThreadId);
 
-        bool conditionIsTrue = false;
-        if (conditionResult.type == OperandValue::Type::BOOLEAN) {
-            conditionIsTrue = conditionResult.boolean_val;
-        } else if (conditionResult.type == OperandValue::Type::NUMBER) {
-            conditionIsTrue = (conditionResult.number_val != 0.0); // 0이 아니면 참
-        } else if (conditionResult.type == OperandValue::Type::STRING) {
-            // 엔트리JS는 빈 문자열, "0", "false"를 거짓으로 간주. 그 외는 참.
-            conditionIsTrue = !conditionResult.string_val.empty() &&
-                              conditionResult.string_val != "0" &&
-                              conditionResult.string_val != "false";
-        }
-        // 그 외 타입(EMPTY 등)은 거짓으로 처리됩니다.
-
+        bool conditionIsTrue = conditionResult.asBool();
         if (conditionIsTrue) {
             engine.EngineStdOut(
                 "Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id, 3,

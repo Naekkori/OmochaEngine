@@ -255,6 +255,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         BLOCK_ID_INTERNAL = block.id;
         try
         {
+                blockName=block.type;
                 Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
                 Calculator(block.type, *pEngineInstance, this->id, block, executionThreadId);
                 Looks(block.type, *pEngineInstance, this->id, block, executionThreadId);
@@ -305,7 +306,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                                                   3, executionThreadId);
                     return; // 현재 프레임의 스크립트 실행을 여기서 중단
                 }
-                else if (currentThreadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
+                if (currentThreadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
                          currentThreadState.currentWaitType == WaitType::TEXT_INPUT ||
                          currentThreadState.currentWaitType == WaitType::SOUND_FINISH)
                 {
@@ -325,6 +326,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 }
                 // 다른 유형의 대기가 추가된다면 여기에 처리 로직 추가
             }
+
         } // 뮤텍스 범위 끝
         // 대기 상태가 아니거나, EXPLICIT_WAIT_SECOND가 완료된 경우 다음 블록으로 진행 (i++)
     }
@@ -1934,13 +1936,13 @@ double Entity::getSize(bool toFixedSize) const
     // 따라서 (this->width * std::abs(this->getScaleX())) 가 현재 시각적 너비입니다.
 
     double visualWidth = this->width * std::abs(this->getScaleX());
-    double stageWidth = static_cast<double>(Engine::getProjectstageWidth()); // Engine 클래스에서 스테이지 너비 가져오기
+    double stageWidth = Engine::getProjectstageWidth(); // Engine 클래스에서 스테이지 너비 가져오기
     if (pEngineInstance)
     { // 디버깅 로그 추가
         pEngineInstance->EngineStdOut(format("Entity::getSize - Debug - visualWidth: {}, stageWidth: {}, this->width: {}, this->getScaleX(): {}", visualWidth, stageWidth, this->width, this->getScaleX()), 3);
     }
     double current_percentage = 0.0;
-    current_percentage = std::abs(this->getScaleX()) * 100.0; 
+    current_percentage = std::abs(this->getScaleX()) * 50.0;
 
     // pEngineInstance가 유효한지 확인 후 로그 출력
     if (pEngineInstance)
@@ -1966,21 +1968,9 @@ void Entity::setSize(double size)
     std::lock_guard lock(m_stateMutex);
 
     double stageWidth = Engine::getProjectstageWidth(); // Engine 클래스에서 스테이지 너비 가져오기
-    double targetVisualWidth = stageWidth * (size / 83.0);
+    double targetVisualWidth = stageWidth * (size / 50.0);
     double newCalculatedScaleX = 1.0; // 기본값
-    if (this->width > 0.00001)
-    { // 엔티티의 원본 너비가 0이 아닐 때
-        newCalculatedScaleX = targetVisualWidth / this->width;
-    }
-    else
-    {
-        newCalculatedScaleX = size / 100.0; // 직접 스케일로 사용
-        if (pEngineInstance)
-        {
-            pEngineInstance->EngineStdOut(
-                "Warning: Entity::setSize - Entity original width is zero. Applying 'size' directly as scale factor.", 1);
-        }
-    }
+    newCalculatedScaleX = targetVisualWidth / this->width;
     if (!this->m_isClone)
     { // 복제본 이 아닌경우 변경
         this->setScaleX(newCalculatedScaleX);

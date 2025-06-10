@@ -57,6 +57,7 @@ struct ScriptWaitState
 class Entity : public std::enable_shared_from_this<Entity>
 {
 public:
+    std::string blockName;
     // 스크립트 대기 유형 정의
     enum class WaitType
     {
