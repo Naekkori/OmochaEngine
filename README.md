@@ -1,6 +1,6 @@
 # <img src="https://raw.githubusercontent.com/Naekkori/OmochaEngine/refs/heads/main/app.png" aligh="left" width="50px" height="50px"> OmochaEngine
 
-the entryjs cpp porting
+the entryjs cpp porting (Indev)
 <br>
 [entryjs](https://github.com/entrylabs/entryjs)
 를 CPP 로 옮긴 엔진 입니다.
