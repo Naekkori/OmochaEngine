@@ -121,6 +121,9 @@ if (WIN32)
     copy_dll_to_target_dir(OmochaEngine "liblzma.dll")
     copy_dll_to_target_dir(OmochaEngine "libsharpyuv.dll")
     copy_dll_to_target_dir(OmochaEngine "zlib1.dll")
+    copy_dll_to_target_dir(OmochaEngine "archive.dll")
+    copy_dll_to_target_dir(OmochaEngine "lz4.dll")
+    copy_dll_to_target_dir(OmochaEngine "zstd.dll")
     #copy_dll_to_target_dir(OmochaEngine "imgui.dll")
     # jsoncpp.dll의 경우, vcpkg가 공유 라이브러리로 빌드했다면 ${VCPKG_BIN_DIR}에 존재합니다.
     # 정적으로 링크된 경우에는 이 DLL이 필요 없으며, 파일이 없다면 복사되지 않습니다.
