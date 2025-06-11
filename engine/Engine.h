@@ -32,6 +32,8 @@ constexpr int WINDOW_WIDTH = 480 * 3;
 constexpr int WINDOW_HEIGHT = 270 * 3;
 static constexpr int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
 static constexpr int PROJECT_STAGE_HEIGHT = 270; // 실제 프로젝트의 세로 크기(16:9 비율)에 맞춤
+static constexpr int INTER_RENDER_WIDTH = PROJECT_STAGE_WIDTH * 3;
+static constexpr int INTER_RENDER_HEIGHT = PROJECT_STAGE_HEIGHT *3;
 
 // HUD 상수 정의
 static const int SLIDER_X = 10;

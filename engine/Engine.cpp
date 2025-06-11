@@ -2125,24 +2125,26 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
 
 bool Engine::createTemporaryScreen() {
     if (this->renderer == nullptr) {
-        EngineStdOut("Renderer not initialized. Cannot create temporary screen texture.", 2); // 렌더러가 초기화되지 않음
-        showMessageBox("Internal Renderer not available for offscreen buffer.", msgBoxIconType.ICON_ERROR);
+        // ... 오류 처리 ...
         return false;
     }
 
+    // 기존 tempScreenTexture가 있다면 파괴
+    destroyTemporaryScreen(); // 안전하게 기존 텍스처 해제
+
     this->tempScreenTexture = SDL_CreateTexture(this->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-                                                PROJECT_STAGE_WIDTH, PROJECT_STAGE_HEIGHT);
+                                                INTER_RENDER_WIDTH, INTER_RENDER_HEIGHT); // 새 해상도 사용
     if (this->tempScreenTexture == nullptr) {
-        string errMsg = "Failed to create temporary screen texture! SDL_" + string(SDL_GetError()); // 임시 화면 텍스처 생성 실패
+        string errMsg = "Failed to create temporary screen texture! SDL_" + string(SDL_GetError());
         EngineStdOut(errMsg, 2);
         showMessageBox("Failed to create offscreen buffer: " + string(SDL_GetError()), msgBoxIconType.ICON_ERROR);
         return false;
     }
     EngineStdOut(
-        "Temporary screen texture created successfully (" + to_string(PROJECT_STAGE_WIDTH) + "x" + to_string(
-            PROJECT_STAGE_HEIGHT) + ").", 0);
+        "Temporary screen texture created successfully (" + to_string(INTER_RENDER_WIDTH) + "x" + to_string(INTER_RENDER_HEIGHT) + ").", 0);
     return true;
 }
+
 
 void Engine::destroyTemporaryScreen() {
     if (this->tempScreenTexture != nullptr) // 임시 화면 텍스처 파괴
@@ -2475,6 +2477,8 @@ bool Engine::recreateAssetsIfNeeded() {
 }
 
 void Engine::drawAllEntities() {
+    float scaleFactorX = static_cast<float>(INTER_RENDER_WIDTH) / PROJECT_STAGE_WIDTH;
+    float scaleFactorY = static_cast<float>(INTER_RENDER_HEIGHT) / PROJECT_STAGE_HEIGHT;
     getProjectTimerValue();
     if (!renderer || !tempScreenTexture) {
         EngineStdOut("drawAllEntities: Renderer or temporary screen texture not available.", 1);
@@ -2530,8 +2534,8 @@ void Engine::drawAllEntities() {
                 double entryX = entityPtr->getX();
                 double entryY = entityPtr->getY();
 
-                float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
-                float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
+                float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0) * scaleFactorX;
+                float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY) * scaleFactorY;
 
                 float texW = 0, texH = 0;
                 if (!selectedCostume->imageHandle) {
@@ -2560,13 +2564,13 @@ void Engine::drawAllEntities() {
 
                 SDL_FRect dstRect;
 
-                dstRect.w = static_cast<float>(texW * entityPtr->getScaleX());
-                dstRect.h = static_cast<float>(texH * entityPtr->getScaleY());
+                dstRect.w = static_cast<float>(texW * entityPtr->getScaleX() * scaleFactorX);
+                dstRect.h = static_cast<float>(texH * entityPtr->getScaleY() * scaleFactorY);
                 SDL_FPoint center; // 회전 중심점
-                center.x = static_cast<float>(entityPtr->getRegX());
-                center.y = static_cast<float>(entityPtr->getRegY());
-                dstRect.x = sdlX - static_cast<float>(entityPtr->getRegX() * entityPtr->getScaleX());
-                dstRect.y = sdlY - static_cast<float>(entityPtr->getRegY() * entityPtr->getScaleY());
+                center.x = static_cast<float>(entityPtr->getRegX() * scaleFactorX * entityPtr->getScaleX());
+                center.y = static_cast<float>(entityPtr->getRegY() * scaleFactorY * entityPtr->getScaleY());
+                dstRect.x = sdlX - center.x;
+                dstRect.y = sdlY - center.y;
 
                 double sdlAngle = entityPtr->getRotation() + (entityPtr->getDirection() - 90.0); // SDL 렌더링 각도 계산
                 bool colorModApplied = false, alphaModApplied = false;
@@ -2720,13 +2724,13 @@ void Engine::drawAllEntities() {
                     if (textTexture) {
                         double entryX = entityPtr->getX();
                         double entryY = entityPtr->getY();
-                        float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0);
-                        float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY);
+                        float sdlX = static_cast<float>(entryX + PROJECT_STAGE_WIDTH / 2.0) * scaleFactorX;
+                        float sdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entryY) * scaleFactorY;
 
                         float textWidth = static_cast<float>(textSurface->w);
                         float textHeight = static_cast<float>(textSurface->h);
-                        float scaledWidth = textWidth * entityPtr->getScaleX();
-                        float scaledHeight = textHeight * entityPtr->getScaleY();
+                        float scaledWidth = textWidth * entityPtr->getScaleX() * scaleFactorX;
+                        float scaledHeight = textHeight * entityPtr->getScaleY() * scaleFactorY;
                         SDL_FRect dstRect;
 
                         // 글상자 배경 그리기
@@ -2792,13 +2796,13 @@ void Engine::drawAllEntities() {
         return;
     }
     // 줌 계수 적용된 소스 뷰 영역 계산
-    float srcViewWidth = static_cast<float>(PROJECT_STAGE_WIDTH) / zoomFactor;
-    float srcViewHeight = static_cast<float>(PROJECT_STAGE_HEIGHT) / zoomFactor;
-    float srcViewX = (static_cast<float>(PROJECT_STAGE_WIDTH) - srcViewWidth) / 2.0f;
-    float srcViewY = (static_cast<float>(PROJECT_STAGE_HEIGHT) - srcViewHeight) / 2.0f;
+    float srcViewWidth = static_cast<float>(INTER_RENDER_WIDTH) / zoomFactor;
+    float srcViewHeight = static_cast<float>(INTER_RENDER_HEIGHT) / zoomFactor;
+    float srcViewX = (static_cast<float>(INTER_RENDER_WIDTH) - srcViewWidth) / 2.0f;
+    float srcViewY = (static_cast<float>(INTER_RENDER_HEIGHT) - srcViewHeight) / 2.0f;
     SDL_FRect currentSrcFRect = {srcViewX, srcViewY, srcViewWidth, srcViewHeight};
 
-    float stageContentAspectRatio = static_cast<float>(PROJECT_STAGE_WIDTH) / static_cast<float>(PROJECT_STAGE_HEIGHT);
+    float stageContentAspectRatio = static_cast<float>(INTER_RENDER_WIDTH) / static_cast<float>(INTER_RENDER_HEIGHT);
     // 최종 화면에 표시될 목적지 사각형 계산 (화면 비율 유지)
     SDL_FRect finalDisplayDstRect;
     float windowAspectRatio = static_cast<float>(windowRenderW) / static_cast<float>(windowRenderH);
