@@ -4943,7 +4943,7 @@ void Engine::updateAnswerVariable() {
  *
  * @param s 출력할내용
  * @param LEVEL 수준 예) 0:정보, 1:경고, 2:오류, 3:디버그, 4:특수, 5:TREAD
- * @param ThreadID 쓰레드 ID
+ * @param TREADID 쓰레드 ID
  */
 void Engine::EngineStdOut(string s, int LEVEL, string TREADID) const {
     std::lock_guard<std::mutex> lock(m_logMutex);
