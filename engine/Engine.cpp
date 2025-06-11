@@ -17,6 +17,7 @@
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
 #include <future>
+#include <regex>
 #include <resource.h>
 using namespace std;
 
@@ -1144,19 +1145,13 @@ bool Engine::loadProject(const string &projectFilePath) {
                         if (entityJson["text"].is_string()) {
                             // objInfo.textContent = getSafeStringFromJson(entityJson, "text", "textBox " + objInfo.name,
                             //                                             "[DEFAULT TEXT]", false, true); // Problematic call
-                            objInfo.textContent = entityJson["text"].get<string>();
-
-                            if (objInfo.textContent == "<OMOCHA_ENGINE_NAME>") {
-                                objInfo.textContent = string(OMOCHA_ENGINE_NAME);
-                            } else if (objInfo.textContent == "<OMOCHA_DEVELOPER>") {
-                                objInfo.textContent = "DEVELOPER: " + string(OMOCHA_DEVELOPER_NAME);
-                            } else if (objInfo.textContent == "<OMOCHA_SDL_VERSION>") {
-                                objInfo.textContent =
-                                        "SDL VERSION: " + to_string(SDL_MAJOR_VERSION) + "." + to_string(
-                                            SDL_MINOR_VERSION) + "." + to_string(SDL_MICRO_VERSION);
-                            } else if (objInfo.textContent == "<OMOCHA_VERSION>") {
-                                objInfo.textContent = "Engine Version: " + string(OMOCHA_ENGINE_VERSION);
-                            }
+                            std::string rawText = entityJson["text"].get<string>();
+                            // 특수 문자열 치환 (정규식 사용)
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_ENGINE_NAME>"), string(OMOCHA_ENGINE_NAME));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_DEVELOPER>"), "DEVELOPER: " + string(OMOCHA_DEVELOPER_NAME));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_SDL_VERSION>"), "SDL VERSION: " + to_string(SDL_MAJOR_VERSION) + "." + to_string(SDL_MINOR_VERSION) + "." + to_string(SDL_MICRO_VERSION));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_VERSION>"), "Engine Version: " + string(OMOCHA_ENGINE_VERSION));
+                            objInfo.textContent = rawText;
                         } else if (entityJson["text"].is_number()) {
                             objInfo.textContent = to_string(entityJson["text"].get<double>());
                             EngineStdOut(
@@ -2634,7 +2629,6 @@ void Engine::drawAllEntities() {
                 int fontSize = objInfo.fontSize;
                 FontName fontLoadEnum = getFontNameFromString(fontfamily);
                 TTF_Font *Usefont = nullptr;
-                int currentFontSize = objInfo.fontSize;
                 switch (fontLoadEnum) {
                     case FontName::D2Coding:
                         determinedFontPath = fontAsset + "d2coding.ttf";
@@ -2665,7 +2659,7 @@ void Engine::drawAllEntities() {
                     Usefont = getFont(determinedFontPath, fontSize); // 캐시된 폰트 사용
                     if (!Usefont) {
                         EngineStdOut(
-                            "Failed to load font: " + determinedFontPath + " at size " + to_string(currentFontSize) +
+                            "Failed to load font: " + determinedFontPath + " at size " + to_string(fontSize) +
                             " for textBox '" + objInfo.name + "'. Falling back to HUD font.",
                             2);
                         Usefont = hudFont;
