@@ -1,6 +1,6 @@
-# <img src="https://raw.githubusercontent.com/Naekkori/OmochaEngine/refs/heads/main/app.ico" aligh="left" width="50px" height="50px"> OmochaEngine
+# <img src="https://raw.githubusercontent.com/Naekkori/OmochaEngine/refs/heads/main/app.png" aligh="left" width="50px" height="50px"> OmochaEngine
 
-the entryjs cpp porting
+the entryjs cpp porting (Indev)
 <br>
 [entryjs](https://github.com/entrylabs/entryjs)
 를 CPP 로 옮긴 엔진 입니다.
@@ -290,7 +290,7 @@ SOFTWARE.
 ###### 미지원 기능
 - [ ] **`is_touch_supported`**: 현재 장치가 터치를 지원하는지 판단
 
-## 텍스트 블록 구현 체크리스트
+## 텍스트 블록 구현
 
 - [x] **`text_read`**: (글상자)의 글 내용
 - [x] **`text_write`**: (글상자)에 (내용) 쓰기
