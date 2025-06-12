@@ -70,7 +70,6 @@ struct OperandValue
 const Uint32 MIN_LOOP_WAIT_MS = 1; // Minimum wait time in milliseconds for loops
 
 class ThreadPool {
-private:
     struct TaskPriorityCompare {
         bool operator()(
             const std::pair<int, std::function<void()>>& a,
@@ -116,7 +115,9 @@ public:
     }
 };
 
-
+void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks,
+                            const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime,
+                            int start_index=0);
 // 블록 처리 함수 선언
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const nlohmann::json &paramField, const std::string &executionThreadId);
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId, float deltaTime);
@@ -128,7 +129,6 @@ void Function(std::string BlockType, Engine &engine, const std::string &objectId
 void Event(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Flow(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string &executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime);
 void TextBox(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string &executionThreadId);
-void executeBlocksSynchronously(Engine& engine, const std::string& objectId, const std::vector<Block>& blocks, const std::string& executionThreadId, const std::string& sceneIdAtDispatch, float deltaTime);
 // 스크립트를 실행하는 함수 선언 (Entity의 멤버 함수로 이동 예정이므로 주석 처리 또는 삭제)
 // void executeScript(Engine& engine, const std::string& objectId, const Script* script);
 #endif // OMOCHA_BLOCK_EXECUTOR_H

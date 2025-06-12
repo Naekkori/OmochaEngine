@@ -270,7 +270,8 @@ public:
                                        float deltaTime,
                                        const std::string& existingExecutionThreadId);
 public:
-    void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime);
+    void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime, size_t
+                       resumeInnerBlockIndex=0);
     void setLastCollisionSide(CollisionSide side);
     void showDialog(const std::string &message, const std::string &dialogType, Uint64 duration);
     void removeDialog();

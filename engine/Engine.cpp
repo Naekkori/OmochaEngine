@@ -3941,7 +3941,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                                     deltaTime);
                             }
 
-                            EngineStdOut("Click handled by entity: " + objectId, 0);
+                            EngineStdOut("Click handled by entity: " + objectId, 3);
                             return; // 클릭 처리 완료 후 다음 엔티티 처리 방지
                         }
                     }
@@ -4202,6 +4202,9 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
                 m_currentHUDDragState = HUDDragState::NONE;
                 m_draggedScrollbarListIndex = -1;
                 uiInteractionReleased = true; // UI 상호작용으로 처리
+            }
+            if (m_gameplayInputActive) {
+                setStageClickedThisFrame(false);
             }
             if (m_gameplayInputActive && !uiInteractionReleased) {
                 // 게임플레이 입력 활성화 상태이고 UI 상호작용이 해제되지 않은 경우
