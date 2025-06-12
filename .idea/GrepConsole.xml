@@ -112,6 +112,54 @@
                           </GrepCompositeModel>
                         </option>
                       </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="39ae1f51-7cd9-4ff7-9c04-793cca655a25" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="repeat_basic" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="baef3694-48dc-43d1-8b39-e5bd7d38c3df" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value=" loop processing finished " />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="d260c589-32c1-4adb-8552-0fbe2ae7eb6f" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="doScript" />
+                                </GrepModel>
+                                <GrepModel>
+                                  <option name="expression" value="   Inner Block" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
                     </list>
                   </option>
                 </Pins>

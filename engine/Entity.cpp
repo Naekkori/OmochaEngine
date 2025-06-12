@@ -135,76 +135,128 @@ bool Entity::isScriptWaiting(const std::string &executionThreadId) const {
 
 void Entity::executeScript(const Script *scriptPtr, const std::string &executionThreadId,
                            const std::string &sceneIdAtDispatch, float deltaTime,size_t resumeInnerBlockIndex) {
-    if (!pEngineInstance) {
-        pEngineInstance->EngineStdOut(format("Entity {} has no valid Engine instance for script execution ThreadID {}",
-                                             id, executionThreadId), 2);
+ if (!pEngineInstance) {
+        // Engine 인스턴스가 유효하지 않으면 오류 로깅 (이 경우는 거의 없어야 함)
+        // EngineStdOut을 사용할 수 없으므로 std::cerr 또는 다른 로깅 메커니즘 사용
+        std::cerr << "Entity " << id << " has no valid Engine instance for script execution ThreadID "
+                  << executionThreadId << std::endl;
         return;
     }
     if (!scriptPtr) {
-        pEngineInstance->EngineStdOut(format("executeScript called with null script pointer for object {}", id), 2);
+        pEngineInstance->EngineStdOut(format("executeScript called with null script pointer for object {}", id), 2, executionThreadId);
         return;
     }
 
     size_t startIndex = 1; // 기본 시작 인덱스 (0번 블록은 이벤트 트리거)
     std::string blockIdToResumeOnLog;
     WaitType waitTypeToResumeOnLog = WaitType::NONE;
+    bool wasBlockInternalResume = false; // BLOCK_INTERNAL 재개 여부 플래그
+
     {
-        // Lock scope
         std::lock_guard lock(m_stateMutex);
-        auto &threadState = scriptThreadStates[executionThreadId]; // 스레드 상태 가져오기
+        auto it_thread_state = scriptThreadStates.find(executionThreadId);
+        if (it_thread_state == scriptThreadStates.end()) {
+            // 새 스레드 상태 생성 또는 오류 처리
+            // 이 예제에서는 scriptThreadStates[executionThreadId]를 통해 암시적으로 생성된다고 가정
+             pEngineInstance->EngineStdOut("Entity::executeScript: New thread state created for " + id + " (Thread: " + executionThreadId + ")", 5, executionThreadId);
+        }
+
+        auto &threadState = scriptThreadStates[executionThreadId]; // 여기서 생성될 수 있음
+
+        // 스크립트 포인터 및 씬 ID 저장 (새 스크립트 시작 시)
+        if (threadState.scriptPtrForResume == nullptr && scriptPtr != nullptr) {
+            threadState.scriptPtrForResume = scriptPtr;
+            threadState.sceneIdAtDispatchForResume = sceneIdAtDispatch;
+        }
+
 
         if (threadState.isWaiting && threadState.currentWaitType == WaitType::BLOCK_INTERNAL) {
-            // BLOCK_INTERNAL 대기 상태에서 재개하는 경우
-            startIndex = threadState.resumeAtBlockIndex; // 저장된 재개 인덱스 사용
+            wasBlockInternalResume = true; // 플래그 설정
+            startIndex = threadState.resumeAtBlockIndex; // BLOCK_INTERNAL 대기 시 저장된 인덱스
             blockIdToResumeOnLog = threadState.blockIdForWait;
             waitTypeToResumeOnLog = threadState.currentWaitType;
 
-            // 중요: 해당 블록이 재평가될 수 있도록 isWaiting을 임시로 false로 설정합니다.
-            // 블록이 여전히 대기해야 한다면, Flow 함수 내에서 setScriptWait를 다시 호출할 것입니다.
-            threadState.isWaiting = false;
-            threadState.currentWaitType = WaitType::NONE; // 타입도 초기화
+            // BLOCK_INTERNAL 대기에서 재개 시, 해당 루프 블록이 이미 완료되었는지 확인
+            // loopCounters에 해당 blockIdForWait가 없으면 루프가 완료된 것으로 간주
+            if (threadState.loopCounters.find(blockIdToResumeOnLog) == threadState.loopCounters.end()) {
+                if (pEngineInstance) {
+                    pEngineInstance->EngineStdOut(
+                        "Entity::executeScript: BLOCK_INTERNAL resume for " + id +
+                        " (Thread: " + executionThreadId + ") on already completed loop block " + blockIdToResumeOnLog +
+                        ". Advancing from index " + std::to_string(startIndex) + " to " + std::to_string(startIndex + 1) + ".",
+                        1, executionThreadId); // 로그 레벨 INFO
+                }
+                startIndex++; // 이미 완료된 루프이므로 다음 블록으로 강제 이동
+                threadState.isWaiting = false; // 대기 상태 해제
+                threadState.currentWaitType = WaitType::NONE;
+                threadState.blockIdForWait = ""; // 관련 상태 초기화
+                threadState.resumeAtBlockIndex = startIndex; // 다음 블록 인덱스로 업데이트
 
-            if (pEngineInstance) {
-                // pEngineInstance 유효성 검사
-                pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
-                                              " (Thread: " + executionThreadId + ") for block " + blockIdToResumeOnLog +
-                                              ". Will re-evaluate at index " + std::to_string(startIndex) + ".",
-                                              3, executionThreadId);
+            } else {
+                // 루프가 아직 완료되지 않았으면, 재평가를 위해 isWaiting을 false로 설정
+                // resumeAtBlockIndex는 그대로 유지 (해당 루프 블록을 다시 실행해야 하므로)
+                threadState.isWaiting = false;
+                threadState.currentWaitType = WaitType::NONE;
+                // blockIdForWait는 유지 (Flow 함수에서 사용)
+                if (pEngineInstance) {
+                    pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
+                                                  " (Thread: " + executionThreadId + ") for block " + blockIdToResumeOnLog +
+                                                  ". Will re-evaluate at index " + std::to_string(startIndex) + ".",
+                                                  3, executionThreadId);
+                }
             }
         } else if (threadState.isWaiting &&
                    (threadState.currentWaitType == WaitType::EXPLICIT_WAIT_SECOND ||
                     threadState.currentWaitType == WaitType::TEXT_INPUT ||
                     threadState.currentWaitType == WaitType::SOUND_FINISH)) {
-            // EXPLICIT_WAIT_SECOND, TEXT_INPUT, SOUND_FINISH 등은
-            // resumeExplicitWaitScripts, activateTextInput의 완료 콜백, resumeSoundWaitScripts 등
-            // 다른 메커니즘에 의해 isWaiting이 false로 설정된 후,
-            // 이 executeScript가 호출될 때 resumeAtBlockIndex부터 시작합니다.
-            // 따라서 여기서는 isWaiting을 변경하지 않고, resumeAtBlockIndex만 사용합니다.
+
+            // 이 경우는 resumeExplicitWaitScripts 또는 resumeSoundWaitScripts에서 isWaiting = false로 만들고
+            // scheduleScriptExecutionOnPool을 통해 executeScript를 다시 호출합니다.
+            // 그때의 startIndex는 threadState.resumeAtBlockIndex (다음 블록 인덱스)가 됩니다.
+            // 따라서 여기서는 이 조건을 만날 일이 거의 없거나, 이미 처리된 후일 것입니다.
+            // 만약 이 로직이 직접 호출된다면, isWaiting을 false로 설정하고 startIndex를 resumeAtBlockIndex로 설정해야 합니다.
             if (threadState.resumeAtBlockIndex >= 1) {
-                // 유효한 재개 인덱스인지 확인
-                startIndex = threadState.resumeAtBlockIndex;
-                blockIdToResumeOnLog = threadState.blockIdForWait; // 로그용
-                waitTypeToResumeOnLog = threadState.currentWaitType; // 로그용
+                startIndex = threadState.resumeAtBlockIndex; // 다음 블록부터 시작
+                blockIdToResumeOnLog = threadState.blockIdForWait; // 로깅용
+                waitTypeToResumeOnLog = threadState.currentWaitType; // 로깅용
+
+                // 이 대기들은 완료 후 다음 블록으로 넘어가야 하므로, isWaiting을 false로 설정
+                threadState.isWaiting = false;
+                threadState.currentWaitType = WaitType::NONE;
+                // blockIdForWait 등은 executeScript의 for 루프 이후 정리되거나, 새 대기 설정 시 덮어쓰여짐
             } else {
-                // 유효하지 않은 재개 인덱스면 기본값(1)부터 시작하고, 상태 초기화
+                // 유효하지 않은 재개 인덱스
                 threadState.isWaiting = false;
                 threadState.currentWaitType = WaitType::NONE;
                 threadState.resumeAtBlockIndex = -1;
             }
-        } else if (threadState.resumeAtBlockIndex < 1) // 새로 시작하거나 유효하지 않은 재개 인덱스
-        {
-            threadState.resumeAtBlockIndex = -1; // 확실히 초기화
+        } else if (threadState.resumeAtBlockIndex >= 1 && !threadState.isWaiting) {
+            // 스크립트가 이전에 중단되었다가 (isWaiting=false 상태로) 재개되는 경우 (예: 새 프레임 시작)
+            // 또는 EXPLICIT_WAIT 등에서 복귀하여 isWaiting이 false로 설정된 직후
+            startIndex = threadState.resumeAtBlockIndex;
+            blockIdToResumeOnLog = threadState.blockIdForWait; // 이전 대기 블록 ID (로깅용)
+            waitTypeToResumeOnLog = threadState.currentWaitType; // 이전 대기 타입 (로깅용, 지금은 NONE일 것)
+             if (pEngineInstance && startIndex > 1) { // 새 스크립트 시작(startIndex=1)이 아닌 경우에만 로그
+                pEngineInstance->EngineStdOut("Entity::executeScript: Continuing script for " + id +
+                                              " (Thread: " + executionThreadId + ") from index " + std::to_string(startIndex) +
+                                              " (was not waiting or wait just finished).",
+                                              5, executionThreadId);
+            }
+        }
+
+        // resumeAtBlockIndex가 유효하지 않으면 -1로 설정 (새 스크립트 시작 시에도 적용됨)
+        if (threadState.resumeAtBlockIndex < 1 && !threadState.isWaiting) {
+             threadState.resumeAtBlockIndex = -1; // 새 스크립트 시작 시 또는 유효하지 않은 경우
         }
     } // Lock scope ends
 
-    if (startIndex > 1) {
-        // 실제로 재개하는 경우에만 로그 출력
-        pEngineInstance->EngineStdOut("Resuming script for " + id + " at block index " + std::to_string(startIndex) +
-                                      " (Block ID: " + blockIdToResumeOnLog + ", Type: " + BlockTypeEnumToString(
+    // 로그 출력 조건 수정: 실제로 재개하거나, BLOCK_INTERNAL 재개 시도 시 로그
+    if (startIndex > 1 || wasBlockInternalResume) {
+        pEngineInstance->EngineStdOut("Entity::executeScript: " + std::string(wasBlockInternalResume ? "Attempting to resume" : "Resuming") + " script for " + id + " (Thread: " + executionThreadId + ") at block index " + std::to_string(startIndex) +
+                                      " (Original Resume Block ID: " + blockIdToResumeOnLog + ", Type: " + BlockTypeEnumToString(
                                           waitTypeToResumeOnLog) + ")",
                                       5, executionThreadId);
     }
-
     for (size_t i = startIndex; i < scriptPtr->blocks.size(); ++i) {
         {
             // Scope for checking terminateRequested before executing any block
