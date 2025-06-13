@@ -202,21 +202,23 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
         return {}; // Null 값은 빈 OperandValue로 처리
     }
 
-    if (paramField.is_string()) {
+    // 1. 숫자 타입 직접 확인 (가장 먼저)
+    if (paramField.is_number()) {
+        double getNumber = paramField.get<double>();
+        return OperandValue(getNumber); // 숫자 타입 OperandValue 반환
+    }
+    // 2. 문자열 타입 확인
+    else if (paramField.is_string()) {
+        // is_number()가 false일 때만 실행됨
         string str_val_for_op = paramField.get<string>();
-        return OperandValue({str_val_for_op});
-    } else if (paramField.is_object()) // paramField가 Null이 아님을 위에서 확인했으므로 is_object() 호출이 좀 더 안전해집니다.
-    {
-        // 추가 디버깅: 객체의 모든 키가 문자열인지 확인
-        // nlohmann::json object keys are always strings, so this check is less critical
-        // but can be kept for robustness if paramField might not be a valid JSON object structure
-        // from an external source before parsing.
-        // For nlohmann::json, iterating items():
-        // for (auto& [key, value] : paramField.items()) { /* key is string */ }
-
+        return OperandValue(str_val_for_op); // OperandValue 생성자 변경에 따라 수정
+    }
+    // 3. 객체 타입 확인 (블록 형태)
+    else if (paramField.is_object()) {
         if (!paramField.contains("type") || !paramField["type"].is_string()) {
-            engine.EngineStdOut(std::format("Parameter field is object but missing 'type' for object {}", objectId), 2);
-            return nan("");
+            engine.EngineStdOut(std::format("Parameter field is object but missing 'type' for object {}", objectId), 2,
+                                executionThreadId); // executionThreadId 추가
+            return OperandValue(nan("")); // 숫자 반환이 기대될 수 있으므로 NaN 또는 오류 처리
         }
         string fieldType = paramField["type"].get<string>();
 
@@ -226,28 +228,27 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 const auto &param_zero = paramField["params"][0];
                 if (param_zero.is_string()) {
                     std::string num_str_param = param_zero.get<std::string>();
-                    OperandValue temp_op_val(num_str_param); // 문자열로부터 OperandValue 생성
-                    double numeric_value = temp_op_val.asNumber();
-                    // OperandValue::asNumber()는 내부에 숫자 변환 로직을 포함하며, 실패 시 0.0 반환
-                    return OperandValue({numeric_value});
-                } else if (param_zero.is_number()) {
-                    // 파라미터가 직접 숫자인 경우 해당 값을 사용
-                    return OperandValue({param_zero.get<double>()});
+                    // OperandValue temp_op_val(num_str_param); // 임시 객체 생성 줄임
+                    // double numeric_value = temp_op_val.asNumber();
+                    return OperandValue(OperandValue(num_str_param).asNumber()); // 직접 변환 후 반환
+                }
+                if (param_zero.is_number()) {
+                    return OperandValue(param_zero.get<double>()); // 중괄호 제거
                 }
             }
             engine.EngineStdOut(
                 "Invalid 'number' or 'text_reporter_number' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a string or number.", 1, executionThreadId);
-            return {0.0};
+            return OperandValue(0.0); // 중괄호 제거
         } else if (fieldType == "text" || fieldType == "text_reporter_string") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
-                return OperandValue({paramField["params"][0].get<string>()});
+                return OperandValue(paramField["params"][0].get<string>()); // 중괄호 제거
             }
             engine.EngineStdOut(
                 "Invalid 'text' or 'text_reporter_string' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a string.", 1, executionThreadId);
-            return OperandValue(""); // 문자열 타입이므로 빈 문자열 반환
+            return OperandValue("");
         } else if (fieldType == "calc_basic" || fieldType == "calc_rand" || fieldType == "quotient_and_mod" || fieldType
                    == "calc_operation" ||
                    fieldType == "distance_something" || fieldType == "length_of_string" || fieldType ==
@@ -268,41 +269,38 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                    fieldType == "reach_something" ||
                    fieldType == "is_type" ||
                    fieldType == "boolean_basic_operator" ||
-                   fieldType == "boolean_and_or" || // 추가
-                   fieldType == "boolean_not" || // 추가
-                   fieldType == "is_boost_mode" || // 추가
-                   fieldType == "is_current_device_type" || // 추가: 사용자가 보고한 문제 해결
-                   fieldType == "is_touch_supported" || // 추가
-                   fieldType == "text_read" || // 추가
+                   fieldType == "boolean_and_or" ||
+                   fieldType == "boolean_not" ||
+                   fieldType == "is_boost_mode" ||
+                   fieldType == "is_current_device_type" ||
+                   fieldType == "is_touch_supported" ||
+                   fieldType == "text_read" ||
                    fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" ||
                    fieldType == "value_of_index_from_list") {
             Block subBlock;
             subBlock.type = fieldType;
             if (paramField.contains("id") && paramField["id"].is_string())
                 subBlock.id = paramField["id"].get<string>();
-            // paramsJson은 Document 타입이므로 CopyFrom 사용
-            // engine.m_blockParamsAllocatorDoc.GetAllocator()를 사용하여 할당
-
-            // Ensure "params" exists and is an array before attempting to copy
+            // --- params 필드 유효성 검사 강화 ---
             if (paramField.contains("params")) {
                 const auto &paramsMember = paramField["params"];
                 if (paramsMember.is_array()) {
-                    // subBlock.paramsJson의 자체 할당자를 사용하도록 변경
-                    subBlock.paramsJson = paramsMember; // Direct assignment for nlohmann::json
-                    subBlock.FilterNullsInParamsJsonArray(); // subBlock의 paramsJson에 대해서도 null 제거
+                    subBlock.paramsJson = paramsMember;
+                    subBlock.FilterNullsInParamsJsonArray();
                 } else {
-                    engine.EngineStdOut(
-                        "Error: 'params' member in paramField for block type " + fieldType + " (object " + objectId +
-                        ") is not an array. Actual type: " + paramsMember.type_name(), 2, executionThreadId);
-                    // Handle error: return an empty/error OperandValue or throw
-                    return nan("");
+                    // params가 있지만 배열이 아닌 경우 오류 처리
+                    std::string error_message = "Error: 'params' member in paramField for block type " + fieldType +
+                                                " (object " + objectId +
+                                                ") is not an array. Actual type: " + paramsMember.type_name() +
+                                                ". Value: " + paramsMember.dump();
+                    engine.EngineStdOut(error_message, 2, executionThreadId);
+                    // 여기서 예외를 던지거나, 오류를 나타내는 OperandValue를 반환해야 합니다.
+                    // 현재 코드에서는 runtime_error를 던지도록 되어 있습니다.
+                    throw std::runtime_error(error_message);
                 }
             }
-            // Route to the main Calculator function, passing an empty string for executionThreadId as it's not available here.
             return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
-        } else if (fieldType == "text_color") // Added handler for text_color
-        {
-            // text_color 블록은 params[0]에 있는 HEX 색상 문자열을 반환합니다.
+        } else if (fieldType == "text_color") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
                 return OperandValue(paramField["params"][0].get<std::string>());
@@ -311,23 +309,19 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 "Invalid 'text_color' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a HEX string.",
                 1, executionThreadId);
-            return OperandValue("#000000"); // 기본값 또는 오류 처리
+            return OperandValue("#000000");
         } else if (fieldType == "get_pictures") {
-            // get_pictures 블록의 params[0]은 실제 모양 ID 문자열입니다.
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
                 string temp_image_id = paramField["params"][0].get<string>();
-                // temp_image_id로 안전하게 복사된 문자열을 사용하여 OperandValue 직접 반환
                 return OperandValue(temp_image_id);
             }
             engine.EngineStdOut(
                 "Invalid 'get_pictures' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a string (costume ID).",
-                1);
-            return OperandValue(""); // 또는 오류를 나타내는 빈 OperandValue
-        } else if (fieldType == "get_sounds") // Handle get_sounds block type
-        {
-            // Similar to get_pictures, params[0] should be the sound ID string
+                1, executionThreadId); // executionThreadId 추가
+            return OperandValue("");
+        } else if (fieldType == "get_sounds") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
                 string tem_sound_id = paramField["params"][0].get<string>();
@@ -336,37 +330,86 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             engine.EngineStdOut(
                 "Invalid 'get_sounds' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a string (sound ID).",
-                1);
-            return OperandValue(""); // Return empty string or handle error appropriately
+                1, executionThreadId); // executionThreadId 추가
+            return OperandValue("");
+        } else if (fieldType == "angle") {
+            if (paramField.contains("params") && paramField["params"].is_array() &&
+                !paramField["params"].empty()) {
+                const auto &param_zero = paramField["params"][0];
+                if (param_zero.is_number()) {
+                    // 숫자 타입인 경우
+                    double angle_picker = param_zero.get<double>();
+                    engine.EngineStdOut(
+                        std::format("getOperandValue (angle): Parsed angle_picker (number) = {} for object {}",
+                                    angle_picker, objectId), 3, executionThreadId);
+                    return OperandValue(angle_picker);
+                } else if (param_zero.is_string()) {
+                    // 문자열 타입인 경우 숫자로 변환 시도
+                    std::string angle_str = param_zero.get<std::string>();
+                    try {
+                        // stod를 사용하여 문자열을 double로 변환
+                        // is_number 헬퍼 함수를 사용하여 더 엄격하게 검사할 수도 있습니다.
+                        if (is_number(angle_str)) {
+                            // is_number 헬퍼 함수 사용
+                            double angle_picker = std::stod(angle_str);
+                            engine.EngineStdOut(
+                                std::format(
+                                    "getOperandValue (angle): Parsed angle_picker (string \"{}\" to double) = {} for object {}",
+                                    angle_str, angle_picker, objectId), 3, executionThreadId);
+                            return OperandValue(angle_picker);
+                        } else {
+                            engine.EngineStdOut(
+                                "Error: 'angle' block (object " + objectId +
+                                ") param is string but not a valid number: \"" + angle_str + "\". Params: " + paramField
+                                .dump() +
+                                " --- Returning NaN.",
+                                2, executionThreadId);
+                            return OperandValue(nan(""));
+                        }
+                    } catch (const std::invalid_argument &ia) {
+                        engine.EngineStdOut(
+                            "Error: 'angle' block (object " + objectId +
+                            ") invalid argument for stod (string to double conversion): \"" + angle_str + "\". Params: "
+                            + paramField.dump() +
+                            " --- Returning NaN. Error: " + ia.what(),
+                            2, executionThreadId);
+                        return OperandValue(nan(""));
+                    } catch (const std::out_of_range &oor) {
+                        engine.EngineStdOut(
+                            "Error: 'angle' block (object " + objectId +
+                            ") out of range for stod (string to double conversion): \"" + angle_str + "\". Params: " +
+                            paramField.dump() +
+                            " --- Returning NaN. Error: " + oor.what(),
+                            2, executionThreadId);
+                        return OperandValue(nan(""));
+                    }
+                }
+            }
         }
-
-        engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1);
+        engine.EngineStdOut("Unsupported block type in parameter: " + fieldType + " for " + objectId, 1,
+                            executionThreadId); // executionThreadId 추가
         return OperandValue();
     }
-    // NEW: Check for other literal types before the final default
-    else if (paramField.is_number()) // If the param is a direct number literal
-    {
-        double getNumber = paramField.get<double>();
-        return OperandValue(getNumber); // Returns NUMBER
-    } else if (paramField.is_boolean()) // If the param is a direct boolean literal
+    // 4. 불리언 타입 확인
+    else if (paramField.is_boolean()) // is_number()와 is_object()가 false일 때만 실행됨
     {
         bool val = paramField.get<bool>();
-        engine.EngineStdOut(
-            "Parameter field for " + objectId + " is a direct boolean literal: " + (val ? "true" : "false") +
-            ". This might be unexpected if a block (e.g., get_pictures) was intended.",
-            1);
-        return OperandValue(val); // Returns BOOLEAN
-    } else if (paramField.is_null()) // If the param is a direct null literal
-    {
-        engine.EngineStdOut("Parameter field is null for " + objectId, 1);
-        return OperandValue(); // Returns EMPTY
+        // 이 로그는 매우 자주 발생할 수 있으므로, 필요에 따라 로그 레벨을 조정하거나 주석 처리하는 것이 좋습니다.
+        // engine.EngineStdOut(
+        //     "Parameter field for " + objectId + " is a direct boolean literal: " + (val ? "true" : "false") +
+        //     ". This might be unexpected if a block (e.g., get_pictures) was intended.",
+        //     1, executionThreadId);
+        return OperandValue(val);
     }
-
-    // Fallback if not string, object, number, bool, or null
-    engine.EngineStdOut(
-        "Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " +
-        paramField.type_name(), 1);
-    return OperandValue();
+    // 5. 모든 타입 확인 후에도 일치하는 것이 없을 경우 (폴백)
+    // 이 부분은 paramField.is_number()가 true인 경우에도 도달해서는 안 됩니다.
+    else {
+        /*engine.EngineStdOut(
+            "Parameter field is not a string, object, number, boolean, or null for " + objectId + ". Actual type: " +
+            paramField.type_name() + ". Value: " + paramField.dump(), // paramField.dump()로 실제 값 확인
+             1, executionThreadId);*/
+        return OperandValue(); // 빈 OperandValue 반환
+    }
 }
 
 /* 여기에 있던 excuteBlock 함수는 Entity.cpp 로 이동*/
@@ -384,187 +427,175 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     }
 
     if (BlockType == "move_direction") {
-        if (!block.paramsJson.is_array() || block.paramsJson.size() != 2) {
+        // 파라미터는 이동 거리 하나만 있어야 합니다.
+        if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) {
+            // 파라미터 1개 확인
             engine.EngineStdOut(
-                std::format("move_direction block for object {} has invalid params structure. Expected 2 params.",
-                            objectId), 2,
+                std::format(
+                    "move_direction block for object {} has invalid params structure. Expected 1 param (distance).",
+                    objectId), 2,
                 executionThreadId);
             return;
         }
-        OperandValue distance = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        // paramField 전달
-        OperandValue direction = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
-        double dist = distance.asNumber();
-        double dir = direction.asNumber();
-        // entity는 함수 시작 시 이미 검증되었습니다.
-        double newX = entity->getX() + dist * cos(dir * SDL_PI_D / 180.0);
-        double newY = entity->getY() - dist * sin(dir * SDL_PI_D / 180.0);
-        // engine.EngineStdOut("move_direction objectId: " + objectId + " direction: " + to_string(newX) + ", " + to_string(newY), 0, executionThreadId);
+        OperandValue distanceOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+
+        double dist = distanceOp.asNumber();
+        if (!std::isfinite(dist)) {
+            // NaN 또는 Infinity 검사
+            engine.EngineStdOut(
+                "Moving block (move_direction) for object " + objectId +
+                ": Distance parameter resolved to non-finite value (" + std::to_string(dist) +
+                "). Using 0.0 as fallback.",
+                1, executionThreadId);
+            dist = 0.0;
+        }
+
+        // 엔티티의 현재 방향을 가져옵니다 (엔트리 각도: 0도 위, 90도 오른쪽).
+        double dir_entry_degrees = entity->getDirection();
+        double dir_entry_radians = dir_entry_degrees * (SDL_PI_D / 180.0);
+
+        // 엔트리 각도(0도 위) 기준 올바른 X, Y 이동량 계산
+        // X 변화량 = 거리 * sin(엔트리 각도_라디안)
+        // Y 변화량 = 거리 * cos(엔트리 각도_라디안) (Y축이 위로 갈수록 증가하는 좌표계)
+        double deltaX = dist * std::sin(dir_entry_radians);
+        double deltaY = dist * std::cos(dir_entry_radians); // 게임 월드 Y 좌표는 위쪽이 양수
+
+        double newX = entity->getX() + deltaX;
+        double newY = entity->getY() + deltaY;
+
         entity->setX(newX);
         entity->setY(newY);
-    } else if (BlockType == "bounce_wall") {
-        // entity는 함수 시작 시 이미 검증되었습니다.
-        // 이전의 if (!entity) 체크는 불필요합니다.
 
-        // Javascript의 threshold와 유사한 값 (픽셀 충돌이 아니므로 의미가 다를 수 있음)
-        // const float collisionThreshold = 0.0f; // 경계 상자 충돌에서는 크게 의미 없을 수 있음
-
-        Entity::RotationMethod method = entity->getRotateMethod();
-        double currentRotation = entity->getRotation();
-        double currentDirection = entity->getDirection();
-        double angle = 0;
-
-        if (method == Entity::RotationMethod::FREE) {
-            angle = fmod(currentRotation + currentDirection, 360.0);
-            if (angle < 0)
-                angle += 360.0; // fmod 결과가 음수일 수 있으므로 양수로 조정
-        } else {
-            angle = fmod(currentDirection, 360.0);
-            if (angle < 0)
-                angle += 360.0;
+        // 펜 업데이트 (필요한 경우)
+        if (entity->paint.isPenDown && !entity->paint.isStopped()) {
+            entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
         }
-
-        // 엔티티의 현재 위치와 크기
+        if (entity->brush.isPenDown && !entity->brush.isStopped()) {
+            entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+        }
+    }else if (BlockType == "bounce_wall") {
         double entityX = entity->getX();
         double entityY = entity->getY();
-        // 엔티티의 실제 화면상 경계를 계산해야 함 (회전 및 등록점 고려)
-        // 여기서는 단순화를 위해 엔티티의 x, y를 중심으로 판단
-        // 실제로는 entity->getWidth(), entity->getHeight(), entity->getScaleX/Y() 등을 사용한
-        // 정확한 경계 상자 계산이 필요합니다.
+        double entityWidth = entity->getWidth() * std::abs(entity->getScaleX());
+        double entityHeight = entity->getHeight() * std::abs(entity->getScaleY());
 
-        // 스테이지 경계 (엔트리 좌표계 기준)
-        const double stageLeft = -PROJECT_STAGE_WIDTH / 2.0;
-        const double stageRight = PROJECT_STAGE_WIDTH / 2.0;
-        const double stageTop = PROJECT_STAGE_HEIGHT / 2.0; // 엔트리는 Y가 위로 갈수록 증가
-        const double stageBottom = -PROJECT_STAGE_HEIGHT / 2.0;
+        double originalDirection = entity->getDirection(); // 0도 위, 90도 오른쪽
+        double newDirection = originalDirection;
 
-        Entity::CollisionSide lastCollision = entity->getLastCollisionSide();
-        bool collidedThisFrame = false;
+        double halfWidth = entityWidth / 2.0;
+        double halfHeight = entityHeight / 2.0;
 
-        // 상하 벽 충돌 (Y축)
-        // 엔티티가 위쪽으로 움직이는 경향 (angle: 0~90 또는 270~360)
-        if ((angle < 90.0 && angle >= 0.0) || (angle < 360.0 && angle >= 270.0)) {
-            // 위쪽 벽 충돌 검사
-            if (entityY + (entity->getHeight() * entity->getScaleY() / 2.0) > stageTop && lastCollision !=
-                Entity::CollisionSide::UP) {
-                // 단순화된 경계
-                if (method == Entity::RotationMethod::FREE) {
-                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
-                } else {
-                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
-                }
-                entity->setLastCollisionSide(Entity::CollisionSide::UP);
-                collidedThisFrame = true;
-                // 엔티티를 벽 안으로 밀어넣는 로직 추가 가능
-                // entity->setY(stageTop - (entity->getHeight() * entity->getScaleY() / 2.0));
-            }
-            // 아래쪽 벽 충돌 검사 (위로 가려다 아래로 튕길 수도 있으므로)
-            else if (!collidedThisFrame && entityY - (entity->getHeight() * entity->getScaleY() / 2.0) < stageBottom &&
-                     lastCollision != Entity::CollisionSide::DOWN) {
-                if (method == Entity::RotationMethod::FREE) {
-                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
-                } else {
-                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
-                }
-                entity->setLastCollisionSide(Entity::CollisionSide::DOWN);
-                collidedThisFrame = true;
+        double entityTop = entityY + halfHeight;
+        double entityBottom = entityY - halfHeight;
+        double entityRight = entityX + halfWidth;
+        double entityLeft = entityX - halfWidth;
+
+        const double stageTopEdge = PROJECT_STAGE_HEIGHT / 2.0;
+        const double stageBottomEdge = -PROJECT_STAGE_HEIGHT / 2.0;
+        const double stageRightEdge = PROJECT_STAGE_WIDTH / 2.0;
+        const double stageLeftEdge = -PROJECT_STAGE_WIDTH / 2.0;
+
+        // --- 중요: pushBackAmount 값을 충분히 크게 설정해주세요 ---
+        // 엔티티의 크기나 평균 이동 속도보다 큰 값으로 설정하는 것이 좋습니다. (예: 10.0f, 15.0f 또는 그 이상)
+        const float pushBackAmount = 10.0f; // 이전 값(예: 5.0f)보다 더 크게 설정해보세요.
+        bool newCollisionOccurred = false;
+
+        Entity::CollisionSide lastWallHit = entity->getLastCollisionSide();
+        Entity::CollisionSide currentWallHitThisFrame = Entity::CollisionSide::NONE;
+
+        // --- 수정된 방향 조건 ---
+        // 0도: 위, 90도: 오른쪽, 180도: 아래, 270도: 왼쪽
+
+        // 1. 위쪽 벽 충돌 조건: 엔티티가 위쪽으로 이동 중인가? (방향 각도가 270~360 또는 0~90 사이)
+        bool movingTowardsTop = (originalDirection > 270.0 || originalDirection < 90.0);
+        // 2. 아래쪽 벽 충돌 조건: 엔티티가 아래쪽으로 이동 중인가? (방향 각도가 90~270 사이)
+        bool movingTowardsBottom = (originalDirection > 90.0 && originalDirection < 270.0);
+
+        // 위쪽 벽 충돌 처리
+        if (entityTop > stageTopEdge && movingTowardsTop) {
+            if (lastWallHit != Entity::CollisionSide::UP) {
+                engine.EngineStdOut(format("bounce_top {}", objectId), 3, executionThreadId);
+                newDirection = 180.0 - originalDirection; // Y축 반사는 (180 - 각도) 또는 (360 - 각도) 중 상황에 맞게
+                                                       // 현재 0도 위쪽 시스템에서는 (360 - 각도) % 360 또는 -각도 % 360 이 더 적합할 수 있으나,
+                                                       // 기존 180 - originalDirection 이 대칭적으로 잘 동작했다면 유지합니다.
+                                                       // (엔트리/스크래치는 180-각도를 사용합니다)
+                entity->setY(stageTopEdge - halfHeight - pushBackAmount);
+                newCollisionOccurred = true;
+                currentWallHitThisFrame = Entity::CollisionSide::UP;
             }
         }
-        // 엔티티가 아래쪽으로 움직이는 경향 (angle: 90~270)
-        else if (angle < 270.0 && angle >= 90.0) {
-            // 아래쪽 벽 충돌 검사
-            if (entityY - (entity->getHeight() * entity->getScaleY() / 2.0) < stageBottom && lastCollision !=
-                Entity::CollisionSide::DOWN) {
-                if (method == Entity::RotationMethod::FREE) {
-                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
-                } else {
-                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
-                }
-                entity->setLastCollisionSide(Entity::CollisionSide::DOWN);
-                collidedThisFrame = true;
-            }
-            // 위쪽 벽 충돌 검사
-            else if (!collidedThisFrame && entityY + (entity->getHeight() * entity->getScaleY() / 2.0) > stageTop &&
-                     lastCollision != Entity::CollisionSide::UP) {
-                if (method == Entity::RotationMethod::FREE) {
-                    entity->setRotation(fmod(-currentRotation - currentDirection * 2.0 + 180.0, 360.0));
-                } else {
-                    entity->setDirection(fmod(-currentDirection + 180.0, 360.0));
-                }
-                entity->setLastCollisionSide(Entity::CollisionSide::UP);
-                collidedThisFrame = true;
+        // 아래쪽 벽 충돌 처리
+        else if (entityBottom < stageBottomEdge && movingTowardsBottom) {
+            if (lastWallHit != Entity::CollisionSide::DOWN) {
+                engine.EngineStdOut(format("bounce_bottom {}", objectId), 3, executionThreadId);
+                newDirection = 180.0 - originalDirection;
+                entity->setY(stageBottomEdge + halfHeight + pushBackAmount);
+                newCollisionOccurred = true;
+                currentWallHitThisFrame = Entity::CollisionSide::DOWN;
             }
         }
 
-        // 좌우 벽 충돌 (X축) - 상하 벽 충돌이 없었을 경우에만 검사 (또는 동시에 검사 후 우선순위 결정)
-        if (!collidedThisFrame) {
-            // 엔티티가 왼쪽으로 움직이는 경향 (angle: 180~360)
-            if (angle < 360.0 && angle >= 180.0) {
-                // 왼쪽 벽 충돌 검사
-                if (entityX - (entity->getWidth() * entity->getScaleX() / 2.0) < stageLeft && lastCollision !=
-                    Entity::CollisionSide::LEFT) {
-                    if (method == Entity::RotationMethod::FREE) {
-                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
-                    } else {
-                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0)); // JS는 +360, fmod로 처리
-                    }
-                    entity->setLastCollisionSide(Entity::CollisionSide::LEFT);
-                    collidedThisFrame = true;
-                }
-                // 오른쪽 벽 충돌 검사
-                else if (!collidedThisFrame && entityX + (entity->getWidth() * entity->getScaleX() / 2.0) > stageRight
-                         && lastCollision != Entity::CollisionSide::RIGHT) {
-                    if (method == Entity::RotationMethod::FREE) {
-                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
-                    } else {
-                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
-                    }
-                    entity->setLastCollisionSide(Entity::CollisionSide::RIGHT);
-                    collidedThisFrame = true;
-                }
+        // X축 충돌 검사 시에는 Y축에서 이미 반사되었을 수 있는 newDirection을 사용합니다.
+        double directionForXCheck = newCollisionOccurred ? newDirection : originalDirection;
+        // X축 이동 방향 조건도 업데이트된 newDirection 기준으로 다시 계산해야 할 수 있습니다.
+        // 여기서는 originalDirection 기준으로 X축 충돌 "발생 여부"를 판단하고,
+        // 반사는 directionForXCheck (Y축 반사 후 각도)를 사용합니다.
+        // 더 정확하게는, X축 충돌 조건도 Y축 반사 후의 각도로 판단해야 할 수 있습니다.
+        // 하지만 일단은 originalDirection으로 X축 진입을 판단하고, 반사각만 Y축 결과를 반영합니다.
+
+        bool movingTowardsRight_forXCheck = (originalDirection > 0.0 && originalDirection < 180.0);
+        bool movingTowardsLeft_forXCheck = (originalDirection > 180.0 && originalDirection < 360.0);
+
+
+        // 오른쪽 벽 충돌 처리
+        if (entityRight > stageRightEdge && movingTowardsRight_forXCheck) {
+            // Y축에서 이미 다른 벽과 충돌했거나, 이전에 오른쪽 벽에 부딪힌 상태가 아닐 때만 반사
+            if ( (newCollisionOccurred && currentWallHitThisFrame != Entity::CollisionSide::RIGHT) ||
+                 (!newCollisionOccurred && lastWallHit != Entity::CollisionSide::RIGHT) ) {
+                engine.EngineStdOut(format("bounce_right {}", objectId), 3, executionThreadId);
+                newDirection = 360.0 - directionForXCheck; // X축 반사는 (360 - 각도)
+                entity->setX(stageRightEdge - halfWidth - pushBackAmount);
+                newCollisionOccurred = true;
+                currentWallHitThisFrame = Entity::CollisionSide::RIGHT;
             }
-            // 엔티티가 오른쪽으로 움직이는 경향 (angle: 0~180)
-            else if (angle < 180.0 && angle >= 0.0) {
-                // 오른쪽 벽 충돌 검사
-                if (entityX + (entity->getWidth() * entity->getScaleX() / 2.0) > stageRight && lastCollision !=
-                    Entity::CollisionSide::RIGHT) {
-                    if (method == Entity::RotationMethod::FREE) {
-                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
-                    } else {
-                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
-                    }
-                    entity->setLastCollisionSide(Entity::CollisionSide::RIGHT);
-                    collidedThisFrame = true;
-                }
-                // 왼쪽 벽 충돌 검사
-                else if (!collidedThisFrame && entityX - (entity->getWidth() * entity->getScaleX() / 2.0) < stageLeft &&
-                         lastCollision != Entity::CollisionSide::LEFT) {
-                    if (method == Entity::RotationMethod::FREE) {
-                        entity->setRotation(fmod(-currentRotation - currentDirection * 2.0, 360.0));
-                    } else {
-                        entity->setDirection(fmod(-currentDirection + 360.0, 360.0));
-                    }
-                    entity->setLastCollisionSide(Entity::CollisionSide::LEFT);
-                    collidedThisFrame = true;
-                }
+        }
+        // 왼쪽 벽 충돌 처리
+        else if (entityLeft < stageLeftEdge && movingTowardsLeft_forXCheck) {
+            if ( (newCollisionOccurred && currentWallHitThisFrame != Entity::CollisionSide::LEFT) ||
+                 (!newCollisionOccurred && lastWallHit != Entity::CollisionSide::LEFT) ) {
+                engine.EngineStdOut(format("bounce_left {}", objectId), 3, executionThreadId);
+                newDirection = 360.0 - directionForXCheck;
+                entity->setX(stageLeftEdge + halfWidth + pushBackAmount);
+                newCollisionOccurred = true;
+                currentWallHitThisFrame = Entity::CollisionSide::LEFT;
             }
         }
 
-        if (!collidedThisFrame) {
-            // 이번 프레임에 어떤 벽과도 충돌하지 않았다면, 이전 충돌 상태를 리셋
-            entity->setLastCollisionSide(Entity::CollisionSide::NONE);
-        }
-        // 각도 정규화 (0~360)
-        if (entity->getRotation() < 0)
-            entity->setRotation(fmod(entity->getRotation(), 360.0) + 360.0);
-        else
-            entity->setRotation(fmod(entity->getRotation(), 360.0));
+        if (newCollisionOccurred) {
+            newDirection = fmod(newDirection, 360.0);
+            if (newDirection < 0) {
+                newDirection += 360.0;
+            }
+            entity->setDirection(newDirection);
+            entity->setLastCollisionSide(currentWallHitThisFrame);
+            engine.EngineStdOut(std::format("Entity {} bounced. Original Dir: {}, New Dir: {}. LastCollision: {}",
+                                            objectId, originalDirection, newDirection, static_cast<int>(currentWallHitThisFrame)),
+                                3, executionThreadId);
+        } else {
+            if (lastWallHit != Entity::CollisionSide::NONE) {
+                bool stillOverlappingLastWall = false;
+                if (lastWallHit == Entity::CollisionSide::UP && entityTop > stageTopEdge) stillOverlappingLastWall = true;
+                else if (lastWallHit == Entity::CollisionSide::DOWN && entityBottom < stageBottomEdge) stillOverlappingLastWall = true;
+                else if (lastWallHit == Entity::CollisionSide::RIGHT && entityRight > stageRightEdge) stillOverlappingLastWall = true;
+                else if (lastWallHit == Entity::CollisionSide::LEFT && entityLeft < stageLeftEdge) stillOverlappingLastWall = true;
 
-        if (entity->getDirection() < 0)
-            entity->setDirection(fmod(entity->getDirection(), 360.0) + 360.0);
-        else
-            entity->setDirection(fmod(entity->getDirection(), 360.0));
-    } else if (BlockType == "move_x") {
+                if (!stillOverlappingLastWall) {
+                    entity->setLastCollisionSide(Entity::CollisionSide::NONE);
+                    engine.EngineStdOut(std::format("Entity {} separated from wall. LastCollision reset to NONE.", objectId), 3, executionThreadId);
+                }
+            }
+        }
+    }else if (BlockType == "move_x") {
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
@@ -839,11 +870,11 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         }
     } else if (BlockType == "rotate_relative" || BlockType == "direction_relative") {
         OperandValue value = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (value.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2,
-                                executionThreadId);
-            return;
-        }
+        /* if (value.type != OperandValue::Type::NUMBER) {
+             engine.EngineStdOut("rotate_relative block for object " + objectId + " is not a number.", 2,
+                                 executionThreadId);
+             return;
+         }*/
         // entity는 함수 시작 시 이미 검증되었습니다.
         entity->setDirection(value.asNumber() + entity->getDirection());
     } else if (BlockType == "rotate_by_time" || BlockType == "direction_relative_duration") {
@@ -3966,7 +3997,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         engine.EngineStdOut("Flow 'wait_second': Entity " + objectId + " not found.", 2, executionThreadId);
         return;
     }
-       if (BlockType == "wait_second") {
+    if (BlockType == "wait_second") {
         // Flow 함수는 Entity의 setScriptWait를 호출하여 대기 상태 설정을 요청합니다.
         // 실제 대기(SDL_Delay)는 Entity::executeScript의 메인 루프에서 처리됩니다.
         if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null()) {
@@ -3993,38 +4024,39 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         Uint64 currentTicks = SDL_GetTicks();
         Uint64 waitEndTime = currentTicks + static_cast<Uint64>(secondsToWait * 1000.0);
 
-           // 로그용 시간 포맷팅 (예시)
-           auto to_time_t_func = [](Uint64 ticks_sdl) { // 람다 함수 이름 변경 (to_time_t는 std::to_time_t와 충돌 가능성)
-               // SDL_GetTicks()는 SDL 초기화 이후 경과된 밀리초를 반환합니다.
-               // 이를 실제 시간으로 변환하려면, 현재 시스템 시간과 SDL_GetTicks()의 차이를 알아야 하지만,
-               // 여기서는 단순히 "미래의 특정 시점"을 나타내는 time_t를 생성합니다.
-               // 정확한 달력 시간보다는 "X초 후"의 개념으로 이해하는 것이 좋습니다.
-               // 또는, 프로그램 시작 시점의 system_clock::now()와 SDL_GetTicks()를 기록해두고 오프셋을 사용할 수 있습니다.
-               // 여기서는 간단히 현재 시간 + 남은 시간으로 계산합니다.
-               Uint64 currentSdlTicks = SDL_GetTicks();
-               std::chrono::milliseconds offset_ms(0);
-               if (ticks_sdl >= currentSdlTicks) {
-                   offset_ms = std::chrono::milliseconds(ticks_sdl - currentSdlTicks);
-               } else {
-                   // 과거의 ticks_sdl 값이라면, 현재 시간으로 처리하거나 음수 오프셋 (과거 시점)
-                   offset_ms = std::chrono::milliseconds(static_cast<Sint64>(ticks_sdl) - static_cast<Sint64>(currentSdlTicks));
-               }
-               return std::chrono::system_clock::to_time_t(
-                   std::chrono::system_clock::now() + offset_ms
-               );
-           };
+        // 로그용 시간 포맷팅 (예시)
+        auto to_time_t_func = [](Uint64 ticks_sdl) {
+            // 람다 함수 이름 변경 (to_time_t는 std::to_time_t와 충돌 가능성)
+            // SDL_GetTicks()는 SDL 초기화 이후 경과된 밀리초를 반환합니다.
+            // 이를 실제 시간으로 변환하려면, 현재 시스템 시간과 SDL_GetTicks()의 차이를 알아야 하지만,
+            // 여기서는 단순히 "미래의 특정 시점"을 나타내는 time_t를 생성합니다.
+            // 정확한 달력 시간보다는 "X초 후"의 개념으로 이해하는 것이 좋습니다.
+            // 또는, 프로그램 시작 시점의 system_clock::now()와 SDL_GetTicks()를 기록해두고 오프셋을 사용할 수 있습니다.
+            // 여기서는 간단히 현재 시간 + 남은 시간으로 계산합니다.
+            Uint64 currentSdlTicks = SDL_GetTicks();
+            std::chrono::milliseconds offset_ms(0);
+            if (ticks_sdl >= currentSdlTicks) {
+                offset_ms = std::chrono::milliseconds(ticks_sdl - currentSdlTicks);
+            } else {
+                // 과거의 ticks_sdl 값이라면, 현재 시간으로 처리하거나 음수 오프셋 (과거 시점)
+                offset_ms = std::chrono::milliseconds(
+                    static_cast<Sint64>(ticks_sdl) - static_cast<Sint64>(currentSdlTicks));
+            }
+            return std::chrono::system_clock::to_time_t(
+                std::chrono::system_clock::now() + offset_ms
+            );
+        };
         std::time_t endTime_c = to_time_t_func(waitEndTime);
         std::tm endTime_tm_s = {};
-    #ifdef _WIN32
-            localtime_s(&endTime_tm_s, &endTime_c);
-    #else
+#ifdef _WIN32
+        localtime_s(&endTime_tm_s, &endTime_c);
+#else
             localtime_r(&endTime_c, &endTime_tm_s); // POSIX
-    #endif
-           // std::put_time을 사용하여 문자열 스트림에 시간 포맷팅
-           std::ostringstream oss;
-           oss << std::put_time(&endTime_tm_s, "%Y-%m-%d %H:%M:%S");
-           std::string endTimeStr = oss.str(); // 스트림에서 문자열 가져오기
-
+#endif
+        // std::put_time을 사용하여 문자열 스트림에 시간 포맷팅
+        std::ostringstream oss;
+        oss << std::put_time(&endTime_tm_s, "%Y-%m-%d %H:%M:%S");
+        std::string endTimeStr = oss.str(); // 스트림에서 문자열 가져오기
 
 
         // Set the wait state *before* performing the active wait
@@ -4032,7 +4064,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         engine.EngineStdOut(
             "Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") setting wait for " +
-            std::to_string(secondsToWait) + "s (until " + endTimeStr + ", current ticks: " + std::to_string(currentTicks) + ", end ticks: " + std::to_string(waitEndTime) + "). Block ID: " + block.id + ". Script will pause.", 3, executionThreadId);
+            std::to_string(secondsToWait) + "s (until " + endTimeStr + ", current ticks: " +
+            std::to_string(currentTicks) + ", end ticks: " + std::to_string(waitEndTime) + "). Block ID: " + block.id +
+            ". Script will pause.", 3, executionThreadId);
         // The Entity::executeScript method will see the EXPLICIT_WAIT_SECOND
         // and pause the script. Entity::resumeExplicitWaitScripts will resume it.
         // No active waiting (performActiveWait) is done here anymore for wait_second.
@@ -4106,7 +4140,6 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             if (it != entity->scriptThreadStates.end()) {
                 pThreadState = &it->second;
             }
-
         }
 
         if (!pThreadState) {
@@ -4332,14 +4365,18 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                         3, executionThreadId);
                 }
                 // 수정된 조건: currentWaitType 체크 제거
-                if (threadState.blockIdForWait == block.id && // 이 Flow 블록에 대한 BLOCK_INTERNAL 대기였는지 확인 (Entity::executeScript에서 설정됨)
-                    !threadState.originalInnerBlockIdForWait.empty()) { // 내부 블록 대기 정보가 있는지 확인
+                if (threadState.blockIdForWait == block.id &&
+                    // 이 Flow 블록에 대한 BLOCK_INTERNAL 대기였는지 확인 (Entity::executeScript에서 설정됨)
+                    !threadState.originalInnerBlockIdForWait.empty()) {
+                    // 내부 블록 대기 정보가 있는지 확인
                     for (size_t k = 0; k < doScript.blocks.size(); ++k) {
                         if (doScript.blocks[k].id == threadState.originalInnerBlockIdForWait) {
-                            engine.EngineStdOut(format("K {} isMatch BID {}",k,doScript.blocks[k].id == threadState.originalInnerBlockIdForWait),3);
+                            engine.EngineStdOut(format("K {} isMatch BID {}", k,
+                                                       doScript.blocks[k].id == threadState.
+                                                       originalInnerBlockIdForWait), 3);
                             if (k + 1 < doScript.blocks.size()) {
                                 inner_block_start_index = k + 1;
-                                is_resuming_from_inner_block_wait = true;    // 플래그 설정
+                                is_resuming_from_inner_block_wait = true; // 플래그 설정
                                 engine.EngineStdOut(
                                     "Flow 'repeat_inf' (" + block.id + "): Resuming inner blocks from relative index " +
                                     std::to_string(inner_block_start_index) +
@@ -4357,7 +4394,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                             break;
                         }
                     }
-                    }
+                }
             }
         }
 
@@ -4908,21 +4945,71 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                                             "Target parameter is not a string.");
         }
 
-        string targetToCloneId = targetOp.asString();
-        string actualOriginalId;
+        string targetToCloneIdFromParam = targetOp.asString();
+        string baseObjectIdForCloning; // 실제 복제의 기반이 될 원본 객체의 ID
 
-        if (targetToCloneId == "self" || targetToCloneId.empty()) {
-            // "self" 또는 드롭다운이 self에 대해 빈 값을 반환하는 경우
-            actualOriginalId = objectId; // 이 스크립트를 실행하는 엔티티가 복제 대상
+        if (targetToCloneIdFromParam == "self" || targetToCloneIdFromParam.empty()) {
+            // "self" 또는 파라미터가 비어있으면, 현재 스크립트를 실행하는 객체(entity)를 기준으로 원본 ID를 찾습니다.
+            if (entity->getIsClone()) {
+                // 현재 객체가 복제본인 경우
+                baseObjectIdForCloning = entity->getOriginalClonedFromId();
+                if (baseObjectIdForCloning.empty()) {
+                    // 원본 ID 정보가 없는 비정상적인 복제본일 경우
+                    baseObjectIdForCloning = objectId; // 자기 자신을 원본으로 간주 (오류 로그 필요)
+                    engine.EngineStdOut(
+                        "Warning: Clone " + objectId +
+                        " (cloning self) does not have original ID info. Using its own ID (" + objectId +
+                        ") as base for 'when_clone_start'.", 1, executionThreadId);
+                }
+            } else {
+                // 현재 객체가 원본 객체인 경우
+                baseObjectIdForCloning = objectId;
+            }
         } else {
-            actualOriginalId = targetToCloneId; // 다른 엔티티가 복제 대상으로 지정됨
+            // 다른 객체를 복제 대상으로 지정한 경우
+            Entity *specifiedEntityToClone = engine.getEntityById(targetToCloneIdFromParam);
+            if (specifiedEntityToClone) {
+                if (specifiedEntityToClone->getIsClone()) {
+                    // 지정된 대상이 복제본인 경우
+                    baseObjectIdForCloning = specifiedEntityToClone->getOriginalClonedFromId();
+                    if (baseObjectIdForCloning.empty()) {
+                        // 원본 ID 정보가 없는 비정상적인 복제본일 경우
+                        baseObjectIdForCloning = targetToCloneIdFromParam; // 지정된 대상을 원본으로 간주 (오류 로그 필요)
+                        engine.EngineStdOut(
+                            "Warning: Specified clone target " + targetToCloneIdFromParam +
+                            " does not have original ID info. Using its own ID (" + targetToCloneIdFromParam +
+                            ") as base for 'when_clone_start'.", 1, executionThreadId);
+                    }
+                } else {
+                    // 지정된 대상이 원본 객체인 경우
+                    baseObjectIdForCloning = targetToCloneIdFromParam;
+                }
+            } else {
+                engine.EngineStdOut(
+                    "Error: Flow 'create_clone' - Specified entity to clone '" + targetToCloneIdFromParam +
+                    "' not found.", 2, executionThreadId);
+                throw ScriptBlockExecutionError("복제할 대상을 찾을 수 없습니다: " + targetToCloneIdFromParam, block.id, BlockType,
+                                                objectId, "Specified entity to clone not found.");
+            }
         }
 
+        // baseObjectIdForCloning이 비어있는 경우에 대한 최종 방어 코드
+        if (baseObjectIdForCloning.empty()) {
+            engine.EngineStdOut(
+                "Error: Flow 'create_clone' - Could not determine a valid base object ID for cloning. Defaulting to current object ID: "
+                + objectId, 2, executionThreadId);
+            baseObjectIdForCloning = objectId; // 최후의 수단으로 현재 객체 ID 사용 (문제가 있을 수 있음)
+        }
+
+
         engine.EngineStdOut(
-            "Flow 'create_clone': Object " + objectId + " requests clone of " + actualOriginalId + ". Block ID: " +
+            "Flow 'create_clone': Object " + objectId +
+            " requests clone. Base object ID for 'when_clone_start' lookup: " + baseObjectIdForCloning + ". Block ID: "
+            +
             block.id, 3, executionThreadId);
-        // sceneIdAtDispatch는 복제본의 "when_clone_start" 스크립트에 대한 씬 컨텍스트입니다.
-        engine.createCloneOfEntity(actualOriginalId, sceneIdAtDispatch);
+
+        // engine.createCloneOfEntity 호출 시 baseObjectIdForCloning 사용
+        engine.createCloneOfEntity(baseObjectIdForCloning, sceneIdAtDispatch);
     } else if (BlockType == "delete_clone") {
         // 이 블록은 자신(복제본)을 삭제합니다. 파라미터는 보통 없습니다.
         auto entity = engine.getEntityByIdShared(objectId); // objectId는 이 스크립트를 실행하는 엔티티의 ID입니다.

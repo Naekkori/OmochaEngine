@@ -5731,7 +5731,7 @@ bool Engine::setEntitychangeToNextCostume(const string &entityId, const string &
             EngineStdOut(
                 "Entity '" + entityId + "' changed costume to '" + objInfo.costumes[nextCostumeIndex].name + "' (ID: " +
                 objInfo.selectedCostumeId + ")",
-                0);
+                3);
             return true;
         }
     }
