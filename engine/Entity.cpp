@@ -1439,13 +1439,6 @@ void Entity::processInternalContinuations(float deltaTime) {
                 bool canResume = false;
 
                 if (state.waitEndTime > 0 && SDL_GetTicks() < state.waitEndTime) {
-                    if (pEngineInstance) { // pEngineInstance 유효성 검사
-                        pEngineInstance->EngineStdOut(
-                            "Entity " + getId() + " script thread " + execId +
-                            " BLOCK_INTERNAL is still waiting for inherited waitEndTime: " + std::to_string(state.waitEndTime) +
-                            " (current: " + std::to_string(SDL_GetTicks()) + ", original inner wait on: " + state.originalInnerBlockIdForWait + ")",
-                            3, execId);
-                    }
                     ++it_state;
                     continue; // 아직 대기 시간이므로 재개하지 않음
                 }

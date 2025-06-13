@@ -5445,8 +5445,8 @@ void Engine::drawDialogs() {
                 continue; // 텍스처 생성 실패 시 건너뛰기
 
             // 2. 말풍선 위치 및 크기 계산
-            float entitySdlX = static_cast<float>(entity->getX() + PROJECT_STAGE_WIDTH / 2.0);
-            float entitySdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 3.0 - entity->getY());
+            float entitySdlX = static_cast<float>(entity->getX() + INTER_RENDER_WIDTH / 2.0);
+            float entitySdlY = static_cast<float>(INTER_RENDER_HEIGHT / 3.0 - entity->getY());
 
             // 엔티티의 시각적 너비/높이
             float entityVisualWidth = static_cast<float>(entity->getWidth() * std::abs(entity->getScaleX()));
@@ -5481,10 +5481,10 @@ void Engine::drawDialogs() {
                 dialog.bubbleScreenRect.x = 0;
             if (dialog.bubbleScreenRect.y < 0)
                 dialog.bubbleScreenRect.y = 0;
-            if (dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w > PROJECT_STAGE_WIDTH) {
+            if (dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w > INTER_RENDER_WIDTH) {
                 dialog.bubbleScreenRect.x = PROJECT_STAGE_WIDTH - dialog.bubbleScreenRect.w;
             }
-            if (dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h > PROJECT_STAGE_HEIGHT) {
+            if (dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h > INTER_RENDER_HEIGHT) {
                 dialog.bubbleScreenRect.y = PROJECT_STAGE_HEIGHT - dialog.bubbleScreenRect.h;
             }
 
