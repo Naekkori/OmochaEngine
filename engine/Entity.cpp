@@ -1424,7 +1424,23 @@ void Entity::processInternalContinuations(float deltaTime) {
         return;
     }
 
-    std::vector<std::tuple<std::string, const Script *, std::string> > tasksToRunInline; {
+    // Helper struct for task details
+    struct ScriptTaskDetails {
+        std::string execId;
+        const Script* scriptPtr;
+        std::string sceneIdForRun;
+    };
+
+    // Helper lambda to truncate strings safely, defined once
+    auto truncate_string = [](const std::string &str, size_t max_len) {
+        if (str.length() > max_len) {
+            return str.substr(0, max_len) + "...(truncated)";
+        }
+        return str;
+    };
+
+    std::vector<ScriptTaskDetails> tasksToRunInline;
+    {
         std::lock_guard lock(m_stateMutex);
         for (auto it_state = scriptThreadStates.begin(); it_state != scriptThreadStates.end(); /* manual increment */) {
             auto &execId = it_state->first;
@@ -1456,28 +1472,28 @@ void Entity::processInternalContinuations(float deltaTime) {
                 if (!state.scriptPtrForResume) {
                     // 스크립트 포인터가 유효하지 않으면 재개 불가
                     canResume = false;
-                    pEngineInstance->EngineStdOut(
-                        "WARNING: Entity " + getId() + " script thread " + execId +
-                        " is BLOCK_INTERNAL wait but scriptPtrForResume is null. Clearing wait.", 1, execId);
+                    if (pEngineInstance) { // pEngineInstance null check before use
+                        pEngineInstance->EngineStdOut(
+                            "WARNING: Entity " + getId() + " script thread " + execId +
+                            " is BLOCK_INTERNAL wait but scriptPtrForResume is null. Clearing wait.", 1, execId);
+                    }
                 } else if (isGlobal) {
                     canResume = true;
-                } else {
-                    if (objInfoCheck && objInfoCheck->sceneId == scriptSceneContext) {
-                        if (engineCurrentScene == scriptSceneContext) {
-                            canResume = true;
-                        }
-                    }
+                } else { // Not global
+                    canResume = objInfoCheck &&
+                                objInfoCheck->sceneId == scriptSceneContext &&
+                                engineCurrentScene == scriptSceneContext;
                 }
 
                 if (canResume) {
-                    tasksToRunInline.emplace_back(execId, state.scriptPtrForResume, scriptSceneContext);
+                    tasksToRunInline.emplace_back(ScriptTaskDetails{execId, state.scriptPtrForResume, scriptSceneContext});
                     // tasksToRunInline에 추가했으므로, 여기서는 isWaiting을 false로 바꾸지 않습니다.
                     // executeScript가 호출될 때 isWaiting이 false로 설정됩니다.
                     // 만약 executeScript가 BLOCK_INTERNAL을 다시 설정하면 다음 틱에 다시 처리됩니다.
                     ++it_state;
                 } else {
                     // 재개할 수 없는 경우, 대기 상태를 해제하여 무한 루프 방지
-                    if (state.scriptPtrForResume) {
+                    if (state.scriptPtrForResume && pEngineInstance) { // pEngineInstance null check
                         // 로그는 스크립트 포인터가 있을 때만 의미 있음
                         pEngineInstance->EngineStdOut(
                             "Internal continuation for " + getId() + " (Thread: " + execId +
@@ -1489,8 +1505,9 @@ void Entity::processInternalContinuations(float deltaTime) {
                     state.currentWaitType = WaitType::NONE;
                     state.scriptPtrForResume = nullptr;
                     state.sceneIdAtDispatchForResume = "";
-                    // 상태가 변경되었으므로, 다음 반복에서 이 스레드를 다시 처리할 필요 없음
-                    // 만약 반복 중 요소를 제거한다면 it_state = scriptThreadStates.erase(it_state); 와 같이 처리해야 하지만, 여기서는 상태만 변경
+                    state.waitEndTime = 0; // 여기서도 waitEndTime 초기화
+                    state.originalInnerBlockIdForWait = ""; // 관련 정보 초기화
+                    state.resumeAtBlockIndex = -1;
                     ++it_state;
                 }
             } else {
@@ -1500,31 +1517,19 @@ void Entity::processInternalContinuations(float deltaTime) {
     } // Mutex scope ends
 
     // 수집된 작업을 현재 스레드에서 직접 실행
-    for (const auto &taskDetails: tasksToRunInline) {
-        const std::string &execId = std::get<0>(taskDetails);
-        const Script *scriptToRun = std::get<1>(taskDetails);
-        const std::string &sceneIdForRun = std::get<2>(taskDetails);
-        // pEngineInstance->EngineStdOut("Executing internal continuation for entity: " + getId() + " (Thread: " + execId + ")", 5, execId);
+    for (const auto &task: tasksToRunInline) {
+        // pEngineInstance->EngineStdOut("Executing internal continuation for entity: " + getId() + " (Thread: " + task.execId + ")", 5, task.execId);
 
         try {
-            this->executeScript(scriptToRun, execId, sceneIdForRun, deltaTime);
+            this->executeScript(task.scriptPtr, task.execId, task.sceneIdForRun, deltaTime);
         } catch (const ScriptBlockExecutionError &sbee) {
             Entity *entitiyInfo = pEngineInstance->getEntityById(sbee.entityId);
             Omocha::BlockTypeEnum blockTypeEnum = Omocha::stringToBlockTypeEnum(sbee.blockType);
-            // sbee.blockType을 사용해야 합니다.
-            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum); // 변환된 enum 사용
+            std::string koreanBlockTypeName = Omocha::blockTypeEnumToKoreanString(blockTypeEnum);
 
-            // Helper lambda to truncate strings safely
-            auto truncate_string = [](const std::string &str, size_t max_len) {
-                if (str.length() > max_len) {
-                    return str.substr(0, max_len) + "...(truncated)";
-                }
-                return str;
-            };
-
-            const size_t MAX_ID_LEN = 128; // Max length for IDs/types in error messages
-            const size_t MAX_MSG_LEN = 512; // Max length for original message part
-            const size_t MAX_NAME_LEN = 256; // Max length for entity name
+            const size_t MAX_ID_LEN = 128;
+            const size_t MAX_MSG_LEN = 512;
+            const size_t MAX_NAME_LEN = 256;
 
             std::string entityNameStr = "[정보 없음]";
             if (entitiyInfo) {
@@ -1536,56 +1541,43 @@ void Entity::processInternalContinuations(float deltaTime) {
             std::string detailedErrorMessage = "블럭 을 실행하는데 오류가 발생하였습니다. 블럭ID " + truncate_string(
                                                    sbee.blockId, MAX_ID_LEN) +
                                                " 의 타입 " + truncate_string(koreanBlockTypeName, MAX_ID_LEN) +
-                                               // koreanBlockTypeName 사용
                                                (blockTypeEnum == Omocha::BlockTypeEnum::UNKNOWN && !sbee.blockType.
-                                                empty() // blockTypeEnum 사용
+                                                empty()
                                                     ? " (원본: " + truncate_string(sbee.blockType, MAX_ID_LEN) + ")"
-                                                    // sbee.blockType 사용
                                                     : "") +
                                                " 에서 사용 하는 객체 " + "(" + entityNameStr + ")" +
                                                "\n원본 오류: " + truncate_string(sbee.originalMessage, MAX_MSG_LEN);
 
             pEngineInstance->EngineStdOut(
-                "Script Execution Error (InternalContinuation, Thread " + execId + "): " + detailedErrorMessage, 2,
-                execId);
+                "Script Execution Error (InternalContinuation, Thread " + task.execId + "): " + detailedErrorMessage, 2,
+                task.execId);
             if (pEngineInstance->showMessageBox("블럭 처리 오류\n" + detailedErrorMessage,
                                                 pEngineInstance->msgBoxIconType.ICON_ERROR)) {
                 exit(EXIT_FAILURE);
             }
-            // 프로그램 종료 여부는 상위 정책에 따름 (여기서는 Engine::dispatchScriptForExecution의 예외 처리와 유사하게)
         }
         catch (const std::exception &e) {
-            // Helper lambda to truncate strings safely
-            auto truncate_string = [](const std::string &str, size_t max_len) {
-                if (str.length() > max_len) {
-                    return str.substr(0, max_len) + "...(truncated)";
-                }
-                return str;
-            };
-
-            const size_t MAX_ID_LEN = 128; // Max length for entity/thread IDs in error messages
-            const size_t MAX_MSG_LEN = 512; // Max length for exception message part
+            const size_t MAX_ID_LEN = 128;
+            const size_t MAX_MSG_LEN = 512;
 
             std::string entityIdStr = truncate_string(getId(), MAX_ID_LEN);
-            std::string threadIdStr = truncate_string(execId, MAX_ID_LEN); // execId is the thread ID
+            std::string threadIdStr = truncate_string(task.execId, MAX_ID_LEN);
             std::string exceptionWhatStr = truncate_string(e.what(), MAX_MSG_LEN);
 
-            // Construct the detailed error message using truncated parts
             std::string detailedErrorMessage = "Generic exception caught in internal continuation for entity " +
                                                entityIdStr +
                                                " (Thread: " + threadIdStr + "): " + exceptionWhatStr;
 
-            pEngineInstance->EngineStdOut(detailedErrorMessage, 2, execId);
+            pEngineInstance->EngineStdOut(detailedErrorMessage, 2, task.execId);
         }
         catch (...) {
             pEngineInstance->EngineStdOut(
                 "Unknown exception caught in internal continuation for entity " + getId() +
-                " (Thread: " + execId + ")",
-                2, execId);
+                " (Thread: " + task.execId + ")",
+                2, task.execId);
         }
     }
 }
-
 // 수정된 함수
 void Entity::resumeExplicitWaitScripts(float deltaTime) {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
