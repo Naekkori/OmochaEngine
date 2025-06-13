@@ -10,10 +10,10 @@
 #include <queue>
 #include <functional>
 #include <regex>  // regex 헤더 추가
-#include <random> // For std::mt19937 and std::uniform_real_distribution
+#include <random> // For mt19937 and uniform_real_distribution
 #include <future>
-#include <algorithm> // For std::clamp
-#include <format>    // For std::format
+#include <algorithm> // For clamp
+#include <format>    // For format
 
 // ...existing code...
 
@@ -22,20 +22,20 @@ AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
 // ThreadPool 클래스 정의는 BlockExecutor.h로 이동
 
 // Helper function to check if a string can be parsed as a number
-bool is_number(const std::string &s) {
-    std::string str = s;
+bool is_number(const string &s) {
+    string str = s;
     trim(str);
     if (str.empty())
         return false;
     try {
         size_t pos;
-        std::stod(str, &pos); // Use trimmed string
+        stod(str, &pos); // Use trimmed string
         // Check if the entire string was consumed by stod and it's not just a prefix
         return pos == str.length();
-    } catch (const std::invalid_argument &) {
+    } catch (const invalid_argument &) {
         return false;
     }
-    catch (const std::out_of_range &) {
+    catch (const out_of_range &) {
         return false;
     }
 }
@@ -47,34 +47,34 @@ ThreadPool::ThreadPool(Engine &eng, size_t threads, size_t maxQueueSize)
 
     for (size_t i = 0; i < threads; ++i) {
         workers.emplace_back([this, i] {
-            engine.EngineStdOut(std::format("{} WorkerThread Started.", i), 3); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
+            engine.EngineStdOut(format("{} WorkerThread Started.", i), 3); // 이 로그는 EngineStdOut의 스레드 안전성에 따라 주의
 
             while (true) {
-                std::function<void()> task_fn; // 변수 이름 변경 (task -> task_fn)
+                function<void()> task_fn; // 변수 이름 변경 (task -> task_fn)
                 {
-                    std::unique_lock<std::mutex> lock(this->queue_mutex);
+                    unique_lock<mutex> lock(this->queue_mutex);
                     this->condition.wait(lock, [this] {
                         return this->stop || !this->tasks.empty();
                     });
 
                     if (this->stop && this->tasks.empty()) {
-                        engine.EngineStdOut(std::format("{} Ended.", i), 3);
+                        engine.EngineStdOut(format("{} Ended.", i), 3);
                         return;
                     }
 
-                    task_fn = std::move(this->tasks.top().second);
+                    task_fn = move(this->tasks.top().second);
                     this->tasks.pop();
                     this->queue_space_available.notify_one();
                 }
 
                 try {
                     task_fn();
-                } catch (const std::exception &e) {
-                    engine.EngineStdOut(std::format("{} WorkerThread Exception: {}", i, e.what()), 3);
+                } catch (const exception &e) {
+                    engine.EngineStdOut(format("{} WorkerThread Exception: {}", i, e.what()), 3);
                 }
             }
         });
-        engine.EngineStdOut(std::format("{}WorkerThread Created.", i), 3);
+        engine.EngineStdOut(format("{}WorkerThread Created.", i), 3);
     }
     engine.EngineStdOut("ThreadPool initalized.", 0);
 }
@@ -101,15 +101,15 @@ double OperandValue::asNumber() const {
         return number_val;
     }
     if (type == Type::STRING) {
-        std::string temp_str = string_val;
+        string temp_str = string_val;
         trim(temp_str); // 앞뒤 공백 제거 (이미 수정된 것으로 확인됨)
         if (temp_str.empty()) {
             return 0.0;
         }
 
         // 1. double로 파싱 시도 (로케일 독립적인 방식)
-        std::istringstream iss_double(temp_str);
-        iss_double.imbue(std::locale::classic()); // "C" 로케일 사용
+        istringstream iss_double(temp_str);
+        iss_double.imbue(locale::classic()); // "C" 로케일 사용
         double double_val;
         iss_double >> double_val;
 
@@ -127,8 +127,8 @@ double OperandValue::asNumber() const {
         iss_double.seekg(0); // 스트림 위치 처음으로
 
         // 2. double 파싱이 완벽하지 않았거나 실패 시, long long (정수)으로 파싱 시도
-        std::istringstream iss_long_long(temp_str);
-        iss_long_long.imbue(std::locale::classic()); // "C" 로케일 사용
+        istringstream iss_long_long(temp_str);
+        iss_long_long.imbue(locale::classic()); // "C" 로케일 사용
         long long ll_val;
         iss_long_long >> ll_val;
 
@@ -216,7 +216,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
     // 3. 객체 타입 확인 (블록 형태)
     else if (paramField.is_object()) {
         if (!paramField.contains("type") || !paramField["type"].is_string()) {
-            engine.EngineStdOut(std::format("Parameter field is object but missing 'type' for object {}", objectId), 2,
+            engine.EngineStdOut(format("Parameter field is object but missing 'type' for object {}", objectId), 2,
                                 executionThreadId); // executionThreadId 추가
             return OperandValue(nan("")); // 숫자 반환이 기대될 수 있으므로 NaN 또는 오류 처리
         }
@@ -227,7 +227,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 !paramField["params"].empty()) {
                 const auto &param_zero = paramField["params"][0];
                 if (param_zero.is_string()) {
-                    std::string num_str_param = param_zero.get<std::string>();
+                    string num_str_param = param_zero.get<string>();
                     // OperandValue temp_op_val(num_str_param); // 임시 객체 생성 줄임
                     // double numeric_value = temp_op_val.asNumber();
                     return OperandValue(OperandValue(num_str_param).asNumber()); // 직접 변환 후 반환
@@ -289,21 +289,21 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                     subBlock.FilterNullsInParamsJsonArray();
                 } else {
                     // params가 있지만 배열이 아닌 경우 오류 처리
-                    std::string error_message = "Error: 'params' member in paramField for block type " + fieldType +
+                    string error_message = "Error: 'params' member in paramField for block type " + fieldType +
                                                 " (object " + objectId +
                                                 ") is not an array. Actual type: " + paramsMember.type_name() +
                                                 ". Value: " + paramsMember.dump();
                     engine.EngineStdOut(error_message, 2, executionThreadId);
                     // 여기서 예외를 던지거나, 오류를 나타내는 OperandValue를 반환해야 합니다.
                     // 현재 코드에서는 runtime_error를 던지도록 되어 있습니다.
-                    throw std::runtime_error(error_message);
+                    throw runtime_error(error_message);
                 }
             }
             return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
         } else if (fieldType == "text_color") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
-                return OperandValue(paramField["params"][0].get<std::string>());
+                return OperandValue(paramField["params"][0].get<string>());
             }
             engine.EngineStdOut(
                 "Invalid 'text_color' block structure in parameter field for " + objectId +
@@ -340,20 +340,20 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                     // 숫자 타입인 경우
                     double angle_picker = param_zero.get<double>();
                     engine.EngineStdOut(
-                        std::format("getOperandValue (angle): Parsed angle_picker (number) = {} for object {}",
+                        format("getOperandValue (angle): Parsed angle_picker (number) = {} for object {}",
                                     angle_picker, objectId), 3, executionThreadId);
                     return OperandValue(angle_picker);
                 } else if (param_zero.is_string()) {
                     // 문자열 타입인 경우 숫자로 변환 시도
-                    std::string angle_str = param_zero.get<std::string>();
+                    string angle_str = param_zero.get<string>();
                     try {
                         // stod를 사용하여 문자열을 double로 변환
                         // is_number 헬퍼 함수를 사용하여 더 엄격하게 검사할 수도 있습니다.
                         if (is_number(angle_str)) {
                             // is_number 헬퍼 함수 사용
-                            double angle_picker = std::stod(angle_str);
+                            double angle_picker = stod(angle_str);
                             engine.EngineStdOut(
-                                std::format(
+                                format(
                                     "getOperandValue (angle): Parsed angle_picker (string \"{}\" to double) = {} for object {}",
                                     angle_str, angle_picker, objectId), 3, executionThreadId);
                             return OperandValue(angle_picker);
@@ -366,7 +366,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                                 2, executionThreadId);
                             return OperandValue(nan(""));
                         }
-                    } catch (const std::invalid_argument &ia) {
+                    } catch (const invalid_argument &ia) {
                         engine.EngineStdOut(
                             "Error: 'angle' block (object " + objectId +
                             ") invalid argument for stod (string to double conversion): \"" + angle_str + "\". Params: "
@@ -374,7 +374,7 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                             " --- Returning NaN. Error: " + ia.what(),
                             2, executionThreadId);
                         return OperandValue(nan(""));
-                    } catch (const std::out_of_range &oor) {
+                    } catch (const out_of_range &oor) {
                         engine.EngineStdOut(
                             "Error: 'angle' block (object " + objectId +
                             ") out of range for stod (string to double conversion): \"" + angle_str + "\". Params: " +
@@ -422,7 +422,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 {
     auto entity = engine.getEntityByIdShared(objectId);
     if (!entity) {
-        // Moving 함수 내 어떤 블록도 이 objectId에 대해 실행될 수 없으므로 여기서 공통 오류 처리 후 반환합니다.                engine.EngineStdOut(std::format("Moving block execution failed: Entity {} not found.", objectId), 2);
+        // Moving 함수 내 어떤 블록도 이 objectId에 대해 실행될 수 없으므로 여기서 공통 오류 처리 후 반환합니다.                engine.EngineStdOut(format("Moving block execution failed: Entity {} not found.", objectId), 2);
         return;
     }
 
@@ -431,7 +431,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) {
             // 파라미터 1개 확인
             engine.EngineStdOut(
-                std::format(
+                format(
                     "move_direction block for object {} has invalid params structure. Expected 1 param (distance).",
                     objectId), 2,
                 executionThreadId);
@@ -440,11 +440,11 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         OperandValue distanceOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
         double dist = distanceOp.asNumber();
-        if (!std::isfinite(dist)) {
+        if (!isfinite(dist)) {
             // NaN 또는 Infinity 검사
             engine.EngineStdOut(
                 "Moving block (move_direction) for object " + objectId +
-                ": Distance parameter resolved to non-finite value (" + std::to_string(dist) +
+                ": Distance parameter resolved to non-finite value (" + to_string(dist) +
                 "). Using 0.0 as fallback.",
                 1, executionThreadId);
             dist = 0.0;
@@ -457,8 +457,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         // 엔트리 각도(0도 위) 기준 올바른 X, Y 이동량 계산
         // X 변화량 = 거리 * sin(엔트리 각도_라디안)
         // Y 변화량 = 거리 * cos(엔트리 각도_라디안) (Y축이 위로 갈수록 증가하는 좌표계)
-        double deltaX = dist * std::sin(dir_entry_radians);
-        double deltaY = dist * std::cos(dir_entry_radians); // 게임 월드 Y 좌표는 위쪽이 양수
+        double deltaX = dist * sin(dir_entry_radians);
+        double deltaY = dist * cos(dir_entry_radians); // 게임 월드 Y 좌표는 위쪽이 양수
 
         double newX = entity->getX() + deltaX;
         double newY = entity->getY() + deltaY;
@@ -476,8 +476,8 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     }else if (BlockType == "bounce_wall") {
         double entityX = entity->getX();
         double entityY = entity->getY();
-        double entityWidth = entity->getWidth() * std::abs(entity->getScaleX());
-        double entityHeight = entity->getHeight() * std::abs(entity->getScaleY());
+        double entityWidth = entity->getWidth() * abs(entity->getScaleX());
+        double entityHeight = entity->getHeight() * abs(entity->getScaleY());
 
         double originalDirection = entity->getDirection(); // 0도 위, 90도 오른쪽
         double newDirection = originalDirection;
@@ -578,7 +578,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             }
             entity->setDirection(newDirection);
             entity->setLastCollisionSide(currentWallHitThisFrame);
-            engine.EngineStdOut(std::format("Entity {} bounced. Original Dir: {}, New Dir: {}. LastCollision: {}",
+            engine.EngineStdOut(format("Entity {} bounced. Original Dir: {}, New Dir: {}. LastCollision: {}",
                                             objectId, originalDirection, newDirection, static_cast<int>(currentWallHitThisFrame)),
                                 3, executionThreadId);
         } else {
@@ -591,7 +591,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 
                 if (!stillOverlappingLastWall) {
                     entity->setLastCollisionSide(Entity::CollisionSide::NONE);
-                    engine.EngineStdOut(std::format("Entity {} separated from wall. LastCollision reset to NONE.", objectId), 3, executionThreadId);
+                    engine.EngineStdOut(format("Entity {} separated from wall. LastCollision reset to NONE.", objectId), 3, executionThreadId);
                 }
             }
         }
@@ -599,7 +599,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
-                std::format(
+                format(
                     "move_x block for object {} has invalid params structure. Expected 1 param after filtering.",
                     objectId), 2,
                 executionThreadId);
@@ -615,7 +615,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) // 파라미터 개수 확인 수정 (2개 -> 1개)
         {
             engine.EngineStdOut(
-                std::format(
+                format(
                     "move_y block for object {} has invalid params structure. Expected 1 param after filtering.",
                     objectId), 2,
                 executionThreadId);
@@ -638,7 +638,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             // 블록 처음 실행 시 초기화
             if (!block.paramsJson.is_array() || block.paramsJson.size() < 3) {
                 engine.EngineStdOut(
-                    std::format("move_xy_time block for {} is missing parameters. Expected TIME, X, Y.", objectId), 2,
+                    format("move_xy_time block for {} is missing parameters. Expected TIME, X, Y.", objectId), 2,
                     executionThreadId);
                 state.isActive = false; // Ensure it's not accidentally active
                 return;
@@ -737,7 +737,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         // 이것은 마우스커서 나 오브젝트를 따라갑니다.
         OperandValue target = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (target.type != OperandValue::Type::STRING) {
-            engine.EngineStdOut(std::format("locate block for object {} is not a string.", objectId), 2,
+            engine.EngineStdOut(format("locate block for object {} is not a string.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -782,7 +782,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
 
             if (timeOp.type != OperandValue::Type::NUMBER || targetOp.type != OperandValue::Type::STRING) {
                 engine.EngineStdOut(
-                    std::format(
+                    format(
                         "locate_object_time block for {} has invalid parameters. Time should be number, target should be string.",
                         objectId),
                     2, executionThreadId);
@@ -809,7 +809,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                     if (entity->brush.isPenDown)
                         entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
                 } else {
-                    engine.EngineStdOut(std::format("locate_object_time: target object {} not found for {}.",
+                    engine.EngineStdOut(format("locate_object_time: target object {} not found for {}.",
                                                     state.targetObjectId, objectId),
                                         2, executionThreadId);
                 }
@@ -823,7 +823,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             Entity *targetEntity = engine.getEntityById(state.targetObjectId);
             if (!targetEntity) {
                 engine.EngineStdOut(
-                    std::format("locate_object_time: target object {} disappeared mid-move for {}.",
+                    format("locate_object_time: target object {} disappeared mid-move for {}.",
                                 state.targetObjectId, objectId),
                     2, executionThreadId);
                 state.isActive = false;
@@ -881,7 +881,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         OperandValue timeValue = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         OperandValue angleValue = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
         if (timeValue.type != OperandValue::Type::NUMBER || angleValue.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(std::format("rotate_by_time block for object {} has non-number parameters.", objectId),
+            engine.EngineStdOut(format("rotate_by_time block for object {} has non-number parameters.", objectId),
                                 2,
                                 executionThreadId);
             return;
@@ -915,7 +915,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     } else if (BlockType == "rotate_absolute") {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (angle.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(std::format("rotate_absolute block for object {} is not a number.", objectId), 2,
+            engine.EngineStdOut(format("rotate_absolute block for object {} is not a number.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -924,7 +924,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     } else if (BlockType == "direction_absolute") {
         OperandValue angle = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (angle.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(std::format("direction_absolute block for object {}is not a number.", objectId), 2,
+            engine.EngineStdOut(format("direction_absolute block for object {}is not a number.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -933,7 +933,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
     } else if (BlockType == "see_angle_object") {
         OperandValue hasmouse = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         if (hasmouse.type != OperandValue::Type::STRING) {
-            engine.EngineStdOut(std::format("see_angle_object block for object {}is not a string.", objectId), 2,
+            engine.EngineStdOut(format("see_angle_object block for object {}is not a string.", objectId), 2,
                                 executionThreadId);
             return;
         }
@@ -949,7 +949,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                 entity->setRotation(engine.getAngle(entity->getX(), entity->getY(), targetEntity->getX(),
                                                     targetEntity->getY()));
             } else {
-                engine.EngineStdOut(std::format("see_angle_object block for object {}: target entity '{}' not found.",
+                engine.EngineStdOut(format("see_angle_object block for object {}: target entity '{}' not found.",
                                                 objectId, hasmouse.string_val),
                                     2, executionThreadId);
             }
@@ -979,7 +979,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
     if (BlockType == "calc_basic") {
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 3) {
             engine.EngineStdOut(
-                std::format("calc_basic block for object {} has invalid params structure. Expected 3 params.",
+                format("calc_basic block for object {} has invalid params structure. Expected 3 params.",
                             objectId), 2,
                 executionThreadId);
             return OperandValue();
@@ -1018,13 +1018,13 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             return OperandValue(numLeft * numRight);
         if (anOperator == "DIVIDE") {
             if (numRight == 0.0) {
-                string errMsg = std::format("Division by zero in calc_basic for {}", objectId);
+                string errMsg = format("Division by zero in calc_basic for {}", objectId);
                 engine.EngineStdOut(errMsg, 2, executionThreadId);
                 throw ScriptBlockExecutionError("0으로 나눌 수 없습니다.", block.id, BlockType, objectId, "Division by zero.");
             }
             return OperandValue(numLeft / numRight);
         }
-        engine.EngineStdOut(std::format("Unknown operator in calc_basic: {} for {}", anOperator, objectId), 2,
+        engine.EngineStdOut(format("Unknown operator in calc_basic: {} for {}", anOperator, objectId), 2,
                             executionThreadId);
         return OperandValue();
     } else if (BlockType == "calc_rand") {
@@ -1042,14 +1042,14 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             return OperandValue();
         }
         // thread_local을 사용하여 각 스레드가 자신만의 난수 생성기를 갖도록 합니다.
-        // std::random_device{}()를 사용하여 각 스레드마다 다른 시드로 초기화합니다.
-        thread_local std::mt19937 generator(std::random_device{}());
+        // random_device{}()를 사용하여 각 스레드마다 다른 시드로 초기화합니다.
+        thread_local mt19937 generator(random_device{}());
 
         double min_val = minVal.asNumber();
         double max_val = maxVal.asNumber();
 
         if (min_val < max_val) {
-            std::uniform_real_distribution<double> distribution(min_val, max_val);
+            uniform_real_distribution<double> distribution(min_val, max_val);
             return OperandValue(distribution(generator));
         } else if (min_val == max_val) {
             return OperandValue(min_val); // 최소값과 최대값이 같으면 해당 값 반환
@@ -1059,8 +1059,8 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             // 또는 오류를 발생시키거나, 범위를 교정할 수 있습니다.
             // 여기서는 EntryJS 동작을 따라 min_val을 반환합니다.
             engine.EngineStdOut(
-                "calc_rand block for object " + objectId + ": min_val (" + std::to_string(min_val) +
-                ") is greater than max_val (" + std::to_string(max_val) + "). Returning min_val.", 1,
+                "calc_rand block for object " + objectId + ": min_val (" + to_string(min_val) +
+                ") is greater than max_val (" + to_string(max_val) + "). Returning min_val.", 1,
                 executionThreadId);
             return OperandValue(min_val);
         }
@@ -1506,11 +1506,11 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         } else if (action == "DAY") {
             return OperandValue(static_cast<double>(timeinfo_ptr->tm_mday)); // 일은 숫자 그대로 반환
         } else if (action == "HOUR") {
-            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_hour)); // 시를 두 자리 문자열로 포맷팅
+            return OperandValue(format("{:02d}", timeinfo_ptr->tm_hour)); // 시를 두 자리 문자열로 포맷팅
         } else if (action == "MINUTE") {
-            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_min)); // 분을 두 자리 문자열로 포맷팅
+            return OperandValue(format("{:02d}", timeinfo_ptr->tm_min)); // 분을 두 자리 문자열로 포맷팅
         } else if (action == "SECOND") {
-            return OperandValue(std::format("{:02d}", timeinfo_ptr->tm_sec)); // 초를 두 자리 문자열로 포맷팅
+            return OperandValue(format("{:02d}", timeinfo_ptr->tm_sec)); // 초를 두 자리 문자열로 포맷팅
         } else {
             engine.EngineStdOut("get_date block for " + objectId + " has unknown action: " + action, 1,
                                 executionThreadId);
@@ -1784,15 +1784,15 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         double g_double = greenOp.asNumber();
         double b_double = blueOp.asNumber();
 
-        int red = static_cast<int>(std::clamp(round(r_double), 0.0, 255.0));
-        int green = static_cast<int>(std::clamp(round(g_double), 0.0, 255.0));
-        int blue = static_cast<int>(std::clamp(round(b_double), 0.0, 255.0));
+        int red = static_cast<int>(clamp(round(r_double), 0.0, 255.0));
+        int green = static_cast<int>(clamp(round(g_double), 0.0, 255.0));
+        int blue = static_cast<int>(clamp(round(b_double), 0.0, 255.0));
 
-        std::stringstream hexStream; // #include <sstream>, <iomanip> 필요
-        hexStream << "#" << std::setfill('0')
-                << std::setw(2) << std::hex << red
-                << std::setw(2) << std::hex << green
-                << std::setw(2) << std::hex << blue;
+        stringstream hexStream; // #include <sstream>, <iomanip> 필요
+        hexStream << "#" << setfill('0')
+                << setw(2) << hex << red
+                << setw(2) << hex << green
+                << setw(2) << hex << blue;
         return OperandValue(hexStream.str());
     } else if (BlockType == "change_hex_to_rgb") {
         if (!block.paramsJson.is_array() || block.paramsJson.size() != 1) {
@@ -2456,16 +2456,16 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             return OperandValue(is_number(valueStr));
         } else if (typeStr == "en") {
             try {
-                std::regex en_pat("^[a-zA-Z]+$");
-                return OperandValue(std::regex_match(valueStr, en_pat));
+                regex en_pat("^[a-zA-Z]+$");
+                return OperandValue(regex_match(valueStr, en_pat));
             } catch (const exception &e) {
                 engine.EngineStdOut("Regex error for 'en' type check: " + string(e.what()), 1);
                 return OperandValue(false);
             }
         } else if (typeStr == "ko") {
             try {
-                std::regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
-                return OperandValue(std::regex_match(valueStr, ko_pat));
+                regex ko_pat("^[ㄱ-ㅎㅏ-ㅣ가-힣]+$");
+                return OperandValue(regex_match(valueStr, ko_pat));
             } catch (const exception &e) {
                 engine.EngineStdOut("Regex error for 'ko' type check: " + string(e.what()), 1);
                 return OperandValue(false);
@@ -2501,7 +2501,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                              (rightOp.type == OperandValue::Type::STRING && is_number(rightOp.string_val));
 
         engine.EngineStdOut(
-            std::format("boolean_basic_operator ({}): leftIsNumber={}, rightIsNumber={}",
+            format("boolean_basic_operator ({}): leftIsNumber={}, rightIsNumber={}",
                         objectId, leftIsNumber, rightIsNumber),
             3, executionThreadId);
 
@@ -2509,7 +2509,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         if (leftIsNumber && rightIsNumber) {
             double leftNum = leftOp.asNumber();
             double rightNum = rightOp.asNumber();
-            engine.EngineStdOut(std::format("boolean_basic_operator ({}): Numeric compare: {} {} {}", objectId, leftNum,
+            engine.EngineStdOut(format("boolean_basic_operator ({}): Numeric compare: {} {} {}", objectId, leftNum,
                                             opStr, rightNum), 3, executionThreadId);
             if (opStr == "EQUAL")
                 return OperandValue(leftNum == rightNum);
@@ -2528,7 +2528,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
         else {
             string leftStr = leftOp.asString();
             string rightStr = rightOp.asString();
-            engine.EngineStdOut(std::format("boolean_basic_operator ({}): String compare: \"{}\" {} \"{}\"", objectId,
+            engine.EngineStdOut(format("boolean_basic_operator ({}): String compare: \"{}\" {} \"{}\"", objectId,
                                             leftStr, opStr, rightStr), 3, executionThreadId);
             if (opStr == "EQUAL")
                 return OperandValue(leftStr == rightStr);
@@ -4026,7 +4026,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         // 로그용 시간 포맷팅 (예시)
         auto to_time_t_func = [](Uint64 ticks_sdl) {
-            // 람다 함수 이름 변경 (to_time_t는 std::to_time_t와 충돌 가능성)
+            // 람다 함수 이름 변경 (to_time_t는 to_time_t와 충돌 가능성)
             // SDL_GetTicks()는 SDL 초기화 이후 경과된 밀리초를 반환합니다.
             // 이를 실제 시간으로 변환하려면, 현재 시스템 시간과 SDL_GetTicks()의 차이를 알아야 하지만,
             // 여기서는 단순히 "미래의 특정 시점"을 나타내는 time_t를 생성합니다.
@@ -4034,29 +4034,29 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // 또는, 프로그램 시작 시점의 system_clock::now()와 SDL_GetTicks()를 기록해두고 오프셋을 사용할 수 있습니다.
             // 여기서는 간단히 현재 시간 + 남은 시간으로 계산합니다.
             Uint64 currentSdlTicks = SDL_GetTicks();
-            std::chrono::milliseconds offset_ms(0);
+            chrono::milliseconds offset_ms(0);
             if (ticks_sdl >= currentSdlTicks) {
-                offset_ms = std::chrono::milliseconds(ticks_sdl - currentSdlTicks);
+                offset_ms = chrono::milliseconds(ticks_sdl - currentSdlTicks);
             } else {
                 // 과거의 ticks_sdl 값이라면, 현재 시간으로 처리하거나 음수 오프셋 (과거 시점)
-                offset_ms = std::chrono::milliseconds(
+                offset_ms = chrono::milliseconds(
                     static_cast<Sint64>(ticks_sdl) - static_cast<Sint64>(currentSdlTicks));
             }
-            return std::chrono::system_clock::to_time_t(
-                std::chrono::system_clock::now() + offset_ms
+            return chrono::system_clock::to_time_t(
+                chrono::system_clock::now() + offset_ms
             );
         };
-        std::time_t endTime_c = to_time_t_func(waitEndTime);
-        std::tm endTime_tm_s = {};
+        time_t endTime_c = to_time_t_func(waitEndTime);
+        tm endTime_tm_s = {};
 #ifdef _WIN32
         localtime_s(&endTime_tm_s, &endTime_c);
 #else
             localtime_r(&endTime_c, &endTime_tm_s); // POSIX
 #endif
-        // std::put_time을 사용하여 문자열 스트림에 시간 포맷팅
-        std::ostringstream oss;
-        oss << std::put_time(&endTime_tm_s, "%Y-%m-%d %H:%M:%S");
-        std::string endTimeStr = oss.str(); // 스트림에서 문자열 가져오기
+        // put_time을 사용하여 문자열 스트림에 시간 포맷팅
+        ostringstream oss;
+        oss << put_time(&endTime_tm_s, "%Y-%m-%d %H:%M:%S");
+        string endTimeStr = oss.str(); // 스트림에서 문자열 가져오기
 
 
         // Set the wait state *before* performing the active wait
@@ -4064,8 +4064,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
         engine.EngineStdOut(
             "Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") setting wait for " +
-            std::to_string(secondsToWait) + "s (until " + endTimeStr + ", current ticks: " +
-            std::to_string(currentTicks) + ", end ticks: " + std::to_string(waitEndTime) + "). Block ID: " + block.id +
+            to_string(secondsToWait) + "s (until " + endTimeStr + ", current ticks: " +
+            to_string(currentTicks) + ", end ticks: " + to_string(waitEndTime) + "). Block ID: " + block.id +
             ". Script will pause.", 3, executionThreadId);
         // The Entity::executeScript method will see the EXPLICIT_WAIT_SECOND
         // and pause the script. Entity::resumeExplicitWaitScripts will resume it.
@@ -4200,7 +4200,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
 
             // 내부 블록 실행
-            engine.EngineStdOut("repeat_basic: Executing iteration " + std::to_string(i) + " for block " + block.id, 3,
+            engine.EngineStdOut("repeat_basic: Executing iteration " + to_string(i) + " for block " + block.id, 3,
                                 executionThreadId);
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch,
                                        deltaTime);
@@ -4209,12 +4209,12 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // 내부 블록 실행 후 대기 상태 확인
             bool innerBlockIsWaiting = false;
             Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-            std::string innerWaitingBlockId;
+            string innerWaitingBlockId;
             bool breakLoopFlag = false;
             bool continueLoopFlag = false;
             if (entity) {
                 // entity 유효성 검사
-                std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex()); // 상태 접근 보호
+                lock_guard<recursive_mutex> lock(entity->getStateMutex()); // 상태 접근 보호
                 auto it_check = entity->scriptThreadStates.find(executionThreadId);
                 if (it_check != entity->scriptThreadStates.end()) {
                     if (it_check->second.isWaiting) {
@@ -4234,7 +4234,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             } else {
                 engine.EngineStdOut(
                     "Flow 'repeat_basic' for " + objectId + ": Entity became null during loop. Iteration " +
-                    std::to_string(i), 2, executionThreadId);
+                    to_string(i), 2, executionThreadId);
                 if (pThreadState) pThreadState->loopCounters.erase(block.id);
                 return; // Flow 함수 종료
             }
@@ -4252,7 +4252,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 // 다음 반복을 위해 프레임 동기화 대기를 설정하고 현재 반복을 종료합니다.
                 if (i < iterCount - 1) {
                     // 마지막 반복이 아니라면
-                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(1000.0 / engine.getTargetFps(),
+                    Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                                        static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
                     entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                           Entity::WaitType::BLOCK_INTERNAL);
@@ -4268,7 +4268,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 // Entity::executeScript가 이 repeat_basic 블록을 다음 프레임에 재개하도록 BLOCK_INTERNAL 대기를 설정합니다.
                 // loopCounters[block.id]는 현재 반복 i를 가리키고 있으므로, 재개 시 이 반복부터 다시 시작합니다.
                 engine.EngineStdOut(
-                    "Flow 'repeat_basic' for " + objectId + " pausing at iteration " + std::to_string(i) +
+                    "Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(i) +
                     " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(
                         innerWaitType) +
                     ". Block ID: " + block.id + ". Flow will return, Entity::executeScript should handle wait.",
@@ -4284,12 +4284,12 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             if (i < iterCount - 1) {
                 // 마지막 반복이 *아니라면*
                 // 다음 반복을 위해 프레임 동기화 대기를 설정합니다.
-                Uint32 frameDelay = static_cast<Uint32>(std::clamp(1000.0 / engine.getTargetFps(),
+                Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                                    static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
                 entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                       Entity::WaitType::BLOCK_INTERNAL);
-                engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + std::to_string(i) +
-                                    " completed, adding frame sync wait (" + std::to_string(frameDelay) +
+                engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + " iteration " + to_string(i) +
+                                    " completed, adding frame sync wait (" + to_string(frameDelay) +
                                     "ms) for next iteration. Block ID: " + block.id,
                                     3, executionThreadId);
                 return; // Flow 함수 반환, Entity::executeScript가 대기 처리
@@ -4300,7 +4300,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         if (pThreadState) {
             if (entity) {
                 // entity가 여전히 유효한 경우에만 뮤텍스 사용
-                std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex());
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
                 pThreadState->loopCounters.erase(block.id); // 루프 카운터 명시적 제거
             } else {
                 // entity가 null이지만 pThreadState가 남아있는 경우 (주의: 동시성 문제 가능성)
@@ -4323,7 +4323,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 "Flow 'repeat_inf' for " + objectId + ": Missing DO statement script. Block ID: " + block.id, 1,
                 executionThreadId);
             // 프레임 동기화 대기 후 반환 (내용 없는 루프도 대기는 필요)
-            Uint32 frameDelay = static_cast<Uint32>(std::clamp(1000.0 / engine.getTargetFps(),
+            Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                                static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
             entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                       Entity::WaitType::BLOCK_INTERNAL);
@@ -4335,7 +4335,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             engine.EngineStdOut(
                 "Flow 'repeat_inf' for " + objectId + ": DO statement script is empty. Block ID: " + block.id, 1,
                 executionThreadId);
-            Uint32 frameDelay = static_cast<Uint32>(std::clamp(1000.0 / engine.getTargetFps(),
+            Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                                static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
             entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                       Entity::WaitType::BLOCK_INTERNAL);
@@ -4351,7 +4351,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         bool is_resuming_from_inner_block_wait = false; // 내부 대기에서 재개되었는지 여부 플래그
 
         {
-            std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
             auto it_state_check = entity_ptr->scriptThreadStates.find(executionThreadId);
             if (it_state_check != entity_ptr->scriptThreadStates.end()) {
                 Entity::ScriptThreadState &threadState = it_state_check->second;
@@ -4379,7 +4379,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                                 is_resuming_from_inner_block_wait = true; // 플래그 설정
                                 engine.EngineStdOut(
                                     "Flow 'repeat_inf' (" + block.id + "): Resuming inner blocks from relative index " +
-                                    std::to_string(inner_block_start_index) +
+                                    to_string(inner_block_start_index) +
                                     " (original wait on: " + threadState.originalInnerBlockIdForWait + ")", 3,
                                     executionThreadId);
                             } else {
@@ -4402,14 +4402,14 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // --- 루프 시작 시 상태 확인 ---
             bool shouldTerminateLoopEarly = false;
             Entity::ScriptThreadState *pThreadStateForChecks = nullptr; {
-                std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+                lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
                 auto it_state = entity_ptr->scriptThreadStates.find(executionThreadId);
                 if (it_state != entity_ptr->scriptThreadStates.end()) {
                     pThreadStateForChecks = &it_state->second;
                 }
             }
 
-            if (engine.m_isShuttingDown.load(std::memory_order_relaxed) ||
+            if (engine.m_isShuttingDown.load(memory_order_relaxed) ||
                 (pThreadStateForChecks && pThreadStateForChecks->terminateRequested)) {
                 engine.EngineStdOut(
                     "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
@@ -4418,7 +4418,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
 
             if (!shouldTerminateLoopEarly) {
-                std::string currentEngineSceneId = engine.getCurrentSceneId();
+                string currentEngineSceneId = engine.getCurrentSceneId();
                 const ObjectInfo *objInfo = engine.getObjectInfoById(objectId); // No lock needed if Engine handles it
                 bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
                 if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
@@ -4430,7 +4430,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
 
             if (shouldTerminateLoopEarly) {
-                std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+                lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
                 auto it_state_final = entity_ptr->scriptThreadStates.find(executionThreadId);
                 if (it_state_final != entity_ptr->scriptThreadStates.end()) {
                     it_state_final->second.loopCounters.erase(block.id);
@@ -4447,9 +4447,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             bool continueLoopFlag = false;
             bool innerBlockIsWaiting = false;
             Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-            std::string innerWaitingBlockId; {
+            string innerWaitingBlockId; {
                 // Mutex scope for checking script state
-                std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+                lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
                 auto it_state_after_exec = entity_ptr->scriptThreadStates.find(executionThreadId);
                 if (it_state_after_exec != entity_ptr->scriptThreadStates.end()) {
                     Entity::ScriptThreadState &currentState = it_state_after_exec->second;
@@ -4487,7 +4487,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             if (breakLoopFlag) {
                 engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " breaking loop.", 0,
                                     executionThreadId);
-                std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex()); // 루프 카운터 정리 시 잠금
+                lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex()); // 루프 카운터 정리 시 잠금
                 auto it_state_final_break = entity_ptr->scriptThreadStates.find(executionThreadId);
                 if (it_state_final_break != entity_ptr->scriptThreadStates.end()) {
                     it_state_final_break->second.loopCounters.erase(block.id);
@@ -4516,9 +4516,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             // 내부 블록이 대기하지 않았거나, BLOCK_INTERNAL 대기였거나 (이 경우는 거의 없음),
             // 또는 continueLoopFlag가 설정된 경우:
             // 프레임 동기화를 위해 이 repeat_inf 블록 자체가 대기합니다.
-            std::string loopIterCountStr = "?"; {
+            string loopIterCountStr = "?"; {
                 // Mutex scope for loopCounters
-                std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+                lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
                 auto it_state_count = entity_ptr->scriptThreadStates.find(executionThreadId);
                 if (it_state_count != entity_ptr->scriptThreadStates.end()) {
                     Entity::ScriptThreadState &threadStateForCount = it_state_count->second;
@@ -4526,21 +4526,21 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                         threadStateForCount.loopCounters[block.id] = 0;
                     }
                     threadStateForCount.loopCounters[block.id]++;
-                    loopIterCountStr = std::to_string(threadStateForCount.loopCounters[block.id]);
+                    loopIterCountStr = to_string(threadStateForCount.loopCounters[block.id]);
                 } else {
                     engine.EngineStdOut(
-                        std::format("Flow 'repeat_inf' ({}): Thread state missing for loop counter update.", block.id),
+                        format("Flow 'repeat_inf' ({}): Thread state missing for loop counter update.", block.id),
                         1, executionThreadId);
                 }
             } // Mutex scope ends
 
-            Uint32 frameDelay = static_cast<Uint32>(std::clamp(1000.0 / engine.getTargetFps(),
+            Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                                static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
             entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                       Entity::WaitType::BLOCK_INTERNAL);
             engine.EngineStdOut(
                 "Flow 'repeat_inf' (" + block.id + ") for " + objectId + " iteration " + loopIterCountStr +
-                " completed, setting frame sync wait (" + std::to_string(frameDelay) + "ms).",
+                " completed, setting frame sync wait (" + to_string(frameDelay) + "ms).",
                 3, executionThreadId);
             return; // Flow 함수 반환, Entity::executeScript가 대기 처리
         } // end while(true)
@@ -4548,7 +4548,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 루프가 정상적으로 (break에 의해) 종료된 경우
         {
             // Mutex scope for final loop counter erase
-            std::lock_guard<std::recursive_mutex> lock(entity_ptr->getStateMutex());
+            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
             auto it_state_final_loop = entity_ptr->scriptThreadStates.find(executionThreadId);
             if (it_state_final_loop != entity_ptr->scriptThreadStates.end()) {
                 it_state_final_loop->second.loopCounters.erase(block.id);
@@ -4658,7 +4658,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 } else {
                     // 조건이 계속 참이고 내부 블록이 즉시 실행되면 프레임 동기화를 위해 강제 대기
                     double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-                    Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime,
+                    Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime,
                                                                        static_cast<double>(MIN_LOOP_WAIT_MS),
                                                                        33.0)); // 최소 1ms, 최대 33ms
                     entity->setScriptWait(executionThreadId, frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
@@ -4722,7 +4722,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 이 블록은 대기를 설정하지 않습니다. 플래그는 루프 구문에서 확인합니다.
     } else if (BlockType == "_if") {
         engine.EngineStdOut(
-            std::format("Flow (_if): Evaluating _if block (ID: {}) for object '{}'. Condition param JSON: {}",
+            format("Flow (_if): Evaluating _if block (ID: {}) for object '{}'. Condition param JSON: {}",
                         block.id, objectId,
                         block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"),
             3, executionThreadId);
@@ -4738,7 +4738,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         bool conditionIsTrue = conditionResult.asBool();
 
-        engine.EngineStdOut(std::format(
+        engine.EngineStdOut(format(
                                 "Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
                                 objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
                                 static_cast<int>(conditionResult.type), conditionResult.string_val,
@@ -4770,7 +4770,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                     // 내부 블록 실행 후 대기 상태 확인
                     if (entity && entity->isScriptWaiting(executionThreadId)) {
                         Entity::WaitType innerWaitType = entity->getCurrentWaitType(executionThreadId);
-                        std::string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
+                        string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
                         engine.EngineStdOut(
                             "Flow '_if' for " + objectId +
                             " pausing because an inner block (" + innerWaitingBlockId +
@@ -4790,7 +4790,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // engine.EngineStdOut("Flow '_if' (" + block.id + ") for " + objectId + " completed.", 3, executionThreadId);
     } else if (BlockType == "if_else") {
         engine.EngineStdOut(
-            std::format("Flow (if_else): Evaluating if_else block (ID: {}) for object '{}'. Condition param JSON: {}",
+            format("Flow (if_else): Evaluating if_else block (ID: {}) for object '{}'. Condition param JSON: {}",
                         block.id, objectId,
                         block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"),
             3, executionThreadId);
@@ -4806,7 +4806,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         bool conditionIsTrue = conditionResult.asBool();
 
-        engine.EngineStdOut(std::format(
+        engine.EngineStdOut(format(
                                 "Flow 'if_else' for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
                                 objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
                                 static_cast<int>(conditionResult.type), conditionResult.string_val,
@@ -4814,7 +4814,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                             3, executionThreadId);
 
         const Script *scriptToExecute = nullptr;
-        std::string stackToExecuteName;
+        string stackToExecuteName;
 
         if (conditionIsTrue) {
             if (block.statementScripts.size() > 0) {
@@ -4852,7 +4852,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 // 내부 블록 실행 후 대기 상태 확인
                 if (entity && entity->isScriptWaiting(executionThreadId)) {
                     Entity::WaitType innerWaitType = entity->getCurrentWaitType(executionThreadId);
-                    std::string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
+                    string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
                     engine.EngineStdOut(
                         "Flow 'if_else' for " + objectId +
                         " pausing because an inner block (" + innerWaitingBlockId +
@@ -4885,8 +4885,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             engine.EngineStdOut(
                 "Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id, 3,
                 executionThreadId);
-            double idealFrameTime = 1000.0 / std::max(1, engine.specialConfig.TARGET_FPS);
-            Uint32 frameDelay = static_cast<Uint32>(std::clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),
+            double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
+            Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),
                                                                33.0));
             entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                   Entity::WaitType::BLOCK_INTERNAL);
@@ -5122,7 +5122,7 @@ void TextBox(string BlockType, Engine &engine, const string &objectId, const Blo
                 unsigned int b = stoul(hexColor.substr(5, 2), nullptr, 16);
                 engine.updateEntityTextColor(entity->getId(), {(Uint8) r, (Uint8) g, (Uint8) b, 255});
                 engine.EngineStdOut("TextBox " + objectId + " fontcolor changed to " + hexColor, 3, executionThreadId);
-            } catch (const std::exception &e) {
+            } catch (const exception &e) {
                 engine.EngineStdOut("Error parsing HEX color '" + hexColor + "' for text_set_font_color: " + e.what(),
                                     2, executionThreadId);
             }
@@ -5167,7 +5167,7 @@ void TextBox(string BlockType, Engine &engine, const string &objectId, const Blo
                 // 현재 엔티티의 배경색 변경
                 engine.EngineStdOut("TextBox " + objectId + " background color changed to " + hexColor, 3,
                                     executionThreadId);
-            } catch (const std::exception &e) {
+            } catch (const exception &e) {
                 engine.EngineStdOut("Error parsing HEX color '" + hexColor + "' for text_change_bg_color: " + e.what(),
                                     2, executionThreadId);
             }
@@ -5193,7 +5193,7 @@ void TextBox(string BlockType, Engine &engine, const string &objectId, const Blo
                 ", Mode: " + modeOp.asString(), 2, executionThreadId);
             return;
         }
-        std::string effect = effectOp.asString(); // "strike", "underLine", "fontItalic", "fontBold"
+        string effect = effectOp.asString(); // "strike", "underLine", "fontItalic", "fontBold"
         bool setOn = (modeOp.asString() == "on");
 
         engine.updateEntityTextEffect(objectId, effect, setOn);
