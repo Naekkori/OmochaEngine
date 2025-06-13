@@ -4522,26 +4522,47 @@ void Engine::updateFps() {
     }
 }
 
+// Engine.cpp
+
 void Engine::startProjectTimer() {
+    // 타이머가 이미 실행 중이면 아무것도 하지 않습니다.
+    // 중지된 상태였다면, m_projectTimerValue는 중지 시점의 값을 가지고 있으므로,
+    // m_projectTimerRunning 플래그만 true로 설정하면 updateProjectTimer가 이어서 누적합니다.
     if (!m_projectTimerRunning) {
         m_projectTimerRunning = true;
-        // 타이머 재개 시, 이전에 누적된 시간을 제외한 시점부터 시작하도록 Ticks 설정
-        m_projectTimerStartTime = SDL_GetTicks() - static_cast<Uint64>(m_projectTimerValue * 1000.0);
+        EngineStdOut("Project timer STARTED/RESUMED.", 0);
     }
 }
 
 void Engine::stopProjectTimer() {
+    // 타이머가 실행 중이었다면 중지합니다.
+    // m_projectTimerValue는 updateProjectTimer에 의해 이미 최신 값으로 업데이트되어 있습니다.
     if (m_projectTimerRunning) {
         m_projectTimerRunning = false;
-        m_projectTimerValue = (SDL_GetTicks() - m_projectTimerStartTime) / 1000.0;
+        EngineStdOut(std::format("Project timer STOPPED at {} sec.", m_projectTimerValue), 0);
     }
 }
 
 void Engine::resetProjectTimer() {
-    m_projectTimerValue = 0.0; // 프로젝트 타이머 리셋
-    m_projectTimerStartTime = 0;
+    m_projectTimerValue = 0.0;
+    m_projectTimerRunning = false; // 리셋 시 타이머도 중지 상태로 변경
+    EngineStdOut("Project timer RESET.", 0);
 }
 
+double Engine::getProjectTimerValue() const {
+    // m_projectTimerValue는 실행 중일 때는 deltaTime에 의해 계속 업데이트되고,
+    // 중지 시에는 마지막 누적 값을 유지합니다.
+    // 로그는 필요시에만 출력하도록 조정하는 것이 좋습니다 (매 프레임 호출될 수 있음).
+    // EngineStdOut(std::format("timer {} sec", m_projectTimerValue), 3);
+    return m_projectTimerValue;
+}
+// Engine.cpp
+// 이 함수는 Engine.h에도 선언되어야 합니다.
+void Engine::updateProjectTimer(float deltaTime) {
+    if (m_projectTimerRunning) {
+        m_projectTimerValue += static_cast<double>(deltaTime);
+    }
+}
 void Engine::showProjectTimer(bool show) {
     for (auto &var: m_HUDVariables) // HUD 변수 중 타이머 타입의 가시성 설정
     {

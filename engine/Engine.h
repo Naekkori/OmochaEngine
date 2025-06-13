@@ -291,6 +291,7 @@ public:
     Engine& operator=(Engine&&) = default;
     ~Engine() override;
     bool IsSysMenu = false;
+    void updateProjectTimer(float deltaTime);
     bool IsScriptStart = false; // 스크립트 시작 여부
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
