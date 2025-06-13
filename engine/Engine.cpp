@@ -4531,7 +4531,7 @@ void Engine::startProjectTimer() {
 }
 
 void Engine::stopProjectTimer() {
-    if (!m_projectTimerRunning) {
+    if (m_projectTimerRunning) {
         m_projectTimerRunning = false;
         m_projectTimerValue = (SDL_GetTicks() - m_projectTimerStartTime) / 1000.0;
     }
@@ -4567,11 +4567,13 @@ void Engine::showAnswerValue(bool show) {
 }
 
 double Engine::getProjectTimerValue() const {
-    if (m_projectTimerRunning) // 타이머가 실행 중이면 현재 경과 시간 반환
+    if (m_projectTimerRunning == true) // 타이머가 실행 중이면 현재 경과 시간 반환
     {
         Uint64 now = SDL_GetTicks();
-        Uint64 delta = now - lastfpstime;
-        return static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
+        double elapsedTime = static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
+        // 로그 출력을 return 문 앞으로 이동
+        EngineStdOut(std::format("timer {} sec", elapsedTime), 3); // elapsedTime 변수 사용
+        return elapsedTime;
     }
     return m_projectTimerValue;
 }
