@@ -81,6 +81,7 @@ public:
         bool terminateRequested  = false;
         std::map<std::string, int> loopCounters; // Key: loop block_id, Value: current_iteration_index
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
+        std::string originalInnerBlockIdForWait = "";
         bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
         bool continueLoopRequested = false; // Flag to signal a 'continue_repeat'
         std::promise<void> completionPromise;
@@ -232,6 +233,13 @@ private:
     mutable std::recursive_mutex m_stateMutex; // std::mutex에서 std::recursive_mutex로 변경
     bool m_isClone = false;
     std::string m_originalClonedFromId = "";
+    // ScriptTask 구조체 정의 (std::tuple 대신 사용)
+    struct ScriptTask {
+        std::string execId;
+        const Script* script;
+        std::string sceneId;
+        int resumeIndex;
+    };
 public:                      // Made brush and paint public for now for easier access from blocks
     Engine *pEngineInstance; // Store a pointer to the engine instance
     // Explicitly delete copy constructor and copy assignment operator
@@ -247,6 +255,7 @@ public:                      // Made brush and paint public for now for easier a
     TimedMoveToObjectState timedMoveObjState;
     TimedRotationState timedRotationState;
     PenState paint;
+    void clearAllScriptStates();
     // m_stateMutex에 대한 public 접근자 추가 (주의해서 사용) - 반환 타입도 변경
     std::recursive_mutex& getStateMutex() const { return m_stateMutex; }
     bool getIsClone() const { return m_isClone; }
@@ -255,8 +264,7 @@ public:                      // Made brush and paint public for now for easier a
         m_originalClonedFromId = originalId;
     };
 
-public:
-    Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
+Entity(Engine *engine, const std::string &entityId, const std::string &entityName,
            double initial_x, double initial_y, double initial_regX, double initial_regY,
            double initial_scaleX, double initial_scaleY, double initial_rotation, double initial_direction,
            int initial_width, int initial_height, bool initial_visible, RotationMethod rotationMethod);

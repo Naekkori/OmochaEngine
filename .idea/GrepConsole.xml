@@ -107,6 +107,12 @@
                                 <GrepModel>
                                   <option name="expression" value="Entity::executeScript: " />
                                 </GrepModel>
+                                <GrepModel>
+                                  <option name="expression" value="enqt" />
+                                </GrepModel>
+                                <GrepModel>
+                                  <option name="expression" value="pmo7" />
+                                </GrepModel>
                               </list>
                             </option>
                           </GrepCompositeModel>
@@ -154,6 +160,66 @@
                                 </GrepModel>
                                 <GrepModel>
                                   <option name="expression" value="   Inner Block" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="7ec991b9-37c7-414c-a605-d4cc7ce85bc3" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="executeBlocksSynchronously" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="70dae8ac-a8df-4e9e-bf78-e9f9eddb4fc7" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="Flow 'wait_until_true'" />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="6b7e6476-c23e-4965-a0c2-2432b251654f" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="Flow 'wait_second': " />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="133d4609-525b-4a45-8dd6-ab13fe7f77a8" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value=" finished EXPLICIT_WAIT_SECOND for block " />
                                 </GrepModel>
                               </list>
                             </option>

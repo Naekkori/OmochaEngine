@@ -5025,6 +5025,7 @@ void Engine::goToScene(const string &sceneId) {
                     // 글로벌이 아니고 현재 씬에 속한 엔티티의 스크립트 종료
                     if (!isGlobal && objInfo->sceneId == oldSceneId) {
                         entityPtr->terminateAllScriptThread("");
+                        entityPtr->clearAllScriptStates();
                         EngineStdOut("Terminated all scripts for entity " + entityId + " during scene change", 0);
                     }
                 }

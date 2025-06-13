@@ -117,7 +117,7 @@ public:
 
 void executeBlocksSynchronously(Engine &engine, const std::string &objectId, const std::vector<Block> &blocks,
                             const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime,
-                            int start_index=0);
+                            size_t start_index=0);
 // 블록 처리 함수 선언
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const nlohmann::json &paramField, const std::string &executionThreadId);
 void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId, float deltaTime);
