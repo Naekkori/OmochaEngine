@@ -1437,6 +1437,29 @@ void Entity::processInternalContinuations(float deltaTime) {
                 const std::string &scriptSceneContext = state.sceneIdAtDispatchForResume;
 
                 bool canResume = false;
+
+                if (state.waitEndTime > 0 && SDL_GetTicks() < state.waitEndTime) {
+                    if (pEngineInstance) { // pEngineInstance 유효성 검사
+                        pEngineInstance->EngineStdOut(
+                            "Entity " + getId() + " script thread " + execId +
+                            " BLOCK_INTERNAL is still waiting for inherited waitEndTime: " + std::to_string(state.waitEndTime) +
+                            " (current: " + std::to_string(SDL_GetTicks()) + ", original inner wait on: " + state.originalInnerBlockIdForWait + ")",
+                            3, execId);
+                    }
+                    ++it_state;
+                    continue; // 아직 대기 시간이므로 재개하지 않음
+                }
+                // 대기 시간이 지났거나, 원래 시간 제한이 없는 BLOCK_INTERNAL 대기였다면, waitEndTime을 초기화합니다.
+                if (state.waitEndTime > 0) {
+                    if (pEngineInstance) {
+                        pEngineInstance->EngineStdOut(
+                            "Entity " + getId() + " script thread " + execId +
+                            " BLOCK_INTERNAL finished inherited wait. Original inner wait on: " + state.originalInnerBlockIdForWait,
+                            3, execId);
+                    }
+                    state.waitEndTime = 0; // 이 특정 시간 제한 대기는 완료되었으므로 초기화
+                }
+
                 if (!state.scriptPtrForResume) {
                     // 스크립트 포인터가 유효하지 않으면 재개 불가
                     canResume = false;
