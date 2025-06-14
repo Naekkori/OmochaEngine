@@ -4587,18 +4587,6 @@ void Engine::showAnswerValue(bool show) {
     }
 }
 
-double Engine::getProjectTimerValue() const {
-    if (m_projectTimerRunning == true) // 타이머가 실행 중이면 현재 경과 시간 반환
-    {
-        Uint64 now = SDL_GetTicks();
-        double elapsedTime = static_cast<double>(now - m_projectTimerStartTime) / 1000.0;
-        // 로그 출력을 return 문 앞으로 이동
-        EngineStdOut(std::format("timer {} sec", elapsedTime), 3); // elapsedTime 변수 사용
-        return elapsedTime;
-    }
-    return m_projectTimerValue;
-}
-
 Entity *Engine::getEntityById(const string &id) {
     auto it = entities.find(id); // ID로 엔티티 검색
     if (it != entities.end()) {

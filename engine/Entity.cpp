@@ -171,26 +171,75 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             blockIdToResumeOnLog = threadState.blockIdForWait;
             waitTypeToResumeOnLog = threadState.currentWaitType;
 
-            if (threadState.loopCounters.find(blockIdToResumeOnLog) == threadState.loopCounters.end()) {
+            // blockIdToResumeOnLog를 사용하여 해당 블록의 타입을 가져와야 합니다.
+            // scriptPtrForResume (또는 현재 scriptPtr)에서 blockIdToResumeOnLog에 해당하는 블록을 찾아 타입을 확인합니다.
+            const Block* resumedBlock = nullptr;
+            if (threadState.scriptPtrForResume && startIndex < threadState.scriptPtrForResume->blocks.size()) {
+                 // startIndex가 유효한 인덱스인지 확인
+                // BLOCK_INTERNAL 대기의 경우, startIndex는 대기를 설정한 블록 자체를 가리켜야 합니다.
+                // resumeAtBlockIndex가 대기를 설정한 블록의 인덱스를 가리키고 있다고 가정합니다.
+                if (threadState.scriptPtrForResume->blocks[startIndex].id == blockIdToResumeOnLog) {
+                    resumedBlock = &threadState.scriptPtrForResume->blocks[startIndex];
+                }
+            }
+            // 만약 resumedBlock을 찾지 못했다면, scriptPtr에서 찾아봅니다. (안전장치)
+            if (!resumedBlock && scriptPtr) {
+                for(const auto& blk : scriptPtr->blocks) {
+                    if (blk.id == blockIdToResumeOnLog) {
+                        // 이 경우 startIndex를 해당 블록의 인덱스로 재설정해야 할 수 있습니다.
+                        // 하지만 threadState.resumeAtBlockIndex가 정확하다면 이 경로는 타지 않아야 합니다.
+                        // 여기서는 threadState.resumeAtBlockIndex가 정확하다고 가정하고 진행합니다.
+                        // resumedBlock = &blk; // 필요시 주석 해제 및 startIndex 조정
+                        break;
+                    }
+                }
+            }
+
+
+            bool isLoopTypeBlock = false;
+            if (resumedBlock) {
+                const std::string& type = resumedBlock->type;
+                if (type == "repeat_basic" || type == "repeat_inf" || type == "repeat_while_true" || type == "wait_until_true") {
+                    isLoopTypeBlock = true;
+                }
+            }
+
+            if (isLoopTypeBlock) {
+                // 루프 블록의 BLOCK_INTERNAL 대기에서 재개하는 경우, startIndex를 증가시키지 않습니다.
+                // 해당 루프 블록을 다시 실행하여 루프 조건을 재평가하거나 다음 반복을 수행합니다.
+                threadState.isWaiting = false; // 대기 상태 해제
+                threadState.currentWaitType = WaitType::NONE;
+                threadState.resumeAtBlockIndex = startIndex;
+
                 if (pEngineInstance) {
                     pEngineInstance->EngineStdOut(
                         "Entity::executeScript: BLOCK_INTERNAL resume for " + id +
-                        " (Thread: " + executionThreadId + ") on already completed loop block " + blockIdToResumeOnLog +
-                        ". Advancing from index " + std::to_string(startIndex) + " to " + std::to_string(startIndex + 1)
+                        " (Thread: " + executionThreadId + ") on LOOP block " + blockIdToResumeOnLog +
+                        ". Re-evaluating at index " + std::to_string(startIndex) + ".",
+                        3, executionThreadId); // 로그 레벨 DEBUG로 변경
+                }
+            }
+            else if (threadState.loopCounters.find(blockIdToResumeOnLog) == threadState.loopCounters.end() && !isLoopTypeBlock) {
+                 // 루프 블록이 아니면서, loopCounters에도 없는 경우 (일반 블록의 완료된 대기 또는 비정상 상태)
+                if (pEngineInstance) {
+                    pEngineInstance->EngineStdOut(
+                        "Entity::executeScript: BLOCK_INTERNAL resume for " + id +
+                        " (Thread: " + executionThreadId + ") on NON-LOOP block " + blockIdToResumeOnLog +
+                        " (or completed loop, check logic). Advancing from index " + std::to_string(startIndex) + " to " + std::to_string(startIndex + 1)
                         + ".",
                         1, executionThreadId);
                 }
-                startIndex++;
+                startIndex++; // 다음 블록으로 진행
                 threadState.isWaiting = false;
                 threadState.currentWaitType = WaitType::NONE;
                 threadState.blockIdForWait = "";
                 threadState.resumeAtBlockIndex = startIndex;
-            } else {
+            } else if (!isLoopTypeBlock) {
                 threadState.isWaiting = false;
                 threadState.currentWaitType = WaitType::NONE;
                 if (pEngineInstance) {
-                    pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
-                                                  " (Thread: " + executionThreadId + ") for block " +
+                     pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
+                                                  " (Thread: " + executionThreadId + ") for NON-LOOP block " +
                                                   blockIdToResumeOnLog +
                                                   ". Will re-evaluate at index " + std::to_string(startIndex) + ".",
                                                   3, executionThreadId);
