@@ -325,7 +325,6 @@ int main(int argc, char *argv[])
             {
                 deltaTime = MAX_DELTA_TIME;
             }
-            engine.updateProjectTimer(deltaTime);
             loopStartTime = SDL_GetTicks();
             // 엔진의 현재 마우스 스테이지 좌표 업데이트
             float windowMouseX_main, windowMouseY_main;
