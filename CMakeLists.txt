@@ -61,6 +61,44 @@ if (WIN32)
 else ()
     add_executable(OmochaEngine ${OMOCHA_ENGINE_SOURCES})
 endif ()
+
+if(WIN32)
+    set(OUTPUT_DIR $<TARGET_FILE_DIR:OmochaEngine>)
+else()
+    set(OUTPUT_DIR $<TARGET_FILE_DIR:OmochaEngine>)
+endif()
+
+# font 폴더 복사
+set(FONT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/font)
+set(FONT_DEST_DIR ${OUTPUT_DIR}/font)
+
+if(EXISTS "${FONT_SOURCE_DIR}")
+    add_custom_command(
+            TARGET OmochaEngine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${FONT_SOURCE_DIR}" "${FONT_DEST_DIR}"
+            COMMENT "Copying font directory to build output"
+    )
+    message(STATUS "Will copy 'font' directory to ${FONT_DEST_DIR} after build.")
+else()
+    message(WARNING "Source 'font' directory not found at ${FONT_SOURCE_DIR}. Will not be copied.")
+endif()
+
+# sysmenu 폴더 복사
+set(SYSMENU_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/sysmenu)
+set(SYSMENU_DEST_DIR ${OUTPUT_DIR}/sysmenu)
+
+if(EXISTS "${SYSMENU_SOURCE_DIR}")
+    add_custom_command(
+            TARGET OmochaEngine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${SYSMENU_SOURCE_DIR}" "${SYSMENU_DEST_DIR}"
+            COMMENT "Copying sysmenu directory to build output"
+    )
+    message(STATUS "Will copy 'sysmenu' directory to ${SYSMENU_DEST_DIR} after build.")
+else()
+    message(WARNING "Source 'sysmenu' directory not found at ${SYSMENU_SOURCE_DIR}. Will not be copied.")
+endif()
+
+# ... (기존 install 및 CPack 설정) ...
 set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 23)
 find_package(nlohmann_json CONFIG REQUIRED)
 target_link_libraries(OmochaEngine PRIVATE nlohmann_json::nlohmann_json)
