@@ -284,7 +284,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             " script for " + id + " (Thread: " + executionThreadId + ") at block index " + std::to_string(startIndex) +
             " (Original Resume Block ID: " + blockIdToResumeOnLog + ", Type: " + BlockTypeEnumToString(
                 waitTypeToResumeOnLog) + ")",
-            5, executionThreadId);
+            3, executionThreadId);
     }
 
     for (size_t i = startIndex; i < scriptPtr->blocks.size(); ++i) {

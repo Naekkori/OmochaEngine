@@ -4489,7 +4489,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 }
             }
 
-            while (true) {
+            //while (true) {
                 // --- 루프 시작 시 상태 확인 ---
                 bool shouldTerminateLoopEarly = false;
                 Entity::ScriptThreadState *pThreadStateForChecks = nullptr; {
@@ -4577,18 +4577,19 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 } // Mutex scope ends
 
                 if (breakLoopFlag) {
-                    engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " breaking loop.", 0,
+                    engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " breaking loop.", 3,
                                         executionThreadId);
                     lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex()); // 루프 카운터 정리 시 잠금
                     auto it_state_final_break = entity_ptr->scriptThreadStates.find(executionThreadId);
                     if (it_state_final_break != entity_ptr->scriptThreadStates.end()) {
                         it_state_final_break->second.loopCounters.erase(block.id);
                     }
-                    break; // while 루프 탈출
+                    //break; // while 루프 탈출
+                    return;
                 }
 
                 if (continueLoopFlag) {
-                    engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " continuing loop.", 0,
+                    engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " continuing loop.", 3,
                                         executionThreadId);
                     // 프레임 동기화 대기를 위해 아래로 진행 (continue 전에 대기 설정)
                     // 이 continue는 while 루프의 다음 반복으로 가며, 아래의 isScriptWaiting 또는 프레임 동기화 대기 로직이 실행됩니다.
@@ -4635,7 +4636,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     " completed, setting frame sync wait (" + to_string(frameDelay) + "ms).",
                     3, executionThreadId);
                 return; // Flow 함수 반환, Entity::executeScript가 대기 처리
-            } // end while(true)
+           // } // end while(true)
 
             // 루프가 정상적으로 (break에 의해) 종료된 경우
             {
