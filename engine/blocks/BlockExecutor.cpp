@@ -3266,13 +3266,13 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
 
             if (target == "all") {
                 engine.aeHelper.stopAllSounds();
-                // engine.EngineStdOut("All sounds stopped (triggered by object " + objectId + ")", 0);
+                engine.EngineStdOut("All sounds stopped (triggered by object " + objectId + ")", 3);
             } else if (target == "thisOnly") {
                 engine.aeHelper.stopSound(objectId); // 해당 objectId의 모든 소리 중지
-                // engine.EngineStdOut("Sounds for object " + objectId + " stopped.", 0);
+                engine.EngineStdOut("Sounds for object " + objectId + " stopped.", 3);
             } else if (target == "other_objects") {
                 engine.aeHelper.stopAllSoundsExcept(objectId);
-                // engine.EngineStdOut("Sounds for all other objects (except " + objectId + ") stopped.", 0);
+                engine.EngineStdOut("Sounds for all other objects (except " + objectId + ") stopped.", 3);
             } else {
                 engine.EngineStdOut(
                     "sound_silent_all for object " + objectId + ": Unknown TARGET parameter value: " + target, 2,
@@ -3332,6 +3332,10 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     "play_bgm - Sound ID '" + soundIdToPlay + "' not found in sound list for entity: " + objectId, 1,
                     executionThreadId);
             }
+        }else if (BlockType == "stop_bgm") {
+            //배경음악 끄기.
+            //이걸 빼먹었네
+            engine.aeHelper.stopBackgroundMusic();
         }
     }
 
