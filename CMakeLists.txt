@@ -41,6 +41,11 @@ set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
         "*.cpp" "*.h"
         "engine/*.cpp" "engine/*.h"
+        "imgui/*.h" "imgui/*.cpp"
+        "imgui/backends/imgui_impl_sdl3.cpp"
+        "imgui/backends/imgui_impl_sdlrenderer3.cpp"
+        "imgui/backends/imgui_impl_sdl3.h"
+        "imgui/backends/imgui_impl_sdlrenderer3.h"
         "engine/blocks/*.cpp" "engine/blocks/*.h"
         "engine/audio/miniaudio.h"
         "util/*.cpp" "util/*.h"
@@ -119,9 +124,11 @@ configure_file(
         @ONLY
 )
 
-target_include_directories(OmochaEngine PRIVATE "${PROJECT_BINARY_DIR}")
-
-target_include_directories(OmochaEngine PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(OmochaEngine PRIVATE
+        "${PROJECT_BINARY_DIR}"
+        "${CMAKE_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}/imgui"
+)
 if (WIN32)
     # CMAKE_PREFIX_PATH 리스트의 첫 번째 경로를 vcpkg 설치 경로로 가정합니다.
     # 예: F:/vcpkg/installed/x64-windows

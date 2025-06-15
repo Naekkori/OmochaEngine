@@ -13,6 +13,9 @@
 #include <memory>
 #include <chrono> // std::chrono 타입 및 함수 사용을 위해 필요
 #include <format>
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_sdl3.h>
+#include <imgui/backends/imgui_impl_sdlrenderer3.h>
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
@@ -729,34 +732,34 @@ bool Engine::loadProject(const string &projectFilePath) {
             // value 파싱
             if (variableJson.contains("value")) {
                 const auto &valNode = variableJson["value"];
-            if (valNode.is_string()) {
-                std::string raw_value = valNode.get<std::string>();
-                std::string sanitized_value;
-                for (char c : raw_value) {
-                    auto uc = static_cast<unsigned char>(c);
+                if (valNode.is_string()) {
+                    std::string raw_value = valNode.get<std::string>();
+                    std::string sanitized_value;
+                    for (char c: raw_value) {
+                        auto uc = static_cast<unsigned char>(c);
 
-                    // 1. 일반적인 출력 가능 ASCII 문자 (스페이스 포함)
-                    // 2. 탭, 줄바꿈, 캐리지 리턴
-                    // 3. 0x7F (DEL) 보다 큰 바이트 (멀티바이트 UTF-8 문자의 일부일 가능성이 높음)
-                    if ((uc >= 32 && uc <= 126) || // Printable ASCII
-                        uc == '\t' || uc == '\n' || uc == '\r' || // Common whitespace
-                        uc > 0x7F) // Likely part of a multi-byte UTF-8 character (e.g., Korean, emoji)
-                    {
-                        sanitized_value += c;
+                        // 1. 일반적인 출력 가능 ASCII 문자 (스페이스 포함)
+                        // 2. 탭, 줄바꿈, 캐리지 리턴
+                        // 3. 0x7F (DEL) 보다 큰 바이트 (멀티바이트 UTF-8 문자의 일부일 가능성이 높음)
+                        if ((uc >= 32 && uc <= 126) || // Printable ASCII
+                            uc == '\t' || uc == '\n' || uc == '\r' || // Common whitespace
+                            uc > 0x7F) // Likely part of a multi-byte UTF-8 character (e.g., Korean, emoji)
+                        {
+                            sanitized_value += c;
+                        }
+                        // else: 0-31 범위의 제어 문자 (탭, 줄바꿈, 캐리지리턴 제외) 및 127 (DEL)은 제거됩니다.
                     }
-                    // else: 0-31 범위의 제어 문자 (탭, 줄바꿈, 캐리지리턴 제외) 및 127 (DEL)은 제거됩니다.
-                }
-                currentVarDisplay.value = sanitized_value;
+                    currentVarDisplay.value = sanitized_value;
 
-                // 정제 후 문자열이 비어있고, 리스트 타입이 아니라면 "0"으로 설정
-                if (currentVarDisplay.variableType != "list" && currentVarDisplay.value.empty()) {
-                    currentVarDisplay.value = "0";
-                    // 로그 메시지는 필요에 따라 추가/수정
-                    EngineStdOut(
-                        "Variable '" + currentVarDisplay.name +
-                        "' had an empty or fully sanitized string value. Defaulting to \"0\".", 1);
-                }
-            } else if (valNode.is_number_integer()) {
+                    // 정제 후 문자열이 비어있고, 리스트 타입이 아니라면 "0"으로 설정
+                    if (currentVarDisplay.variableType != "list" && currentVarDisplay.value.empty()) {
+                        currentVarDisplay.value = "0";
+                        // 로그 메시지는 필요에 따라 추가/수정
+                        EngineStdOut(
+                            "Variable '" + currentVarDisplay.name +
+                            "' had an empty or fully sanitized string value. Defaulting to \"0\".", 1);
+                    }
+                } else if (valNode.is_number_integer()) {
                     long long int_val = valNode.get<long long>();
                     currentVarDisplay.value = std::to_string(int_val); // CORRECT
                 } else if (valNode.is_number_float()) {
@@ -1147,10 +1150,16 @@ bool Engine::loadProject(const string &projectFilePath) {
                             //                                             "[DEFAULT TEXT]", false, true); // Problematic call
                             std::string rawText = entityJson["text"].get<string>();
                             // 특수 문자열 치환 (정규식 사용)
-                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_ENGINE_NAME>"), string(OMOCHA_ENGINE_NAME));
-                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_DEVELOPER>"), "DEVELOPER: " + string(OMOCHA_DEVELOPER_NAME));
-                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_SDL_VERSION>"), "SDL VERSION: " + to_string(SDL_MAJOR_VERSION) + "." + to_string(SDL_MINOR_VERSION) + "." + to_string(SDL_MICRO_VERSION));
-                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_VERSION>"), "Engine Version: " + string(OMOCHA_ENGINE_VERSION));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_ENGINE_NAME>"),
+                                                         string(OMOCHA_ENGINE_NAME));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_DEVELOPER>"),
+                                                         "DEVELOPER: " + string(OMOCHA_DEVELOPER_NAME));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_SDL_VERSION>"),
+                                                         "SDL VERSION: " + to_string(SDL_MAJOR_VERSION) + "." +
+                                                         to_string(SDL_MINOR_VERSION) + "." + to_string(
+                                                             SDL_MICRO_VERSION));
+                            rawText = std::regex_replace(rawText, std::regex("<OMOCHA_VERSION>"),
+                                                         "Engine Version: " + string(OMOCHA_ENGINE_VERSION));
                             objInfo.textContent = rawText;
                         } else if (entityJson["text"].is_number()) {
                             objInfo.textContent = to_string(entityJson["text"].get<double>());
@@ -2060,6 +2069,7 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
     // --- Initial HUD Variable Position Clamping ---
     // project.json에서 로드된 x, y 좌표가 엔트리 좌표계 기준일 수 있으므로,
     // SDL 창 내에 있도록 초기 위치를 제한(clamp)합니다.
+    initImGui();
     if (renderer && !m_HUDVariables.empty()) {
         // 렌더러와 HUD 변수가 모두 유효할 때만 실행
         EngineStdOut("Performing initial HUD variable position clamping...", 0);
@@ -2123,6 +2133,61 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
     return true;
 }
 
+bool Engine::initImGui() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void) io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // 키보드 컨트롤 활성화
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableSetMousePos; // 마우스 포지션 설정 활성화
+
+    // --- 폰트 로드 ---
+    std::string hudFontPath = "font/nanum_gothic.ttf";
+    float hudFontSize = 20.0f; // 실제 hudFont 크기로 변경
+
+    // 기본 폰트 (영어)
+    // io.Fonts->AddFontDefault();
+
+    // 한국어 및 기타 문자를 지원하려면 글리프 범위를 지정
+    ImFontConfig config;
+    config.MergeMode = false;
+    config.PixelSnapH = true;
+
+    // 자주 사용되는 한국어 글리프 범위 (필요에 따라 확장 가능)
+    static const ImWchar ranges[] = {
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x3131, 0x3163, // Hangul Compatibility Jamo
+        0xAC00, 0xD7A3, // Hangul Syllables
+        0, // NULL 종료
+    };
+
+    // hudFont와 동일한 폰트 파일을 ImGui에 로드
+    // AddFontFromFileTTF는 성공 시 ImFont*를 반환하고, 실패 시 nullptr을 반환합니다.
+    ImFont *loadedFont = io.Fonts->AddFontFromFileTTF(hudFontPath.c_str(), hudFontSize, &config, ranges);
+    if (!loadedFont) {
+        EngineStdOut("Failed to load font for ImGui: " + hudFontPath, 2);
+        // 폰트 로드 실패 시, ImGui는 기본 내장 폰트(proggy clean)를 사용합니다.
+        // 또는 여기서 다른 대체 폰트를 로드하거나 오류 처리를 할 수 있습니다.
+    } else {
+        EngineStdOut("Successfully loaded font for ImGui: " + hudFontPath, 0);
+    }
+
+    ImGui::StyleColorsLight();
+
+    // SDL3 및 SDL_Renderer3 백엔드 초기화
+    if (!ImGui_ImplSDL3_InitForSDLRenderer(window, renderer)) {
+        EngineStdOut("Failed to initialize ImGui SDL3 backend for SDL_Renderer", 2);
+        return false;
+    }
+    if (!ImGui_ImplSDLRenderer3_Init(renderer)) {
+        EngineStdOut("Failed to initialize ImGui SDL_Renderer3 backend", 2);
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
+        return false;
+    }
+    return true;
+}
+
 bool Engine::createTemporaryScreen() {
     if (this->renderer == nullptr) {
         // ... 오류 처리 ...
@@ -2141,7 +2206,8 @@ bool Engine::createTemporaryScreen() {
         return false;
     }
     EngineStdOut(
-        "Temporary screen texture created successfully (" + to_string(INTER_RENDER_WIDTH) + "x" + to_string(INTER_RENDER_HEIGHT) + ").", 0);
+        "Temporary screen texture created successfully (" + to_string(INTER_RENDER_WIDTH) + "x" + to_string(
+            INTER_RENDER_HEIGHT) + ").", 0);
     return true;
 }
 
@@ -3573,6 +3639,337 @@ void Engine::drawHUD() {
     }
 }
 
+void Engine::drawImGui() {
+    ImGui_ImplSDLRenderer3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+    // 특수설정
+    if (this->specialConfig.showFPS) {
+        // 간단한 텍스트 오버레이로 표시 (항상 위에 고정)
+        ImGui::SetNextWindowPos(ImVec2(10, 10)); // 화면 좌상단에 위치
+        ImGui::SetNextWindowBgAlpha(0.35f); // 배경 반투명
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                                        ImGuiWindowFlags_NoNav;
+        if (ImGui::Begin("FPS Overlay", nullptr, window_flags)) {
+            std::string fpsText = "FPS: " + std::to_string(static_cast<int>(currentFps));
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.0f, 1.0f), "%s", fpsText.c_str()); // 주황색
+        }
+        ImGui::End();
+    }
+    if (this->specialConfig.showZoomSlider) {
+        // FPS 표시와 유사하게 오버레이 창 사용 가능 또는 별도 창
+        ImGui::SetNextWindowPos(ImVec2(static_cast<float>(SLIDER_X), static_cast<float>(SLIDER_Y - 20))); // 위치 조정 필요
+        ImGui::SetNextWindowBgAlpha(0.5f);
+        ImGuiWindowFlags zoom_window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                                             ImGuiWindowFlags_NoNav;
+
+        if (ImGui::Begin("Zoom Control", nullptr, zoom_window_flags)) {
+            ImGui::PushItemWidth(static_cast<float>(SLIDER_WIDTH));
+            if (ImGui::SliderFloat("##Zoom", &zoomFactor, MIN_ZOOM, MAX_ZOOM, "Zoom: %.2f")) {
+                // 슬라이더 값 변경 시 m_isDraggingZoomSlider는 ImGui가 내부적으로 처리
+            }
+            ImGui::PopItemWidth();
+        }
+        ImGui::End();
+    }
+    // 텍스트 입력
+    if (m_textInputActive) {
+        std::lock_guard<std::mutex> lock(m_textInputMutex);
+
+        // 화면 하단에 고정된 창으로 표시
+        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(WINDOW_WIDTH) - 40, 120), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(20, static_cast<float>(WINDOW_HEIGHT) - 140), ImGuiCond_Always);
+        ImGuiWindowFlags input_window_flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                                              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
+
+        if (ImGui::Begin("Text Input", &m_textInputActive, input_window_flags)) {
+            if (!m_textInputQuestionMessage.empty()) {
+                ImGui::TextWrapped("%s", m_textInputQuestionMessage.c_str());
+            }
+
+            // InputText는 char 배열을 필요로 하므로, std::string을 변환해야 합니다.
+            // m_currentTextInputBuffer를 char 배열로 복사하거나, ImGuiInputTextCallback을 사용할 수 있습니다.
+            // 여기서는 간단히 char 배열을 사용한다고 가정합니다. (실제로는 더 견고한 처리가 필요)
+            char inputTextBuffer[1024]; // 충분한 크기로
+            strncpy(inputTextBuffer, m_currentTextInputBuffer.c_str(), sizeof(inputTextBuffer) - 1);
+            inputTextBuffer[sizeof(inputTextBuffer) - 1] = 0; // Null-terminate
+
+            ImGui::PushItemWidth(ImGui::GetWindowWidth() - 80); // 입력 필드 너비 조정
+            if (ImGui::InputText(nullptr, inputTextBuffer, sizeof(inputTextBuffer),
+                                 ImGuiInputTextFlags_EnterReturnsTrue)) {
+                // 엔터 키 입력 처리
+                m_lastAnswer = inputTextBuffer;
+                m_currentTextInputBuffer.clear();
+                m_textInputActive = false;
+                // ... (기존 엔터 처리 로직 호출) ...
+                Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId); // m_engineDataMutex는 이미 잠겨있다고 가정
+                if (entity) {
+                    entity->removeDialog();
+                }
+                updateAnswerVariable();
+                m_textInputCv.notify_all();
+                EngineStdOut("Enter pressed (ImGui). Input complete. Answer: " + m_lastAnswer, 0);
+            }
+            ImGui::PopItemWidth();
+            m_currentTextInputBuffer = inputTextBuffer; // 변경된 내용을 다시 std::string으로
+
+            ImGui::SameLine();
+            if (ImGui::Button("확인", ImVec2(60, 0))) {
+                // 확인 버튼 클릭 처리
+                m_lastAnswer = m_currentTextInputBuffer;
+                // ... (기존 확인 버튼 처리 로직 호출) ...
+                updateAnswerVariable();
+                m_currentTextInputBuffer.clear();
+                m_textInputActive = false;
+                Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
+                if (entity) {
+                    entity->removeDialog();
+                }
+                m_textInputCv.notify_all();
+                EngineStdOut("Submit button clicked (ImGui). Input complete. Answer: " + m_lastAnswer, 0);
+            }
+        }
+        ImGui::End();
+    }
+    // 엔트리 변수 창
+    if (!m_HUDVariables.empty()) {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // m_HUDVariables 접근 보호
+
+        int window_w, window_h;
+        SDL_GetRenderOutputSize(renderer, &window_w, &window_h);
+        float screenCenterX = static_cast<float>(window_w) / 2.0f;
+        float screenCenterY = static_cast<float>(window_h) / 2.0f;
+
+        for (int i = 0; i < m_HUDVariables.size(); ++i) {
+            HUDVariableDisplay &var = m_HUDVariables[i]; // 값 변경을 위해 참조
+            if (!var.isVisible) {
+                continue;
+            }
+
+            // ImGui 창의 ID는 고유해야 하므로 변수 ID 등을 사용
+            std::string windowTitle = var.name + "##HUDVar_" + var.id;
+
+            // 엔트리 좌표를 ImGui 창의 초기 위치로 변환 (한 번만 설정되도록 ImGuiCond_Once 사용)
+            float initialPosX = screenCenterX + var.x;
+            float initialPosY = screenCenterY - var.y;
+
+            ImGui::SetNextWindowPos(ImVec2(initialPosX, initialPosY), ImGuiCond_Appearing); // 처음 나타날 때만 위치 설정
+            ImGuiWindowFlags var_window_flags = ImGuiWindowFlags_NoCollapse;
+            // 변수/리스트의 크기 설정
+            if (var.variableType == "list") {
+                var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
+                ImGui::SetNextWindowSize(ImVec2(var.width, var.height), ImGuiCond_Appearing);
+            } else {
+                // 일반 변수는 내용에 따라 자동 크기 조절되도록 하거나, 고정 크기 설정
+                var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
+                var_window_flags |= ImGuiWindowFlags_NoResize;
+                var_window_flags |= ImGuiWindowFlags_NoTitleBar;
+                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50),
+                                         ImGuiCond_Appearing);
+            }
+
+
+            if (m_draggedHUDVariableIndex == i && m_currentHUDDragState == HUDDragState::MOVING) {
+                // 드래그 중에는 창 이동이 ImGui에 의해 처리됨
+            }
+            // 리스트의 경우 크기 조절 가능 플래그 추가 가능 (ImGuiWindowFlags_Resizable)
+            // 하지만 기존의 커스텀 리사이즈 핸들 로직을 ImGui 방식으로 구현하려면 더 복잡해짐
+
+            if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
+                // ImGui 창의 현재 위치를 다시 엔트리 좌표로 변환하여 var.x, var.y 업데이트
+                ImVec2 currentWindowPos = ImGui::GetWindowPos();
+                var.x = currentWindowPos.x - screenCenterX;
+                var.y = screenCenterY - currentWindowPos.y;
+
+
+                if (var.variableType == "timer") {
+                    double timerValue = getProjectTimerValue();
+                    std::string valueToDisplay;
+
+                    if (timerValue == static_cast<long long>(timerValue)) {
+                        // 정수인지 확인
+                        std::ostringstream oss_int;
+                        oss_int << static_cast<long long>(timerValue);
+                        valueToDisplay = oss_int.str();
+                    } else {
+                        std::ostringstream oss_float;
+                        oss_float << std::fixed << std::setprecision(3) << timerValue; // 최대 소수점 3자리
+                        valueToDisplay = oss_float.str();
+                        // 문자열 끝의 불필요한 '0' 제거
+                        size_t dot_pos = valueToDisplay.find('.');
+                        if (dot_pos != std::string::npos) {
+                            valueToDisplay.erase(valueToDisplay.find_last_not_of('0') + 1, std::string::npos);
+                            // 만약 "XX." 형태가 되면 마지막 '.' 제거
+                            if (!valueToDisplay.empty() && valueToDisplay.back() == '.') {
+                                valueToDisplay.pop_back();
+                            }
+                        }
+                    }
+
+                    std::string nameText = var.name;
+                    ImGui::Text("%s", nameText.c_str()); // 이름 표시
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.0f, 0.6f, 0.0f, 1.0f)); // 주황색 배경
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // 흰색 텍스트
+
+                    char timerValueBuffer[256]; // 충분한 크기
+                    strncpy(timerValueBuffer, valueToDisplay.c_str(), sizeof(timerValueBuffer) - 1);
+                    timerValueBuffer[sizeof(timerValueBuffer) - 1] = 0; // Null-terminate
+
+                    // 수정 2: InputText 너비를 내용에 맞게 설정
+                    float valueTextWidth = ImGui::CalcTextSize(timerValueBuffer).x;
+                    float framePaddingX = ImGui::GetStyle().FramePadding.x;
+                    ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f); // 값 텍스트 너비 + 좌우 패딩
+
+                    ImGui::InputText(("##TimerVal_" + var.id).c_str(), timerValueBuffer, sizeof(timerValueBuffer),
+                                     ImGuiInputTextFlags_ReadOnly);
+
+                    ImGui::PopItemWidth();
+                    ImGui::PopStyleColor(2);
+
+                    // 수정 3: 창 전체 너비 계산 (이름 + 값 + 아이템 간 간격)
+                    // ImGui::GetItemRectSize().x는 방금 그린 InputText의 실제 너비(패딩 포함)를 반환합니다.
+                    var.transient_render_width =
+                            ImGui::CalcTextSize(nameText.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                            ImGui::GetItemRectSize().x;
+                } else { // 일반 변수
+                    std::string nameToDisplay = var.objectId.empty()
+                                                    ? var.name
+                                                    : (getObjectInfoById(var.objectId)
+                                                           ? getObjectInfoById(var.objectId)->name + " : " + var.name
+                                                           : var.name);
+                    ImGui::Text("%s:", nameToDisplay.c_str());
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.47f, 1.0f, 1.0f)); // 파란 배경
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));    // 흰색 텍스트
+
+                    char valueBuffer[256]; // 충분한 크기
+                    strncpy(valueBuffer, var.value.c_str(), sizeof(valueBuffer) - 1);
+                    valueBuffer[sizeof(valueBuffer) - 1] = 0;
+
+                    // 값 텍스트의 너비 계산
+                    float valueTextWidth = ImGui::CalcTextSize(valueBuffer).x;
+                    float framePaddingX = ImGui::GetStyle().FramePadding.x;
+                    // InputText 위젯의 너비를 값 텍스트 너비 + 좌우 프레임 패딩으로 설정
+                    ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f);
+
+                    ImGui::InputText(("##Val_" + var.id).c_str(), valueBuffer, sizeof(valueBuffer),
+                                     ImGuiInputTextFlags_ReadOnly);
+
+                    ImGui::PopItemWidth();
+                    ImGui::PopStyleColor(2);
+
+                    // 창 전체 너비 계산 (이름 텍스트 너비 + 아이템 간 간격 + 값 InputText 너비)
+                    // ImGui::GetItemRectSize().x는 방금 그린 InputText의 실제 너비(패딩 포함)를 반환합니다.
+                    var.transient_render_width = ImGui::CalcTextSize((nameToDisplay + ":").c_str()).x + ImGui::GetStyle().ItemSpacing.x + ImGui::GetItemRectSize().x;
+                }
+            }
+            ImGui::End(); // End of HUD variable window
+        }
+    }
+
+    // 스크립트 디버거 UI
+    if (m_showScriptDebugger) {
+        auto truncate_str_len = [](const std::string &str, size_t max_len) {
+            if (str.length() > max_len) {
+                return str.substr(0, max_len) + "...";
+            }
+            return str;
+        };
+        int windowW, windowH;
+        SDL_GetRenderOutputSize(renderer, &windowW, &windowH); // 실제 윈도우 크기 가져오기
+        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(windowW) * 0.9f, static_cast<float>(windowH) * 0.7f),
+                                 ImGuiCond_FirstUseEver); // 처음 사용할 때만 크기 설정, 이후 사용자가 조절 가능
+        // drawScriptDebuggerUI() 함수 내용을 ImGui 창으로 변환
+        if (ImGui::Begin("Script Debugger", &m_showScriptDebugger,
+                         ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_HorizontalScrollbar)) {
+            // 메뉴바 (스크롤 제어)
+            if (ImGui::BeginMenuBar()) {
+                if (ImGui::MenuItem("Scroll to Top")) {
+                    ImGui::SetScrollY(0.0f); // 현재 창(Script Debugger)의 스크롤을 맨 위로
+                    m_debuggerScrollOffsetY = 0.0f; // m_debuggerScrollOffsetY도 동기화
+                }
+                if (ImGui::MenuItem("Scroll to Bottom")) {
+                    ImGui::SetScrollY(ImGui::GetScrollMaxY()); // 현재 창(Script Debugger)의 스크롤을 맨 아래로
+                    m_debuggerScrollOffsetY = ImGui::GetScrollMaxY(); // m_debuggerScrollOffsetY도 동기화
+                }
+                ImGui::EndMenuBar();
+            }
+            // 기존 drawScriptDebuggerUI의 렌더링 로직을 ImGui::Text 등으로 변환
+            for (const auto &entityPair: entities) {
+                if (!entityPair.second) continue;
+                Entity *entity = entityPair.second.get();
+                std::string truncatedEName = truncate_str_len(entity->getName(), 20);
+                std::string entityDisplayName = "Entity: " + entity->getId() + " (" + truncatedEName + ")";
+
+                ImGui::Text(entityDisplayName.c_str());
+                std::lock_guard<std::recursive_mutex> entity_state_lock(entity->getStateMutex());
+                if (entity->scriptThreadStates.empty()) {
+                    ImGui::Text("(No script threads)");
+                }
+
+                for (const auto &threadPair: entity->scriptThreadStates) {
+                    const std::string &threadId = threadPair.first;
+                    const Entity::ScriptThreadState &state = threadPair.second;
+                    /*std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
+                    info += " | Waiting: " + std::string(state.isWaiting ? "Yes" : "No");
+                    info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);*/
+                    string info = format("Thread:{} | Waiting:{} | Type:{} | BlockName->{}",
+                                         truncate_str_len(threadId, 25), string(state.isWaiting ? "Yes" : "No"),
+                                         BlockTypeEnumToString(state.currentWaitType)
+                                         , Omocha::blockTypeEnumToKoreanString(
+                                             Omocha::stringToBlockTypeEnum(entity->blockName)));
+
+                    if (state.isWaiting && !state.blockIdForWait.empty()) {
+                        info += " | Block: " + truncate_str_len(state.blockIdForWait, 15);
+                    }
+                    // ResumingAt 정보 추가 (유효성 검사 강화)
+                    if (state.resumeAtBlockIndex != -1 && state.scriptPtrForResume) {
+                        // scriptPtrForResume 유효성 검사
+                        if (state.resumeAtBlockIndex >= 0 && static_cast<size_t>(state.resumeAtBlockIndex) < state.
+                            scriptPtrForResume->blocks.size()) {
+                            info += " | ResumingAt: " + truncate_str_len(
+                                        state.scriptPtrForResume->blocks[state.resumeAtBlockIndex].id, 15) +
+                                    " (idx " + std::to_string(state.resumeAtBlockIndex) + ")";
+                        } else {
+                            info += " | ResumingAt: Invalid Index (" + std::to_string(state.resumeAtBlockIndex) + ")";
+                        }
+                    } else if (state.resumeAtBlockIndex != -1) {
+                        // scriptPtrForResume이 null인 경우
+                        info += " | ResumingAt: (null script ptr, idx " + std::to_string(state.resumeAtBlockIndex) +
+                                ")";
+                        // EngineStdOut 로그는 const 함수 내에서 직접 호출 불가, 필요시 멤버 함수로 분리 또는 const 제거
+                    }
+
+                    if (!state.terminateRequested) {
+                        ImGui::Text(info.c_str());
+
+                        if (!state.loopCounters.empty()) {
+                            std::string loopInfoStr = "    Loop Counters: ";
+                            int counter = 0;
+                            for (const auto &loopPair: state.loopCounters) {
+                                if (counter++ > 3) {
+                                    // 너무 많은 루프 카운터 표시 방지 (예: 최대 4개)
+                                    loopInfoStr += "...";
+                                    break;
+                                }
+                                loopInfoStr += "[" + truncate_str_len(loopPair.first, 10) + ":" + std::to_string(
+                                    loopPair.second) + "] ";
+                            }
+                            ImGui::Text(loopInfoStr.c_str());
+                        }
+                    }
+                }
+            }
+        }
+        ImGui::End();
+    }
+    ImGui::Render();
+    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+}
+
 bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const {
     int windowRenderW = 0, windowRenderH = 0;
     if (this->renderer) {
@@ -3641,6 +4038,13 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
 }
 
 void Engine::processInput(const SDL_Event &event, float deltaTime) {
+    ImGuiIO &io = ImGui::GetIO();
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        if (io.WantCaptureMouse) {
+            // ImGui가 이 마우스 클릭을 사용하려고 함. 게임 로직에서는 무시.
+            return;
+        }
+    }
     // 디버거 열기
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12) {
         m_showScriptDebugger = !m_showScriptDebugger;
@@ -3652,7 +4056,7 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
         if (m_showScriptDebugger) {
             m_debuggerScrollOffsetY = -1.0f;
         }
-    }else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F5) {
+    } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F5) {
         if (showMessageBox("재시작 하시겠습니까?", msgBoxIconType.ICON_INFORMATION, true) == true) {
             requestProjectRestart();
             performProjectRestart();
@@ -4536,18 +4940,16 @@ void Engine::startProjectTimer() {
 
 void Engine::stopProjectTimer() {
     std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 타이머 변수 접근 보호
-    // 타이머가 실행 중이었다면 중지합니다.
-    // 현재까지의 경과 시간을 m_projectTimerValue에 누적합니다.
     if (m_projectTimerRunning) {
         Uint64 currentTime = SDL_GetTicks();
-        double elapsedSecondsThisSession = static_cast<double>(currentTime - m_projectTimerStartTime) / 1000.0;
-        m_projectTimerValue += elapsedSecondsThisSession;
+        // 경과 시간을 밀리초 단위로 가져와 초 단위로 변환 (소수점 이하 밀리초)
+        double elapsedMillisThisSession = static_cast<double>(currentTime - m_projectTimerStartTime);
+        m_projectTimerValue += (elapsedMillisThisSession / 1000.0); // 초 단위로 누적
         m_projectTimerRunning = false;
 
-        // std::format 대신 사용할 수 있는 대체 포맷팅 (C++20 미만 환경 고려)
         std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2) << m_projectTimerValue;
-        // EngineStdOut(std::format("Project timer STOPPED at {:.2f} sec.", m_projectTimerValue), 0); // C++20 std::format
+        // 초.밀리초 형태로 표시 (예: 1.234초)
+        oss << std::fixed << std::setprecision(3) << m_projectTimerValue;
         EngineStdOut("Project timer STOPPED at " + oss.str() + " sec.", 0);
     }
 }
@@ -4560,17 +4962,20 @@ void Engine::resetProjectTimer() {
     EngineStdOut("Project timer RESET.", 0);
 }
 
+
 double Engine::getProjectTimerValue() const {
     std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 타이머 변수 접근 보호
     if (m_projectTimerRunning) {
         Uint64 currentTime = SDL_GetTicks();
-        // 실행 중이면, 마지막 중지까지 누적된 시간에 현재 세션의 경과 시간을 더하여 반환
-        double elapsedSecondsThisSession = static_cast<double>(currentTime - m_projectTimerStartTime) / 1000.0;
-        return m_projectTimerValue + elapsedSecondsThisSession;
+        // 현재 세션의 경과 시간 (밀리초)
+        double elapsedMillisThisSession = static_cast<double>(currentTime - m_projectTimerStartTime);
+        // 누적된 시간(초.밀리초) + 현재 세션 경과 시간(초.밀리초)
+        return m_projectTimerValue + (elapsedMillisThisSession / 1000.0);
     }
-    // 중지 상태이면 누적된 시간만 반환
+    // 중지 상태이면 누적된 시간(초.밀리초) 반환
     return m_projectTimerValue;
 }
+
 void Engine::showProjectTimer(bool show) {
     for (auto &var: m_HUDVariables) // HUD 변수 중 타이머 타입의 가시성 설정
     {
@@ -5084,10 +5489,10 @@ void Engine::goToScene(const string &sceneId) {
         {
             lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // 초기 위치 정보를 ObjectInfo의 entity 필드에서 수집
             map<std::string, std::pair<double, double> > initialPositions;
-            map<string,pair<double,double>> scale;
-            map<string,bool> visiblity;
-            map<string,double> rot;
-            map<string,double> dir;
+            map<string, pair<double, double> > scale;
+            map<string, bool> visiblity;
+            map<string, double> rot;
+            map<string, double> dir;
             //map<string,pair<double,double>> resolution;
             for (const auto &obj: objects_in_order) {
                 /*
@@ -5110,8 +5515,8 @@ void Engine::goToScene(const string &sceneId) {
                 if (obj.sceneId == sceneId || obj.sceneId == "global" || obj.sceneId.empty()) {
                     // entity 필드에서 x, y 좌표 가져오기
                     double x = 0.0, y = 0.0;
-                    double scale_x,scale_y;
-                    double w,h;
+                    double scale_x, scale_y;
+                    double w, h;
                     if (obj.entity.contains("x") && obj.entity["x"].is_number()) {
                         x = obj.entity["x"].get<double>();
                     }
@@ -5127,7 +5532,7 @@ void Engine::goToScene(const string &sceneId) {
                     if (obj.entity.contains("scaleY") && obj.entity["scaleY"].is_number()) {
                         scale_y = obj.entity["scaleY"].get<double>();
                     }
-                    if (obj.entity.contains("rotation") && obj.entity["rotation"].is_number()){
+                    if (obj.entity.contains("rotation") && obj.entity["rotation"].is_number()) {
                         rot[obj.id] = obj.entity["rotation"].get<double>();
                     }
                     if (obj.entity.contains("direction") && obj.entity["direction"].is_number()) {
@@ -5141,7 +5546,7 @@ void Engine::goToScene(const string &sceneId) {
                     }*/
                     initialPositions[obj.id] = std::make_pair(x, y);
                     //resolution[obj.id] = std::make_pair(w,h);
-                    scale[obj.id] = std::make_pair(scale_x,scale_y);
+                    scale[obj.id] = std::make_pair(scale_x, scale_y);
                 }
             }
 
@@ -6797,8 +7202,10 @@ void Engine::drawScriptDebuggerUI() {
             /*std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
             info += " | Waiting: " + std::string(state.isWaiting ? "Yes" : "No");
             info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);*/
-            string info = format("Thread:{} | Waiting:{} | Type:{} | BlockName->{}",truncate_str_len(threadId, 25),string(state.isWaiting ? "Yes" : "No"),BlockTypeEnumToString(state.currentWaitType)
-                ,Omocha::blockTypeEnumToKoreanString(Omocha::stringToBlockTypeEnum(entity->blockName)));
+            string info = format("Thread:{} | Waiting:{} | Type:{} | BlockName->{}", truncate_str_len(threadId, 25),
+                                 string(state.isWaiting ? "Yes" : "No"), BlockTypeEnumToString(state.currentWaitType)
+                                 , Omocha::blockTypeEnumToKoreanString(
+                                     Omocha::stringToBlockTypeEnum(entity->blockName)));
 
             if (state.isWaiting && !state.blockIdForWait.empty()) {
                 info += " | Block: " + truncate_str_len(state.blockIdForWait, 15);
@@ -6887,7 +7294,8 @@ void Engine::drawScriptDebuggerUI() {
     float visibleHeight = debuggerPanelRect.h;
 
     // 스크롤 오프셋 제한
-    if (m_debuggerScrollOffsetY == -1.0f) { // END 키에 의해 설정된 특수 값 감지
+    if (m_debuggerScrollOffsetY == -1.0f) {
+        // END 키에 의해 설정된 특수 값 감지
         if (totalCalculatedContentHeight > visibleHeight) {
             m_debuggerScrollOffsetY = totalCalculatedContentHeight - visibleHeight; // 맨 아래로 스크롤
         } else {

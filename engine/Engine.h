@@ -294,6 +294,8 @@ public:
     bool IsScriptStart = false; // 스크립트 시작 여부
     bool loadProject(const string &projectFilePath);
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
+    bool initImGui();
+
     void terminateGE();
     TTF_Font *getFont(const std::string &fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
     bool loadImages(); // LCOV_EXCL_LINE
@@ -337,6 +339,8 @@ public:
     void renderLoadingScreen();
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();    void drawHUD(); // HUD 그리기 메서드 추가
+    void drawImGui();
+
     void goToScene(const string &sceneId);
     void goToNextScene();
     void goToPreviousScene(); // LCOV_EXCL_LINE
