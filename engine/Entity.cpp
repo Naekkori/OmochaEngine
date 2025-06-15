@@ -431,16 +431,22 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 }
             }
         }
-    } {
+    }
+
+    {
         std::lock_guard lock(m_stateMutex);
-        auto &threadState = scriptThreadStates[executionThreadId];
-        threadState.isWaiting = false;
-        threadState.resumeAtBlockIndex = -1;
-        threadState.blockIdForWait = "";
-        threadState.loopCounters.clear();
-        threadState.currentWaitType = WaitType::NONE;
-        threadState.scriptPtrForResume = nullptr;
-        threadState.sceneIdAtDispatchForResume = "";
+        auto it = scriptThreadStates.find(executionThreadId);
+        if (it != scriptThreadStates.end()) {
+            // 스레드 상태 초기화
+            it->second.isWaiting = false;
+            it->second.resumeAtBlockIndex = -1;
+            it->second.blockIdForWait = "";
+            it->second.loopCounters.clear();
+            it->second.currentWaitType = WaitType::NONE;
+            it->second.scriptPtrForResume = nullptr;
+            it->second.sceneIdAtDispatchForResume = "";
+            scriptThreadStates.erase(it);
+        }
     }
     pEngineInstance->EngineStdOut("Script for object " + id + " completed all blocks.", 5, executionThreadId);
 }

@@ -1,9 +1,166 @@
 {
   "objects": [
     {
+      "id": "18af",
+      "name": "업로드 버튼",
+      "script": "[[{\"id\":\"xxfb\",\"x\":50,\"y\":30,\"type\":\"when_object_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"33uc\",\"x\":0,\"y\":0,\"type\":\"dialog_time\",\"params\":[{\"id\":\"2q27\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"파일 을 엽니다.\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"jzq0\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"3\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"speak\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"uop7\",\"x\":0,\"y\":0,\"type\":\"message_cast\",\"params\":[\"8q6x\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "sprite",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [
+          {
+            "id": "yarz",
+            "dimension": {
+              "width": 120,
+              "height": 120,
+              "scaleX": 0.42681318832599047,
+              "scaleY": 0.42681318832599047
+            },
+            "filename": "업로드 버튼_1.png",
+            "fileurl": "menu/업로드 버튼_1.png",
+            "name": "업로드 버튼_1",
+            "imageType": "svg"
+          }
+        ],
+        "sounds": []
+      },
+      "selectedPictureId": "yarz",
+      "lock": false,
+      "entity": {
+        "x": -201.29,
+        "y": 97.35,
+        "regX": 60,
+        "regY": 60,
+        "scaleX": 0.42681318832599047,
+        "scaleY": 0.42681318832599047,
+        "rotation": 0,
+        "direction": 90,
+        "width": 120,
+        "height": 120,
+        "font": "undefinedpx ",
+        "visible": true
+      }
+    },
+    {
+      "id": "xunt",
+      "name": "Percentage",
+      "script": "[[{\"id\":\"cg3c\",\"x\":50,\"y\":30,\"type\":\"when_message_cast\",\"params\":[null,\"sadi\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"5eqq\",\"x\":0,\"y\":0,\"type\":\"show\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"zp5h\",\"x\":56,\"y\":122,\"type\":\"when_message_cast\",\"params\":[null,\"rmhp\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"bmhd\",\"x\":0,\"y\":0,\"type\":\"hide\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": "Percentage",
+      "lock": false,
+      "entity": {
+        "x": -4.23,
+        "y": -19.03,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.5,
+        "scaleY": 1.5,
+        "rotation": 0,
+        "direction": 90,
+        "width": 102.72,
+        "height": 24,
+        "font": "20px Nanum Gothic",
+        "visible": false,
+        "colour": "#ffffff",
+        "text": "Percentage",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "transparent",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "b3n8",
+      "name": ".ent 파일 을 풀고 있습니다",
+      "script": "[[{\"id\":\"2fa6\",\"x\":50,\"y\":30,\"type\":\"when_message_cast\",\"params\":[null,\"sadi\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"ue1h\",\"x\":0,\"y\":0,\"type\":\"show\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"w74s\",\"x\":57,\"y\":155,\"type\":\"when_message_cast\",\"params\":[null,\"rmhp\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"7sie\",\"x\":0,\"y\":0,\"type\":\"hide\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "textBox",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [],
+        "sounds": []
+      },
+      "text": ".ent 파일 을 풀고 있습니다",
+      "lock": false,
+      "entity": {
+        "x": -3.17,
+        "y": 76.12,
+        "regX": 0,
+        "regY": 0,
+        "scaleX": 1.5,
+        "scaleY": 1.5,
+        "rotation": 0,
+        "direction": 90,
+        "width": 227.94,
+        "height": 22,
+        "font": "20px Nanum Gothic",
+        "visible": false,
+        "colour": "#ffffff",
+        "text": ".ent 파일 을 풀고 있습니다",
+        "textAlign": 0,
+        "lineBreak": false,
+        "bgColor": "transparent",
+        "underLine": false,
+        "strike": false,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "5a3x",
+      "name": "bg",
+      "script": "[[{\"id\":\"g4rj\",\"x\":50,\"y\":30,\"type\":\"when_message_cast\",\"params\":[null,\"sadi\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"jp1n\",\"x\":0,\"y\":0,\"type\":\"show\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"2vfg\",\"x\":0,\"y\":0,\"type\":\"change_effect_amount\",\"params\":[\"transparency\",{\"id\":\"0fso\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"50\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"yjz6\",\"x\":327,\"y\":21,\"type\":\"when_message_cast\",\"params\":[null,\"rmhp\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"5pd1\",\"x\":0,\"y\":0,\"type\":\"hide\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "objectType": "sprite",
+      "rotateMethod": "free",
+      "scene": "7dwq",
+      "sprite": {
+        "pictures": [
+          {
+            "id": "yd1s",
+            "dimension": {
+              "height": 514,
+              "width": 890,
+              "type": "png",
+              "scaleX": 0.5,
+              "scaleY": 0.5
+            },
+            "filename": "bbg.png",
+            "fileurl": "menu/bbg.png",
+            "name": "bbg",
+            "imageType": "png"
+          }
+        ],
+        "sounds": []
+      },
+      "selectedPictureId": "yd1s",
+      "lock": true,
+      "entity": {
+        "x": 0,
+        "y": 0,
+        "regX": 445,
+        "regY": 257,
+        "scaleX": 0.5,
+        "scaleY": 0.5,
+        "rotation": 0,
+        "direction": 90,
+        "width": 890,
+        "height": 514,
+        "font": "undefinedpx ",
+        "visible": false
+      }
+    },
+    {
       "id": "53ht",
       "name": "여기에 .ent 파일 을 끌어 놓아 주십시오.",
-      "script": "[[{\"id\":\"nqgn\",\"x\":1170.06,\"y\":366,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"ecyy\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"0\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"GREATER\",{\"id\":\"vuhk\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"b5im\",\"x\":-155.5,\"y\":475,\"type\":\"when_scene_start\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"j07d\",\"x\":0,\"y\":0,\"type\":\"choose_project_timer_action\",\"params\":[null,\"START\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"7ly5\",\"x\":0,\"y\":0,\"type\":\"set_visible_project_timer\",\"params\":[null,\"SHOW\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"8juv\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"twbz\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"75ss\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"9c0m\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"md6x\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"opqm\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"33ea\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"96kv\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"68ci\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"04em\",\"x\":0,\"y\":0,\"type\":\"get_project_timer_value\",\"params\":[null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"z047\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"a9v5\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"sin\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"PLUS\",{\"id\":\"041b\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"DIVIDE\",{\"id\":\"hfn6\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"2\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"6zt8\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"floor\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"c1ce\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"iok3\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"n0pl\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"k0um\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"k1qc\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"72wm\",\"x\":-4,\"y\":247,\"type\":\"when_run_button_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"pivd\",\"x\":0,\"y\":0,\"type\":\"choose_project_timer_action\",\"params\":[null,\"START\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"yuic\",\"x\":0,\"y\":0,\"type\":\"set_visible_project_timer\",\"params\":[null,\"SHOW\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"5a84\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"1qr2\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"tq3h\",\"x\":0,\"y\":0,\"type\":\"change_variable\",\"params\":[\"5rho\",{\"id\":\"wphs\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"0.1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"p7c9\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"iyeb\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"p0dm\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"n1rs\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"0shf\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"ncc0\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"ycuj\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"c3o0\",\"x\":0,\"y\":0,\"type\":\"get_project_timer_value\",\"params\":[null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"weki\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"a9v5\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"sin\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"PLUS\",{\"id\":\"e8m9\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"DIVIDE\",{\"id\":\"1tx4\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"2\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"7e1g\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"floor\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"3gft\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"k8um\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"amor\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"qm3a\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"gqx8\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"zirf\",\"x\":9.5,\"y\":693,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"8f4k\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"svi4\",\"x\":0,\"y\":0,\"type\":\"if_else\",\"params\":[{\"id\":\"vzcx\",\"x\":0,\"y\":0,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"xmpf\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"LESS\",{\"id\":\"3ev1\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,null],\"statements\":[[{\"id\":\"mrfz\",\"x\":0,\"y\":0,\"type\":\"change_variable\",\"params\":[\"m4ic\",{\"id\":\"45v4\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"3\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"ksgf\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"g9mi\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"-1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"xkzl\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"4dg7\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"ujlv\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"wpb4\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"1rgx\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
+      "script": "[[{\"id\":\"nqgn\",\"x\":1783.06,\"y\":255,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"ecyy\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"0\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"GREATER\",{\"id\":\"vuhk\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"b5im\",\"x\":457.5,\"y\":364,\"type\":\"when_scene_start\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"j07d\",\"x\":0,\"y\":0,\"type\":\"choose_project_timer_action\",\"params\":[null,\"START\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"7ly5\",\"x\":0,\"y\":0,\"type\":\"set_visible_project_timer\",\"params\":[null,\"HIDE\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"8juv\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"twbz\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"75ss\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"9c0m\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"md6x\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"opqm\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"33ea\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"96kv\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"68ci\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"04em\",\"x\":0,\"y\":0,\"type\":\"get_project_timer_value\",\"params\":[null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"z047\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"a9v5\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"sin\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"PLUS\",{\"id\":\"041b\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"DIVIDE\",{\"id\":\"hfn6\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"2\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"6zt8\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"floor\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"c1ce\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"iok3\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"n0pl\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"k0um\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"k1qc\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"72wm\",\"x\":161,\"y\":64,\"type\":\"when_run_button_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"pivd\",\"x\":0,\"y\":0,\"type\":\"choose_project_timer_action\",\"params\":[null,\"START\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"yuic\",\"x\":0,\"y\":0,\"type\":\"set_visible_project_timer\",\"params\":[null,\"HIDE\",null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"5a84\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"1qr2\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"p7c9\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"iyeb\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"p0dm\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"n1rs\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"0shf\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"ncc0\",\"x\":0,\"y\":0,\"type\":\"calc_operation\",\"params\":[null,{\"id\":\"ycuj\",\"x\":0,\"y\":0,\"type\":\"calc_basic\",\"params\":[{\"id\":\"c3o0\",\"x\":0,\"y\":0,\"type\":\"get_project_timer_value\",\"params\":[null,null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"weki\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"a9v5\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"sin\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"PLUS\",{\"id\":\"e8m9\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"DIVIDE\",{\"id\":\"1tx4\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"2\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"MULTI\",{\"id\":\"7e1g\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,\"floor\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"3gft\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"k8um\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"amor\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"qm3a\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"gqx8\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"zirf\",\"x\":622.5,\"y\":582,\"type\":\"repeat_inf\",\"params\":[null,{\"id\":\"8f4k\",\"x\":0,\"y\":0,\"type\":\"True\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[[{\"id\":\"svi4\",\"x\":0,\"y\":0,\"type\":\"if_else\",\"params\":[{\"id\":\"vzcx\",\"x\":0,\"y\":0,\"type\":\"boolean_basic_operator\",\"params\":[{\"id\":\"xmpf\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},\"LESS\",{\"id\":\"3ev1\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"255\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null,null],\"statements\":[[{\"id\":\"mrfz\",\"x\":0,\"y\":0,\"type\":\"change_variable\",\"params\":[\"m4ic\",{\"id\":\"45v4\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"3\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"ksgf\",\"x\":0,\"y\":0,\"type\":\"set_variable\",\"params\":[\"m4ic\",{\"id\":\"g9mi\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"-1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"xkzl\",\"x\":0,\"y\":0,\"type\":\"text_change_font_color\",\"params\":[{\"id\":\"4dg7\",\"x\":0,\"y\":0,\"type\":\"change_rgb_to_hex\",\"params\":[{\"id\":\"ujlv\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"wpb4\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"1rgx\",\"x\":0,\"y\":0,\"type\":\"get_variable\",\"params\":[\"m4ic\",null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"tq3h\",\"x\":-354,\"y\":200,\"type\":\"change_variable\",\"params\":[\"m4ic\",{\"id\":\"wphs\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"0.1\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}],[{\"id\":\"d01h\",\"x\":111,\"y\":341,\"type\":\"when_run_button_click\",\"params\":[null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"spss\",\"x\":0,\"y\":0,\"type\":\"repeat_inf\",\"params\":[null,null],\"statements\":[[{\"id\":\"oktr\",\"x\":0,\"y\":0,\"type\":\"text_write\",\"params\":[{\"id\":\"bz9h\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"여기에 .ent 파일 을 끌어 놓아 주십시오.\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"rv3h\",\"x\":0,\"y\":0,\"type\":\"wait_second\",\"params\":[{\"id\":\"8epk\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"5\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"1q4i\",\"x\":0,\"y\":0,\"type\":\"text_write\",\"params\":[{\"id\":\"n40n\",\"x\":0,\"y\":0,\"type\":\"text\",\"params\":[\"왼쪽 상단 열기 아이콘 을 클릭 하십시오.\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},{\"id\":\"dmzc\",\"x\":0,\"y\":0,\"type\":\"wait_second\",\"params\":[{\"id\":\"ipg3\",\"x\":0,\"y\":0,\"type\":\"number\",\"params\":[\"5\"],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]},null],\"statements\":[],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]],\"movable\":null,\"deletable\":1,\"emphasized\":false,\"readOnly\":null,\"copyable\":true,\"assemble\":true,\"extensions\":[]}]]",
       "objectType": "textBox",
       "rotateMethod": "free",
       "scene": "7dwq",
@@ -26,7 +183,7 @@
         "height": 22,
         "font": "20px Nanum Gothic",
         "visible": true,
-        "colour": "#828282",
+        "colour": "#818181",
         "text": "여기에 .ent 파일 을 끌어 놓아 주십시오.",
         "textAlign": 0,
         "lineBreak": false,
@@ -64,8 +221,8 @@
       "selectedPictureId": "ex9v",
       "lock": false,
       "entity": {
-        "x": 185.97,
-        "y": 95.97,
+        "x": 198.71,
+        "y": 99.14,
         "regX": 103.56,
         "regY": 90.24,
         "scaleX": 0.24791603655730163,
@@ -441,8 +598,8 @@
     {
       "name": "target",
       "id": "a9v5",
-      "visible": true,
-      "value": 1,
+      "visible": false,
+      "value": "1",
       "variableType": "variable",
       "isCloud": false,
       "isRealTime": false,
@@ -450,19 +607,6 @@
       "object": null,
       "x": -230,
       "y": -21
-    },
-    {
-      "name": "dt",
-      "id": "5rho",
-      "visible": false,
-      "value": 0,
-      "variableType": "variable",
-      "isCloud": false,
-      "isRealTime": false,
-      "cloudDate": false,
-      "object": null,
-      "x": -230,
-      "y": -77
     },
     {
       "name": "font_fade",
@@ -489,7 +633,7 @@
       "isRealTime": false,
       "cloudDate": false,
       "object": null,
-      "x": 132.94273127753308,
+      "x": 123.42731277533039,
       "y": 5.066079295154211
     },
     {
@@ -506,7 +650,20 @@
       "y": -100
     }
   ],
-  "messages": [],
+  "messages": [
+    {
+      "id": "8q6x",
+      "name": "<OE:OFD>"
+    },
+    {
+      "id": "rmhp",
+      "name": "<OE:EX0>"
+    },
+    {
+      "id": "sadi",
+      "name": "<OE:EX1>"
+    }
+  ],
   "functions": [
     {
       "id": "2gna",
@@ -521,7 +678,7 @@
   "interface": {
     "menuWidth": 280,
     "canvasWidth": 480,
-    "object": "2ozk"
+    "object": "18af"
   },
   "expansionBlocks": [],
   "aiUtilizeBlocks": [],
@@ -529,5 +686,5 @@
   "externalModules": [],
   "externalModulesLite": [],
   "isPracticalCourse": false,
-  "name": "오모챠엔진 메뉴"
+  "name": "Menu"
 }
