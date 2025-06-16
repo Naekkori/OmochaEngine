@@ -441,8 +441,10 @@ string BlockTypeEnumToString(Entity::WaitType type) {
             return "TEXT_INPUT";
         case Entity::WaitType::SOUND_FINISH:
             return "SOUND_FINISH";
+        case Entity::WaitType::SCENE_CHANGE_SUSPEND: // 이 케이스가 빠져있을 수 있습니다.
+            return "SCENE_CHANGE_SUSPEND";
         default:
-            return "UNKNOWN_WAIT_TYPE";
+            return "UNKNOWN_WAIT_TYPE"; // 정의되지 않은 WaitType일 경우
     }
 }
 
