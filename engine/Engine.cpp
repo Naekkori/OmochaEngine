@@ -5451,9 +5451,33 @@ void Engine::goToScene(const string &sceneId) {
                     bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
                     // 글로벌이 아니고 현재 씬에 속한 엔티티의 스크립트 종료
                     if (!isGlobal && objInfo->sceneId == oldSceneId) {
-                        entityPtr->terminateAllScriptThread("");
-                        entityPtr->clearAllScriptStates();
-                        EngineStdOut("Terminated all scripts for entity " + entityId + " during scene change", 0);
+                        // 스크립트 스레드를 완전히 종료하고 상태를 지우는 대신, 일시 중지 상태로 변경
+                        std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex());
+                        for (auto &threadPair: entityPtr->scriptThreadStates) {
+                            auto &state = threadPair.second;
+                            if (!state.terminateRequested) {
+                                // 이미 종료 요청된 스크립트는 제외
+                                state.isWaiting = true;
+                                state.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND; // 새로운 대기 타입 설정
+                                // resumeAtBlockIndex, scriptPtrForResume, loopCounters 등 기존 상태는 유지됨
+                                EngineStdOut(
+                                    "Entity " + entityId + " suspended script thread " + threadPair.first +
+                                    " due to scene change.", 0, threadPair.first);
+                            } else {
+                                // 이미 종료 요청된 스크립트는 상태를 정리 (workerLoop에서 최종 종료될 것임)
+                                state.isWaiting = false;
+                                state.resumeAtBlockIndex = -1;
+                                state.blockIdForWait = "";
+                                state.loopCounters.clear();
+                                state.currentWaitType = Entity::WaitType::NONE;
+                                state.scriptPtrForResume = nullptr;
+                                state.sceneIdAtDispatchForResume = "";
+                                state.originalInnerBlockIdForWait = ""; // 관련 정보 초기화
+                                EngineStdOut(
+                                    "Entity " + entityId + " script thread " + threadPair.first +
+                                    " was already marked for termination. Clearing state.", 0, threadPair.first);
+                            }
+                        }
                     }
                 }
             }
@@ -5597,7 +5621,12 @@ void Engine::goToScene(const string &sceneId) {
         // 4. 씬 전환 완료
         currentSceneId = sceneId;
         EngineStdOut("Changed scene to: " + scenes[currentSceneId] + " (ID: " + currentSceneId + ")", 0);
+        // 5. 새 씬의 'when_scene_start' 스크립트 트리거
         triggerWhenSceneStartScripts();
+
+        // 6. 이전 씬에서 중단되었던 스크립트 재개 (또는 현재 씬으로 돌아왔을 때 재개)
+        resumeSuspendedScriptsInCurrentScene();
+
     } else {
         EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2); // 씬 ID 찾을 수 없음
     }
@@ -5660,7 +5689,127 @@ void Engine::goToPreviousScene() {
             2);
     }
 }
+void Engine::resumeSuspendedScriptsInCurrentScene() {
+    if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
+        return;
+    }
 
+    EngineStdOut("Attempting to resume suspended scripts in scene: " + currentSceneId, 0);
+
+    // 재개할 스크립트 정보를 담을 벡터 (뮤텍스 범위 밖에서 디스패치하기 위함)
+    std::vector<std::tuple<std::string /*entityId*/,
+                           std::string /*execId*/,
+                           const Script* /*scriptPtr*/,
+                           std::string /*sceneIdAtDispatch*/,
+                           int /*resumeAtBlockIndex*/,
+                           std::string /*originalInnerBlockIdForWait*/>> tasksToDispatch;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 맵 및 ObjectInfo 접근 보호
+
+        for (auto const& [entityId, entityPtr] : entities) {
+            if (!entityPtr) continue;
+
+            const ObjectInfo *objInfo = getObjectInfoById(entityId); // m_engineDataMutex 필요
+            if (!objInfo) continue; // 엔티티가 존재하는데 ObjectInfo가 없는 경우는 비정상
+
+            bool isInCurrentScene = (objInfo->sceneId == currentSceneId);
+            bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
+
+            if (isInCurrentScene || isGlobal) {
+                // 현재 장면에 속하거나 전역 엔티티인 경우 스크립트 상태 확인
+                std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex()); // 엔티티 상태 보호
+
+                // scriptThreadStates 맵을 순회하며 일시 중지된 스크립트 찾기
+                for (auto it_state = entityPtr->scriptThreadStates.begin(); it_state != entityPtr->scriptThreadStates.end(); /* no increment */) {
+                    auto &execId = it_state->first;
+                    auto &state = it_state->second;
+
+                    // 장면 전환 때문에 일시 중지된 스크립트인지 확인
+                    if (state.isWaiting && state.currentWaitType == Entity::WaitType::SCENE_CHANGE_SUSPEND) {
+                        // 재개에 필요한 정보가 유효한지 확인
+                        if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1) {
+                            EngineStdOut(
+                                "Entity " + entityId + " (Thread: " + execId + ") resuming from scene change suspend. Resuming at block index " + std::to_string(state.resumeAtBlockIndex) + ".",
+                                0, execId);
+
+                            // 디스패치할 작업 정보 저장
+                            tasksToDispatch.emplace_back(
+                                entityId, // Add entityId here
+                                execId,
+                                state.scriptPtrForResume,
+                                state.sceneIdAtDispatchForResume,
+                                state.resumeAtBlockIndex,
+                                state.originalInnerBlockIdForWait
+                            );
+                            // 스크립트 상태를 '대기 아님'으로 변경
+                            state.isWaiting = false;
+                            state.currentWaitType = Entity::WaitType::NONE;
+                            // resumeAtBlockIndex, scriptPtrForResume, sceneIdAtDispatchForResume는 디스패치된 태스크에서 사용됨
+                            // SCENE_CHANGE_SUSPEND 관련 정보 초기화
+                            state.waitEndTime = 0; // 이전 대기 시간 초기화
+                            state.blockIdForWait = ""; // 이전 대기 블록 ID 초기화
+                            state.originalInnerBlockIdForWait = ""; // 관련 정보 초기화
+
+                            // scriptThreadStates 맵에서 항목을 지우지 않음 (스레드 ID 재사용 가능성 고려)
+                            ++it_state; // 다음 스레드 상태로 이동
+                        } else {
+                            // 재개 컨텍스트가 유효하지 않은 경우, 해당 상태를 정리
+                            EngineStdOut(
+                                "WARNING: Entity " + entityId + " script thread " + execId +
+                                " SCENE_CHANGE_SUSPEND state is invalid (missing resume context). Clearing state.", 1, execId);
+                            state.isWaiting = false;
+                            state.currentWaitType = Entity::WaitType::NONE;
+                            state.scriptPtrForResume = nullptr;
+                            state.sceneIdAtDispatchForResume.clear();
+                            state.resumeAtBlockIndex = -1;
+                            state.waitEndTime = 0;
+                            state.blockIdForWait = "";
+                            state.originalInnerBlockIdForWait = "";
+                            ++it_state; // 다음 스레드 상태로 이동
+                        }
+                    } else {
+                        ++it_state; // SCENE_CHANGE_SUSPEND 상태가 아니면 다음으로 이동
+                    }
+                }
+            }
+        }
+    } // m_engineDataMutex 잠금 해제
+
+    // 수집된 작업을 스레드 풀에 디스패치
+    for (const auto &task: tasksToDispatch) {
+        const std::string &entityIdToResume = std::get<0>(task); // Get entityId
+        const std::string &execId = std::get<1>(task);
+        const Script *scriptPtr = std::get<2>(task);
+        const std::string &sceneIdAtDispatch = std::get<3>(task);
+        int resumeAtBlockIndex = std::get<4>(task);
+        const std::string &originalInnerBlockIdForWait = std::get<5>(task);
+
+        // Get the Entity pointer
+        // You might need to lock m_engineDataMutex here if it's not already locked,
+        // or use getEntityByIdShared if it handles locking.
+        // Assuming m_engineDataMutex is NOT locked here, use the locking version.
+        std::shared_ptr<Entity> entityToResume = getEntityByIdShared(entityIdToResume);
+
+        if (entityToResume) {
+            entityToResume->scheduleScriptExecutionOnPool(
+                scriptPtr,
+                sceneIdAtDispatch,
+                0.0f,
+                execId,
+                static_cast<size_t>(resumeAtBlockIndex),
+                originalInnerBlockIdForWait
+            );
+        } else {
+            EngineStdOut("Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume + " not found for resumption.", 1);
+        }
+    }
+
+    if (!tasksToDispatch.empty()) {
+         EngineStdOut("Dispatched " + std::to_string(tasksToDispatch.size()) + " suspended scripts for resumption.", 0);
+    } else {
+         EngineStdOut("No suspended scripts found in current scene to resume.", 0);
+    }
+}
 void Engine::triggerWhenSceneStartScripts() {
     if (currentSceneId.empty()) {
         EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);
@@ -5898,7 +6047,8 @@ void Engine::drawDialogs() {
             if (testRect.y >= 0 && (testRect.x >= 0 && testRect.x + testRect.w <= INTER_RENDER_WIDTH)) {
                 currentSpace = testRect.y; // 위쪽 공간은 화면 상단까지의 거리 (작을수록 좋지만, 여기서는 단순 예시로 y값 사용)
                 // 또는 (INTER_RENDER_HEIGHT - (testRect.y + testRect.h)) 와 같은 방식으로 계산 가능
-                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) { // 더 많은 공간 확보 (또는 첫 유효 위치)
+                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) {
+                    // 더 많은 공간 확보 (또는 첫 유효 위치)
                     maxAvailableSpace = currentSpace;
                     bestPosition = BubblePosition::ABOVE;
                     bestBubbleRect = testRect;
@@ -5979,7 +6129,6 @@ void Engine::drawDialogs() {
             }
 
 
-
             // 3. 말풍선 배경 렌더링 (기존과 동일)
             SDL_FColor bubbleBgColor = {255, 255, 255, 255};
             SDL_FColor bubbleBorderColor = {79, 128, 255, 255};
@@ -6056,13 +6205,18 @@ void Engine::drawDialogs() {
                     float circle2_dist_ratio = 0.8f; // 꼬리 시작점에서 두 번째 원까지의 비율 (조정 가능)
 
                     Helper_DrawFilledCircle(
-                        renderer, static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle1_dist_ratio)),
-                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle1_dist_ratio)), 5);
+                        renderer,
+                        static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle1_dist_ratio)),
+                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle1_dist_ratio)),
+                        5);
                     Helper_DrawFilledCircle(
-                        renderer, static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle2_dist_ratio)),
-                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle2_dist_ratio)), 4);
+                        renderer,
+                        static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle2_dist_ratio)),
+                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle2_dist_ratio)),
+                        4);
                 }
-            } else { // "speak"
+            } else {
+                // "speak"
                 float tailBaseWidthHalf = 8.0f;
                 SDL_FPoint tailTip_ideal; // 이상적인 꼬리 끝점 (엔티티에 연결)
                 SDL_FPoint tailBaseP1, tailBaseP2; // 꼬리 시작점 (말풍선 본체)
@@ -6070,30 +6224,60 @@ void Engine::drawDialogs() {
                 switch (bestPosition) {
                     case BubblePosition::ABOVE:
                         tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight / 2.0f};
-                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
-                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                        tailBaseP1 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
+                        };
+                        tailBaseP2 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
+                        };
                         break;
                     case BubblePosition::BELOW:
                         tailTip_ideal = {entitySdlX, entitySdlY + entityVisualHeight / 2.0f};
-                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y};
-                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y};
+                        tailBaseP1 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y
+                        };
+                        tailBaseP2 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y
+                        };
                         break;
                     case BubblePosition::LEFT:
                         tailTip_ideal = {entitySdlX - entityVisualWidth / 2.0f, entitySdlY};
-                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf};
-                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf};
+                        tailBaseP1 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf
+                        };
+                        tailBaseP2 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf
+                        };
                         break;
                     case BubblePosition::RIGHT:
                         tailTip_ideal = {entitySdlX + entityVisualWidth / 2.0f, entitySdlY};
-                        tailBaseP1 = {dialog.bubbleScreenRect.x, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf};
-                        tailBaseP2 = {dialog.bubbleScreenRect.x, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf};
+                        tailBaseP1 = {
+                            dialog.bubbleScreenRect.x,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf
+                        };
+                        tailBaseP2 = {
+                            dialog.bubbleScreenRect.x,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf
+                        };
                         break;
                     case BubblePosition::NONE:
                     default:
                         // 기본값: 위쪽 꼬리
                         tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight / 2.0f};
-                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
-                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                        tailBaseP1 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
+                        };
+                        tailBaseP2 = {
+                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
+                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
+                        };
                         break;
                 }
 
@@ -6106,7 +6290,8 @@ void Engine::drawDialogs() {
 
                 SDL_FPoint finalTailTip = tailTip_ideal;
 
-                if (dist_speak_tail_ideal > MIN_TAIL_LENGTH) { // 최소 길이보다 길 때만 길이 조정 고려
+                if (dist_speak_tail_ideal > MIN_TAIL_LENGTH) {
+                    // 최소 길이보다 길 때만 길이 조정 고려
                     float norm_dx_speak = dx_speak_tail / dist_speak_tail_ideal;
                     float norm_dy_speak = dy_speak_tail / dist_speak_tail_ideal;
 
@@ -6135,16 +6320,26 @@ void Engine::drawDialogs() {
                 SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
                 SDL_RenderGeometry(renderer, nullptr, dialog.tailVertices, 3, nullptr, 0);
 
-                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b, bubbleBorderColor.a);
+                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b,
+                                       bubbleBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &dialog.bubbleScreenRect, cornerRadius);
 
-                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x), static_cast<int>(dialog.tailVertices[0].position.y), static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
-                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[1].position.x), static_cast<int>(dialog.tailVertices[1].position.y), static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x),
+                               static_cast<int>(dialog.tailVertices[0].position.y),
+                               static_cast<int>(dialog.tailVertices[2].position.x),
+                               static_cast<int>(dialog.tailVertices[2].position.y));
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[1].position.x),
+                               static_cast<int>(dialog.tailVertices[1].position.y),
+                               static_cast<int>(dialog.tailVertices[2].position.x),
+                               static_cast<int>(dialog.tailVertices[2].position.y));
 
                 if (bestPosition == BubblePosition::ABOVE || bestPosition == BubblePosition::BELOW) {
                     // No additional line needed
                 } else {
-                    SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x), static_cast<int>(dialog.tailVertices[0].position.y), static_cast<int>(dialog.tailVertices[1].position.x), static_cast<int>(dialog.tailVertices[1].position.y));
+                    SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x),
+                                   static_cast<int>(dialog.tailVertices[0].position.y),
+                                   static_cast<int>(dialog.tailVertices[1].position.x),
+                                   static_cast<int>(dialog.tailVertices[1].position.y));
                 }
 
                 SDL_FRect innerBgRect = {

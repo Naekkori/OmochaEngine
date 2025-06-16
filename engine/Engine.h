@@ -280,6 +280,7 @@ public:
         const int ICON_INFORMATION = SDL_MESSAGEBOX_INFORMATION;
     };
     bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const;
+    void resumeSuspendedScriptsInCurrentScene();
     MsgBoxIconType msgBoxIconType;
     Engine();
     // Explicitly delete copy constructor and copy assignment operator

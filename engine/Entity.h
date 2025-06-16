@@ -66,6 +66,7 @@ public:
         BLOCK_INTERNAL,       // 'move_xy_time' 등 시간 소요 블록 내부의 프레임 간 대기
         TEXT_INPUT,           // 'ask_and_wait' 블록에 의한 사용자 입력 대기
         SOUND_FINISH,          // 소리 재생 완료 대기 (신규)
+        SCENE_CHANGE_SUSPEND  // 씬이 바뀔때
         // 필요에 따라 다른 대기 유형 추가 가능
     };
 
@@ -151,7 +152,6 @@ public:
 
     // 스크립트 대기 상태 확인 함수 (신규)
     bool isScriptWaiting(const std::string &executionThreadId) const;
-
     // (선택적) 대기를 유발한 블록 ID를 가져오는 함수
     std::string getWaitingBlockId(const std::string &executionThreadId) const;
     WaitType getCurrentWaitType(const std::string &executionThreadId) const;
@@ -230,7 +230,7 @@ private:
     double m_effectHue;
     // enum class CollisionSide { NONE, UP, DOWN, LEFT, RIGHT }; // 중복 선언 제거, 위로 이동    
     CollisionSide lastCollisionSide = CollisionSide::NONE;
-    mutable std::recursive_mutex m_stateMutex; // std::mutex에서 std::recursive_mutex로 변경
+    mutable std::recursive_mutex m_stateMutex;
     bool m_isClone = false;
     std::string m_originalClonedFromId = "";
     // ScriptTask 구조체 정의 (std::tuple 대신 사용)
@@ -273,11 +273,14 @@ Entity(Engine *engine, const std::string &entityId, const std::string &entityNam
     DialogState m_currentDialog;
     std::map<std::string, ScriptWaitState> scriptWaitStates;
     CollisionSide getLastCollisionSide() const;
-     void scheduleScriptExecutionOnPool(const Script* scriptPtr,
-                                       const std::string& sceneIdAtDispatch,
+    // In Entity.h
+    void scheduleScriptExecutionOnPool(const Script *scriptPtr,
+                                       const std::string &sceneIdAtDispatch,
                                        float deltaTime,
-                                       const std::string& existingExecutionThreadId);
-public:
+                                       const std::string &existingExecutionThreadId = "",
+                                       size_t resumeIndex = 0, // New parameter
+                                       const std::string& originalInnerBlockIdForWait = "" // New parameter
+                                      );
     void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime, size_t
                        resumeInnerBlockIndex=0);
     void setLastCollisionSide(CollisionSide side);
