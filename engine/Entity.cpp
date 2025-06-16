@@ -1831,7 +1831,6 @@ void Entity::scheduleScriptExecutionOnPool(const Script *scriptPtr,
                 }
             }
         }
-        // --- 중복 실행 방지 로직 끝 ---
         // 새 스크립트의 경우, ScriptThreadState를 여기서 미리 생성하고 필요한 정보를 설정합니다.
         std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // m_stateMutex 사용
         auto &newState = scriptThreadStates[execIdToUse];
