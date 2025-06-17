@@ -22,13 +22,13 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
-#include <functional>               // For std::function
-#include <memory>                     // For std::unique_ptr
+#include <functional>               // For function
+#include <memory>                     // For unique_ptr
 #include <regex>
+#include <set>      // For set
+#include <atomic> // For atomic
+#include "SDL3/SDL_mouse.h"
 using namespace std;
-#include <set>      // For std::set
-#include <atomic> // For std::atomic
-
 constexpr int WINDOW_WIDTH = 480 * 3;
 constexpr int WINDOW_HEIGHT = 270 * 3;
 static constexpr int PROJECT_STAGE_WIDTH = 480;  // 실제 프로젝트의 가로 크기에 맞춤
@@ -85,7 +85,7 @@ struct ObjectInfo
     string id;
     string name;
     string objectType;
-    std::string sceneId; // Changed to std::string for consistency
+    string sceneId; // Changed to string for consistency
     string selectedCostumeId;
     vector<Costume> costumes;
     vector<SoundFile> sounds;
@@ -133,7 +133,7 @@ class Engine : public TextInputInterface
     vector<pair<string, const Script *>> startButtonScripts;                   // <objectId, Script*> 시작 버튼 클릭 시 실행할 스크립트 목록
     map<SDL_Scancode, vector<pair<string, const Script *>>> keyPressedScripts; // <Scancode, vector<objectId, Script*>> 키 눌림 시 실행할 스크립트 목록
     vector<ObjectInfo> objects_in_order; // This stores info, not live entities.
-    map<string, std::shared_ptr<Entity>> entities; // Changed to shared_ptr
+    map<string, shared_ptr<Entity>> entities; // Changed to shared_ptr
     vector<string> m_sceneOrder; // Stores scene IDs in the order they are defined
     SDL_Window *window;          // SDL Window
     SDL_Renderer *renderer;      // SDL Renderer
@@ -145,6 +145,9 @@ class Engine : public TextInputInterface
     SDL_Texture *tempScreenTexture;
     mutable mutex m_logMutex;
     mutable mutex m_fileMutex;
+    SDL_Cursor* m_defaultCursor = nullptr;
+    SDL_Cursor* m_handCursor = nullptr;
+    SDL_Cursor* m_currentCursor = nullptr; // 현재 활성화된 커서를 추적
     string m_pressedObjectId; // ID of the object currently being pressed by the mouse
     vector<pair<string, const Script *>> m_mouseClickedScripts;
     vector<pair<string, const Script *>> m_mouseClickCanceledScripts;
@@ -153,19 +156,19 @@ class Engine : public TextInputInterface
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     vector<pair<string, const Script *>> m_whenCloneStartScripts;               // 복제본 생성 시 실행될 스크립트
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
-    std::map<std::string, std::string> m_messageIdToNameMap;
+    map<string, string> m_messageIdToNameMap;
     bool m_showScriptDebugger = false;                                         // 스크립트 디버거 표시 여부
     float m_debuggerScrollOffsetY = 0.0f;                                      // 스크립트 디버거 스크롤 오프셋
     // --- Text Input Members (for ask_and_wait) ---
-    std::string m_currentTextInputBuffer;     // 현재 입력 중인 텍스트 버퍼
+    string m_currentTextInputBuffer;     // 현재 입력 중인 텍스트 버퍼
     bool m_textInputActive = false;           // 텍스트 입력 모드 활성화 여부
-    std::string m_textInputRequesterObjectId; // 텍스트 입력을 요청한 오브젝트 ID
-    std::string m_textInputQuestionMessage;   // 텍스트 입력 시 표시될 질문 메시지
-    std::string m_lastAnswer;                 // 마지막으로 입력된 답변 (ask_and_wait 블록용)
-    mutable std::mutex m_textInputMutex;
-    std::condition_variable m_textInputCv;    
+    string m_textInputRequesterObjectId; // 텍스트 입력을 요청한 오브젝트 ID
+    string m_textInputQuestionMessage;   // 텍스트 입력 시 표시될 질문 메시지
+    string m_lastAnswer;                 // 마지막으로 입력된 답변 (ask_and_wait 블록용)
+    mutable mutex m_textInputMutex;
+    condition_variable m_textInputCv;    
     string firstSceneIdInOrder;
-    std::string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
+    string m_currentProjectFilePath; // 현재 로드된 프로젝트 파일 경로
     SDL_Texture *LoadTextureFromSvgResource(SDL_Renderer *renderer, int resourceID);
     const string ANSI_COLOR_RESET = "\x1b[0m";
     const string ANSI_COLOR_RED = "\x1b[31m";
@@ -216,19 +219,19 @@ class Engine : public TextInputInterface
     // float m_resizeStartMouseX = 0.0f;
     // float m_resizeStartMouseY = 0.0f;
     // float m_resizeStartHUDWidth = 0.0f;
-    std::map<std::pair<std::string, int>, TTF_Font *> m_fontCache; // 폰트 캐시
+    map<pair<string, int>, TTF_Font *> m_fontCache; // 폰트 캐시
     // float m_resizeStartHUDHeight = 0.0f;
     float m_maxVariablesListContentWidth = 180.0f; // 변수 목록의 실제 내용물 최대 너비
 
     void destroyTemporaryScreen();
-    std::mutex m_commandQueueMutex;
-    std::condition_variable m_commandQueueCV; // 엔티티 스레드가 커맨드를 추가했음을 알리기 위함 (선택적)
+    mutex m_commandQueueMutex;
+    condition_variable m_commandQueueCV; // 엔티티 스레드가 커맨드를 추가했음을 알리기 위함 (선택적)
 
     // Standard C++ Thread Pool members
-    std::vector<std::thread> m_workerThreads;
-    std::queue<std::function<void()>> m_taskQueue;
-    std::mutex m_taskQueueMutex_std; // Renamed to avoid conflict if another m_taskQueueMutex exists
-    std::condition_variable m_taskQueueCV_std;
+    vector<thread> m_workerThreads;
+    queue<function<void()>> m_taskQueue;
+    mutex m_taskQueueMutex_std; // Renamed to avoid conflict if another m_taskQueueMutex exists
+    condition_variable m_taskQueueCV_std;
     void workerLoop();
     void processCommands();                   // 메인 루프에서 커맨드를 처리하는 함수
     string getOEparam(string s) const {
@@ -251,14 +254,14 @@ class Engine : public TextInputInterface
     static const float MAX_ZOOM;
     static const float LIST_RESIZE_HANDLE_SIZE; // 리스트 리사이즈 핸들 크기
     // --- Keyboard State ---
-    std::set<SDL_Scancode> m_pressedKeys; // Set of currently pressed keys
-    mutable std::mutex m_pressedKeysMutex;  // Mutex for m_pressedKeys
-    std::atomic<bool> m_stageWasClickedThisFrame{false};
+    set<SDL_Scancode> m_pressedKeys; // Set of currently pressed keys
+    mutable mutex m_pressedKeysMutex;  // Mutex for m_pressedKeys
+    atomic<bool> m_stageWasClickedThisFrame{false};
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
     bool m_treeCollapseTargetState = true; // 초기값: 기본적으로 펼침 (true) 또는 접힘 (false)
     bool m_applyGlobalTreeState = false;   // 프레임 단위로 전역 상태 적용 여부 플래그
-    std::unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
-    std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
+    unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
+    atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
     static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}
     static int getProjectstageHeight(){return PROJECT_STAGE_HEIGHT;}
@@ -290,11 +293,14 @@ public:
         const int ICON_INFORMATION = SDL_MESSAGEBOX_INFORMATION;
     };
     bool mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, float &stageX, float &stageY) const;
+
+    void updateMouseCursor(float mouseWindowX, float mouseWindowY);
+
     void resumeSuspendedScriptsInCurrentScene();
     MsgBoxIconType msgBoxIconType;
     Engine();
     // Explicitly delete copy constructor and copy assignment operator
-    // to prevent copying of Engine objects, which contain non-copyable std::mutex members.
+    // to prevent copying of Engine objects, which contain non-copyable mutex members.
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
     // Optionally, define or default move constructor and move assignment operator if needed
@@ -311,7 +317,7 @@ public:
     bool initImGui();
 
     void terminateGE();
-    TTF_Font *getFont(const std::string &fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
+    TTF_Font *getFont(const string &fontPath, int fontSize); // 폰트 가져오기 (캐시 사용)
     bool loadImages(); // LCOV_EXCL_LINE
     bool loadSounds();
     // --- Cloud Variable Persistence ---
@@ -332,7 +338,7 @@ public:
     void processInput(const SDL_Event &event, float deltaTime);
     void drawScriptDebuggerUI();
 
-    void updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn);
+    void updateEntityTextEffect(const string &entityId, const string &effect, bool setOn);
 
     void runStartButtonScripts(); // 시작 버튼 스크립트 실행 메서드
     void initFps();
@@ -347,9 +353,9 @@ public:
     Entity *getEntityById(const string &id);
     void setTotalItemsToLoad(int count) { totalItemsToLoad = count; }
     void incrementLoadedItemCount() { loadedItemCount++; }
-    Entity *getEntityById_nolock(const std::string &id);
-    std::shared_ptr<Entity> getEntityByIdShared(const std::string &id); // New method
-    std::shared_ptr<Entity> getEntityByIdNolockShared(const std::string &id); // New method
+    Entity *getEntityById_nolock(const string &id);
+    shared_ptr<Entity> getEntityByIdShared(const string &id); // New method
+    shared_ptr<Entity> getEntityByIdNolockShared(const string &id); // New method
     void renderLoadingScreen();
     void handleRenderDeviceReset();
     bool recreateAssetsIfNeeded();    void drawHUD(); // HUD 그리기 메서드 추가
@@ -362,8 +368,8 @@ public:
     void updateAnswerVariable(); // Update the answer variable with the latest text input
     void startProjectTimer();
     void stopProjectTimer();
-    void activateTextInput(const std::string &requesterObjectId, const std::string &question, const std::string &executionThreadId);
-    std::string getLastAnswer() const;
+    void activateTextInput(const string &requesterObjectId, const string &question, const string &executionThreadId);
+    string getLastAnswer() const;
     void resetProjectTimer();
     double getProjectTimerValue() const; // LCOV_EXCL_LINE
     void showAnswerValue(bool show); // Declaration
@@ -371,55 +377,55 @@ public:
     // --- Mouse State Getters ---
     float getCurrentStageMouseX() const { return m_currentStageMouseX; }
     float getCurrentStageMouseY() const { return m_currentStageMouseY; }
-    std::string getPressedObjectId() const;
+    string getPressedObjectId() const;
     double getAngle(double x1, double y1, double x2, double y2) const;      // 두 점 사이의 각도 계산
     double getCurrentStageMouseAngle(double entityX, double entityY) const; // Angle to mouse from entity
     const ObjectInfo *getObjectInfoById(const string &id) const;
     bool isMouseCurrentlyOnStage() const { return m_isMouseOnStage; }
     bool getStageWasClickedThisFrame() const;
     bool isKeyPressed(SDL_Scancode scancode) const; // New: Check if a key is pressed // LCOV_EXCL_LINE
-    std::string getDeviceType() const;
+    string getDeviceType() const;
     bool isTouchSupported() const;
-    void updateEntityTextContent(const std::string &entityId, const std::string &newText);
+    void updateEntityTextContent(const string &entityId, const string &newText);
     void setStageClickedThisFrame(bool clicked);
-    void updateEntityTextColor(const std::string& entityId, const SDL_Color& newColor);
-    void updateEntityTextBoxBackgroundColor(const std::string& entityId, const SDL_Color& newColor);
+    void updateEntityTextColor(const string& entityId, const SDL_Color& newColor);
+    void updateEntityTextBoxBackgroundColor(const string& entityId, const SDL_Color& newColor);
     // HUD에 표시할 변수 목록을 설정하는 메서드    
-    map<string, std::shared_ptr<Entity>> &getEntities_Modifiable() { return entities; } // Changed to shared_ptr
+    map<string, shared_ptr<Entity>> &getEntities_Modifiable() { return entities; } // Changed to shared_ptr
     vector<HUDVariableDisplay> &getHUDVariables_Editable() { return m_HUDVariables; } // 블록에서 접근하기 위함
     // --- Pen Drawing ---
     void engineDrawLineOnStage(SDL_FPoint p1_stage_entry, SDL_FPoint p2_stage_entry_modified_y, SDL_Color color, float thickness);
 
     AudioEngineHelper aeHelper; // public으로 이동 // LCOV_EXCL_LINE
-    int getBlockCountForObject(const std::string &objectId) const;
-    int getBlockCountForScene(const std::string &sceneId) const; // 이 함수는 getBlockCountForObject를 호출하므로 간접적으로 objectScripts에 접근
+    int getBlockCountForObject(const string &objectId) const;
+    int getBlockCountForScene(const string &sceneId) const; // 이 함수는 getBlockCountForObject를 호출하므로 간접적으로 objectScripts에 접근
     int getTotalBlockCount() const;
     TTF_Font *getDialogFont();
     void drawDialogs();
-    bool setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId);
-    bool setEntitychangeToNextCostume(const std::string &entityId, const std::string &asOption);
-    void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string &sceneIdAtDispatch, float deltaTime, const std::string &existingExecutionThreadId = "");
-    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);
-    std::string getMessageNameById(const std::string& messageId) const;
-    std::shared_ptr<Entity> createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts); // Return shared_ptr
-    int getNextCloneIdSuffix(const std::string &originalId);
-    void deleteEntity(const std::string& entityIdToDelete);
-    void deleteAllClonesOf(const std::string& originalEntityId);
-    void changeObjectIndex(const std::string &entityId, Omocha::ObjectIndexChangeType changeType);
-    void requestStopObject(const std::string &callingEntityId, const std::string &callingThreadId, const std::string &targetOption);
+    bool setEntitySelectedCostume(const string &entityId, const string &costumeId);
+    bool setEntitychangeToNextCostume(const string &entityId, const string &asOption);
+    void dispatchScriptForExecution(const string &entityId, const Script *scriptPtr, const string &sceneIdAtDispatch, float deltaTime, const string &existingExecutionThreadId = "");
+    void raiseMessage(const string &messageId, const string &senderObjectId, const string &executionThreadId);
+    string getMessageNameById(const string& messageId) const;
+    shared_ptr<Entity> createCloneOfEntity(const string &originalEntityId, const string &sceneIdForScripts); // Return shared_ptr
+    int getNextCloneIdSuffix(const string &originalId);
+    void deleteEntity(const string& entityIdToDelete);
+    void deleteAllClonesOf(const string& originalEntityId);
+    void changeObjectIndex(const string &entityId, Omocha::ObjectIndexChangeType changeType);
+    void requestStopObject(const string &callingEntityId, const string &callingThreadId, const string &targetOption);
     void requestProjectRestart(); 
     void performProjectRestart(); // LCOV_EXCL_LINE
     mutable SimpleLogger logger;                 // 로거 인스턴스를 mutable로 변경
     // Thread pool management
     void startThreadPool(size_t numThreads); // LCOV_EXCL_LINE
     void stopThreadPool();
-    std::atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
-    std::atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
-    mutable std::recursive_mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
+    atomic<bool> m_isShuttingDown{false};   // 엔진 종료 상태 플래그
+    atomic<bool> m_restartRequested{false}; // 프로젝트 다시 시작 요청 플래그
+    mutable recursive_mutex m_engineDataMutex; // 엔진 데이터 보호용 뮤텍스 (entities, objectScripts 등 접근 시)
     uint64_t getNextScriptExecutionCounter() { return m_scriptExecutionCounter++; } // 카운터 값 증가 및 반환
-    void submitTask(std::function<void()> task); // Task submission method
+    void submitTask(function<void()> task); // Task submission method
 
-    std::atomic<bool> m_needAnswerUpdate{false};
+    atomic<bool> m_needAnswerUpdate{false};
     void requestAnswerUpdate() { m_needAnswerUpdate = true; }
     bool checkAndClearAnswerUpdateFlag() {
         bool expected = true;
@@ -446,5 +452,5 @@ public:
             m_gameplayInputActive = true;
         }
     }
-    std::mutex& getTextInputMutex() override { return m_textInputMutex; }
+    mutex& getTextInputMutex() override { return m_textInputMutex; }
 };

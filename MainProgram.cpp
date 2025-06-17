@@ -261,6 +261,7 @@ int main(int argc, char *argv[]) {
             float windowMouseX_main, windowMouseY_main;
             SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main);
             engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main); // 엔티티 업데이트
+            engine.updateMouseCursor(windowMouseX_main, windowMouseY_main); // 마우스 커서 업데이트
             {
                 // std::lock_guard의 범위를 지정하기 위한 블록
                 std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금

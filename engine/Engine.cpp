@@ -418,6 +418,15 @@ Engine::~Engine() {
     terminateGE();
     objectScripts.clear(); // entities 삭제 후 objectScripts 정리
     EngineStdOut("Object Script Clear"); // 이 로그는 이제 더 안전한 시점에 출력됩니다.
+    // 커서 해제 추가
+    if (m_defaultCursor) {
+        SDL_DestroyCursor(m_defaultCursor);
+        m_defaultCursor = nullptr;
+    }
+    if (m_handCursor) {
+        SDL_DestroyCursor(m_handCursor);
+        m_handCursor = nullptr;
+    }
 }
 
 std::string Engine::getSafeStringFromJson(const nlohmann::json &parentValue,
@@ -1855,26 +1864,38 @@ bool Engine::loadProject(const string &projectFilePath) {
                                          3); // LEVEL 0 -> 3
                             // m_messageIdToNameMap에 messageId와 실제 이름 매핑 저장
                             if (document.contains("messages") && document["messages"].is_array()) {
-                                const nlohmann::json& messagesJsonArray = document["messages"];
-                                EngineStdOut("Found " + std::to_string(messagesJsonArray.size()) + " global messages. Processing...", 0);
-                                for (const auto& msgJson : messagesJsonArray) {
+                                const nlohmann::json &messagesJsonArray = document["messages"];
+                                EngineStdOut(
+                                    "Found " + std::to_string(messagesJsonArray.size()) +
+                                    " global messages. Processing...", 0);
+                                for (const auto &msgJson: messagesJsonArray) {
                                     if (msgJson.is_object()) {
-                                        std::string msg_id = getSafeStringFromJson(msgJson, "id", "global message entry", "", true, false);
-                                        std::string msg_name = getSafeStringFromJson(msgJson, "name", "global message entry (id: " + msg_id + ")", "", false, true);
+                                        std::string msg_id = getSafeStringFromJson(
+                                            msgJson, "id", "global message entry", "", true, false);
+                                        std::string msg_name = getSafeStringFromJson(
+                                            msgJson, "name", "global message entry (id: " + msg_id + ")", "", false,
+                                            true);
 
                                         if (!msg_id.empty()) {
                                             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
                                             m_messageIdToNameMap[msg_id] = msg_name;
-                                            EngineStdOut("  Mapped global message ID '" + msg_id + "' to Name: '" + msg_name + "'", 3);
+                                            EngineStdOut(
+                                                "  Mapped global message ID '" + msg_id + "' to Name: '" + msg_name +
+                                                "'", 3);
                                         } else {
-                                            EngineStdOut("  Skipping global message entry with empty ID. Content: " + NlohmannJsonToString(msgJson), 1);
+                                            EngineStdOut(
+                                                "  Skipping global message entry with empty ID. Content: " +
+                                                NlohmannJsonToString(msgJson), 1);
                                         }
                                     } else {
-                                        EngineStdOut("  Skipping non-object entry in global messages array. Content: " + NlohmannJsonToString(msgJson), 1);
+                                        EngineStdOut(
+                                            "  Skipping non-object entry in global messages array. Content: " +
+                                            NlohmannJsonToString(msgJson), 1);
                                     }
                                 }
                             } else {
-                                EngineStdOut("No global 'messages' array found in project.json or it's not an array.", 1);
+                                EngineStdOut("No global 'messages' array found in project.json or it's not an array.",
+                                             1);
                             }
                         } else {
                             EngineStdOut(
@@ -1921,7 +1942,7 @@ std::string Engine::OFD() const {
     // hwndOwner 설정 수정
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
     if (HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL))) {
-        ofn.hwndOwner =hwnd;
+        ofn.hwndOwner = hwnd;
     }
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile);
@@ -1997,6 +2018,19 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
         return false;
     }
     EngineStdOut("SDL Window created successfully.", 0);
+    // 커서 생성
+    m_defaultCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_DEFAULT);
+    m_handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_POINTER);
+
+    if (!m_defaultCursor || !m_handCursor) {
+        EngineStdOut("Failed to create system cursors: " + std::string(SDL_GetError()), 2);
+        // 필요한 경우 여기서 초기화 실패 처리
+    } else {
+        SDL_SetCursor(m_defaultCursor); // 기본 커서로 시작
+        m_currentCursor = m_defaultCursor;
+        EngineStdOut("System cursors created and default set.", 0);
+    }
+
     if (attemptVulkan) {
         EngineStdOut("Attempting to create Vulkan renderer as requested by command line argument...", 0);
         // Vulkan 렌더러 생성 시도
@@ -4146,6 +4180,62 @@ bool Engine::mapWindowToStageCoordinates(int windowMouseX, int windowMouseY, flo
     stageY = (fullStageHeightTex / 2.0f) - texture_coord_y_abs;
 
     return true;
+}
+
+void Engine::updateMouseCursor(float mouseWindowX, float mouseWindowY) {
+    if (ImGui::GetIO().WantCaptureMouse) {
+        // ImGui가 마우스를 사용 중이면
+        if (m_currentCursor != m_defaultCursor && m_defaultCursor) {
+            // ImGui 위에서는 기본 커서로
+            SDL_SetCursor(m_defaultCursor);
+            m_currentCursor = m_defaultCursor;
+        }
+        return; // 게임 커서 로직 실행 안 함
+    }
+
+    bool overInteractiveEntity = false;
+    float stageMouseX, stageMouseY;
+
+    // 윈도우 좌표를 스테이지 좌표로 변환
+    if (mapWindowToStageCoordinates(static_cast<int>(mouseWindowX), static_cast<int>(mouseWindowY), stageMouseX,
+                                    stageMouseY)) {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 및 objects_in_order 접근 보호
+
+        // objects_in_order는 렌더링 순서 (인덱스가 작을수록 위에 그려짐)를 따르므로,
+        // 0번 인덱스부터 순회하여 가장 먼저 마우스와 충돌하는 엔티티를 찾습니다.
+        for (const auto &objInfo: objects_in_order) {
+            // 현재 씬에 속하거나 전역 오브젝트인 경우에만
+            bool isInCurrentScene = (objInfo.sceneId == currentSceneId);
+            bool isGlobal = (objInfo.sceneId == "global" || objInfo.sceneId.empty());
+            if (!isInCurrentScene && !isGlobal) {
+                continue;
+            }
+
+            auto it_entity = entities.find(objInfo.id);
+            if (it_entity != entities.end()) {
+                Entity *entity = it_entity->second.get();
+                // 보이는 엔티티이고, 마우스 포인터가 엔티티 내부에 있는지 확인
+                if (entity && entity->isVisible() && entity->isPointInside(stageMouseX, stageMouseY)) {
+                    // 클릭 가능한지 여부를 나타내는 플래그가 Entity에 있다면 추가로 확인 가능
+                    // 예: if (entity->isClickable()) { overInteractiveEntity = true; break; }
+                    overInteractiveEntity = true;
+                    break; // 가장 위에 있는 엔티티를 찾았으므로 루프 종료
+                }
+            }
+        }
+    }
+
+    if (overInteractiveEntity) {
+        if (m_currentCursor != m_handCursor && m_handCursor) {
+            SDL_SetCursor(m_handCursor);
+            m_currentCursor = m_handCursor;
+        }
+    } else {
+        if (m_currentCursor != m_defaultCursor && m_defaultCursor) {
+            SDL_SetCursor(m_defaultCursor);
+            m_currentCursor = m_defaultCursor;
+        }
+    }
 }
 
 void Engine::processInput(const SDL_Event &event, float deltaTime) {
@@ -6653,7 +6743,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                     if (isInCurrentScene || isGlobal) {
                         EngineStdOut(
                             "Dispatching message-received script for object: " + listeningObjectId + " (Message: '" +
-                            messageId + "') "+getMessageNameById(messageId), 3, executionThreadId); // LEVEL 0 -> 3
+                            messageId + "') " + getMessageNameById(messageId), 3, executionThreadId); // LEVEL 0 -> 3
                         // 메시지 수신 스크립트는 항상 새 스레드로 시작 (existingExecutionThreadId를 비워둠)
                         // 또한, 메시지를 받은 시점의 씬 컨텍스트(currentSceneId)를 사용합니다.
                         // 기존 코드에서 sceneIdAtDispatch가 항상 currentSceneId로 전달되었으므로,
@@ -6664,7 +6754,8 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                         // 엔진 파라미터 감지 (신호)
                         std::string oeParamValue = getOEparam(getMessageNameById(messageId)); // "<OE:OFD>"에서 "OFD" 추출
 
-                        if (!oeParamValue.empty()) { // OE 신호인지 확인
+                        if (!oeParamValue.empty()) {
+                            // OE 신호인지 확인
                             EngineStdOut("OE Param extracted: " + oeParamValue, 3, executionThreadId);
                             if (oeParamValue == "OFD") {
                                 std::string ofdResult = this->OFD(); // OFD() 한 번만 호출
