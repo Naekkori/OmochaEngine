@@ -3886,6 +3886,7 @@ void Engine::drawImGui() {
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(windowW) * 0.9f, static_cast<float>(windowH) * 0.7f),
                                  ImGuiCond_FirstUseEver); // 처음 사용할 때만 크기 설정, 이후 사용자가 조절 가능
         // drawScriptDebuggerUI() 함수 내용을 ImGui 창으로 변환
+        // ImGui::Begin("Script Debugger", &m_showScriptDebugger, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_HorizontalScrollbar);
         if (ImGui::Begin("Script Debugger", &m_showScriptDebugger,
                          ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_HorizontalScrollbar)) {
             // 메뉴바 (스크롤 제어)
@@ -3898,6 +3899,10 @@ void Engine::drawImGui() {
                     ImGui::SetScrollY(ImGui::GetScrollMaxY()); // 현재 창(Script Debugger)의 스크롤을 맨 아래로
                     m_debuggerScrollOffsetY = ImGui::GetScrollMaxY(); // m_debuggerScrollOffsetY도 동기화
                 }
+                if (ImGui::MenuItem(format("Tree {}Collapse", m_treeCollapseTargetState ? "" : "Un").c_str())) {
+                    m_treeCollapseTargetState = !m_treeCollapseTargetState;
+                    m_applyGlobalTreeState = true;
+                }
                 ImGui::EndMenuBar();
             }
             // 기존 drawScriptDebuggerUI의 렌더링 로직을 ImGui::Text 등으로 변환
@@ -3905,69 +3910,86 @@ void Engine::drawImGui() {
                 if (!entityPair.second) continue;
                 Entity *entity = entityPair.second.get();
                 std::string truncatedEName = truncate_str_len(entity->getName(), 20);
-                std::string entityDisplayName = "Entity: " + entity->getId() + " (" + truncatedEName + ")";
+                std::string entityNodeId = "Entity: " + entity->getId() + " (" + truncatedEName + ")";
 
-                ImGui::Text(entityDisplayName.c_str());
-                std::lock_guard<std::recursive_mutex> entity_state_lock(entity->getStateMutex());
-                if (entity->scriptThreadStates.empty()) {
-                    ImGui::Text("(No script threads)");
+                // 엔티티별 트리 노드 생성
+                if (m_applyGlobalTreeState) {
+                    // "모두 펼치기/접기" 버튼이 눌린 프레임: ImGuiCond_Always로 강제 상태 설정
+                    ImGui::SetNextItemOpen(m_treeCollapseTargetState, ImGuiCond_Always);
                 }
-
-                for (const auto &threadPair: entity->scriptThreadStates) {
-                    const std::string &threadId = threadPair.first;
-                    const Entity::ScriptThreadState &state = threadPair.second;
-                    /*std::string info = "  Thread: " + truncate_str_len(threadId, 25); // 스레드 ID 길이 제한
-                    info += " | Waiting: " + std::string(state.isWaiting ? "Yes" : "No");
-                    info += " | Type: " + BlockTypeEnumToString(state.currentWaitType);*/
-                    string info = format("Thread:{} | Waiting:{} | Type:{} | BlockName->{}",
-                                         truncate_str_len(threadId, 25), string(state.isWaiting ? "Yes" : "No"),
-                                         BlockTypeEnumToString(state.currentWaitType)
-                                         , Omocha::blockTypeEnumToKoreanString(
-                                             Omocha::stringToBlockTypeEnum(entity->blockName)));
-
-                    if (state.isWaiting && !state.blockIdForWait.empty()) {
-                        info += " | Block: " + truncate_str_len(state.blockIdForWait, 15);
+                if (ImGui::TreeNodeEx(entityNodeId.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    std::lock_guard<std::recursive_mutex> entity_state_lock(entity->getStateMutex());
+                    if (entity->scriptThreadStates.empty()) {
+                        ImGui::Text("(No script threads)");
                     }
-                    // ResumingAt 정보 추가 (유효성 검사 강화)
-                    if (state.resumeAtBlockIndex != -1 && state.scriptPtrForResume) {
-                        // scriptPtrForResume 유효성 검사
-                        if (state.resumeAtBlockIndex >= 0 && static_cast<size_t>(state.resumeAtBlockIndex) < state.
-                            scriptPtrForResume->blocks.size()) {
-                            info += " | ResumingAt: " + truncate_str_len(
-                                        state.scriptPtrForResume->blocks[state.resumeAtBlockIndex].id, 15) +
-                                    " (idx " + std::to_string(state.resumeAtBlockIndex) + ")";
-                        } else {
-                            info += " | ResumingAt: Invalid Index (" + std::to_string(state.resumeAtBlockIndex) + ")";
+
+                    for (const auto &threadPair: entity->scriptThreadStates) {
+                        const std::string &threadId = threadPair.first;
+                        const Entity::ScriptThreadState &state = threadPair.second;
+
+                        // 스레드별 트리 노드 생성
+                        std::string threadNodeId = "Thread: " + truncate_str_len(threadId, 25);
+                        if (m_applyGlobalTreeState) {
+                            // "모두 펼치기/접기" 버튼이 눌린 프레임: ImGuiCond_Always로 강제 상태 설정
+                            ImGui::SetNextItemOpen(m_treeCollapseTargetState, ImGuiCond_Always);
                         }
-                    } else if (state.resumeAtBlockIndex != -1) {
-                        // scriptPtrForResume이 null인 경우
-                        info += " | ResumingAt: (null script ptr, idx " + std::to_string(state.resumeAtBlockIndex) +
-                                ")";
-                        // EngineStdOut 로그는 const 함수 내에서 직접 호출 불가, 필요시 멤버 함수로 분리 또는 const 제거
-                    }
+                        if (ImGui::TreeNodeEx(threadNodeId.c_str(),ImGuiTreeNodeFlags_DefaultOpen)) {
+                            string info = format("Waiting:{} | Type:{} | BlockName->{}",
+                                                 string(state.isWaiting ? "Yes" : "No"),
+                                                 BlockTypeEnumToString(state.currentWaitType),
+                                                 Omocha::blockTypeEnumToKoreanString(
+                                                     Omocha::stringToBlockTypeEnum(entity->blockName)));
+                            ImGui::Text(info.c_str());
 
-                    if (!state.terminateRequested) {
-                        ImGui::Text(info.c_str());
-
-                        if (!state.loopCounters.empty()) {
-                            std::string loopInfoStr = "    Loop Counters: ";
-                            int counter = 0;
-                            for (const auto &loopPair: state.loopCounters) {
-                                if (counter++ > 3) {
-                                    // 너무 많은 루프 카운터 표시 방지 (예: 최대 4개)
-                                    loopInfoStr += "...";
-                                    break;
-                                }
-                                loopInfoStr += "[" + truncate_str_len(loopPair.first, 10) + ":" + std::to_string(
-                                    loopPair.second) + "] ";
+                            if (state.isWaiting && !state.blockIdForWait.empty()) {
+                                ImGui::Text("Waiting Block: %s", truncate_str_len(state.blockIdForWait, 15).c_str());
                             }
-                            ImGui::Text(loopInfoStr.c_str());
+
+                            // ResumingAt 정보 추가 (유효성 검사 강화)
+                            if (state.resumeAtBlockIndex != -1) {
+                                if (state.scriptPtrForResume && state.resumeAtBlockIndex >= 0 && static_cast<size_t>(
+                                        state.resumeAtBlockIndex) < state.scriptPtrForResume->blocks.size()) {
+                                    ImGui::Text("Resuming At: %s (idx %d)",
+                                                truncate_str_len(
+                                                    state.scriptPtrForResume->blocks[state.resumeAtBlockIndex].id,
+                                                    15).c_str(),
+                                                state.resumeAtBlockIndex);
+                                } else if (state.scriptPtrForResume) {
+                                    ImGui::Text("Resuming At: Invalid Index (%d)", state.resumeAtBlockIndex);
+                                } else {
+                                    ImGui::Text("Resuming At: (null script ptr, idx %d)", state.resumeAtBlockIndex);
+                                }
+                            }
+
+                            if (state.terminateRequested) {
+                                ImGui::Text("Termination Requested");
+                            }
+
+                            if (!state.loopCounters.empty()) {
+                                std::string loopInfoStr = "Loop Counters: ";
+                                int counter = 0;
+                                for (const auto &loopPair: state.loopCounters) {
+                                    if (counter++ > 3) {
+                                        // 너무 많은 루프 카운터 표시 방지 (예: 최대 4개)
+                                        loopInfoStr += "...";
+                                        break;
+                                    }
+                                    loopInfoStr += "[" + truncate_str_len(loopPair.first, 10) + ":" + std::to_string(
+                                        loopPair.second) + "] ";
+                                }
+                                ImGui::Text(loopInfoStr.c_str());
+                            }
+                            ImGui::TreePop(); // End of thread node
                         }
-                    }
+                    } // End of if (!state.terminateRequested)
+                    ImGui::TreePop(); // End of entity node
                 }
             }
         }
         ImGui::End();
+    }
+    if (m_applyGlobalTreeState) {
+        m_applyGlobalTreeState=false;
     }
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
@@ -4936,7 +4958,7 @@ void Engine::startProjectTimer() {
     // m_projectTimerRunning 플래그만 true로 설정하고, m_projectTimerStartTime을 현재 시간으로 업데이트합니다.
     if (!m_projectTimerRunning) {
         m_projectTimerRunning = true;
-        m_projectTimerStartTime = SDL_GetTicks(); // 타이머 시작/재개 시점의 tick 기록
+        m_projectTimerStartTime = SDL_GetTicks();// 타이머 시작/재개 시점의 tick 기록
         EngineStdOut("Project timer STARTED/RESUMED.", 0);
     }
 }
@@ -5626,7 +5648,6 @@ void Engine::goToScene(const string &sceneId) {
 
         // 6. 이전 씬에서 중단되었던 스크립트 재개 (또는 현재 씬으로 돌아왔을 때 재개)
         resumeSuspendedScriptsInCurrentScene();
-
     } else {
         EngineStdOut("Error: Scene with ID '" + sceneId + "' not found. Cannot switch scene.", 2); // 씬 ID 찾을 수 없음
     }
@@ -5689,6 +5710,7 @@ void Engine::goToPreviousScene() {
             2);
     }
 }
+
 void Engine::resumeSuspendedScriptsInCurrentScene() {
     if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;
@@ -5698,15 +5720,14 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
 
     // 재개할 스크립트 정보를 담을 벡터 (뮤텍스 범위 밖에서 디스패치하기 위함)
     std::vector<std::tuple<std::string /*entityId*/,
-                           std::string /*execId*/,
-                           const Script* /*scriptPtr*/,
-                           std::string /*sceneIdAtDispatch*/,
-                           int /*resumeAtBlockIndex*/,
-                           std::string /*originalInnerBlockIdForWait*/>> tasksToDispatch;
-    {
+        std::string /*execId*/,
+        const Script * /*scriptPtr*/,
+        std::string /*sceneIdAtDispatch*/,
+        int /*resumeAtBlockIndex*/,
+        std::string /*originalInnerBlockIdForWait*/> > tasksToDispatch; {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 맵 및 ObjectInfo 접근 보호
 
-        for (auto const& [entityId, entityPtr] : entities) {
+        for (auto const &[entityId, entityPtr]: entities) {
             if (!entityPtr) continue;
 
             const ObjectInfo *objInfo = getObjectInfoById(entityId); // m_engineDataMutex 필요
@@ -5720,7 +5741,8 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                 std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex()); // 엔티티 상태 보호
 
                 // scriptThreadStates 맵을 순회하며 일시 중지된 스크립트 찾기
-                for (auto it_state = entityPtr->scriptThreadStates.begin(); it_state != entityPtr->scriptThreadStates.end(); /* no increment */) {
+                for (auto it_state = entityPtr->scriptThreadStates.begin();
+                     it_state != entityPtr->scriptThreadStates.end(); /* no increment */) {
                     auto &execId = it_state->first;
                     auto &state = it_state->second;
 
@@ -5729,7 +5751,9 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                         // 재개에 필요한 정보가 유효한지 확인
                         if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1) {
                             EngineStdOut(
-                                "Entity " + entityId + " (Thread: " + execId + ") resuming from scene change suspend. Resuming at block index " + std::to_string(state.resumeAtBlockIndex) + ".",
+                                "Entity " + entityId + " (Thread: " + execId +
+                                ") resuming from scene change suspend. Resuming at block index " + std::to_string(
+                                    state.resumeAtBlockIndex) + ".",
                                 0, execId);
 
                             // 디스패치할 작업 정보 저장
@@ -5756,7 +5780,8 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                             // 재개 컨텍스트가 유효하지 않은 경우, 해당 상태를 정리
                             EngineStdOut(
                                 "WARNING: Entity " + entityId + " script thread " + execId +
-                                " SCENE_CHANGE_SUSPEND state is invalid (missing resume context). Clearing state.", 1, execId);
+                                " SCENE_CHANGE_SUSPEND state is invalid (missing resume context). Clearing state.", 1,
+                                execId);
                             state.isWaiting = false;
                             state.currentWaitType = Entity::WaitType::NONE;
                             state.scriptPtrForResume = nullptr;
@@ -5800,16 +5825,19 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                 originalInnerBlockIdForWait
             );
         } else {
-            EngineStdOut("Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume + " not found for resumption.", 1);
+            EngineStdOut(
+                "Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume +
+                " not found for resumption.", 1);
         }
     }
 
     if (!tasksToDispatch.empty()) {
-         EngineStdOut("Dispatched " + std::to_string(tasksToDispatch.size()) + " suspended scripts for resumption.", 0);
+        EngineStdOut("Dispatched " + std::to_string(tasksToDispatch.size()) + " suspended scripts for resumption.", 0);
     } else {
-         EngineStdOut("No suspended scripts found in current scene to resume.", 0);
+        EngineStdOut("No suspended scripts found in current scene to resume.", 0);
     }
 }
+
 void Engine::triggerWhenSceneStartScripts() {
     if (currentSceneId.empty()) {
         EngineStdOut("Cannot trigger 'when_scene_start' scripts: Current scene ID is empty.", 1);

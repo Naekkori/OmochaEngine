@@ -246,7 +246,8 @@ class Engine : public TextInputInterface
     mutable std::mutex m_pressedKeysMutex;  // Mutex for m_pressedKeys
     std::atomic<bool> m_stageWasClickedThisFrame{false};
     void setVisibleHUDVariables(const vector<HUDVariableDisplay> &variables);
-
+    bool m_treeCollapseTargetState = true; // 초기값: 기본적으로 펼침 (true) 또는 접힘 (false)
+    bool m_applyGlobalTreeState = false;   // 프레임 단위로 전역 상태 적용 여부 플래그
     std::unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
     std::atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:

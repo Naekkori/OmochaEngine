@@ -82,14 +82,15 @@ OmochaEngine v1.0.0 by Maiteil
 # 사용 라이브러리
 
 | Name          | License URL                                                                                                                                                  |
-|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| libarchive    | [https://github.com/libarchive/libarchive/blob/master/COPYING]("https://github.com/libarchive/libarchive/blob/master/COPYING")                                |
+|:--------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| imGui         | [https://github.com/ocornut/imgui/blob/master/LICENSE.txt](https://github.com/ocornut/imgui/blob/master/LICENSE.txt)                                         |
+| libarchive    | [https://github.com/libarchive/libarchive/blob/master/COPYING]("https://github.com/libarchive/libarchive/blob/master/COPYING")                               |
 | nlomannJson   | [https://github.com/nlohmann/json/blob/develop/LICENSE.MIT](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT)                                       |
 | SDL           | [https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt)                                           |
 | SDL_image     | [https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_image/blob/main/LICENSE.txt)                               |
 | SDL_ttf       | [https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt](https://github.com/libsdl-org/SDL_ttf/blob/main/LICENSE.txt)                                   |
 | miniAudio     | [https://github.com/mackron/miniaudio/blob/master/LICENSE](https://github.com/mackron/miniaudio/blob/master/LICENSE)                                         |
-| Bzip2         | [https://sourceware.org/bzip2/LICENSE](https://sourceware.org/bzip2/LICENSE)                                                                                 |
+| Bzip2         | [https://sourceware.org/git/?p=bzip2.git;a=blob_plain;f=LICENSE;hb=bzip2-1.0.6](https://sourceware.org/git/?p=bzip2.git;a=blob_plain;f=LICENSE;hb=bzip2-1.0.6)                                                                                 |
 | libjpeg-turbo | [https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md)                   |
 | libtiff       | [https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT](https://gitlab.com/libtiff/libtiff/-/blob/master/COPYRIGHT)                                     |
 | Brotli        | [https://github.com/google/brotli/blob/master/LICENSE](https://github.com/google/brotli/blob/master/LICENSE)                                                 |
