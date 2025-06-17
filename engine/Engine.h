@@ -153,6 +153,7 @@ class Engine : public TextInputInterface
     vector<pair<string, const Script *>> m_whenStartSceneLoadedScripts;
     vector<pair<string, const Script *>> m_whenCloneStartScripts;               // 복제본 생성 시 실행될 스크립트
     map<string, vector<pair<string, const Script *>>> m_messageReceivedScripts; // Key: 메시지 ID/이름
+    std::map<std::string, std::string> m_messageIdToNameMap;
     bool m_showScriptDebugger = false;                                         // 스크립트 디버거 표시 여부
     float m_debuggerScrollOffsetY = 0.0f;                                      // 스크립트 디버거 스크롤 오프셋
     // --- Text Input Members (for ask_and_wait) ---
@@ -230,7 +231,7 @@ class Engine : public TextInputInterface
     std::condition_variable m_taskQueueCV_std;
     void workerLoop();
     void processCommands();                   // 메인 루프에서 커맨드를 처리하는 함수
-    string getOEparam(string s) {
+    string getOEparam(string s) const {
         //OmochaEngine 파라미터 캡쳐
         regex OEpat("<OE:(.+?)>");
         smatch OEmatch;
@@ -303,6 +304,9 @@ public:
     bool IsSysMenu = false;
     bool IsScriptStart = false; // 스크립트 시작 여부
     bool loadProject(const string &projectFilePath);
+
+    string OFD() const;
+
     bool initGE(bool vsyncEnabled, bool attemptVulkan); // VSync 및 Vulkan 사용 여부 인자 추가
     bool initImGui();
 
@@ -395,7 +399,8 @@ public:
     bool setEntitySelectedCostume(const std::string &entityId, const std::string &costumeId);
     bool setEntitychangeToNextCostume(const std::string &entityId, const std::string &asOption);
     void dispatchScriptForExecution(const std::string &entityId, const Script *scriptPtr, const std::string &sceneIdAtDispatch, float deltaTime, const std::string &existingExecutionThreadId = "");
-    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);    
+    void raiseMessage(const std::string &messageId, const std::string &senderObjectId, const std::string &executionThreadId);
+    std::string getMessageNameById(const std::string& messageId) const;
     std::shared_ptr<Entity> createCloneOfEntity(const std::string &originalEntityId, const std::string &sceneIdForScripts); // Return shared_ptr
     int getNextCloneIdSuffix(const std::string &originalId);
     void deleteEntity(const std::string& entityIdToDelete);

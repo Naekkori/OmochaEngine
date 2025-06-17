@@ -11,17 +11,27 @@
 #include <cstdio>
 #include <algorithm>
 #include <memory>
-#include <chrono> // std::chrono 타입 및 함수 사용을 위해 필요
+#include <chrono>
 #include <format>
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_sdl3.h>
 #include <imgui/backends/imgui_impl_sdlrenderer3.h>
 #include <nlohmann/json.hpp>
 #include "blocks/BlockExecutor.h"
-#include "blocks/blockTypes.h"    // Omocha 네임스페이스의 함수 사용을 위해 명시적 포함 (필요시)
+#include "blocks/blockTypes.h"
 #include <future>
 #include <regex>
 #include <resource.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <commdlg.h> // GetOpenFileName
+#endif
+// Unix 계열 헤더
+#if defined(__linux__) || defined(__APPLE__)
+#include <gtk/gtk.h>
+#include <cstdio>
+#include <array> // For std::array (popen 결과 읽기)
+#endif
 using namespace std;
 
 const float Engine::MIN_ZOOM = 1.0f;
@@ -1826,7 +1836,8 @@ bool Engine::loadProject(const string &projectFilePath) {
                                      ", [0].is_string(): " + std::string(firstIsStr ? "true" : "false"),
                                      3, "");
 
-                        string messageIdToReceive;
+                        std::string messageIdToReceive; // 예: "message_abc123" (내부 ID)
+                        std::string actualMessageName; // 예: "게임 시작" (사용자 정의 이름)
                         bool messageParamFound = false;
 
                         // After FilterNullsInParamsJsonArray, the signal ID should be the first element if present.
@@ -1842,6 +1853,29 @@ bool Engine::loadProject(const string &projectFilePath) {
                             m_messageReceivedScripts[messageIdToReceive].push_back({objectId, &script});
                             EngineStdOut("  -> object ID " + objectId + " " + messageIdToReceive + " message found.",
                                          3); // LEVEL 0 -> 3
+                            // m_messageIdToNameMap에 messageId와 실제 이름 매핑 저장
+                            if (document.contains("messages") && document["messages"].is_array()) {
+                                const nlohmann::json& messagesJsonArray = document["messages"];
+                                EngineStdOut("Found " + std::to_string(messagesJsonArray.size()) + " global messages. Processing...", 0);
+                                for (const auto& msgJson : messagesJsonArray) {
+                                    if (msgJson.is_object()) {
+                                        std::string msg_id = getSafeStringFromJson(msgJson, "id", "global message entry", "", true, false);
+                                        std::string msg_name = getSafeStringFromJson(msgJson, "name", "global message entry (id: " + msg_id + ")", "", false, true);
+
+                                        if (!msg_id.empty()) {
+                                            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+                                            m_messageIdToNameMap[msg_id] = msg_name;
+                                            EngineStdOut("  Mapped global message ID '" + msg_id + "' to Name: '" + msg_name + "'", 3);
+                                        } else {
+                                            EngineStdOut("  Skipping global message entry with empty ID. Content: " + NlohmannJsonToString(msgJson), 1);
+                                        }
+                                    } else {
+                                        EngineStdOut("  Skipping non-object entry in global messages array. Content: " + NlohmannJsonToString(msgJson), 1);
+                                    }
+                                }
+                            } else {
+                                EngineStdOut("No global 'messages' array found in project.json or it's not an array.", 1);
+                            }
                         } else {
                             EngineStdOut(
                                 " -> object ID " + objectId +
@@ -1875,6 +1909,58 @@ bool Engine::loadProject(const string &projectFilePath) {
             startButtonScripts.size()), 0);
     EngineStdOut("Project JSON file parsed successfully.", 0);
     return true;
+}
+
+std::string Engine::OFD() const {
+#ifdef _WIN32
+    OPENFILENAMEA ofn; // ANSI 버전
+    char szFile[MAX_PATH] = {0};
+
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    // hwndOwner 설정 수정
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    if (HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL))) {
+        ofn.hwndOwner =hwnd;
+    }
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = "엔트리 프로젝트 (*.ent)\0*.ent\0모든 파일 (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (GetOpenFileNameA(&ofn) == TRUE) {
+        EngineStdOut("OFD: File selected (Windows): " + std::string(ofn.lpstrFile), 0);
+        return std::string(ofn.lpstrFile);
+    }
+    EngineStdOut("OFD: No file selected or error (Windows).", 1);
+    return "";
+#elif defined(__linux__) || defined(__APPLE__)
+    //gtk 로 구현예정
+#else
+    EngineStdOut("OFD: OpenFileDialog not implemented for this platform.", 2);
+    ShowMessageBox("OpenFileDialog not implemented for this platform.", msgBoxIconType.ICON_WARNING);
+    return ""; // 지원되지 않는 플랫폼
+#endif
+}
+
+std::string Engine::getMessageNameById(const std::string &messageId) const {
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // m_messageIdToNameMap 접근 보호
+    auto it = m_messageIdToNameMap.find(messageId);
+    if (it != m_messageIdToNameMap.end()) {
+        return it->second; // 저장된 사용자 정의 이름 반환
+    }
+
+    // 저장된 이름이 없다면, <OE:...> 패턴에서 추출 시도 (기존 getOEparam 활용)
+    std::string extractedName = getOEparam(messageId); // getOEparam은 const 멤버 함수여야 함
+    if (!extractedName.empty()) {
+        return extractedName; // <OE:...> 패턴에서 추출된 이름 반환
+    }
+
+    return messageId; // 최후의 수단으로 messageId 자체를 반환
 }
 
 bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
@@ -3933,7 +4019,7 @@ void Engine::drawImGui() {
                             // "모두 펼치기/접기" 버튼이 눌린 프레임: ImGuiCond_Always로 강제 상태 설정
                             ImGui::SetNextItemOpen(m_treeCollapseTargetState, ImGuiCond_Always);
                         }
-                        if (ImGui::TreeNodeEx(threadNodeId.c_str(),ImGuiTreeNodeFlags_DefaultOpen)) {
+                        if (ImGui::TreeNodeEx(threadNodeId.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
                             string info = format("Waiting:{} | Type:{} | BlockName->{}",
                                                  string(state.isWaiting ? "Yes" : "No"),
                                                  BlockTypeEnumToString(state.currentWaitType),
@@ -3989,7 +4075,7 @@ void Engine::drawImGui() {
         ImGui::End();
     }
     if (m_applyGlobalTreeState) {
-        m_applyGlobalTreeState=false;
+        m_applyGlobalTreeState = false;
     }
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
@@ -4958,7 +5044,7 @@ void Engine::startProjectTimer() {
     // m_projectTimerRunning 플래그만 true로 설정하고, m_projectTimerStartTime을 현재 시간으로 업데이트합니다.
     if (!m_projectTimerRunning) {
         m_projectTimerRunning = true;
-        m_projectTimerStartTime = SDL_GetTicks();// 타이머 시작/재개 시점의 tick 기록
+        m_projectTimerStartTime = SDL_GetTicks(); // 타이머 시작/재개 시점의 tick 기록
         EngineStdOut("Project timer STARTED/RESUMED.", 0);
     }
 }
@@ -6567,7 +6653,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                     if (isInCurrentScene || isGlobal) {
                         EngineStdOut(
                             "Dispatching message-received script for object: " + listeningObjectId + " (Message: '" +
-                            messageId + "')", 3, executionThreadId); // LEVEL 0 -> 3
+                            messageId + "') "+getMessageNameById(messageId), 3, executionThreadId); // LEVEL 0 -> 3
                         // 메시지 수신 스크립트는 항상 새 스레드로 시작 (existingExecutionThreadId를 비워둠)
                         // 또한, 메시지를 받은 시점의 씬 컨텍스트(currentSceneId)를 사용합니다.
                         // 기존 코드에서 sceneIdAtDispatch가 항상 currentSceneId로 전달되었으므로,
@@ -6575,6 +6661,22 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                         // 여기서는 명확성을 위해 currentSceneId를 전달합니다.
                         // deltaTime은 이벤트 발생 시점이므로 0.0f가 적절합니다.
                         this->dispatchScriptForExecution(listeningObjectId, scriptPtr, currentSceneId, 0.0f, "");
+                        // 엔진 파라미터 감지 (신호)
+                        std::string oeParamValue = getOEparam(getMessageNameById(messageId)); // "<OE:OFD>"에서 "OFD" 추출
+
+                        if (!oeParamValue.empty()) { // OE 신호인지 확인
+                            EngineStdOut("OE Param extracted: " + oeParamValue, 3, executionThreadId);
+                            if (oeParamValue == "OFD") {
+                                std::string ofdResult = this->OFD(); // OFD() 한 번만 호출
+                                if (!ofdResult.empty()) {
+                                    this->EngineStdOut(format("Opened EntryFile {}", ofdResult));
+                                    // TODO: 여기서 ofdResult 경로의 프로젝트를 실제로 로드하는 로직 추가
+                                    // 예: if (this->loadProject(ofdResult)) { this->runStartButtonScripts(); }
+                                }
+                            }
+                            // 다른 OE 신호 처리 로직 추가 가능
+                            // else if (oeParamValue == "ANOTHER_OE_SIGNAL") { /* ... */ }
+                        }
                     } else {
                         EngineStdOut(
                             "Script for message '" + messageId + "' on object " + listeningObjectId +

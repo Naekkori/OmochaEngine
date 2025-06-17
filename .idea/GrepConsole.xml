@@ -256,6 +256,21 @@
                           </GrepCompositeModel>
                         </option>
                       </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="fdebda65-cccc-4d7b-a2c8-e17b6babad92" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value=" raised by object " />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
                     </list>
                   </option>
                 </Pins>
