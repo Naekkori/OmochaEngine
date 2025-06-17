@@ -20,8 +20,11 @@
 #include "blocks/BlockExecutor.h"
 #include "blocks/blockTypes.h"
 #include <future>
+#include <random>
 #include <regex>
 #include <resource.h>
+
+#include "util/UnEnt.h"
 #ifdef _WIN32
 #include <windows.h>
 #include <commdlg.h> // GetOpenFileName
@@ -3961,7 +3964,7 @@ void Engine::drawImGui() {
                                                     : (getObjectInfoById(var.objectId)
                                                            ? getObjectInfoById(var.objectId)->name + " : " + var.name
                                                            : var.name);
-                    ImGui::Text("%s:", nameToDisplay.c_str());
+                    ImGui::Text("%s", nameToDisplay.c_str());
                     ImGui::SameLine();
                     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.47f, 1.0f, 1.0f)); // 파란 배경
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // 흰색 텍스트
@@ -6761,8 +6764,9 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                                 std::string ofdResult = this->OFD(); // OFD() 한 번만 호출
                                 if (!ofdResult.empty()) {
                                     this->EngineStdOut(format("Opened EntryFile {}", ofdResult));
-                                    // TODO: 여기서 ofdResult 경로의 프로젝트를 실제로 로드하는 로직 추가
-                                    // 예: if (this->loadProject(ofdResult)) { this->runStartButtonScripts(); }
+                                    this->DecompAndLoadProject(ofdResult);
+                                }else {
+                                    this->showMessageBox("사용자 가 파일열기 를 취소했습니다.",SDL_MESSAGEBOX_INFORMATION);
                                 }
                             }
                             // 다른 OE 신호 처리 로직 추가 가능
@@ -7660,7 +7664,28 @@ void Engine::updateEntityTextBoxBackgroundColor(const std::string &entityId, con
             "Warning: ObjectInfo not found for entity " + entityId + " when trying to update background color.", 1);
     }
 }
-
+void Engine::updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn) {
+    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // ObjectInfo 접근 보호
+    for (auto &objInfo: objects_in_order) {
+        if (objInfo.id == entityId && objInfo.objectType == "textBox") {
+            if (effect == "strike") {
+                objInfo.Strike = setOn;
+            } else if (effect == "underLine") {
+                objInfo.Underline = setOn;
+            } else if (effect == "fontItalic") {
+                objInfo.Italic = setOn;
+            } else if (effect == "fontBold") {
+                objInfo.Bold = setOn;
+            } else {
+                EngineStdOut("Unknown text effect: " + effect + " for entity " + entityId, 1);
+                return;
+            }
+            EngineStdOut("TextBox " + entityId + " effect '" + effect + "' set to " + (setOn ? "ON" : "OFF"), 3);
+            return;
+        }
+    }
+    EngineStdOut("TextBox entity " + entityId + " not found for text_change_effect.", 1);
+}
 void Engine::drawScriptDebuggerUI() {
     auto truncate_str_len = [](const std::string &str, size_t max_len) {
         if (str.length() > max_len) {
@@ -7922,26 +7947,97 @@ void Engine::drawScriptDebuggerUI() {
         SDL_RenderFillRect(renderer, &scrollbarHandleRect);
     }
 }
+void Engine::updateExtractValueEvt(double currentSize,double totalSize) {
+ double percentage = 0.0;
+    if (totalSize > 0) {
+        percentage = (currentSize / totalSize) * 100.0;
+    }
+    percentage = std::clamp(percentage, 0.0, 100.0); // 0% ~ 100%
 
-void Engine::updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn) {
-    std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // ObjectInfo 접근 보호
-    for (auto &objInfo: objects_in_order) {
-        if (objInfo.id == entityId && objInfo.objectType == "textBox") {
-            if (effect == "strike") {
-                objInfo.Strike = setOn;
-            } else if (effect == "underLine") {
-                objInfo.Underline = setOn;
-            } else if (effect == "fontItalic") {
-                objInfo.Italic = setOn;
-            } else if (effect == "fontBold") {
-                objInfo.Bold = setOn;
-            } else {
-                EngineStdOut("Unknown text effect: " + effect + " for entity " + entityId, 1);
-                return;
+    EngineStdOut(format("Decompression Progress: {:.2f}% ({:.0f}/{:.0f})", percentage, currentSize, totalSize), 3);
+
+    // 예시: "prog_pct" ID를 가진 전역 변수에 진행률 업데이트
+    bool varUpdated = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // m_HUDVariables 접근 보호
+        for (auto& var : m_HUDVariables) {
+            if (var.name == "<OE:PCT>" && var.variableType == "variable" && var.objectId.empty()) { // 전역 변수 확인
+                var.value = std::to_string(static_cast<int>(std::round(percentage)));
+                varUpdated = true;
+                break;
             }
-            EngineStdOut("TextBox " + entityId + " effect '" + effect + "' set to " + (setOn ? "ON" : "OFF"), 3);
-            return;
         }
     }
-    EngineStdOut("TextBox entity " + entityId + " not found for text_change_effect.", 1);
+}
+void Engine::DecompAndLoadProject(string path) {
+    // mt19937 rd; // 시드 생성기는 한 번만 생성하는 것이 좋습니다. Engine 생성자 등에서 초기화 고려.
+    // mt19937 gen(rd()); // 위와 동일
+    std::random_device rd_dev; // 실제 난수 생성기 (시드용)
+    std::mt19937 gen(rd_dev()); // 메르센 트위스터 엔진
+    std::uniform_int_distribution<> distribution(0, 100);
+    int random_num = distribution(gen);
+
+    if (IsSysMenu) {
+        // 압축 시작 메시지 발송
+        std::string showProgressMsgId;
+
+        std::string targetShowMessageName = "<OE:EX1>";
+        bool showMsgIdFound = false;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+            for(const auto& pair : m_messageIdToNameMap) {
+                if (pair.second == targetShowMessageName) {
+                    showProgressMsgId = pair.first;
+                    showMsgIdFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (showMsgIdFound && !showProgressMsgId.empty()) {
+            raiseMessage(showProgressMsgId, "UnEntryStart", format("sys_{}", random_num));
+        } else {
+            EngineStdOut("Message ID for showing progress UI ('" + targetShowMessageName + "' or 'sadi') not found.", 1);
+        }
+
+        UnEnt unEntInstance; // UnEnt 객체 생성
+
+        try {
+            // std::bind를 사용하여 Engine의 멤버 함수를 콜백으로 전달
+            auto progressCallback = std::bind(&Engine::updateExtractValueEvt, this, std::placeholders::_1, std::placeholders::_2);
+
+            if (unEntInstance.extractArchiveTo(path, BASE_ASSETS, progressCallback)) {
+                EngineStdOut("Archive extracted successfully: " + path, 0);
+                // 여기에 압축 해제 성공 후 프로젝트 로드 로직 추가 가능
+                // 예: if (loadProject(std::string(BASE_ASSETS) + "project.json")) { /* 성공 처리 */ }
+            } else {
+                EngineStdOut("Failed to extract archive: " + path, 2);
+                // 압축 해제 실패 처리
+            }
+        } catch (const std::exception& e) {
+            EngineStdOut("Exception during archive extraction for '" + path + "': " + std::string(e.what()), 2);
+            // 예외 처리
+        }
+
+        // 압축 해제 완료 후 UI 숨기기 메시지 발송
+        std::string hideProgressMsgId;
+
+        std::string targetHideMessageName = "<OE:EX0>";
+        bool hideMsgIdFound = false;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
+            for(const auto& pair : m_messageIdToNameMap) {
+                if (pair.second == targetHideMessageName) {
+                    hideProgressMsgId = pair.first;
+                    hideMsgIdFound = true;
+                    break;
+                }
+            }
+        }
+        if (hideMsgIdFound && !hideProgressMsgId.empty()) {
+            raiseMessage(hideProgressMsgId, "UnEntryEnd", format("sys_end_{}", random_num));
+        } else {
+            EngineStdOut("Message ID for hiding progress UI ('" + targetHideMessageName + "' or 'rmhp') not found.", 1);
+        }
+    }
 }

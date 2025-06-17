@@ -241,6 +241,7 @@ class Engine : public TextInputInterface
         if (regex_search(s, OEmatch, OEpat)) {
             return OEmatch[1].str();
         }
+        return ""; // 패턴 불일치 시 빈 문자열 반환
     }
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
@@ -337,6 +338,10 @@ public:
     void EngineStdOut(string s, int LEVEL = 0, string TREADID = "") const; 
     void processInput(const SDL_Event &event, float deltaTime);
     void drawScriptDebuggerUI();
+
+    void updateExtractValueEvt(double tot, double value);
+
+    void DecompAndLoadProject(string path);
 
     void updateEntityTextEffect(const string &entityId, const string &effect, bool setOn);
 
