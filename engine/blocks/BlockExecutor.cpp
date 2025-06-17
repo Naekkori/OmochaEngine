@@ -1413,6 +1413,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                     result = sqrt(leftNum);
                 }
                 break;
+            //앤트리는 각도 시스템이 다르다 그래서 테이블에 있는걸 참고해야한다.
             case MathOperationType::SIN:
             case MathOperationType::COS:
             case MathOperationType::TAN:
