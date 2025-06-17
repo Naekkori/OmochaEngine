@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <functional>               // For std::function
 #include <memory>                     // For std::unique_ptr
+#include <regex>
 using namespace std;
 #include <set>      // For std::set
 #include <atomic> // For std::atomic
@@ -229,7 +230,14 @@ class Engine : public TextInputInterface
     std::condition_variable m_taskQueueCV_std;
     void workerLoop();
     void processCommands();                   // 메인 루프에서 커맨드를 처리하는 함수
-
+    string getOEparam(string s) {
+        //OmochaEngine 파라미터 캡쳐
+        regex OEpat("<OE:(.+?)>");
+        smatch OEmatch;
+        if (regex_search(s, OEmatch, OEpat)) {
+            return OEmatch[1].str();
+        }
+    }
     Uint64 lastfpstime;                  // SDL_GetTicks64() 또는 SDL_GetTicks() (SDL3에서 Uint64 반환) 와 호환되도록 Uint64로 변경
     bool m_isDraggingZoomSlider = false; // 줌 슬라이더 드래그 상태
     int framecount;
