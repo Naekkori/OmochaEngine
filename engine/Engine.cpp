@@ -2271,22 +2271,14 @@ bool Engine::initImGui() {
     // 기본 폰트 (영어)
     // io.Fonts->AddFontDefault();
 
-    // 한국어 및 기타 문자를 지원하려면 글리프 범위를 지정
     ImFontConfig config;
     config.MergeMode = false;
     config.PixelSnapH = true;
 
-    // 자주 사용되는 한국어 글리프 범위 (필요에 따라 확장 가능)
-    static const ImWchar ranges[] = {
-        0x0020, 0x00FF, // Basic Latin + Latin Supplement
-        0x3131, 0x3163, // Hangul Compatibility Jamo
-        0xAC00, 0xD7A3, // Hangul Syllables
-        0, // NULL 종료
-    };
 
     // hudFont와 동일한 폰트 파일을 ImGui에 로드
     // AddFontFromFileTTF는 성공 시 ImFont*를 반환하고, 실패 시 nullptr을 반환합니다.
-    ImFont *loadedFont = io.Fonts->AddFontFromFileTTF(hudFontPath.c_str(), hudFontSize, &config, ranges);
+    ImFont *loadedFont = io.Fonts->AddFontFromFileTTF(hudFontPath.c_str(), hudFontSize, &config,io.Fonts->GetGlyphRangesKorean());
     if (!loadedFont) {
         EngineStdOut("Failed to load font for ImGui: " + hudFontPath, 2);
         // 폰트 로드 실패 시, ImGui는 기본 내장 폰트(proggy clean)를 사용합니다.
@@ -3013,754 +3005,754 @@ void Engine::drawAllEntities() {
     SDL_RenderTexture(renderer, tempScreenTexture, &currentSrcFRect, &finalDisplayDstRect);
 }
 
-void Engine::drawHUD() {
-    if (!this->renderer) {
-        // 렌더러 사용 불가
-        EngineStdOut("drawHUD: Renderer not available.", 1);
-        return;
-    }
-
-    int windowW = 0, windowH = 0;
-    SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
-    if (this->hudFont && this->specialConfig.showFPS) {
-        string fpsText = "FPS: " + to_string(static_cast<int>(currentFps));
-        SDL_Color textColor = {255, 150, 0, 255}; // 주황색
-
-        SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, fpsText.c_str(), 0, textColor);
-        if (textSurface) {
-            // 배경 사각형 설정
-            float bgPadding = 5.0f; // 텍스트 주변 여백
-            SDL_FRect bgRect = {
-                10.0f - bgPadding, // FPS 텍스트 x 위치에서 여백만큼 왼쪽으로
-                10.0f - bgPadding, // FPS 텍스트 y 위치에서 여백만큼 위로
-                static_cast<float>(textSurface->w) + 2 * bgPadding, // 텍스트 너비 + 양쪽 여백
-                static_cast<float>(textSurface->h) + 2 * bgPadding // 텍스트 높이 + 양쪽 여백
-            };
-
-            // 반투명한 어두운 배경색 설정
-            SDL_Color bgColor = {30, 30, 30, 150}; // 어두운 회색, 약 70% 불투명도
-
-            // 현재 블렌드 모드 저장 및 블렌딩 활성화
-            SDL_BlendMode originalBlendMode;
-            SDL_GetRenderDrawBlendMode(renderer, &originalBlendMode);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-
-            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-            Helper_RenderFilledRoundedRect(renderer, &bgRect, 5.0f); // 둥근 모서리 배경 그리기
-
-            // 원래 블렌드 모드로 복원 (다른 HUD 요소에 영향 주지 않도록)
-            SDL_SetRenderDrawBlendMode(renderer, originalBlendMode);
-
-            // FPS 텍스트 렌더링 (배경 위에)
-            TTF_FontStyleFlags original_style = TTF_GetFontStyle(hudFont);
-            TTF_SetFontStyle(hudFont, TTF_STYLE_BOLD);
-
-            SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            if (textTexture) {
-                SDL_FRect dstRect = {
-                    10.0f, 10.0f, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
-                };
-                SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
-                SDL_DestroyTexture(textTexture);
-            } else {
-                EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2); // FPS 텍스트 텍스처 생성 실패
-            }
-            TTF_SetFontStyle(hudFont, original_style); // 원래 폰트 스타일로 복원
-            SDL_DestroySurface(textSurface);
-        } else {
-            EngineStdOut("Failed to render FPS text surface ", 2); // FPS 텍스트 표면 렌더링 실패
-        }
-    }
-    // 대답 입력
-    if (m_textInputActive) {
-        // 텍스트 입력 모드가 활성화된 경우
-        std::lock_guard<std::mutex> lock(m_textInputMutex);
-        // m_textInputQuestionMessage, m_currentTextInputBuffer 접근 보호
-
-        // 화면 하단 등에 질문 메시지와 입력 필드 UI를 그립니다.
-        // 예시:
-        // 1. 질문 메시지 렌더링 (m_textInputQuestionMessage 사용)
-        // 2. 입력 필드 배경 렌더링
-        // 3. 현재 입력된 텍스트 렌더링 (m_currentTextInputBuffer 사용)
-        // 4. 체크버튼
-
-        if (hudFont) {
-            SDL_Color textColor = {0, 0, 0, 255}; // 검정
-            SDL_Color bgColor = {255, 255, 255, 255}; // 흰색
-
-            // 질문 메시지
-            if (!m_textInputQuestionMessage.empty()) {
-                SDL_Surface *questionSurface = TTF_RenderText_Blended_Wrapped(
-                    hudFont, m_textInputQuestionMessage.c_str(), m_textInputQuestionMessage.size(), textColor,
-                    WINDOW_WIDTH - 40);
-                if (questionSurface) {
-                    SDL_Texture *questionTexture = SDL_CreateTextureFromSurface(renderer, questionSurface);
-                    SDL_FRect questionRect = {
-                        20.0f, static_cast<float>(WINDOW_HEIGHT - 100 - questionSurface->h),
-                        static_cast<float>(questionSurface->w), static_cast<float>(questionSurface->h)
-                    };
-                    SDL_RenderTexture(renderer, questionTexture, nullptr, &questionRect);
-                    SDL_DestroyTexture(questionTexture);
-                    SDL_DestroySurface(questionSurface);
-                }
-            } // 입력 필드 (더 짧게 수정)
-            SDL_FRect inputBgRect = {
-                20.0f, static_cast<float>(WINDOW_HEIGHT - 80), static_cast<float>(WINDOW_WIDTH - 120), 40.0f
-            };
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-            SDL_RenderFillRect(renderer, &inputBgRect);
-            SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // 테두리
-            SDL_RenderRect(renderer, &inputBgRect);
-
-            std::string displayText = m_currentTextInputBuffer;
-            if (SDL_TextInputActive(window)) {
-                // IME 사용 중이거나 텍스트 입력 중일 때 커서 표시
-                // 간단한 커서 표시 (깜빡임은 추가 구현 필요)
-                Uint64 currentTime = SDL_GetTicks();
-                if (currentTime > m_cursorBlinkToggleTime + CURSOR_BLINK_INTERVAL_MS) {
-                    m_cursorCharVisible = !m_cursorCharVisible;
-                    m_cursorBlinkToggleTime = currentTime;
-                }
-                if (m_cursorCharVisible) {
-                    displayText += "|";
-                } else {
-                    displayText += " ";
-                }
-            }
-
-            if (!displayText.empty()) {
-                SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, displayText.c_str(), displayText.size(),
-                                                                  textColor);
-                if (textSurface) {
-                    SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-                    // 입력 필드 내부에 텍스트 위치 조정
-                    float textX = inputBgRect.x + 10;
-                    float textY = inputBgRect.y + (inputBgRect.h - textSurface->h) / 2;
-                    SDL_FRect textRect = {
-                        textX, textY, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
-                    };
-
-                    // 텍스트가 입력 필드를 넘어가지 않도록 클리핑
-                    if (textRect.x + textRect.w > inputBgRect.x + inputBgRect.w - 10) {
-                        textRect.w = inputBgRect.x + inputBgRect.w - 10 - textRect.x;
-                    }
-
-                    SDL_RenderTexture(renderer, textTexture, nullptr, &textRect);
-                    SDL_DestroyTexture(textTexture);
-                    SDL_DestroySurface(textSurface);
-                }
-            }
-            // 체크버튼 누르면 엔터 친거랑 동일한 효과
-            SDL_Texture *checkboxTexture = LoadTextureFromSvgResource(renderer, IDI_CHBOX);
-            SDL_Rect inputFiledRect = {inputBgRect.x, inputBgRect.y, inputBgRect.w, inputBgRect.h};
-            if (checkboxTexture) {
-                // 체크박스의 크기와 위치 계산
-                int checkboxSize = min(inputFiledRect.h, 40); // 크기 제한
-
-                // 체크박스의 위치 계산 (입력창 우측에 배치)
-                SDL_FRect checkboxDestRect;
-                checkboxDestRect.x = inputFiledRect.x + inputFiledRect.w + 5; // 입력창과의 간격을 5로 축소
-                checkboxDestRect.y = inputFiledRect.y; // 입력창과 동일한 y 좌표 (상단 정렬)
-                // 만약 입력창과 수직 중앙 정렬을 원한다면:
-                // checkboxDestRect.y = inputFieldRect.y + (inputFieldRect.h - checkboxSize) / 2;
-                // 이 경우 checkboxSize가 inputFieldRect.h와 같으므로 결과는 동일합니다.
-
-                checkboxDestRect.w = checkboxSize;
-                checkboxDestRect.h = checkboxSize;
-
-                // 3. 체크박스 렌더링
-                // SDL_RenderCopy는 checkboxTexture의 전체 내용을 checkboxDestRect에 맞춰 렌더링합니다.
-                // SVG는 벡터이므로 checkboxDestRect 크기에 맞게 품질 저하 없이 스케일링됩니다.
-                SDL_RenderTexture(renderer, checkboxTexture, NULL, &checkboxDestRect);
-            }
-        }
-    }
-    // 줌 슬라이더 UI 표시
-    if (this->specialConfig.showZoomSlider) {
-        SDL_FRect sliderBgRect = {
-            static_cast<float>(SLIDER_X), static_cast<float>(SLIDER_Y), static_cast<float>(SLIDER_WIDTH),
-            static_cast<float>(SLIDER_HEIGHT)
-        };
-        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // 슬라이더 배경색
-        SDL_RenderFillRect(renderer, &sliderBgRect);
-
-        float handleX_float = SLIDER_X + ((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH;
-        float handleWidth_float = 8.0f;
-
-        SDL_FRect sliderHandleRect = {
-            handleX_float - handleWidth_float / 2.0f, static_cast<float>(SLIDER_Y - 2), handleWidth_float,
-            static_cast<float>(SLIDER_HEIGHT + 4)
-        };
-        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-        SDL_RenderFillRect(renderer, &sliderHandleRect); // 슬라이더 핸들
-
-        if (this->hudFont) {
-            ostringstream zoomStream;
-            zoomStream << fixed << setprecision(2) << zoomFactor;
-            string zoomText = "Zoom: " + zoomStream.str();
-            SDL_Color textColor = {220, 220, 220, 255}; // 줌 텍스트 색상
-
-            SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, zoomText.c_str(), 0, textColor);
-            if (textSurface) {
-                SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-                if (textTexture) {
-                    SDL_FRect dstRect = {
-                        SLIDER_X + SLIDER_WIDTH + 10.0f,
-                        SLIDER_Y + (SLIDER_HEIGHT - static_cast<float>(textSurface->h)) / 2.0f,
-                        static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
-                    };
-                    SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
-                    SDL_DestroyTexture(textTexture);
-                } else {
-                    EngineStdOut("Failed to create Zoom text texture: " + string(SDL_GetError()), 2); // 줌 텍스트 텍스처 생성 실패
-                }
-                SDL_DestroySurface(textSurface);
-            } else {
-                EngineStdOut("Failed to render Zoom text surface ", 2); // 줌 텍스트 표면 렌더링 실패
-            }
-        }
-    }
-
-    // --- HUD 변수 그리기 (일반 변수 및 리스트) ---
-    if (!m_HUDVariables.empty()) {
-        lock_guard lock(m_engineDataMutex);
-        int window_w, window_h;
-        float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
-        int visibleVarsCount = 0; // 보이는 변수 개수
-        if (renderer)
-            SDL_GetRenderOutputSize(renderer, &window_w, &window_h);
-
-        float screenCenterX = static_cast<float>(window_w) / 2.0f;
-        float screenCenterY = static_cast<float>(window_h) / 2.0f;
-
-        // float currentWidgetYPosition = m_variablesListWidgetY; // No longer used for individual items
-        // float spacingBetweenBoxes = 2.0f; // No longer used for individual items
-        for (auto &var: m_HUDVariables) // Use non-const auto& if var.width might be updated
-        {
-            if (!var.isVisible) {
-                continue; // 변수가 보이지 않으면 건너뜁니다.
-            }
-
-            // 엔트리 좌표(var.x, var.y)를 스크린 렌더링 좌표로 변환
-            float renderX = screenCenterX + var.x;
-            float renderY = screenCenterY - var.y; // var.y는 요소의 상단 Y (엔트리 기준)
-
-            // Colors and fixed dimensions for a single item box
-            SDL_Color containerBgColor = {240, 240, 240, 220}; // 컨테이너 배경색 (약간 투명한 밝은 회색)
-            SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
-            SDL_Color itemLabelTextColor = {0, 0, 0, 255}; // 변수 이름 텍스트 색상 (검정)
-            SDL_Color itemValueTextColor = {255, 255, 255, 255}; // 변수 값 텍스트 색상
-            float itemHeight = 22.0f; // 각 변수 항목의 높이
-            float itemPadding = 3.0f; // 항목 내부 여백
-            float containerCornerRadius = 5.0f;
-            float containerBorderWidth = 1.0f;
-
-            SDL_Color itemValueBoxBgColor;
-            string valueToDisplay;
-            var.isAnswerList = false;
-            if (var.variableType == "timer") {
-                itemValueBoxBgColor = {255, 150, 0, 255}; // 타이머는 주황색 배경
-                valueToDisplay = to_string(static_cast<int>(getProjectTimerValue()));
-            } else if (var.variableType == "list") {
-                // ---------- LIST VARIABLE RENDERING ----------
-                if (!hudFont) // HUD 폰트 없으면 리스트 렌더링 불가
-                    continue;
-
-                // List specific styling
-                SDL_Color listBgColor = {240, 240, 240, 220}; // Dark semi-transparent background for the list
-                SDL_Color listBorderColor = {150, 150, 150, 255}; // Light gray border
-                SDL_Color listNameTextColor = {0, 0, 0, 255}; // Light text for list name
-                SDL_Color listItemBgColor = {0, 120, 255, 255}; // Blue background for item data
-                SDL_Color listItemTextColor = {255, 255, 255, 255}; // White text for item data
-                SDL_Color listRowNumberColor = {10, 10, 10, 255}; // Light gray for row numbers
-
-                float listCornerRadius = 5.0f;
-                float listBorderWidth = 1.0f;
-                float headerHeight = 25.0f; // Height for the list name header
-                float itemRowHeight = 20.0f; // Height of each row in the list
-                float contentPadding = 5.0f; // General padding inside the list container and items
-                float rowNumberColumnWidth = 30.0f; // Width allocated for row numbers column (adjust as needed)
-                float spacingBetweenRows = 2.0f; // Vertical spacing between list item rows
-                float scrollbarWidth = 10.0f; // 스크롤바 너비
-                bool needsScrollbar = false;
-                var.isAnswerList = true;
-
-                // 1. 리스트 컨테이너 테두리 그리기
-                // 1. Draw List Container Border
-                SDL_FRect listContainerOuterRect = {renderX, renderY, var.width, var.height};
-                if (listBorderWidth > 0.0f) // 테두리 두께가 0보다 클 때만 그림
-                {
-                    SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b,
-                                           listBorderColor.a);
-                    Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
-                }
-
-                // 2. Draw List Container Background (inside the border)
-                SDL_FRect listContainerInnerRect = {
-                    renderX + listBorderWidth,
-                    renderY + listBorderWidth,
-                    max(0.0f, var.width - (2 * listBorderWidth)),
-                    max(0.0f, var.height - (2 * listBorderWidth))
-                };
-                float innerRadius = max(0.0f, listCornerRadius - listBorderWidth); // 내부 둥근 모서리 반지름
-                if (listContainerInnerRect.w > 0 && listContainerInnerRect.h > 0) {
-                    SDL_SetRenderDrawColor(renderer, listBgColor.r, listBgColor.g, listBgColor.b, listBgColor.a);
-                    Helper_RenderFilledRoundedRect(renderer, &listContainerInnerRect, innerRadius);
-                }
-
-                // 3. 리스트 이름 (헤더) 그리기
-                string listDisplayName;
-                bool foundAssociatedObjectList = false;
-                if (!var.objectId.empty()) {
-                    const ObjectInfo *objInfoPtrList = getObjectInfoById(var.objectId);
-                    if (objInfoPtrList) {
-                        listDisplayName = objInfoPtrList->name + " : " + var.name;
-                        foundAssociatedObjectList = true;
-                    }
-                }
-                if (!foundAssociatedObjectList) {
-                    listDisplayName = var.name;
-                }
-
-                SDL_Surface *nameSurfaceList = TTF_RenderText_Blended(hudFont, listDisplayName.c_str(), 0,
-                                                                      listNameTextColor);
-                if (nameSurfaceList) {
-                    SDL_Texture *nameTextureList = SDL_CreateTextureFromSurface(renderer, nameSurfaceList);
-                    if (nameTextureList) {
-                        SDL_FRect nameDestRectList = {
-                            listContainerInnerRect.x + contentPadding,
-                            listContainerInnerRect.y + (headerHeight - static_cast<float>(nameSurfaceList->h)) / 2.0f,
-                            min(static_cast<float>(nameSurfaceList->w), listContainerInnerRect.w - 2 * contentPadding),
-                            static_cast<float>(nameSurfaceList->h)
-                        };
-                        SDL_RenderTexture(renderer, nameTextureList, nullptr, &nameDestRectList);
-                        SDL_DestroyTexture(nameTextureList);
-                    }
-                    SDL_DestroySurface(nameSurfaceList);
-                }
-
-                // 4. 리스트 아이템 그리기
-                float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
-                float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
-                float currentItemVisualY = itemsAreaStartY + contentPadding;
-
-                // 리스트 아이템 전체 높이 계산
-                var.calculatedContentHeight = 0.0f;
-                if (!var.array.empty()) {
-                    var.calculatedContentHeight =
-                            (var.array.size() * (itemRowHeight + spacingBetweenRows)) - spacingBetweenRows + (
-                                2 * contentPadding);
-                }
-
-                if (var.calculatedContentHeight > itemsAreaRenderableHeight) {
-                    needsScrollbar = true;
-                }
-
-                // 컬럼 위치 계산 (행 번호 왼쪽, 데이터 오른쪽)
-                // 수정: 행 번호 컬럼을 먼저 계산하고 왼쪽에 배치
-                float rowNumColumnX = listContainerInnerRect.x + contentPadding;
-                // 수정: 데이터 컬럼은 행 번호 컬럼 오른쪽에 위치
-                float dataColumnAvailableWidth =
-                        listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding - (
-                            needsScrollbar ? scrollbarWidth + contentPadding : 0.0f);
-                float dataColumnX = rowNumColumnX + rowNumberColumnWidth + contentPadding;
-                float dataColumnWidth = max(0.0f, dataColumnAvailableWidth);
-                dataColumnWidth = max(0.0f, dataColumnWidth);
-
-                for (size_t i = 0; i < var.array.size(); ++i) {
-                    // 스크롤 오프셋 적용된 아이템 Y 위치
-                    float itemRenderY = currentItemVisualY - var.scrollOffset_Y;
-
-                    // 아이템이 보이는 영역 밖에 있으면 그리지 않음
-                    if (itemRenderY + itemRowHeight < itemsAreaStartY || itemRenderY > itemsAreaStartY +
-                        itemsAreaRenderableHeight) {
-                        currentItemVisualY += itemRowHeight + spacingBetweenRows;
-                        continue;
-                    }
-
-                    const ListItem &listItem = var.array[i];
-
-                    // 컬럼 1: 행 번호 (왼쪽)
-                    string rowNumStr = to_string(i + 1);
-                    SDL_Surface *rowNumSurface = TTF_RenderText_Blended(hudFont, rowNumStr.c_str(), 0,
-                                                                        listRowNumberColor);
-                    if (rowNumSurface) {
-                        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, rowNumSurface);
-                        if (tex) {
-                            SDL_FRect r = {
-                                rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f,
-                                itemRenderY + (itemRowHeight - rowNumSurface->h) / 2.0f, // itemRenderY 사용
-                                (float) rowNumSurface->w, (float) rowNumSurface->h
-                            };
-                            SDL_RenderTexture(renderer, tex, nullptr, &r);
-                            SDL_DestroyTexture(tex);
-                        }
-                        SDL_DestroySurface(rowNumSurface);
-                    }
-
-                    // 컬럼 2: 아이템 데이터 (오른쪽 - 파란 배경, 흰색 텍스트)
-                    SDL_FRect itemDataBgRect = {
-                        dataColumnX, itemRenderY, dataColumnWidth, itemRowHeight
-                    }; // itemRenderY 사용
-                    SDL_SetRenderDrawColor(renderer, listItemBgColor.r, listItemBgColor.g, listItemBgColor.b,
-                                           listItemBgColor.a);
-                    SDL_RenderFillRect(renderer, &itemDataBgRect);
-
-                    if (dataColumnWidth > contentPadding * 2) {
-                        // 텍스트를 그릴 공간이 있을 때만
-                        string textToRender = listItem.data;
-                        string displayText = textToRender;
-                        float availableTextWidthInDataCol = dataColumnWidth - (2 * contentPadding);
-
-                        int fullTextMeasuredWidth;
-                        size_t fullTextOriginalLengthInBytes = textToRender.length();
-                        size_t fullTextMeasuredLengthInBytes; // max_width=0일 때 fullTextOriginalLengthInBytes와 같아야 함
-
-                        if (TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes,
-                                              0 /* max_width = 0 이면 전체 문자열 측정 */, &fullTextMeasuredWidth,
-                                              &fullTextMeasuredLengthInBytes)) {
-                            if (static_cast<float>(fullTextMeasuredWidth) > availableTextWidthInDataCol) {
-                                // 텍스트가 너무 길면 잘림 처리 (...)
-                                // 잘림 처리 필요
-                                const string ellipsis = "...";
-                                int ellipsisMeasuredWidth;
-                                size_t ellipsisOriginalLength = ellipsis.length();
-                                size_t ellipsisMeasuredLength; // ellipsis.length()와 같아야 함
-
-                                if (TTF_MeasureString(hudFont, ellipsis.c_str(), ellipsisOriginalLength, 0,
-                                                      &ellipsisMeasuredWidth, &ellipsisMeasuredLength)) {
-                                    float widthForTextItself =
-                                            availableTextWidthInDataCol - static_cast<float>(ellipsisMeasuredWidth);
-
-                                    if (widthForTextItself <= 0) {
-                                        // 내용 + "..." 을 위한 공간 없음. "..." 만이라도 표시 가능한지 확인
-                                        if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol) {
-                                            displayText = ellipsis;
-                                        } else {
-                                            // "..." 조차 표시할 공간 없음
-                                            displayText = ""; // 또는 textToRender의 첫 글자 등 (UTF-8 고려 필요)
-                                        }
-                                    } else {
-                                        // "..." 앞의 원본 텍스트가 들어갈 수 있는 부분 측정
-                                        int fittingTextPortionWidth;
-                                        size_t fittingTextPortionLengthInBytes;
-                                        TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes,
-                                                          static_cast<int>(widthForTextItself),
-                                                          &fittingTextPortionWidth, &fittingTextPortionLengthInBytes);
-
-                                        if (fittingTextPortionLengthInBytes > 0) {
-                                            displayText =
-                                                    textToRender.substr(0, fittingTextPortionLengthInBytes) + ellipsis;
-                                        } else {
-                                            // 텍스트 부분이 전혀 안 들어감. "..." 만이라도 표시 가능한지 확인
-                                            if (static_cast<float>(ellipsisMeasuredWidth) <=
-                                                availableTextWidthInDataCol) {
-                                                displayText = ellipsis;
-                                            } else {
-                                                displayText = "";
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // "..." 측정 실패
-                                    EngineStdOut("Failed to measure ellipsis text for HUD list.", 2);
-                                    // 간단한 대체 처리
-                                    if (textToRender.length() > 2)
-                                        displayText = textToRender.substr(0, textToRender.length() - 2) + "..";
-                                }
-                            }
-                            // else: 전체 텍스트가 공간에 맞으므로 displayText = textToRender (초기값) 사용
-                        } else {
-                            // textToRender 측정 실패
-                            EngineStdOut("Failed to measure text: " + textToRender + " for HUD list.", 2);
-                            // 오류 처리, displayText는 초기값 textToRender를 유지하거나 비워둘 수 있음
-                        }
-
-                        if (!displayText.empty()) {
-                            SDL_Surface *itemTextSurface = TTF_RenderText_Blended(
-                                hudFont, displayText.c_str(), 0, listItemTextColor);
-                            if (itemTextSurface) {
-                                SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, itemTextSurface);
-                                if (tex) {
-                                    SDL_FRect r = {
-                                        itemDataBgRect.x + contentPadding,
-                                        itemDataBgRect.y + (itemDataBgRect.h - itemTextSurface->h) / 2.0f,
-                                        (float) itemTextSurface->w, (float) itemTextSurface->h
-                                    };
-                                    SDL_RenderTexture(renderer, tex, nullptr, &r);
-                                    SDL_DestroyTexture(tex);
-                                }
-                                SDL_DestroySurface(itemTextSurface);
-                            }
-                        }
-                    }
-
-                    currentItemVisualY += itemRowHeight + spacingBetweenRows;
-                }
-
-                // 4.5 스크롤바 그리기 (필요한 경우)
-                if (needsScrollbar) {
-                    SDL_Color scrollbarTrackColor = {200, 200, 200, 150}; // 연한 회색 트랙
-                    SDL_Color scrollbarHandleColor = {80, 80, 80, 200}; // 어두운 회색 핸들
-
-                    float scrollbarTrackX = listContainerInnerRect.x + listContainerInnerRect.w - contentPadding -
-                                            scrollbarWidth;
-                    SDL_FRect scrollbarTrackRect = {
-                        scrollbarTrackX,
-                        itemsAreaStartY, // 헤더 아래부터 시작
-                        scrollbarWidth,
-                        itemsAreaRenderableHeight // 아이템 영역 높이만큼
-                    };
-                    SDL_SetRenderDrawColor(renderer, scrollbarTrackColor.r, scrollbarTrackColor.g,
-                                           scrollbarTrackColor.b, scrollbarTrackColor.a);
-                    SDL_RenderFillRect(renderer, &scrollbarTrackRect);
-
-                    float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
-                    float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio); // 최소 핸들 높이
-
-                    float scrollPositionRatio =
-                            var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight);
-                    scrollPositionRatio = clamp(scrollPositionRatio, 0.0f, 1.0f);
-                    float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (
-                                                 itemsAreaRenderableHeight - scrollbarHandleHeight);
-
-                    SDL_FRect scrollbarHandleRect = {
-                        scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight
-                    };
-                    SDL_SetRenderDrawColor(renderer, scrollbarHandleColor.r, scrollbarHandleColor.g,
-                                           scrollbarHandleColor.b, scrollbarHandleColor.a);
-                    SDL_RenderFillRect(renderer, &scrollbarHandleRect);
-                }
-
-                // 5. 리스트 크기 조절 핸들 그리기 (오른쪽 하단)
-                if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT) {
-                    // 핸들을 그릴 충분한 공간이 있는지 확인
-                    SDL_FRect resizeHandleRect = {
-                        renderX + var.width - LIST_RESIZE_HANDLE_SIZE, // renderX 기준
-                        renderY + var.height - LIST_RESIZE_HANDLE_SIZE, // renderY 기준
-                        LIST_RESIZE_HANDLE_SIZE,
-                        LIST_RESIZE_HANDLE_SIZE
-                    };
-                    SDL_SetRenderDrawColor(renderer, listRowNumberColor.r, listRowNumberColor.g, listRowNumberColor.b,
-                                           255); // 핸들 색상
-                    SDL_RenderFillRect(renderer, &resizeHandleRect);
-                }
-                var.transient_render_width = var.width; // 리스트의 경우, 렌더링된 너비는 정의된 너비와 동일
-            } else {
-                // 일반 변수
-                itemValueBoxBgColor = {0, 120, 255, 255}; // 다른 변수는 파란색 배경
-                valueToDisplay = var.value;
-            }
-
-            // 변수 이름 레이블
-            // 변수의 object 키에 오브젝트 ID가 있을 경우 해당 오브젝트 이름을 가져온다.
-            // 없을경우 그냥 변수 이름을 사용한다.
-            string nameToDisplay; // HUD에 최종적으로 표시될 변수의 이름
-            bool foundAssociatedObject = false;
-
-            if (!var.objectId.empty()) {
-                const ObjectInfo *objInfoPtr = getObjectInfoById(var.objectId);
-                if (objInfoPtr) {
-                    nameToDisplay = objInfoPtr->name + " : " + var.name;
-                    foundAssociatedObject = true;
-                }
-            }
-
-            if (!foundAssociatedObject) {
-                nameToDisplay = var.name; // 변수 자체의 이름을 표시할 이름으로 사용합니다.
-            }
-
-            // 디버그: "메시지3" 변수의 이름과 값을 로그로 출력
-            if (var.name == "메시지3") {
-                EngineStdOut(
-                    "DEBUG: Rendering variable '메시지3'. nameToDisplay: [" + nameToDisplay + "], valueToDisplay: [" +
-                    valueToDisplay + "]", 3);
-            }
-
-            SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
-            SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
-
-            if (!nameSurface || !valueSurface) {
-                if (nameSurface)
-                    SDL_DestroySurface(nameSurface);
-                if (valueSurface)
-                    SDL_DestroySurface(valueSurface);
-                EngineStdOut("Failed to render name or value surface for variable: " + var.name, 2);
-                continue; // 이름 또는 값 표면 렌더링 실패
-            }
-
-            float nameTextActualWidth = static_cast<float>(nameSurface->w);
-            float valueTextActualWidth = static_cast<float>(valueSurface->w);
-
-            // 값 텍스트와 내부 여백(좌우 itemPadding)을 포함한 이상적인 파란색 값 배경 상자 너비
-            float idealValueBgWidth = valueTextActualWidth + (2 * itemPadding);
-
-            // 이름, 값 배경, 그리고 그 사이 및 양옆의 내부 여백을 모두 포함하는 이상적인 컨테이너 내용물 영역의 너비
-            // (왼쪽패딩 + 이름너비 + 중간패딩 + 값배경너비 + 오른쪽패딩)
-            float idealFillWidth = itemPadding + nameTextActualWidth + itemPadding + idealValueBgWidth + itemPadding;
-            idealFillWidth = nameTextActualWidth + idealValueBgWidth + (3 * itemPadding); // Simplified
-
-            // 이상적인 전체 컨테이너 너비 (테두리 포함)
-            float idealContainerFixedWidth = idealFillWidth + (2 * containerBorderWidth);
-
-            // 컨테이너 최소/최대 너비 정의
-            float minContainerFixedWidth = 80.0f; // 최소 너비
-            // 최대 사용 가능 너비는 현재 변수의 x 위치를 기준으로 계산해야 합니다.
-            float maxAvailContainerWidth = static_cast<float>(window_w) - var.x - 10.0f; // 창 오른쪽 가장자리에서 10px 여유 확보
-            maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
-
-            // 이 항목의 최종 컨테이너 너비
-            float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth,
-                                                    maxAvailContainerWidth);
-            if (var.variableType == "list" && var.width > 0) {
-                // 리스트 타입이고 명시적 너비가 있다면 해당 너비 사용
-                // 참고: 리스트의 경우 var.width는 사용자가 project.json에서 명시적으로 설정한 너비를 의미할 수 있습니다.
-                currentItemContainerWidth = clamp(var.width, minContainerFixedWidth, maxAvailContainerWidth);
-            }
-
-            maxObservedItemWidthThisFrame = max(maxObservedItemWidthThisFrame, currentItemContainerWidth);
-            visibleVarsCount++; // Count visible variables to update m_maxVariablesListContentWidth later
-
-            // 이 변수 항목 상자의 높이
-            var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
-            float singleBoxHeight = itemHeight + 2 * itemPadding;
-
-            // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
-            // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
-            SDL_FRect outerContainerRect = {renderX, renderY, currentItemContainerWidth, singleBoxHeight};
-            if (containerBorderWidth > 0.0f) {
-                SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b,
-                                       containerBorderColor.a);
-                Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
-            }
-            // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
-            SDL_FRect fillContainerRect = {
-                renderX + containerBorderWidth, // 테두리 두께만큼 안쪽으로
-                renderY + containerBorderWidth,
-                max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
-                max(0.0f, singleBoxHeight - (2 * containerBorderWidth))
-            };
-            float fillRadius = max(0.0f, containerCornerRadius - containerBorderWidth);
-            if (fillContainerRect.w > 0 && fillContainerRect.h > 0) {
-                SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b,
-                                       containerBgColor.a);
-                Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
-            }
-
-            // 3. 각 변수 항목 그리기 (이름과 값)
-            float contentAreaTopY = fillContainerRect.y + itemPadding;
-
-            SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
-            SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-            SDL_DestroySurface(nameSurface);
-            SDL_DestroySurface(valueSurface);
-
-            if (nameTexture && valueTexture) {
-                // Determine available width for (NameText + ValueBox) within fillContainerRect,
-                // accounting for 3 itemPaddings (left, middle, right).
-                float spaceForNameTextAndValueBox = max(0.0f, fillContainerRect.w - (3 * itemPadding));
-                // 이름 텍스트와 값 상자를 위한 공간
-
-                // Ideal widths for name text and the blue value background box
-                float targetNameTextWidth = nameTextActualWidth;
-                float targetValueBoxWidth = idealValueBgWidth;
-                // Already calculated: valueTextActualWidth + (2 * itemPadding)
-
-                float totalIdealInternalWidth = targetNameTextWidth + targetValueBoxWidth;
-
-                float finalNameTextWidth;
-                float finalValueBoxWidth;
-
-                if (totalIdealInternalWidth <= spaceForNameTextAndValueBox) {
-                    // 이상적인 너비로 둘 다 그릴 충분한 공간이 있음
-                    finalNameTextWidth = targetNameTextWidth;
-                    finalValueBoxWidth = targetValueBoxWidth;
-                } else {
-                    // 공간 부족, spaceForNameTextAndValueBox에 맞게 비례적으로 축소
-                    if (totalIdealInternalWidth > 0) {
-                        float scaleFactor = spaceForNameTextAndValueBox / totalIdealInternalWidth;
-                        finalNameTextWidth = targetNameTextWidth * scaleFactor;
-                        finalValueBoxWidth = targetValueBoxWidth * scaleFactor;
-                    } else {
-                        // 두 대상 너비가 모두 0인 경우
-                        finalNameTextWidth = 0;
-                        finalValueBoxWidth = spaceForNameTextAndValueBox; // Or distribute 0/0 or space/2, space/2
-                        if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0) {
-                            // 공간은 있지만 내용이 없는 경우
-                            finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
-                            finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
-                        } else {
-                            finalValueBoxWidth = 0;
-                        }
-                    }
-                }
-                finalNameTextWidth = max(0.0f, finalNameTextWidth);
-                finalValueBoxWidth = max(0.0f, finalValueBoxWidth);
-
-                // 이름 그리기
-                SDL_FRect nameDestRect = {
-                    fillContainerRect.x + itemPadding,
-                    contentAreaTopY + (itemHeight - static_cast<float>(nameTexture->h)) / 2.0f,
-                    finalNameTextWidth,
-                    static_cast<float>(nameTexture->h)
-                };
-                SDL_FRect nameSrcRect = {0, 0, static_cast<int>(finalNameTextWidth), static_cast<int>(nameTexture->h)};
-                SDL_RenderTexture(renderer, nameTexture, &nameSrcRect, &nameDestRect);
-
-                // 값 배경 상자 및 값 텍스트 그리기
-                if (finalValueBoxWidth > 0) {
-                    SDL_FRect valueBgRect = {
-                        nameDestRect.x + finalNameTextWidth + itemPadding,
-                        contentAreaTopY,
-                        finalValueBoxWidth,
-                        itemHeight
-                    };
-                    SDL_SetRenderDrawColor(renderer, itemValueBoxBgColor.r, itemValueBoxBgColor.g,
-                                           itemValueBoxBgColor.b, itemValueBoxBgColor.a);
-                    SDL_RenderFillRect(renderer, &valueBgRect);
-
-                    // Value text display width is capped by the blue box's inner width
-                    float valueTextDisplayWidth = max(
-                        0.0f, min(valueTextActualWidth, finalValueBoxWidth - (2 * itemPadding)));
-                    if (valueTextDisplayWidth > 0) {
-                        SDL_FRect valueDestRect = {
-                            valueBgRect.x + itemPadding, // 파란색 상자 내에서 왼쪽 정렬
-                            valueBgRect.y + (valueBgRect.h - static_cast<float>(valueTexture->h)) / 2.0f,
-                            valueTextDisplayWidth,
-                            static_cast<float>(valueTexture->h)
-                        };
-                        SDL_FRect valueSrcRect = {
-                            0, 0, static_cast<int>(valueTextDisplayWidth), static_cast<int>(valueTexture->h)
-                        };
-                        SDL_RenderTexture(renderer, valueTexture, &valueSrcRect, &valueDestRect);
-                    }
-                }
-            }
-            if (nameTexture)
-                SDL_DestroyTexture(nameTexture);
-            if (valueTexture)
-                SDL_DestroyTexture(valueTexture);
-
-            // currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes; // 개별 위치를 사용하므로 이 줄은 제거됩니다.
-        }
-
-        if (visibleVarsCount > 0) {
-            // maxObservedItemWidthThisFrame은 minContainerFixedWidth(80.0f) 이상이어야 합니다.
-            // currentItemContainerWidth가 그렇게 제한(clamp)되기 때문입니다.
-            m_maxVariablesListContentWidth = maxObservedItemWidthThisFrame;
-        } else {
-            m_maxVariablesListContentWidth = 180.0f; // 보이는 항목이 없으면 기본 너비
-        }
-    } else {
-        // 목록이 아예 표시되지 않거나 비어있으면 기본 너비
-        m_maxVariablesListContentWidth = 180.0f;
-    }
-
-    if (m_showScriptDebugger) {
-        drawScriptDebuggerUI();
-    }
-}
+// void Engine::drawHUD() {
+//     if (!this->renderer) {
+//         // 렌더러 사용 불가
+//         EngineStdOut("drawHUD: Renderer not available.", 1);
+//         return;
+//     }
+//
+//     int windowW = 0, windowH = 0;
+//     SDL_GetRenderOutputSize(renderer, &windowW, &windowH);
+//     if (this->hudFont && this->specialConfig.showFPS) {
+//         string fpsText = "FPS: " + to_string(static_cast<int>(currentFps));
+//         SDL_Color textColor = {255, 150, 0, 255}; // 주황색
+//
+//         SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, fpsText.c_str(), 0, textColor);
+//         if (textSurface) {
+//             // 배경 사각형 설정
+//             float bgPadding = 5.0f; // 텍스트 주변 여백
+//             SDL_FRect bgRect = {
+//                 10.0f - bgPadding, // FPS 텍스트 x 위치에서 여백만큼 왼쪽으로
+//                 10.0f - bgPadding, // FPS 텍스트 y 위치에서 여백만큼 위로
+//                 static_cast<float>(textSurface->w) + 2 * bgPadding, // 텍스트 너비 + 양쪽 여백
+//                 static_cast<float>(textSurface->h) + 2 * bgPadding // 텍스트 높이 + 양쪽 여백
+//             };
+//
+//             // 반투명한 어두운 배경색 설정
+//             SDL_Color bgColor = {30, 30, 30, 150}; // 어두운 회색, 약 70% 불투명도
+//
+//             // 현재 블렌드 모드 저장 및 블렌딩 활성화
+//             SDL_BlendMode originalBlendMode;
+//             SDL_GetRenderDrawBlendMode(renderer, &originalBlendMode);
+//             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+//
+//             SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+//             Helper_RenderFilledRoundedRect(renderer, &bgRect, 5.0f); // 둥근 모서리 배경 그리기
+//
+//             // 원래 블렌드 모드로 복원 (다른 HUD 요소에 영향 주지 않도록)
+//             SDL_SetRenderDrawBlendMode(renderer, originalBlendMode);
+//
+//             // FPS 텍스트 렌더링 (배경 위에)
+//             TTF_FontStyleFlags original_style = TTF_GetFontStyle(hudFont);
+//             TTF_SetFontStyle(hudFont, TTF_STYLE_BOLD);
+//
+//             SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+//             if (textTexture) {
+//                 SDL_FRect dstRect = {
+//                     10.0f, 10.0f, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
+//                 };
+//                 SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
+//                 SDL_DestroyTexture(textTexture);
+//             } else {
+//                 EngineStdOut("Failed to create FPS text texture: " + string(SDL_GetError()), 2); // FPS 텍스트 텍스처 생성 실패
+//             }
+//             TTF_SetFontStyle(hudFont, original_style); // 원래 폰트 스타일로 복원
+//             SDL_DestroySurface(textSurface);
+//         } else {
+//             EngineStdOut("Failed to render FPS text surface ", 2); // FPS 텍스트 표면 렌더링 실패
+//         }
+//     }
+//     // 대답 입력
+//     if (m_textInputActive) {
+//         // 텍스트 입력 모드가 활성화된 경우
+//         std::lock_guard<std::mutex> lock(m_textInputMutex);
+//         // m_textInputQuestionMessage, m_currentTextInputBuffer 접근 보호
+//
+//         // 화면 하단 등에 질문 메시지와 입력 필드 UI를 그립니다.
+//         // 예시:
+//         // 1. 질문 메시지 렌더링 (m_textInputQuestionMessage 사용)
+//         // 2. 입력 필드 배경 렌더링
+//         // 3. 현재 입력된 텍스트 렌더링 (m_currentTextInputBuffer 사용)
+//         // 4. 체크버튼
+//
+//         if (hudFont) {
+//             SDL_Color textColor = {0, 0, 0, 255}; // 검정
+//             SDL_Color bgColor = {255, 255, 255, 255}; // 흰색
+//
+//             // 질문 메시지
+//             if (!m_textInputQuestionMessage.empty()) {
+//                 SDL_Surface *questionSurface = TTF_RenderText_Blended_Wrapped(
+//                     hudFont, m_textInputQuestionMessage.c_str(), m_textInputQuestionMessage.size(), textColor,
+//                     WINDOW_WIDTH - 40);
+//                 if (questionSurface) {
+//                     SDL_Texture *questionTexture = SDL_CreateTextureFromSurface(renderer, questionSurface);
+//                     SDL_FRect questionRect = {
+//                         20.0f, static_cast<float>(WINDOW_HEIGHT - 100 - questionSurface->h),
+//                         static_cast<float>(questionSurface->w), static_cast<float>(questionSurface->h)
+//                     };
+//                     SDL_RenderTexture(renderer, questionTexture, nullptr, &questionRect);
+//                     SDL_DestroyTexture(questionTexture);
+//                     SDL_DestroySurface(questionSurface);
+//                 }
+//             } // 입력 필드 (더 짧게 수정)
+//             SDL_FRect inputBgRect = {
+//                 20.0f, static_cast<float>(WINDOW_HEIGHT - 80), static_cast<float>(WINDOW_WIDTH - 120), 40.0f
+//             };
+//             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+//             SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+//             SDL_RenderFillRect(renderer, &inputBgRect);
+//             SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // 테두리
+//             SDL_RenderRect(renderer, &inputBgRect);
+//
+//             std::string displayText = m_currentTextInputBuffer;
+//             if (SDL_TextInputActive(window)) {
+//                 // IME 사용 중이거나 텍스트 입력 중일 때 커서 표시
+//                 // 간단한 커서 표시 (깜빡임은 추가 구현 필요)
+//                 Uint64 currentTime = SDL_GetTicks();
+//                 if (currentTime > m_cursorBlinkToggleTime + CURSOR_BLINK_INTERVAL_MS) {
+//                     m_cursorCharVisible = !m_cursorCharVisible;
+//                     m_cursorBlinkToggleTime = currentTime;
+//                 }
+//                 if (m_cursorCharVisible) {
+//                     displayText += "|";
+//                 } else {
+//                     displayText += " ";
+//                 }
+//             }
+//
+//             if (!displayText.empty()) {
+//                 SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, displayText.c_str(), displayText.size(),
+//                                                                   textColor);
+//                 if (textSurface) {
+//                     SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+//                     // 입력 필드 내부에 텍스트 위치 조정
+//                     float textX = inputBgRect.x + 10;
+//                     float textY = inputBgRect.y + (inputBgRect.h - textSurface->h) / 2;
+//                     SDL_FRect textRect = {
+//                         textX, textY, static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
+//                     };
+//
+//                     // 텍스트가 입력 필드를 넘어가지 않도록 클리핑
+//                     if (textRect.x + textRect.w > inputBgRect.x + inputBgRect.w - 10) {
+//                         textRect.w = inputBgRect.x + inputBgRect.w - 10 - textRect.x;
+//                     }
+//
+//                     SDL_RenderTexture(renderer, textTexture, nullptr, &textRect);
+//                     SDL_DestroyTexture(textTexture);
+//                     SDL_DestroySurface(textSurface);
+//                 }
+//             }
+//             // 체크버튼 누르면 엔터 친거랑 동일한 효과
+//             SDL_Texture *checkboxTexture = LoadTextureFromSvgResource(renderer, IDI_CHBOX);
+//             SDL_Rect inputFiledRect = {inputBgRect.x, inputBgRect.y, inputBgRect.w, inputBgRect.h};
+//             if (checkboxTexture) {
+//                 // 체크박스의 크기와 위치 계산
+//                 int checkboxSize = min(inputFiledRect.h, 40); // 크기 제한
+//
+//                 // 체크박스의 위치 계산 (입력창 우측에 배치)
+//                 SDL_FRect checkboxDestRect;
+//                 checkboxDestRect.x = inputFiledRect.x + inputFiledRect.w + 5; // 입력창과의 간격을 5로 축소
+//                 checkboxDestRect.y = inputFiledRect.y; // 입력창과 동일한 y 좌표 (상단 정렬)
+//                 // 만약 입력창과 수직 중앙 정렬을 원한다면:
+//                 // checkboxDestRect.y = inputFieldRect.y + (inputFieldRect.h - checkboxSize) / 2;
+//                 // 이 경우 checkboxSize가 inputFieldRect.h와 같으므로 결과는 동일합니다.
+//
+//                 checkboxDestRect.w = checkboxSize;
+//                 checkboxDestRect.h = checkboxSize;
+//
+//                 // 3. 체크박스 렌더링
+//                 // SDL_RenderCopy는 checkboxTexture의 전체 내용을 checkboxDestRect에 맞춰 렌더링합니다.
+//                 // SVG는 벡터이므로 checkboxDestRect 크기에 맞게 품질 저하 없이 스케일링됩니다.
+//                 SDL_RenderTexture(renderer, checkboxTexture, NULL, &checkboxDestRect);
+//             }
+//         }
+//     }
+//     // 줌 슬라이더 UI 표시
+//     if (this->specialConfig.showZoomSlider) {
+//         SDL_FRect sliderBgRect = {
+//             static_cast<float>(SLIDER_X), static_cast<float>(SLIDER_Y), static_cast<float>(SLIDER_WIDTH),
+//             static_cast<float>(SLIDER_HEIGHT)
+//         };
+//         SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255); // 슬라이더 배경색
+//         SDL_RenderFillRect(renderer, &sliderBgRect);
+//
+//         float handleX_float = SLIDER_X + ((zoomFactor - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * SLIDER_WIDTH;
+//         float handleWidth_float = 8.0f;
+//
+//         SDL_FRect sliderHandleRect = {
+//             handleX_float - handleWidth_float / 2.0f, static_cast<float>(SLIDER_Y - 2), handleWidth_float,
+//             static_cast<float>(SLIDER_HEIGHT + 4)
+//         };
+//         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+//         SDL_RenderFillRect(renderer, &sliderHandleRect); // 슬라이더 핸들
+//
+//         if (this->hudFont) {
+//             ostringstream zoomStream;
+//             zoomStream << fixed << setprecision(2) << zoomFactor;
+//             string zoomText = "Zoom: " + zoomStream.str();
+//             SDL_Color textColor = {220, 220, 220, 255}; // 줌 텍스트 색상
+//
+//             SDL_Surface *textSurface = TTF_RenderText_Blended(hudFont, zoomText.c_str(), 0, textColor);
+//             if (textSurface) {
+//                 SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+//                 if (textTexture) {
+//                     SDL_FRect dstRect = {
+//                         SLIDER_X + SLIDER_WIDTH + 10.0f,
+//                         SLIDER_Y + (SLIDER_HEIGHT - static_cast<float>(textSurface->h)) / 2.0f,
+//                         static_cast<float>(textSurface->w), static_cast<float>(textSurface->h)
+//                     };
+//                     SDL_RenderTexture(renderer, textTexture, nullptr, &dstRect);
+//                     SDL_DestroyTexture(textTexture);
+//                 } else {
+//                     EngineStdOut("Failed to create Zoom text texture: " + string(SDL_GetError()), 2); // 줌 텍스트 텍스처 생성 실패
+//                 }
+//                 SDL_DestroySurface(textSurface);
+//             } else {
+//                 EngineStdOut("Failed to render Zoom text surface ", 2); // 줌 텍스트 표면 렌더링 실패
+//             }
+//         }
+//     }
+//
+//     // --- HUD 변수 그리기 (일반 변수 및 리스트) ---
+//     if (!m_HUDVariables.empty()) {
+//         lock_guard lock(m_engineDataMutex);
+//         int window_w, window_h;
+//         float maxObservedItemWidthThisFrame = 0.0f; // 각 프레임에서 관찰된 가장 넓은 아이템 너비
+//         int visibleVarsCount = 0; // 보이는 변수 개수
+//         if (renderer)
+//             SDL_GetRenderOutputSize(renderer, &window_w, &window_h);
+//
+//         float screenCenterX = static_cast<float>(window_w) / 2.0f;
+//         float screenCenterY = static_cast<float>(window_h) / 2.0f;
+//
+//         // float currentWidgetYPosition = m_variablesListWidgetY; // No longer used for individual items
+//         // float spacingBetweenBoxes = 2.0f; // No longer used for individual items
+//         for (auto &var: m_HUDVariables) // Use non-const auto& if var.width might be updated
+//         {
+//             if (!var.isVisible) {
+//                 continue; // 변수가 보이지 않으면 건너뜁니다.
+//             }
+//
+//             // 엔트리 좌표(var.x, var.y)를 스크린 렌더링 좌표로 변환
+//             float renderX = screenCenterX + var.x;
+//             float renderY = screenCenterY - var.y; // var.y는 요소의 상단 Y (엔트리 기준)
+//
+//             // Colors and fixed dimensions for a single item box
+//             SDL_Color containerBgColor = {240, 240, 240, 220}; // 컨테이너 배경색 (약간 투명한 밝은 회색)
+//             SDL_Color containerBorderColor = {100, 100, 100, 255}; // 컨테이너 테두리 색상
+//             SDL_Color itemLabelTextColor = {0, 0, 0, 255}; // 변수 이름 텍스트 색상 (검정)
+//             SDL_Color itemValueTextColor = {255, 255, 255, 255}; // 변수 값 텍스트 색상
+//             float itemHeight = 22.0f; // 각 변수 항목의 높이
+//             float itemPadding = 3.0f; // 항목 내부 여백
+//             float containerCornerRadius = 5.0f;
+//             float containerBorderWidth = 1.0f;
+//
+//             SDL_Color itemValueBoxBgColor;
+//             string valueToDisplay;
+//             var.isAnswerList = false;
+//             if (var.variableType == "timer") {
+//                 itemValueBoxBgColor = {255, 150, 0, 255}; // 타이머는 주황색 배경
+//                 valueToDisplay = to_string(static_cast<int>(getProjectTimerValue()));
+//             } else if (var.variableType == "list") {
+//                 // ---------- LIST VARIABLE RENDERING ----------
+//                 if (!hudFont) // HUD 폰트 없으면 리스트 렌더링 불가
+//                     continue;
+//
+//                 // List specific styling
+//                 SDL_Color listBgColor = {240, 240, 240, 220}; // Dark semi-transparent background for the list
+//                 SDL_Color listBorderColor = {150, 150, 150, 255}; // Light gray border
+//                 SDL_Color listNameTextColor = {0, 0, 0, 255}; // Light text for list name
+//                 SDL_Color listItemBgColor = {0, 120, 255, 255}; // Blue background for item data
+//                 SDL_Color listItemTextColor = {255, 255, 255, 255}; // White text for item data
+//                 SDL_Color listRowNumberColor = {10, 10, 10, 255}; // Light gray for row numbers
+//
+//                 float listCornerRadius = 5.0f;
+//                 float listBorderWidth = 1.0f;
+//                 float headerHeight = 25.0f; // Height for the list name header
+//                 float itemRowHeight = 20.0f; // Height of each row in the list
+//                 float contentPadding = 5.0f; // General padding inside the list container and items
+//                 float rowNumberColumnWidth = 30.0f; // Width allocated for row numbers column (adjust as needed)
+//                 float spacingBetweenRows = 2.0f; // Vertical spacing between list item rows
+//                 float scrollbarWidth = 10.0f; // 스크롤바 너비
+//                 bool needsScrollbar = false;
+//                 var.isAnswerList = true;
+//
+//                 // 1. 리스트 컨테이너 테두리 그리기
+//                 // 1. Draw List Container Border
+//                 SDL_FRect listContainerOuterRect = {renderX, renderY, var.width, var.height};
+//                 if (listBorderWidth > 0.0f) // 테두리 두께가 0보다 클 때만 그림
+//                 {
+//                     SDL_SetRenderDrawColor(renderer, listBorderColor.r, listBorderColor.g, listBorderColor.b,
+//                                            listBorderColor.a);
+//                     Helper_RenderFilledRoundedRect(renderer, &listContainerOuterRect, listCornerRadius);
+//                 }
+//
+//                 // 2. Draw List Container Background (inside the border)
+//                 SDL_FRect listContainerInnerRect = {
+//                     renderX + listBorderWidth,
+//                     renderY + listBorderWidth,
+//                     max(0.0f, var.width - (2 * listBorderWidth)),
+//                     max(0.0f, var.height - (2 * listBorderWidth))
+//                 };
+//                 float innerRadius = max(0.0f, listCornerRadius - listBorderWidth); // 내부 둥근 모서리 반지름
+//                 if (listContainerInnerRect.w > 0 && listContainerInnerRect.h > 0) {
+//                     SDL_SetRenderDrawColor(renderer, listBgColor.r, listBgColor.g, listBgColor.b, listBgColor.a);
+//                     Helper_RenderFilledRoundedRect(renderer, &listContainerInnerRect, innerRadius);
+//                 }
+//
+//                 // 3. 리스트 이름 (헤더) 그리기
+//                 string listDisplayName;
+//                 bool foundAssociatedObjectList = false;
+//                 if (!var.objectId.empty()) {
+//                     const ObjectInfo *objInfoPtrList = getObjectInfoById(var.objectId);
+//                     if (objInfoPtrList) {
+//                         listDisplayName = objInfoPtrList->name + " : " + var.name;
+//                         foundAssociatedObjectList = true;
+//                     }
+//                 }
+//                 if (!foundAssociatedObjectList) {
+//                     listDisplayName = var.name;
+//                 }
+//
+//                 SDL_Surface *nameSurfaceList = TTF_RenderText_Blended(hudFont, listDisplayName.c_str(), 0,
+//                                                                       listNameTextColor);
+//                 if (nameSurfaceList) {
+//                     SDL_Texture *nameTextureList = SDL_CreateTextureFromSurface(renderer, nameSurfaceList);
+//                     if (nameTextureList) {
+//                         SDL_FRect nameDestRectList = {
+//                             listContainerInnerRect.x + contentPadding,
+//                             listContainerInnerRect.y + (headerHeight - static_cast<float>(nameSurfaceList->h)) / 2.0f,
+//                             min(static_cast<float>(nameSurfaceList->w), listContainerInnerRect.w - 2 * contentPadding),
+//                             static_cast<float>(nameSurfaceList->h)
+//                         };
+//                         SDL_RenderTexture(renderer, nameTextureList, nullptr, &nameDestRectList);
+//                         SDL_DestroyTexture(nameTextureList);
+//                     }
+//                     SDL_DestroySurface(nameSurfaceList);
+//                 }
+//
+//                 // 4. 리스트 아이템 그리기
+//                 float itemsAreaStartY = listContainerInnerRect.y + headerHeight;
+//                 float itemsAreaRenderableHeight = listContainerInnerRect.h - headerHeight - contentPadding;
+//                 float currentItemVisualY = itemsAreaStartY + contentPadding;
+//
+//                 // 리스트 아이템 전체 높이 계산
+//                 var.calculatedContentHeight = 0.0f;
+//                 if (!var.array.empty()) {
+//                     var.calculatedContentHeight =
+//                             (var.array.size() * (itemRowHeight + spacingBetweenRows)) - spacingBetweenRows + (
+//                                 2 * contentPadding);
+//                 }
+//
+//                 if (var.calculatedContentHeight > itemsAreaRenderableHeight) {
+//                     needsScrollbar = true;
+//                 }
+//
+//                 // 컬럼 위치 계산 (행 번호 왼쪽, 데이터 오른쪽)
+//                 // 수정: 행 번호 컬럼을 먼저 계산하고 왼쪽에 배치
+//                 float rowNumColumnX = listContainerInnerRect.x + contentPadding;
+//                 // 수정: 데이터 컬럼은 행 번호 컬럼 오른쪽에 위치
+//                 float dataColumnAvailableWidth =
+//                         listContainerInnerRect.w - (2 * contentPadding) - rowNumberColumnWidth - contentPadding - (
+//                             needsScrollbar ? scrollbarWidth + contentPadding : 0.0f);
+//                 float dataColumnX = rowNumColumnX + rowNumberColumnWidth + contentPadding;
+//                 float dataColumnWidth = max(0.0f, dataColumnAvailableWidth);
+//                 dataColumnWidth = max(0.0f, dataColumnWidth);
+//
+//                 for (size_t i = 0; i < var.array.size(); ++i) {
+//                     // 스크롤 오프셋 적용된 아이템 Y 위치
+//                     float itemRenderY = currentItemVisualY - var.scrollOffset_Y;
+//
+//                     // 아이템이 보이는 영역 밖에 있으면 그리지 않음
+//                     if (itemRenderY + itemRowHeight < itemsAreaStartY || itemRenderY > itemsAreaStartY +
+//                         itemsAreaRenderableHeight) {
+//                         currentItemVisualY += itemRowHeight + spacingBetweenRows;
+//                         continue;
+//                     }
+//
+//                     const ListItem &listItem = var.array[i];
+//
+//                     // 컬럼 1: 행 번호 (왼쪽)
+//                     string rowNumStr = to_string(i + 1);
+//                     SDL_Surface *rowNumSurface = TTF_RenderText_Blended(hudFont, rowNumStr.c_str(), 0,
+//                                                                         listRowNumberColor);
+//                     if (rowNumSurface) {
+//                         SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, rowNumSurface);
+//                         if (tex) {
+//                             SDL_FRect r = {
+//                                 rowNumColumnX + (rowNumberColumnWidth - rowNumSurface->w) / 2.0f,
+//                                 itemRenderY + (itemRowHeight - rowNumSurface->h) / 2.0f, // itemRenderY 사용
+//                                 (float) rowNumSurface->w, (float) rowNumSurface->h
+//                             };
+//                             SDL_RenderTexture(renderer, tex, nullptr, &r);
+//                             SDL_DestroyTexture(tex);
+//                         }
+//                         SDL_DestroySurface(rowNumSurface);
+//                     }
+//
+//                     // 컬럼 2: 아이템 데이터 (오른쪽 - 파란 배경, 흰색 텍스트)
+//                     SDL_FRect itemDataBgRect = {
+//                         dataColumnX, itemRenderY, dataColumnWidth, itemRowHeight
+//                     }; // itemRenderY 사용
+//                     SDL_SetRenderDrawColor(renderer, listItemBgColor.r, listItemBgColor.g, listItemBgColor.b,
+//                                            listItemBgColor.a);
+//                     SDL_RenderFillRect(renderer, &itemDataBgRect);
+//
+//                     if (dataColumnWidth > contentPadding * 2) {
+//                         // 텍스트를 그릴 공간이 있을 때만
+//                         string textToRender = listItem.data;
+//                         string displayText = textToRender;
+//                         float availableTextWidthInDataCol = dataColumnWidth - (2 * contentPadding);
+//
+//                         int fullTextMeasuredWidth;
+//                         size_t fullTextOriginalLengthInBytes = textToRender.length();
+//                         size_t fullTextMeasuredLengthInBytes; // max_width=0일 때 fullTextOriginalLengthInBytes와 같아야 함
+//
+//                         if (TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes,
+//                                               0 /* max_width = 0 이면 전체 문자열 측정 */, &fullTextMeasuredWidth,
+//                                               &fullTextMeasuredLengthInBytes)) {
+//                             if (static_cast<float>(fullTextMeasuredWidth) > availableTextWidthInDataCol) {
+//                                 // 텍스트가 너무 길면 잘림 처리 (...)
+//                                 // 잘림 처리 필요
+//                                 const string ellipsis = "...";
+//                                 int ellipsisMeasuredWidth;
+//                                 size_t ellipsisOriginalLength = ellipsis.length();
+//                                 size_t ellipsisMeasuredLength; // ellipsis.length()와 같아야 함
+//
+//                                 if (TTF_MeasureString(hudFont, ellipsis.c_str(), ellipsisOriginalLength, 0,
+//                                                       &ellipsisMeasuredWidth, &ellipsisMeasuredLength)) {
+//                                     float widthForTextItself =
+//                                             availableTextWidthInDataCol - static_cast<float>(ellipsisMeasuredWidth);
+//
+//                                     if (widthForTextItself <= 0) {
+//                                         // 내용 + "..." 을 위한 공간 없음. "..." 만이라도 표시 가능한지 확인
+//                                         if (static_cast<float>(ellipsisMeasuredWidth) <= availableTextWidthInDataCol) {
+//                                             displayText = ellipsis;
+//                                         } else {
+//                                             // "..." 조차 표시할 공간 없음
+//                                             displayText = ""; // 또는 textToRender의 첫 글자 등 (UTF-8 고려 필요)
+//                                         }
+//                                     } else {
+//                                         // "..." 앞의 원본 텍스트가 들어갈 수 있는 부분 측정
+//                                         int fittingTextPortionWidth;
+//                                         size_t fittingTextPortionLengthInBytes;
+//                                         TTF_MeasureString(hudFont, textToRender.c_str(), fullTextOriginalLengthInBytes,
+//                                                           static_cast<int>(widthForTextItself),
+//                                                           &fittingTextPortionWidth, &fittingTextPortionLengthInBytes);
+//
+//                                         if (fittingTextPortionLengthInBytes > 0) {
+//                                             displayText =
+//                                                     textToRender.substr(0, fittingTextPortionLengthInBytes) + ellipsis;
+//                                         } else {
+//                                             // 텍스트 부분이 전혀 안 들어감. "..." 만이라도 표시 가능한지 확인
+//                                             if (static_cast<float>(ellipsisMeasuredWidth) <=
+//                                                 availableTextWidthInDataCol) {
+//                                                 displayText = ellipsis;
+//                                             } else {
+//                                                 displayText = "";
+//                                             }
+//                                         }
+//                                     }
+//                                 } else {
+//                                     // "..." 측정 실패
+//                                     EngineStdOut("Failed to measure ellipsis text for HUD list.", 2);
+//                                     // 간단한 대체 처리
+//                                     if (textToRender.length() > 2)
+//                                         displayText = textToRender.substr(0, textToRender.length() - 2) + "..";
+//                                 }
+//                             }
+//                             // else: 전체 텍스트가 공간에 맞으므로 displayText = textToRender (초기값) 사용
+//                         } else {
+//                             // textToRender 측정 실패
+//                             EngineStdOut("Failed to measure text: " + textToRender + " for HUD list.", 2);
+//                             // 오류 처리, displayText는 초기값 textToRender를 유지하거나 비워둘 수 있음
+//                         }
+//
+//                         if (!displayText.empty()) {
+//                             SDL_Surface *itemTextSurface = TTF_RenderText_Blended(
+//                                 hudFont, displayText.c_str(), 0, listItemTextColor);
+//                             if (itemTextSurface) {
+//                                 SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, itemTextSurface);
+//                                 if (tex) {
+//                                     SDL_FRect r = {
+//                                         itemDataBgRect.x + contentPadding,
+//                                         itemDataBgRect.y + (itemDataBgRect.h - itemTextSurface->h) / 2.0f,
+//                                         (float) itemTextSurface->w, (float) itemTextSurface->h
+//                                     };
+//                                     SDL_RenderTexture(renderer, tex, nullptr, &r);
+//                                     SDL_DestroyTexture(tex);
+//                                 }
+//                                 SDL_DestroySurface(itemTextSurface);
+//                             }
+//                         }
+//                     }
+//
+//                     currentItemVisualY += itemRowHeight + spacingBetweenRows;
+//                 }
+//
+//                 // 4.5 스크롤바 그리기 (필요한 경우)
+//                 if (needsScrollbar) {
+//                     SDL_Color scrollbarTrackColor = {200, 200, 200, 150}; // 연한 회색 트랙
+//                     SDL_Color scrollbarHandleColor = {80, 80, 80, 200}; // 어두운 회색 핸들
+//
+//                     float scrollbarTrackX = listContainerInnerRect.x + listContainerInnerRect.w - contentPadding -
+//                                             scrollbarWidth;
+//                     SDL_FRect scrollbarTrackRect = {
+//                         scrollbarTrackX,
+//                         itemsAreaStartY, // 헤더 아래부터 시작
+//                         scrollbarWidth,
+//                         itemsAreaRenderableHeight // 아이템 영역 높이만큼
+//                     };
+//                     SDL_SetRenderDrawColor(renderer, scrollbarTrackColor.r, scrollbarTrackColor.g,
+//                                            scrollbarTrackColor.b, scrollbarTrackColor.a);
+//                     SDL_RenderFillRect(renderer, &scrollbarTrackRect);
+//
+//                     float handleHeightRatio = itemsAreaRenderableHeight / var.calculatedContentHeight;
+//                     float scrollbarHandleHeight = max(10.0f, itemsAreaRenderableHeight * handleHeightRatio); // 최소 핸들 높이
+//
+//                     float scrollPositionRatio =
+//                             var.scrollOffset_Y / (var.calculatedContentHeight - itemsAreaRenderableHeight);
+//                     scrollPositionRatio = clamp(scrollPositionRatio, 0.0f, 1.0f);
+//                     float scrollbarHandleY = itemsAreaStartY + scrollPositionRatio * (
+//                                                  itemsAreaRenderableHeight - scrollbarHandleHeight);
+//
+//                     SDL_FRect scrollbarHandleRect = {
+//                         scrollbarTrackX, scrollbarHandleY, scrollbarWidth, scrollbarHandleHeight
+//                     };
+//                     SDL_SetRenderDrawColor(renderer, scrollbarHandleColor.r, scrollbarHandleColor.g,
+//                                            scrollbarHandleColor.b, scrollbarHandleColor.a);
+//                     SDL_RenderFillRect(renderer, &scrollbarHandleRect);
+//                 }
+//
+//                 // 5. 리스트 크기 조절 핸들 그리기 (오른쪽 하단)
+//                 if (var.width >= MIN_LIST_WIDTH && var.height >= MIN_LIST_HEIGHT) {
+//                     // 핸들을 그릴 충분한 공간이 있는지 확인
+//                     SDL_FRect resizeHandleRect = {
+//                         renderX + var.width - LIST_RESIZE_HANDLE_SIZE, // renderX 기준
+//                         renderY + var.height - LIST_RESIZE_HANDLE_SIZE, // renderY 기준
+//                         LIST_RESIZE_HANDLE_SIZE,
+//                         LIST_RESIZE_HANDLE_SIZE
+//                     };
+//                     SDL_SetRenderDrawColor(renderer, listRowNumberColor.r, listRowNumberColor.g, listRowNumberColor.b,
+//                                            255); // 핸들 색상
+//                     SDL_RenderFillRect(renderer, &resizeHandleRect);
+//                 }
+//                 var.transient_render_width = var.width; // 리스트의 경우, 렌더링된 너비는 정의된 너비와 동일
+//             } else {
+//                 // 일반 변수
+//                 itemValueBoxBgColor = {0, 120, 255, 255}; // 다른 변수는 파란색 배경
+//                 valueToDisplay = var.value;
+//             }
+//
+//             // 변수 이름 레이블
+//             // 변수의 object 키에 오브젝트 ID가 있을 경우 해당 오브젝트 이름을 가져온다.
+//             // 없을경우 그냥 변수 이름을 사용한다.
+//             string nameToDisplay; // HUD에 최종적으로 표시될 변수의 이름
+//             bool foundAssociatedObject = false;
+//
+//             if (!var.objectId.empty()) {
+//                 const ObjectInfo *objInfoPtr = getObjectInfoById(var.objectId);
+//                 if (objInfoPtr) {
+//                     nameToDisplay = objInfoPtr->name + " : " + var.name;
+//                     foundAssociatedObject = true;
+//                 }
+//             }
+//
+//             if (!foundAssociatedObject) {
+//                 nameToDisplay = var.name; // 변수 자체의 이름을 표시할 이름으로 사용합니다.
+//             }
+//
+//             // 디버그: "메시지3" 변수의 이름과 값을 로그로 출력
+//             if (var.name == "메시지3") {
+//                 EngineStdOut(
+//                     "DEBUG: Rendering variable '메시지3'. nameToDisplay: [" + nameToDisplay + "], valueToDisplay: [" +
+//                     valueToDisplay + "]", 3);
+//             }
+//
+//             SDL_Surface *nameSurface = TTF_RenderText_Blended(hudFont, nameToDisplay.c_str(), 0, itemLabelTextColor);
+//             SDL_Surface *valueSurface = TTF_RenderText_Blended(hudFont, valueToDisplay.c_str(), 0, itemValueTextColor);
+//
+//             if (!nameSurface || !valueSurface) {
+//                 if (nameSurface)
+//                     SDL_DestroySurface(nameSurface);
+//                 if (valueSurface)
+//                     SDL_DestroySurface(valueSurface);
+//                 EngineStdOut("Failed to render name or value surface for variable: " + var.name, 2);
+//                 continue; // 이름 또는 값 표면 렌더링 실패
+//             }
+//
+//             float nameTextActualWidth = static_cast<float>(nameSurface->w);
+//             float valueTextActualWidth = static_cast<float>(valueSurface->w);
+//
+//             // 값 텍스트와 내부 여백(좌우 itemPadding)을 포함한 이상적인 파란색 값 배경 상자 너비
+//             float idealValueBgWidth = valueTextActualWidth + (2 * itemPadding);
+//
+//             // 이름, 값 배경, 그리고 그 사이 및 양옆의 내부 여백을 모두 포함하는 이상적인 컨테이너 내용물 영역의 너비
+//             // (왼쪽패딩 + 이름너비 + 중간패딩 + 값배경너비 + 오른쪽패딩)
+//             float idealFillWidth = itemPadding + nameTextActualWidth + itemPadding + idealValueBgWidth + itemPadding;
+//             idealFillWidth = nameTextActualWidth + idealValueBgWidth + (3 * itemPadding); // Simplified
+//
+//             // 이상적인 전체 컨테이너 너비 (테두리 포함)
+//             float idealContainerFixedWidth = idealFillWidth + (2 * containerBorderWidth);
+//
+//             // 컨테이너 최소/최대 너비 정의
+//             float minContainerFixedWidth = 80.0f; // 최소 너비
+//             // 최대 사용 가능 너비는 현재 변수의 x 위치를 기준으로 계산해야 합니다.
+//             float maxAvailContainerWidth = static_cast<float>(window_w) - var.x - 10.0f; // 창 오른쪽 가장자리에서 10px 여유 확보
+//             maxAvailContainerWidth = max(minContainerFixedWidth, maxAvailContainerWidth); // 최대 너비는 최소 너비보다 작을 수 없음
+//
+//             // 이 항목의 최종 컨테이너 너비
+//             float currentItemContainerWidth = clamp(idealContainerFixedWidth, minContainerFixedWidth,
+//                                                     maxAvailContainerWidth);
+//             if (var.variableType == "list" && var.width > 0) {
+//                 // 리스트 타입이고 명시적 너비가 있다면 해당 너비 사용
+//                 // 참고: 리스트의 경우 var.width는 사용자가 project.json에서 명시적으로 설정한 너비를 의미할 수 있습니다.
+//                 currentItemContainerWidth = clamp(var.width, minContainerFixedWidth, maxAvailContainerWidth);
+//             }
+//
+//             maxObservedItemWidthThisFrame = max(maxObservedItemWidthThisFrame, currentItemContainerWidth);
+//             visibleVarsCount++; // Count visible variables to update m_maxVariablesListContentWidth later
+//
+//             // 이 변수 항목 상자의 높이
+//             var.transient_render_width = currentItemContainerWidth; // 마지막으로 렌더링된 너비 저장
+//             float singleBoxHeight = itemHeight + 2 * itemPadding;
+//
+//             // 1. 컨테이너 테두리 그리기 (currentItemContainerWidth 사용)
+//             // float containerX = m_variablesListWidgetX; // 이제 var.x를 사용
+//             SDL_FRect outerContainerRect = {renderX, renderY, currentItemContainerWidth, singleBoxHeight};
+//             if (containerBorderWidth > 0.0f) {
+//                 SDL_SetRenderDrawColor(renderer, containerBorderColor.r, containerBorderColor.g, containerBorderColor.b,
+//                                        containerBorderColor.a);
+//                 Helper_RenderFilledRoundedRect(renderer, &outerContainerRect, containerCornerRadius);
+//             }
+//             // 2. 컨테이너 배경 그리기 (테두리 안쪽, currentItemContainerWidth 사용)
+//             SDL_FRect fillContainerRect = {
+//                 renderX + containerBorderWidth, // 테두리 두께만큼 안쪽으로
+//                 renderY + containerBorderWidth,
+//                 max(0.0f, currentItemContainerWidth - (2 * containerBorderWidth)),
+//                 max(0.0f, singleBoxHeight - (2 * containerBorderWidth))
+//             };
+//             float fillRadius = max(0.0f, containerCornerRadius - containerBorderWidth);
+//             if (fillContainerRect.w > 0 && fillContainerRect.h > 0) {
+//                 SDL_SetRenderDrawColor(renderer, containerBgColor.r, containerBgColor.g, containerBgColor.b,
+//                                        containerBgColor.a);
+//                 Helper_RenderFilledRoundedRect(renderer, &fillContainerRect, fillRadius);
+//             }
+//
+//             // 3. 각 변수 항목 그리기 (이름과 값)
+//             float contentAreaTopY = fillContainerRect.y + itemPadding;
+//
+//             SDL_Texture *nameTexture = SDL_CreateTextureFromSurface(renderer, nameSurface);
+//             SDL_Texture *valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+//             SDL_DestroySurface(nameSurface);
+//             SDL_DestroySurface(valueSurface);
+//
+//             if (nameTexture && valueTexture) {
+//                 // Determine available width for (NameText + ValueBox) within fillContainerRect,
+//                 // accounting for 3 itemPaddings (left, middle, right).
+//                 float spaceForNameTextAndValueBox = max(0.0f, fillContainerRect.w - (3 * itemPadding));
+//                 // 이름 텍스트와 값 상자를 위한 공간
+//
+//                 // Ideal widths for name text and the blue value background box
+//                 float targetNameTextWidth = nameTextActualWidth;
+//                 float targetValueBoxWidth = idealValueBgWidth;
+//                 // Already calculated: valueTextActualWidth + (2 * itemPadding)
+//
+//                 float totalIdealInternalWidth = targetNameTextWidth + targetValueBoxWidth;
+//
+//                 float finalNameTextWidth;
+//                 float finalValueBoxWidth;
+//
+//                 if (totalIdealInternalWidth <= spaceForNameTextAndValueBox) {
+//                     // 이상적인 너비로 둘 다 그릴 충분한 공간이 있음
+//                     finalNameTextWidth = targetNameTextWidth;
+//                     finalValueBoxWidth = targetValueBoxWidth;
+//                 } else {
+//                     // 공간 부족, spaceForNameTextAndValueBox에 맞게 비례적으로 축소
+//                     if (totalIdealInternalWidth > 0) {
+//                         float scaleFactor = spaceForNameTextAndValueBox / totalIdealInternalWidth;
+//                         finalNameTextWidth = targetNameTextWidth * scaleFactor;
+//                         finalValueBoxWidth = targetValueBoxWidth * scaleFactor;
+//                     } else {
+//                         // 두 대상 너비가 모두 0인 경우
+//                         finalNameTextWidth = 0;
+//                         finalValueBoxWidth = spaceForNameTextAndValueBox; // Or distribute 0/0 or space/2, space/2
+//                         if (spaceForNameTextAndValueBox > 0 && targetNameTextWidth == 0 && targetValueBoxWidth == 0) {
+//                             // 공간은 있지만 내용이 없는 경우
+//                             finalNameTextWidth = spaceForNameTextAndValueBox / 2.0f; // Arbitrary split
+//                             finalValueBoxWidth = spaceForNameTextAndValueBox / 2.0f;
+//                         } else {
+//                             finalValueBoxWidth = 0;
+//                         }
+//                     }
+//                 }
+//                 finalNameTextWidth = max(0.0f, finalNameTextWidth);
+//                 finalValueBoxWidth = max(0.0f, finalValueBoxWidth);
+//
+//                 // 이름 그리기
+//                 SDL_FRect nameDestRect = {
+//                     fillContainerRect.x + itemPadding,
+//                     contentAreaTopY + (itemHeight - static_cast<float>(nameTexture->h)) / 2.0f,
+//                     finalNameTextWidth,
+//                     static_cast<float>(nameTexture->h)
+//                 };
+//                 SDL_FRect nameSrcRect = {0, 0, static_cast<int>(finalNameTextWidth), static_cast<int>(nameTexture->h)};
+//                 SDL_RenderTexture(renderer, nameTexture, &nameSrcRect, &nameDestRect);
+//
+//                 // 값 배경 상자 및 값 텍스트 그리기
+//                 if (finalValueBoxWidth > 0) {
+//                     SDL_FRect valueBgRect = {
+//                         nameDestRect.x + finalNameTextWidth + itemPadding,
+//                         contentAreaTopY,
+//                         finalValueBoxWidth,
+//                         itemHeight
+//                     };
+//                     SDL_SetRenderDrawColor(renderer, itemValueBoxBgColor.r, itemValueBoxBgColor.g,
+//                                            itemValueBoxBgColor.b, itemValueBoxBgColor.a);
+//                     SDL_RenderFillRect(renderer, &valueBgRect);
+//
+//                     // Value text display width is capped by the blue box's inner width
+//                     float valueTextDisplayWidth = max(
+//                         0.0f, min(valueTextActualWidth, finalValueBoxWidth - (2 * itemPadding)));
+//                     if (valueTextDisplayWidth > 0) {
+//                         SDL_FRect valueDestRect = {
+//                             valueBgRect.x + itemPadding, // 파란색 상자 내에서 왼쪽 정렬
+//                             valueBgRect.y + (valueBgRect.h - static_cast<float>(valueTexture->h)) / 2.0f,
+//                             valueTextDisplayWidth,
+//                             static_cast<float>(valueTexture->h)
+//                         };
+//                         SDL_FRect valueSrcRect = {
+//                             0, 0, static_cast<int>(valueTextDisplayWidth), static_cast<int>(valueTexture->h)
+//                         };
+//                         SDL_RenderTexture(renderer, valueTexture, &valueSrcRect, &valueDestRect);
+//                     }
+//                 }
+//             }
+//             if (nameTexture)
+//                 SDL_DestroyTexture(nameTexture);
+//             if (valueTexture)
+//                 SDL_DestroyTexture(valueTexture);
+//
+//             // currentWidgetYPosition += singleBoxHeight + spacingBetweenBoxes; // 개별 위치를 사용하므로 이 줄은 제거됩니다.
+//         }
+//
+//         if (visibleVarsCount > 0) {
+//             // maxObservedItemWidthThisFrame은 minContainerFixedWidth(80.0f) 이상이어야 합니다.
+//             // currentItemContainerWidth가 그렇게 제한(clamp)되기 때문입니다.
+//             m_maxVariablesListContentWidth = maxObservedItemWidthThisFrame;
+//         } else {
+//             m_maxVariablesListContentWidth = 180.0f; // 보이는 항목이 없으면 기본 너비
+//         }
+//     } else {
+//         // 목록이 아예 표시되지 않거나 비어있으면 기본 너비
+//         m_maxVariablesListContentWidth = 180.0f;
+//     }
+//
+//     if (m_showScriptDebugger) {
+//         drawScriptDebuggerUI();
+//     }
+// }
 
 void Engine::drawImGui() {
     ImGui_ImplSDLRenderer3_NewFrame();
@@ -3797,59 +3789,61 @@ void Engine::drawImGui() {
         }
         ImGui::End();
     }
-    // 텍스트 입력
+    // 텍스트 입력 (대답)
     if (m_textInputActive) {
         std::lock_guard<std::mutex> lock(m_textInputMutex);
-
         // 화면 하단에 고정된 창으로 표시
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(WINDOW_WIDTH) - 40, 120), ImGuiCond_Always);
-        ImGui::SetNextWindowPos(ImVec2(20, static_cast<float>(WINDOW_HEIGHT) - 140), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(20, static_cast<float>(WINDOW_HEIGHT) - (60+20)), ImGuiCond_Always);
         ImGuiWindowFlags input_window_flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
                                               ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
 
+        // 이는 의도된 동작일 수 있으나, 명확히 인지하고 있어야 합니다.
         if (ImGui::Begin("Text Input", &m_textInputActive, input_window_flags)) {
             if (!m_textInputQuestionMessage.empty()) {
                 ImGui::TextWrapped("%s", m_textInputQuestionMessage.c_str());
             }
 
-            // InputText는 char 배열을 필요로 하므로, std::string을 변환해야 합니다.
-            // m_currentTextInputBuffer를 char 배열로 복사하거나, ImGuiInputTextCallback을 사용할 수 있습니다.
-            // 여기서는 간단히 char 배열을 사용한다고 가정합니다. (실제로는 더 견고한 처리가 필요)
-            char inputTextBuffer[1024]; // 충분한 크기로
+            char inputTextBuffer[1024];
             strncpy(inputTextBuffer, m_currentTextInputBuffer.c_str(), sizeof(inputTextBuffer) - 1);
-            inputTextBuffer[sizeof(inputTextBuffer) - 1] = 0; // Null-terminate
+            inputTextBuffer[sizeof(inputTextBuffer) - 1] = 0;
 
-            ImGui::PushItemWidth(ImGui::GetWindowWidth() - 80); // 입력 필드 너비 조정
-            if (ImGui::InputText(nullptr, inputTextBuffer, sizeof(inputTextBuffer),
+            ImGui::PushItemWidth(ImGui::GetWindowWidth() - 80);
+            if (ImGui::InputText("##AnswerInput", inputTextBuffer, sizeof(inputTextBuffer), // ID 변경 제안
                                  ImGuiInputTextFlags_EnterReturnsTrue)) {
                 // 엔터 키 입력 처리
                 m_lastAnswer = inputTextBuffer;
-                m_currentTextInputBuffer.clear();
-                m_textInputActive = false;
-                // ... (기존 엔터 처리 로직 호출) ...
-                Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId); // m_engineDataMutex는 이미 잠겨있다고 가정
+                m_currentTextInputBuffer.clear(); // 엔터 입력 시 버퍼 클리어
+
+                Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
                 if (entity) {
                     entity->removeDialog();
                 }
-                updateAnswerVariable();
-                m_textInputCv.notify_all();
+                updateAnswerVariable(); // 이 함수 내부에서도 m_HUDVariables 접근 시 m_engineDataMutex 필요
+
                 EngineStdOut("Enter pressed (ImGui). Input complete. Answer: " + m_lastAnswer, 0);
+
+                // 엔터 입력 시 m_textInputActive를 false로 설정하고 notify
+                m_textInputActive = false;
+                m_textInputCv.notify_all();
             }
             ImGui::PopItemWidth();
-            m_currentTextInputBuffer = inputTextBuffer; // 변경된 내용을 다시 std::string으로
+
+            m_currentTextInputBuffer = inputTextBuffer;
 
             ImGui::SameLine();
             if (ImGui::Button("확인", ImVec2(60, 0))) {
                 // 확인 버튼 클릭 처리
                 m_lastAnswer = m_currentTextInputBuffer;
-                // ... (기존 확인 버튼 처리 로직 호출) ...
-                updateAnswerVariable();
-                m_currentTextInputBuffer.clear();
-                m_textInputActive = false;
+                m_currentTextInputBuffer.clear(); // 확인 버튼 클릭 시 버퍼 클리어
+
+                // [POTENTIAL_ISSUE_MUTEX_ORDER] - 위와 동일한 뮤텍스 문제
                 Entity *entity = getEntityById_nolock(m_textInputRequesterObjectId);
                 if (entity) {
                     entity->removeDialog();
                 }
+                updateAnswerVariable(); // 이 함수 내부에서도 m_HUDVariables 접근 시 m_engineDataMutex 필요
+                m_textInputActive = false;
                 m_textInputCv.notify_all();
                 EngineStdOut("Submit button clicked (ImGui). Input complete. Answer: " + m_lastAnswer, 0);
             }
@@ -3871,60 +3865,99 @@ void Engine::drawImGui() {
                 continue;
             }
 
-            // ImGui 창의 ID는 고유해야 하므로 변수 ID 등을 사용
             std::string windowTitle = var.name + "##HUDVar_" + var.id;
-
-            // 엔트리 좌표를 ImGui 창의 초기 위치로 변환 (한 번만 설정되도록 ImGuiCond_Once 사용)
             float initialPosX = screenCenterX + var.x;
             float initialPosY = screenCenterY - var.y;
 
-            ImGui::SetNextWindowPos(ImVec2(initialPosX, initialPosY), ImGuiCond_Appearing); // 처음 나타날 때만 위치 설정
+            // ImGuiCond_Appearing은 창이 처음 나타날 때만 위치/크기를 설정합니다.
+            // 사용자가 창을 이동/크기 조절한 후에는 그 상태를 유지합니다.
+            ImGui::SetNextWindowPos(ImVec2(initialPosX, initialPosY), ImGuiCond_Appearing);
             ImGuiWindowFlags var_window_flags = ImGuiWindowFlags_NoCollapse;
-            // 변수/리스트의 크기 설정
+
             if (var.variableType == "list") {
-                var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
-                ImGui::SetNextWindowSize(ImVec2(var.width, var.height), ImGuiCond_Appearing);
-            } else {
-                // 일반 변수는 내용에 따라 자동 크기 조절되도록 하거나, 고정 크기 설정
+                // 리스트 변수일 경우
+                // 사용자가 크기를 조절할 수 있도록 ImGuiWindowFlags_NoResize 플래그를 제거합니다.
+                // var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize; // 내용에 따라 자동 크기 조절 (세로 스크롤을 위해) -> 제거 또는 주석 처리
+                // 또는 ImGuiWindowFlags_NoResize 플래그를 제거하여 사용자가 크기 조절 가능하게 할 수 있습니다.
+
+                // JSON에 정의된 크기가 있다면 해당 크기를 초기 크기로 사용합니다.
+                // ImGuiCond_Appearing을 사용하여 처음 나타날 때만 적용하고, 이후에는 사용자 조절 크기를 유지합니다.
+                if (var.width > 0 && var.height > 0) {
+                    ImGui::SetNextWindowSize(ImVec2(var.width, var.height), ImGuiCond_Appearing);
+                } else {
+                    // JSON에 크기 정의가 없으면 기본 크기를 사용합니다.
+                    ImGui::SetNextWindowSize(ImVec2(200, 150), ImGuiCond_Appearing);
+                }
+
+                // 리스트 이름 표시 (기존 drawHUD 로직 참고)
+                std::string listDisplayName;
+                bool foundAssociatedObjectList = false;
+                if (!var.objectId.empty()) {
+                    const ObjectInfo *objInfoPtrList = getObjectInfoById(var.objectId);
+                    if (objInfoPtrList) {
+                        listDisplayName = objInfoPtrList->name + " : " + var.name;
+                        foundAssociatedObjectList = true;
+                    }
+                }
+                if (!foundAssociatedObjectList) {
+                    listDisplayName = var.name;
+                }
+
+                if (ImGui::Begin(listDisplayName.c_str(), nullptr, var_window_flags)) {
+                    // 창의 현재 위치와 크기를 가져와서 var.x, var.y, var.width, var.height를 업데이트합니다.
+                    // 이렇게 하면 사용자가 창을 이동하거나 크기를 조절한 상태가 다음 프레임 및 저장 시 반영됩니다.
+                    ImVec2 currentWindowPos = ImGui::GetWindowPos();
+                    ImVec2 currentWindowSize = ImGui::GetWindowSize();
+
+                    var.x = currentWindowPos.x - screenCenterX;
+                    var.y = screenCenterY - currentWindowPos.y;
+                    var.width = currentWindowSize.x;
+                    var.height = currentWindowSize.y;
+
+                    // 스크롤 가능한 자식 창으로 리스트 아이템 표시
+                    float headerHeight = ImGui::GetTextLineHeightWithSpacing();
+                    float footerHeight = 0;
+                    ImVec2 child_size = ImVec2(0, ImGui::GetContentRegionAvail().y - headerHeight - footerHeight - ImGui::GetStyle().ItemSpacing.y);
+                    if (child_size.y < ImGui::GetTextLineHeightWithSpacing()) {
+                        child_size.y = ImGui::GetTextLineHeightWithSpacing() * 2;
+                    }
+
+                    ImGui::BeginChild(("ListItems_" + var.id).c_str(), child_size, true, ImGuiWindowFlags_HorizontalScrollbar);
+                    for (size_t j = 0; j < var.array.size(); ++j) {
+                        const ListItem &listItem = var.array[j];
+                        ImGui::Text("%zu.", j + 1);
+                        ImGui::SameLine();
+                        ImGui::TextWrapped("%s", listItem.data.c_str());
+                    }
+                    ImGui::EndChild();
+                }
+                ImGui::End();
+            } else if (var.variableType == "timer") {
+                // 타이머 변수 (기존 로직 유지)
                 var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
                 var_window_flags |= ImGuiWindowFlags_NoResize;
                 var_window_flags |= ImGuiWindowFlags_NoTitleBar;
-                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50),
-                                         ImGuiCond_Appearing);
-            }
+                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50), ImGuiCond_Appearing);
 
+                if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
+                    ImVec2 currentWindowPos = ImGui::GetWindowPos();
+                    var.x = currentWindowPos.x - screenCenterX;
+                    var.y = screenCenterY - currentWindowPos.y;
 
-            if (m_draggedHUDVariableIndex == i && m_currentHUDDragState == HUDDragState::MOVING) {
-                // 드래그 중에는 창 이동이 ImGui에 의해 처리됨
-            }
-            // 리스트의 경우 크기 조절 가능 플래그 추가 가능 (ImGuiWindowFlags_Resizable)
-            // 하지만 기존의 커스텀 리사이즈 핸들 로직을 ImGui 방식으로 구현하려면 더 복잡해짐
-
-            if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
-                // ImGui 창의 현재 위치를 다시 엔트리 좌표로 변환하여 var.x, var.y 업데이트
-                ImVec2 currentWindowPos = ImGui::GetWindowPos();
-                var.x = currentWindowPos.x - screenCenterX;
-                var.y = screenCenterY - currentWindowPos.y;
-
-
-                if (var.variableType == "timer") {
                     double timerValue = getProjectTimerValue();
                     std::string valueToDisplay;
-
+                    // ... (타이머 값 포맷팅 로직은 기존과 동일) ...
                     if (timerValue == static_cast<long long>(timerValue)) {
-                        // 정수인지 확인
                         std::ostringstream oss_int;
                         oss_int << static_cast<long long>(timerValue);
                         valueToDisplay = oss_int.str();
                     } else {
                         std::ostringstream oss_float;
-                        oss_float << std::fixed << std::setprecision(3) << timerValue; // 최대 소수점 3자리
+                        oss_float << std::fixed << std::setprecision(3) << timerValue;
                         valueToDisplay = oss_float.str();
-                        // 문자열 끝의 불필요한 '0' 제거
                         size_t dot_pos = valueToDisplay.find('.');
                         if (dot_pos != std::string::npos) {
                             valueToDisplay.erase(valueToDisplay.find_last_not_of('0') + 1, std::string::npos);
-                            // 만약 "XX." 형태가 되면 마지막 '.' 제거
                             if (!valueToDisplay.empty() && valueToDisplay.back() == '.') {
                                 valueToDisplay.pop_back();
                             }
@@ -3932,33 +3965,37 @@ void Engine::drawImGui() {
                     }
 
                     std::string nameText = var.name;
-                    ImGui::Text("%s", nameText.c_str()); // 이름 표시
+                    ImGui::Text("%s", nameText.c_str());
                     ImGui::SameLine();
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.0f, 0.6f, 0.0f, 1.0f)); // 주황색 배경
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // 흰색 텍스트
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-                    char timerValueBuffer[256]; // 충분한 크기
+                    char timerValueBuffer[256];
                     strncpy(timerValueBuffer, valueToDisplay.c_str(), sizeof(timerValueBuffer) - 1);
-                    timerValueBuffer[sizeof(timerValueBuffer) - 1] = 0; // Null-terminate
+                    timerValueBuffer[sizeof(timerValueBuffer) - 1] = 0;
 
-                    // 수정 2: InputText 너비를 내용에 맞게 설정
                     float valueTextWidth = ImGui::CalcTextSize(timerValueBuffer).x;
                     float framePaddingX = ImGui::GetStyle().FramePadding.x;
-                    ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f); // 값 텍스트 너비 + 좌우 패딩
-
-                    ImGui::InputText(("##TimerVal_" + var.id).c_str(), timerValueBuffer, sizeof(timerValueBuffer),
-                                     ImGuiInputTextFlags_ReadOnly);
-
+                    ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f);
+                    ImGui::InputText(("##TimerVal_" + var.id).c_str(), timerValueBuffer, sizeof(timerValueBuffer), ImGuiInputTextFlags_ReadOnly);
                     ImGui::PopItemWidth();
                     ImGui::PopStyleColor(2);
 
-                    // 수정 3: 창 전체 너비 계산 (이름 + 값 + 아이템 간 간격)
-                    // ImGui::GetItemRectSize().x는 방금 그린 InputText의 실제 너비(패딩 포함)를 반환합니다.
-                    var.transient_render_width =
-                            ImGui::CalcTextSize(nameText.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
-                            ImGui::GetItemRectSize().x;
-                } else {
-                    // 일반 변수
+                    var.transient_render_width = ImGui::CalcTextSize(nameText.c_str()).x + ImGui::GetStyle().ItemSpacing.x + ImGui::GetItemRectSize().x;
+                }
+                ImGui::End();
+            } else {
+                // 일반 변수 (기존 로직 유지)
+                var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
+                var_window_flags |= ImGuiWindowFlags_NoResize;
+                var_window_flags |= ImGuiWindowFlags_NoTitleBar;
+                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50), ImGuiCond_Appearing);
+
+                if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
+                    ImVec2 currentWindowPos = ImGui::GetWindowPos();
+                    var.x = currentWindowPos.x - screenCenterX;
+                    var.y = screenCenterY - currentWindowPos.y;
+
                     std::string nameToDisplay = var.objectId.empty()
                                                     ? var.name
                                                     : (getObjectInfoById(var.objectId)
@@ -3966,33 +4003,24 @@ void Engine::drawImGui() {
                                                            : var.name);
                     ImGui::Text("%s", nameToDisplay.c_str());
                     ImGui::SameLine();
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.47f, 1.0f, 1.0f)); // 파란 배경
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // 흰색 텍스트
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.47f, 1.0f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-                    char valueBuffer[256]; // 충분한 크기
+                    char valueBuffer[256];
                     strncpy(valueBuffer, var.value.c_str(), sizeof(valueBuffer) - 1);
                     valueBuffer[sizeof(valueBuffer) - 1] = 0;
 
-                    // 값 텍스트의 너비 계산
                     float valueTextWidth = ImGui::CalcTextSize(valueBuffer).x;
                     float framePaddingX = ImGui::GetStyle().FramePadding.x;
-                    // InputText 위젯의 너비를 값 텍스트 너비 + 좌우 프레임 패딩으로 설정
                     ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f);
-
-                    ImGui::InputText(("##Val_" + var.id).c_str(), valueBuffer, sizeof(valueBuffer),
-                                     ImGuiInputTextFlags_ReadOnly);
-
+                    ImGui::InputText(("##Val_" + var.id).c_str(), valueBuffer, sizeof(valueBuffer), ImGuiInputTextFlags_ReadOnly);
                     ImGui::PopItemWidth();
                     ImGui::PopStyleColor(2);
 
-                    // 창 전체 너비 계산 (이름 텍스트 너비 + 아이템 간 간격 + 값 InputText 너비)
-                    // ImGui::GetItemRectSize().x는 방금 그린 InputText의 실제 너비(패딩 포함)를 반환합니다.
-                    var.transient_render_width =
-                            ImGui::CalcTextSize((nameToDisplay + ":").c_str()).x + ImGui::GetStyle().ItemSpacing.x +
-                            ImGui::GetItemRectSize().x;
+                    var.transient_render_width = ImGui::CalcTextSize((nameToDisplay + ":").c_str()).x + ImGui::GetStyle().ItemSpacing.x + ImGui::GetItemRectSize().x;
                 }
+                ImGui::End();
             }
-            ImGui::End(); // End of HUD variable window
         }
     }
 

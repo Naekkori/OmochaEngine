@@ -460,6 +460,8 @@ string BlockTypeEnumToString(Entity::WaitType type) {
             return "TEXT_INPUT";
         case Entity::WaitType::SOUND_FINISH:
             return "SOUND_FINISH";
+        case Entity::WaitType::SCENE_CHANGE_SUSPEND:
+            return "SCENE_CHANGE_SUSPEND";
         default:
             return "UNKNOWN_WAIT_TYPE";
     }
