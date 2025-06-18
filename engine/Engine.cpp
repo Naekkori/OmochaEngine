@@ -5891,120 +5891,103 @@ void Engine::goToPreviousScene() {
 }
 
 void Engine::resumeSuspendedScriptsInCurrentScene() {
-    if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
+      if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;
     }
+    EngineStdOut("Attempting to resume suspended scripts in current scene: " + currentSceneId, 0);
 
-    EngineStdOut("Attempting to resume suspended scripts in scene: " + currentSceneId, 0);
-
-    // 재개할 스크립트 정보를 담을 벡터 (뮤텍스 범위 밖에서 디스패치하기 위함)
     std::vector<std::tuple<std::string /*entityId*/,
         std::string /*execId*/,
         const Script * /*scriptPtr*/,
-        std::string /*sceneIdAtDispatch*/,
+        std::string /*sceneIdAtDispatch*/, // 이 값은 state.sceneIdAtDispatchForResume에서 가져옴
         int /*resumeAtBlockIndex*/,
-        std::string /*originalInnerBlockIdForWait*/> > tasksToDispatch; {
-        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // entities 맵 및 ObjectInfo 접근 보호
+        std::string /*originalInnerBlockIdForWait*/> > tasksToDispatch;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
-        for (auto const &[entityId, entityPtr]: entities) {
+        for (auto const &[entityId, entityPtr] : entities) {
             if (!entityPtr) continue;
 
-            const ObjectInfo *objInfo = getObjectInfoById(entityId); // m_engineDataMutex 필요
-            if (!objInfo) continue; // 엔티티가 존재하는데 ObjectInfo가 없는 경우는 비정상
+            const ObjectInfo *objInfo = getObjectInfoById(entityId);
+            if (!objInfo) continue;
 
-            bool isInCurrentScene = (objInfo->sceneId == currentSceneId);
             bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
 
-            if (isInCurrentScene || isGlobal) {
-                // 현재 장면에 속하거나 전역 엔티티인 경우 스크립트 상태 확인
-                std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex()); // 엔티티 상태 보호
+            // 현재 씬에 속하거나 전역 엔티티인 경우에만 스크립트 상태 확인
+            if (isGlobal || objInfo->sceneId == currentSceneId) {
+                std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex());
 
-                // scriptThreadStates 맵을 순회하며 일시 중지된 스크립트 찾기
                 for (auto it_state = entityPtr->scriptThreadStates.begin();
-                     it_state != entityPtr->scriptThreadStates.end(); /* no increment */) {
+                     it_state != entityPtr->scriptThreadStates.end(); /* manual increment */) {
                     auto &execId = it_state->first;
                     auto &state = it_state->second;
 
-                    // 장면 전환 때문에 일시 중지된 스크립트인지 확인
                     if (state.isWaiting && state.currentWaitType == Entity::WaitType::SCENE_CHANGE_SUSPEND) {
-                        // 재개에 필요한 정보가 유효한지 확인
-                        if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1) {
+                        // 재개 조건:
+                        // 1. 스크립트가 원래 디스패치된 씬(state.sceneIdAtDispatchForResume)이 현재 씬(currentSceneId)과 같거나,
+                        // 2. 해당 엔티티가 전역 엔티티인 경우.
+                        // 그리고 재개에 필요한 정보(scriptPtrForResume, resumeAtBlockIndex)가 유효해야 함.
+                        if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1 &&
+                            (isGlobal || state.sceneIdAtDispatchForResume == currentSceneId)) {
+
                             EngineStdOut(
                                 "Entity " + entityId + " (Thread: " + execId +
-                                ") resuming from scene change suspend. Resuming at block index " + std::to_string(
-                                    state.resumeAtBlockIndex) + ".",
+                                ") resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.sceneIdAtDispatchForResume +
+                                ", Current scene: " + currentSceneId + ". Resuming at block index " + std::to_string(state.resumeAtBlockIndex) + ".",
                                 0, execId);
 
-                            // 디스패치할 작업 정보 저장
                             tasksToDispatch.emplace_back(
-                                entityId, // Add entityId here
+                                entityId,
                                 execId,
                                 state.scriptPtrForResume,
-                                state.sceneIdAtDispatchForResume,
+                                state.sceneIdAtDispatchForResume, // 디스패치 시점의 씬 ID를 전달
                                 state.resumeAtBlockIndex,
                                 state.originalInnerBlockIdForWait
                             );
-                            // 스크립트 상태를 '대기 아님'으로 변경
-                            state.isWaiting = false;
-                            state.currentWaitType = Entity::WaitType::NONE;
-                            // resumeAtBlockIndex, scriptPtrForResume, sceneIdAtDispatchForResume는 디스패치된 태스크에서 사용됨
-                            // SCENE_CHANGE_SUSPEND 관련 정보 초기화
-                            state.waitEndTime = 0; // 이전 대기 시간 초기화
-                            state.blockIdForWait = ""; // 이전 대기 블록 ID 초기화
-                            state.originalInnerBlockIdForWait = ""; // 관련 정보 초기화
-
-                            // scriptThreadStates 맵에서 항목을 지우지 않음 (스레드 ID 재사용 가능성 고려)
-                            ++it_state; // 다음 스레드 상태로 이동
+                            // 상태 변경은 executeScript에서 처리하도록 여기서 isWaiting을 false로 바꾸지 않음.
+                            // 대신, executeScript가 호출될 때 이 스레드 상태를 보고 적절히 처리하도록 함.
+                            // state.isWaiting = false; // 이 줄 제거 또는 주석 처리
+                            // state.currentWaitType = Entity::WaitType::NONE; // 이 줄 제거 또는 주석 처리
+                            ++it_state;
                         } else {
-                            // 재개 컨텍스트가 유효하지 않은 경우, 해당 상태를 정리
+                            // 재개 조건 불충족. 이 스크립트는 현재 씬에서 재개되지 않음.
+                            // 상태는 SCENE_CHANGE_SUSPEND로 유지되어, 나중에 해당 씬으로 돌아오면 재개될 수 있음.
                             EngineStdOut(
-                                "WARNING: Entity " + entityId + " script thread " + execId +
-                                " SCENE_CHANGE_SUSPEND state is invalid (missing resume context). Clearing state.", 1,
-                                execId);
-                            state.isWaiting = false;
-                            state.currentWaitType = Entity::WaitType::NONE;
-                            state.scriptPtrForResume = nullptr;
-                            state.sceneIdAtDispatchForResume.clear();
-                            state.resumeAtBlockIndex = -1;
-                            state.waitEndTime = 0;
-                            state.blockIdForWait = "";
-                            state.originalInnerBlockIdForWait = "";
-                            ++it_state; // 다음 스레드 상태로 이동
+                                "Entity " + entityId + " (Thread: " + execId +
+                                ") NOT resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.sceneIdAtDispatchForResume +
+                                ", Current scene: " + currentSceneId + ". Resume context valid: " +
+                                (state.scriptPtrForResume && state.resumeAtBlockIndex != -1 ? "yes" : "no"),
+                                1, execId);
+                            ++it_state;
                         }
                     } else {
-                        ++it_state; // SCENE_CHANGE_SUSPEND 상태가 아니면 다음으로 이동
+                        ++it_state;
                     }
                 }
             }
         }
     } // m_engineDataMutex 잠금 해제
 
-    // 수집된 작업을 스레드 풀에 디스패치
-    for (const auto &task: tasksToDispatch) {
-        const std::string &entityIdToResume = std::get<0>(task); // Get entityId
+    for (const auto &task : tasksToDispatch) {
+        const std::string &entityIdToResume = std::get<0>(task);
         const std::string &execId = std::get<1>(task);
         const Script *scriptPtr = std::get<2>(task);
-        const std::string &sceneIdAtDispatch = std::get<3>(task);
-        int resumeAtBlockIndex = std::get<4>(task);
-        const std::string &originalInnerBlockIdForWait = std::get<5>(task);
+        const std::string &sceneIdAtDispatch = std::get<3>(task); // 원래 디스패치된 씬 ID
+        // int resumeAtBlockIndex = std::get<4>(task); // executeScript에서 ScriptThreadState를 통해 가져옴
+        // const std::string &originalInnerBlockIdForWait = std::get<5>(task); // executeScript에서 ScriptThreadState를 통해 가져옴
 
-        // Get the Entity pointer
-        // You might need to lock m_engineDataMutex here if it's not already locked,
-        // or use getEntityByIdShared if it handles locking.
-        // Assuming m_engineDataMutex is NOT locked here, use the locking version.
         std::shared_ptr<Entity> entityToResume = getEntityByIdShared(entityIdToResume);
-
         if (entityToResume) {
+            // scheduleScriptExecutionOnPool은 내부적으로 executeScript를 호출하며,
+            // executeScript는 ScriptThreadState에서 resumeAtBlockIndex와 originalInnerBlockIdForWait를 사용합니다.
             entityToResume->scheduleScriptExecutionOnPool(
                 scriptPtr,
-                sceneIdAtDispatch,
-                0.0f,
-                execId
+                sceneIdAtDispatch, // 스크립트가 원래 시작된 씬 컨텍스트를 전달
+                0.0f, // deltaTime
+                execId  // 기존 스레드 ID를 전달하여 재개임을 알림
             );
         } else {
-            EngineStdOut(
-                "Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume +
-                " not found for resumption.", 1);
+            EngineStdOut("Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume + " not found for resumption.", 1);
         }
     }
 
