@@ -5999,9 +5999,7 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                 scriptPtr,
                 sceneIdAtDispatch,
                 0.0f,
-                execId,
-                static_cast<size_t>(resumeAtBlockIndex),
-                originalInnerBlockIdForWait
+                execId
             );
         } else {
             EngineStdOut(

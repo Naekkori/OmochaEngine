@@ -277,10 +277,8 @@ Entity(Engine *engine, const std::string &entityId, const std::string &entityNam
     void scheduleScriptExecutionOnPool(const Script *scriptPtr,
                                        const std::string &sceneIdAtDispatch,
                                        float deltaTime,
-                                       const std::string &existingExecutionThreadId = "",
-                                       size_t resumeIndex = 0, // New parameter
-                                       const std::string& originalInnerBlockIdForWait = "" // New parameter
-                                      );
+                                       const std::string &existingExecutionThreadId = ""
+    );
     void executeScript(const Script *scriptPtr, const std::string &executionThreadId, const std::string &sceneIdAtDispatch, float deltaTime, size_t
                        resumeInnerBlockIndex=0);
     void setLastCollisionSide(CollisionSide side);
