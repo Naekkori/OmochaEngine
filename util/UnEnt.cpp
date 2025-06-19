@@ -20,10 +20,11 @@
 // 이 함수는 이제 파일 트리를 반환하는 대신, 지정된 경로에 압축을 풉니다.
 // 성공 여부를 bool로 반환하거나, 예외를 통해 오류를 알릴 수 있습니다.
 UnEnt::UnEnt() : logger_("UnEnt.log"){
- total_size_ = 0;
+    EntLog("UnEnt Ready");
+    total_size_ = 0;
 }
 UnEnt::~UnEnt() {
-
+    EntLog("UnEnt Shutdown");
 }
 bool UnEnt::extractArchiveTo(const std::string& archivePath, const std::string& destinationPath, std::function<void(double,double)> progressCallback) {
     archive *a = nullptr;
@@ -45,8 +46,8 @@ bool UnEnt::extractArchiveTo(const std::string& archivePath, const std::string& 
     r = archive_read_open_filename(a, archivePath.c_str(), 10240);
     if (r != ARCHIVE_OK) {
         std::string errMsg = "Failed to open archive '" + archivePath + "': " + archive_error_string(a);
- if (a)
-        archive_read_free(a);
+        if (a)
+            archive_read_free(a);
         throw std::runtime_error(errMsg);
     }
 
@@ -59,40 +60,40 @@ bool UnEnt::extractArchiveTo(const std::string& archivePath, const std::string& 
             total_size_ += archive_entry_size(entry);
         }
         archive_read_free(a_size);
+    } else {
+        // 파일 크기 계산 실패 시, total_size_가 0으로 유지되어 진행률 계산에 문제 발생 가능
+        // 필요시 오류 처리 또는 기본값 설정
+        EntLog("Warning: Could not open archive to calculate total size. Progress may not be accurate.");
     }
+
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
         std::string currentPath = archive_entry_pathname(entry);
         std::string fullDestPath = destinationPath + "/" + currentPath;
 
-        // 경로 문자열의 마지막이 '/'로 끝나면 디렉토리로 간주하고,
-        // 실제 파일 시스템 경로에서 마지막 '/'를 제거합니다 (디렉토리 생성 시).
-        if (!currentPath.empty() && currentPath.back() == '/') {
-            // libarchive가 AE_IFDIR로 타입을 잘 반환하므로, 이 조건은 중복일 수 있습니다.
-            // archive_entry_filetype(entry) == AE_IFDIR 로 확인하는 것이 더 정확합니다.
-            if (archive_entry_filetype(entry) == AE_IFDIR) {
-                 try {
- if (!std::filesystem::exists(fullDestPath)) {
- std::filesystem::create_directories(fullDestPath);
- }
-                } catch (const std::filesystem::filesystem_error& e) {
- EntLog("Failed to create directory " + fullDestPath + ": " + e.what());
+        if (archive_entry_filetype(entry) == AE_IFDIR) {
+            try {
+                if (!std::filesystem::exists(fullDestPath)) {
+                    std::filesystem::create_directories(fullDestPath);
                 }
+            } catch (const std::filesystem::filesystem_error& e) {
+                EntLog("Failed to create directory " + fullDestPath + ": " + e.what());
             }
-        } else if (archive_entry_filetype(entry) == AE_IFREG) { // 일반 파일인 경우
-            // 파일의 상위 디렉토리가 존재하지 않으면 생성
+        } else if (archive_entry_filetype(entry) == AE_IFREG) {
             std::filesystem::path p(fullDestPath);
             if (p.has_parent_path()) {
                 try {
-                    std::filesystem::create_directories(p.parent_path());
+                    if (!std::filesystem::exists(p.parent_path())) { // 부모 디렉토리 존재 여부 확인 추가
+                        std::filesystem::create_directories(p.parent_path());
+                    }
                 } catch (const std::filesystem::filesystem_error& e) {
- EntLog("Failed to create parent directory for " + fullDestPath + ": " + e.what());
+                    EntLog("Failed to create parent directory for " + fullDestPath + ": " + e.what());
                 }
             }
 
             std::ofstream outFile(fullDestPath, std::ios::binary);
             if (!outFile.is_open()) {
- EntLog("Failed to create file: " + fullDestPath);
- archive_read_data_skip(a); // 현재 파일 데이터 건너뛰기
+                EntLog("Failed to create file: " + fullDestPath);
+                archive_read_data_skip(a);
                 continue;
             }
 
@@ -100,19 +101,33 @@ bool UnEnt::extractArchiveTo(const std::string& archivePath, const std::string& 
                 outFile.write(static_cast<const char*>(buff), size);
                 current_extracted_size += size;
                 if (progressCallback) progressCallback(current_extracted_size, total_size_);
+
+                // 수정된 로그 출력 부분
+                std::ostringstream oss;
+                double percentage = 0.0;
+                if (total_size_ > 0) {
+                    percentage = (current_extracted_size / total_size_) * 100.0;
+                }
+                oss << "Decompression Progress: " << std::fixed << std::setprecision(2) << percentage
+                    << "% (" << static_cast<long long>(current_extracted_size)
+                    << "/" << static_cast<long long>(total_size_)
+                    << ") Current block size: " << size << ", offset: " << offset;
+                EntLog(oss.str());
             }
             outFile.close();
         }
-        // 심볼릭 링크, 하드 링크 등 다른 타입의 엔트리 처리도 필요하다면 여기에 추가
-         archive_entry_set_perm(entry, 0755); // 예시: 권한 설정 (필요한 경우)
- archive_read_extract(a, entry, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS); // 더 고수준의 추출 함수 사용
+        // archive_entry_set_perm(entry, 0755); // 이 줄은 archive_read_extract 사용 시 중복될 수 있음
+        // archive_read_extract(a, entry, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS);
+        // 위 extract 함수는 파일 데이터를 자동으로 처리하므로, 수동으로 data_block을 읽는 로직과 함께 사용하면 안 됩니다.
+        // 여기서는 수동으로 데이터를 쓰고 있으므로, archive_read_extract는 주석 처리하거나 제거해야 합니다.
+        // 만약 archive_read_extract를 사용한다면, 위의 파일 쓰기 루프는 필요 없습니다.
+        // 현재 코드는 수동으로 파일을 쓰고 있으므로, archive_read_extract는 주석 처리된 상태로 두거나 삭제합니다.
     }
 
- if (a)
- r = archive_read_free(a);
+    if (a)
+        r = archive_read_free(a);
     if (r != ARCHIVE_OK) {
-        // throw std::runtime_error("Failed to free archive resources.");
-        return false; // 또는 예외
+        return false;
     }
     return true;
 }

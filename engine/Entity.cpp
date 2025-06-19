@@ -2006,9 +2006,9 @@ void Entity::resetSize() {
 }
 
 void Entity::clearAllScriptStates() {
-    std::lock_guard lock(m_stateMutex); // scriptThreadStates 접근 보호
-    for (auto &pair: scriptThreadStates) {
-        auto &state = pair.second;
+    std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // scriptThreadStates 접근 보호
+    for (auto& pair : scriptThreadStates) {
+        auto& state = pair.second;
         state.isWaiting = false;
         state.waitEndTime = 0;
         state.blockIdForWait.clear();
@@ -2016,19 +2016,15 @@ void Entity::clearAllScriptStates() {
         state.resumeAtBlockIndex = -1;
         state.scriptPtrForResume = nullptr;
         state.sceneIdAtDispatchForResume.clear();
+        state.originalInnerBlockIdForWait.clear();
         state.loopCounters.clear();
         state.breakLoopRequested = false;
         state.continueLoopRequested = false;
-        // completionPromise와 completionFuture는 setScriptWait에서 새로 생성되므로
-        // 여기서 특별히 리셋할 필요는 없을 수 있지만, 필요하다면 리셋 로직 추가
-        // state.completionPromise = {}; // 새 promise로 리셋
-        // state.completionFuture = {};  // 유효하지 않은 future로 리셋 (또는 새 future 가져오기)
-        // terminateRequested 플래그는 terminateAllScriptThread에서 이미 설정되었으므로 여기서는 건드리지 않음
+        // completionPromise와 future는 setScriptWait에서 새로 생성되므로 여기서 특별히 리셋할 필요는 없을 수 있습니다.
+        // terminateRequested 플래그는 terminateAllScriptThread에서 이미 설정되었으므로 여기서는 건드리지 않습니다.
     }
-    // 필요하다면 scriptThreadStates.clear()를 호출하여 맵 자체를 비울 수도 있지만,
-    // 스레드 ID를 유지하고 상태만 초기화하는 것이 더 안전할 수 있다.
-    // 만약 스레드 ID가 재사용되지 않는다면 .clear()도 고려 가능
-    // 여기서는 상태만 초기화
+    // scriptThreadStates.clear(); // 맵 자체를 비우는 대신 상태만 초기화하는 것이 더 안전할 수 있습니다.
+    // 만약 스레드 ID가 재사용되지 않는다면 .clear()도 고려 가능합니다.
     if (pEngineInstance) {
         pEngineInstance->EngineStdOut("Cleared all script states for entity " + id, 0);
     }

@@ -304,6 +304,21 @@ int main(int argc, char *argv[]) {
                 if (event.type == SDL_EVENT_RENDER_DEVICE_RESET || event.type == SDL_EVENT_RENDER_TARGETS_RESET) {
                     engine.handleRenderDeviceReset(); // 리셋 플래그 설정 및 기존 리소스 해제 준비
                 }
+                if (engine.m_projectLoadRequestedViaOFD.load(std::memory_order_relaxed)) {
+                    std::string pathToLoad;
+                    {
+                        std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // m_pendingProjectToLoadPath 접근 보호
+                        pathToLoad = engine.m_pendingProjectToLoadPath;
+                        engine.m_pendingProjectToLoadPath.clear(); // 경로 사용 후 초기화
+                    }
+                    engine.m_projectLoadRequestedViaOFD.store(false, std::memory_order_relaxed); // 플래그 리셋
+
+                    engine.EngineStdOut("Processing OFD project load request for: " + pathToLoad, 0);
+                    // 여기서 DecompAndLoadProject 및 performProjectRestart 호출
+                    // 이 시점은 메인 스레드이거나, 다른 작업자 스레드와 충돌하지 않는 안전한 컨텍스트여야 합니다.
+                    engine.DecompAndLoadProject(pathToLoad); // 이 함수 내부에서 performProjectRestart가 호출될 수 있음
+                    // 또는 DecompAndLoadProject가 성공하면 여기서 performProjectRestart를 명시적으로 호출
+                }
             }
             if (!engine.recreateAssetsIfNeeded()) {
                 engine.EngineStdOut("Failed to recreate assets. Exiting");

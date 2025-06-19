@@ -264,6 +264,8 @@ class Engine : public TextInputInterface
     unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
     atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
+    atomic<bool> m_projectLoadRequestedViaOFD;
+    string m_pendingProjectToLoadPath;
     static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}
     static int getProjectstageHeight(){return PROJECT_STAGE_HEIGHT;}
     // --- Engine Special Configuration ---
