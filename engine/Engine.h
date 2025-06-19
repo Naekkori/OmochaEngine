@@ -1,23 +1,14 @@
 #pragma once
-#include "version_config.h"
 #include <string>
 #include <map>
 #include <Windows.h>
 #include <vector>
 #include "Entity.h"
-#include "SDL3/SDL.h"             // SDL 코어
-#include "SDL3/SDL_touch.h"
-#include "SDL3_image/SDL_image.h" //SDL 이미지
-#include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
 #include "util/AEhelper.h"
-#include "SDL3/SDL_stdinc.h"   // For SDL_PI_D
-#include "SDL3/SDL_render.h"   // SDL 렌더링
 #include "TextInput.h" // 텍스트 입력 관련 인터페이스
-#include "SDL3/SDL_scancode.h" // For SDL_Scancode
 #include "blocks/Block.h"
 #include <nlohmann/json.hpp>
 #include "blocks/blockTypes.h"
-#include "util/fontName.h"
 #include "../util/Logger.h"
 #include <mutex>
 #include <queue>
@@ -27,7 +18,7 @@
 #include <regex>
 #include <set>      // For set
 #include <atomic> // For atomic
-#include "SDL3/SDL_mouse.h"
+#include <SDL3_ttf/SDL_ttf.h>
 using namespace std;
 constexpr int WINDOW_WIDTH = 480 * 3;
 constexpr int WINDOW_HEIGHT = 270 * 3;
@@ -264,6 +255,7 @@ class Engine : public TextInputInterface
     unique_ptr<ThreadPool> threadPool;  // ThreadPool 멤버 추가
     atomic<uint64_t> m_scriptExecutionCounter{0}; // 스크립트 실행 ID 고유성 확보를 위한 카운터
 public:
+    string YOUR_GPU;
     atomic<bool> m_projectLoadRequestedViaOFD;
     string m_pendingProjectToLoadPath;
     static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}

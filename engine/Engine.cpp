@@ -22,8 +22,16 @@
 #include <future>
 #include <random>
 #include <regex>
-#include <resource.h>
+#include <version_config.h>
 
+#include "SDL3/SDL.h"             // SDL 코어
+#include "SDL3_ttf/SDL_ttf.h"     //SDL TTF
+#include "SDL3/SDL_gpu.h"
+#include "SDL3_image/SDL_image.h"
+#include "SDL3/SDL_stdinc.h"   // For SDL_PI_D
+#include "SDL3/SDL_render.h"   // SDL 렌더링
+#include "SDL3/SDL_scancode.h" // For SDL_Scancode
+#include "util/fontName.h"
 #include "util/UnEnt.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -229,14 +237,12 @@ Engine::Engine() : window(nullptr), renderer(nullptr),
                    zoomFactor((this->specialConfig.setZoomfactor <= 0.0)
                                   ? 1.0f
                                   : std::clamp(static_cast<float>(this->specialConfig.setZoomfactor), Engine::MIN_ZOOM,
-                                               Engine::MAX_ZOOM)),
-                   m_isDraggingZoomSlider(false), m_pressedObjectId(""),
-                   logger("omocha_engine.log"), // threadPool 멤버 초기화 추가
+                                               Engine::MAX_ZOOM)), m_pressedObjectId(""),
+                   logger("omocha_engine.log"),
                    threadPool(std::make_unique<ThreadPool>(
                        *this, (max)(1u, std::thread::hardware_concurrency() > 0
                                             ? std::thread::hardware_concurrency()
-                                            : 2))),
-                   m_projectTimerValue(0.0), m_projectTimerRunning(false), m_gameplayInputActive(false) {
+                                            : 2))) {
     EngineStdOut(
         string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " " + string(OMOCHA_DEVELOPER_NAME), 4);
     EngineStdOut("See Project page " + string(OMOCHA_ENGINE_GITHUB), 4);
@@ -2188,7 +2194,24 @@ bool Engine::initGE(bool vsyncEnabled, bool attemptVulkan) {
         return false;
     }
     EngineStdOut("Engine graphics initialization complete.", 0);
+    SDL_GPUDevice *device = SDL_CreateGPUDevice(SDL_GPU_SHADERSTAGE_FRAGMENT, false, nullptr);
+    // debug_mode는 필요에 따라 true로 설정
 
+    if (device) {
+        // const char *deviceName = SDL_GetGPUDeviceProperties(device); // 이전 논의에서 이 함수는 없는 것으로 확인됨
+        const char *deviceName = SDL_GetGPUDeviceDriver(device); // GPU 모델명 (제조사 정보 포함 가능성 높음)
+        if (deviceName) {
+            YOUR_GPU = deviceName;
+        } else {
+            YOUR_GPU = std::format("VALID_DEVICE_NO_NAME_OR_DRIVER ({})", SDL_GetError());
+        }
+        SDL_DestroyGPUDevice(device); // 정보 얻은 후 해제
+        device = nullptr;
+    } else {
+        // SDL_CreateGPUDevice 자체가 실패한 경우
+        YOUR_GPU = std::format("UNABLE_TO_CREATE_GPU_DEVICE ({})", SDL_GetError());
+    }
+    EngineStdOut(format("GPU: {}", YOUR_GPU), 4);
     // --- Initial HUD Variable Position Clamping ---
     // project.json에서 로드된 x, y 좌표가 엔트리 좌표계 기준일 수 있으므로,
     // SDL 창 내에 있도록 초기 위치를 제한(clamp)합니다.
@@ -2306,7 +2329,9 @@ bool Engine::initImGui() {
 
 bool Engine::createTemporaryScreen() {
     if (this->renderer == nullptr) {
-        // ... 오류 처리 ...
+        string errorMsg = "renderer is Notfount";
+        EngineStdOut(errorMsg, 2);
+        showMessageBox(errorMsg, msgBoxIconType.ICON_ERROR);
         return false;
     }
 
@@ -4329,11 +4354,11 @@ void Engine::processInput(const SDL_Event &event, float deltaTime) {
             requestProjectRestart();
             performProjectRestart();
         }
-    }else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_ESCAPE) {
+    } else if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_ESCAPE) {
         //메뉴로 이동
         if (filesystem::exists("sysmenu") && !IsSysMenu) {
-            if (showMessageBox("메뉴 로 돌아가시겠습니까?",msgBoxIconType.ICON_INFORMATION,true)) {
-                IsSysMenu=true;
+            if (showMessageBox("메뉴 로 돌아가시겠습니까?", msgBoxIconType.ICON_INFORMATION, true)) {
+                IsSysMenu = true;
                 m_currentProjectFilePath = "sysmenu/project.json";
                 requestProjectRestart();
                 performProjectRestart();
@@ -6847,7 +6872,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                                     lock_guard lock(m_engineDataMutex);
                                     EngineStdOut(format("Opened EntryFile {}", ofdResult));
                                     m_pendingProjectToLoadPath = ofdResult;
-                                    m_projectLoadRequestedViaOFD.store(true,memory_order_relaxed);
+                                    m_projectLoadRequestedViaOFD.store(true, memory_order_relaxed);
                                 } else {
                                     this->showMessageBox("사용자 가 파일열기 를 취소했습니다.",SDL_MESSAGEBOX_INFORMATION);
                                 }
@@ -7136,15 +7161,14 @@ void Engine::performProjectRestart() {
     // 이 단계에서는 m_engineDataMutex를 최소한으로 사용하거나 사용하지 않도록 합니다.
     // currentEntitiesSnapshot을 만드는 동안만 m_engineDataMutex를 잠급니다.
     EngineStdOut("Requesting termination of all entity scripts...", 0);
-    std::vector<std::shared_ptr<Entity>> currentEntitiesSnapshot;
-    {
+    std::vector<std::shared_ptr<Entity> > currentEntitiesSnapshot; {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
-        for (auto const& [id, entity_ptr] : entities) {
+        for (auto const &[id, entity_ptr]: entities) {
             currentEntitiesSnapshot.push_back(entity_ptr);
         }
     }
 
-    for (auto& entity_ptr : currentEntitiesSnapshot) {
+    for (auto &entity_ptr: currentEntitiesSnapshot) {
         if (entity_ptr) {
             // terminateAllScriptThread는 내부적으로 Entity의 m_stateMutex만 사용해야 합니다.
             entity_ptr->terminateAllScriptThread("");
@@ -7167,13 +7191,13 @@ void Engine::performProjectRestart() {
     EngineStdOut("All worker threads are expected to be joined now.", 0);
 
     // --- 단계 3: 모든 스레드가 종료된 후, m_engineDataMutex를 잠그고 나머지 정리 작업 수행 ---
-    EngineStdOut("Performing final cleanup of engine state and collections...", 0);
-    {
+    EngineStdOut("Performing final cleanup of engine state and collections...", 0); {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
         // 3.1 엔티티별 상태 정리 (스크립트 상태, 다이얼로그 등)
         EngineStdOut("Clearing script states and dialogs from entities...", 0);
-        for (auto& entity_ptr : currentEntitiesSnapshot) { // 이미 생성된 스냅샷 사용
+        for (auto &entity_ptr: currentEntitiesSnapshot) {
+            // 이미 생성된 스냅샷 사용
             if (entity_ptr) {
                 // Entity의 m_stateMutex는 clearAllScriptStates, removeDialog 내부에서 처리됩니다.
                 entity_ptr->clearAllScriptStates(); // scriptThreadStates.clear() 대신 이 함수 사용
@@ -7225,7 +7249,8 @@ void Engine::performProjectRestart() {
     // Engine의 메인 스레드 풀 재시작
     startThreadPool((max)(2u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2u));
     // BlockExecutor의 스레드 풀 재생성
-    if (!threadPool) { // 위에서 reset()으로 해제되었으므로 다시 생성
+    if (!threadPool) {
+        // 위에서 reset()으로 해제되었으므로 다시 생성
         threadPool = std::make_unique<ThreadPool>(
             *this, (max)(1u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 2));
     }
@@ -7277,7 +7302,7 @@ void Engine::performProjectRestart() {
 
     m_restartRequested.store(false, std::memory_order_relaxed);
     EngineStdOut("Project restart sequence complete.", 0);
-    SDL_SetWindowTitle(window,PROJECT_NAME.c_str());
+    SDL_SetWindowTitle(window, PROJECT_NAME.c_str());
 }
 
 void Engine::requestStopObject(const std::string &callingEntityId, const std::string &callingThreadId,

@@ -8,6 +8,7 @@
 #include "engine/Engine.h"
 #include "MainProgram.h"
 #include "resource.h"
+#include "version_config.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_main.h"
@@ -28,7 +29,7 @@ int main(int argc, char *argv[]) {
             string helpTitle = string(OMOCHA_ENGINE_NAME) + " 도움말";
             string helpMessage =
                     string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " by " + string(
-                        OMOCHA_DEVELOPER_NAME) + "\n" +
+                        OMOCHA_DEVELOPER_NAME) + "\n" + string(engine.YOUR_GPU)+"\n" +
                     "프로젝트 페이지: " + string(OMOCHA_ENGINE_GITHUB) + "\n\n" +
                     "사용법: " + string(argv[0]) + " [옵션]\n\n" +
                     "옵션:\n" +
