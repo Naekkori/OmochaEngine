@@ -2278,7 +2278,8 @@ bool Engine::initImGui() {
 
     // hudFont와 동일한 폰트 파일을 ImGui에 로드
     // AddFontFromFileTTF는 성공 시 ImFont*를 반환하고, 실패 시 nullptr을 반환합니다.
-    ImFont *loadedFont = io.Fonts->AddFontFromFileTTF(hudFontPath.c_str(), hudFontSize, &config,io.Fonts->GetGlyphRangesKorean());
+    ImFont *loadedFont = io.Fonts->AddFontFromFileTTF(hudFontPath.c_str(), hudFontSize, &config,
+                                                      io.Fonts->GetGlyphRangesKorean());
     if (!loadedFont) {
         EngineStdOut("Failed to load font for ImGui: " + hudFontPath, 2);
         // 폰트 로드 실패 시, ImGui는 기본 내장 폰트(proggy clean)를 사용합니다.
@@ -3793,8 +3794,8 @@ void Engine::drawImGui() {
     if (m_textInputActive) {
         std::lock_guard<std::mutex> lock(m_textInputMutex);
         // 화면 하단에 고정된 창으로 표시
-        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(WINDOW_WIDTH) - 40, 120), ImGuiCond_Always);
-        ImGui::SetNextWindowPos(ImVec2(20, static_cast<float>(WINDOW_HEIGHT) - (60+20)), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(WINDOW_WIDTH) - 40, 80), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(20, static_cast<float>(WINDOW_HEIGHT) - (60 + 40)), ImGuiCond_Always);
         ImGuiWindowFlags input_window_flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
                                               ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar;
 
@@ -3917,12 +3918,15 @@ void Engine::drawImGui() {
                     // 스크롤 가능한 자식 창으로 리스트 아이템 표시
                     float headerHeight = ImGui::GetTextLineHeightWithSpacing();
                     float footerHeight = 0;
-                    ImVec2 child_size = ImVec2(0, ImGui::GetContentRegionAvail().y - headerHeight - footerHeight - ImGui::GetStyle().ItemSpacing.y);
+                    ImVec2 child_size = ImVec2(
+                        0, ImGui::GetContentRegionAvail().y - headerHeight - footerHeight - ImGui::GetStyle().
+                           ItemSpacing.y);
                     if (child_size.y < ImGui::GetTextLineHeightWithSpacing()) {
                         child_size.y = ImGui::GetTextLineHeightWithSpacing() * 2;
                     }
 
-                    ImGui::BeginChild(("ListItems_" + var.id).c_str(), child_size, true, ImGuiWindowFlags_HorizontalScrollbar);
+                    ImGui::BeginChild(("ListItems_" + var.id).c_str(), child_size, true,
+                                      ImGuiWindowFlags_HorizontalScrollbar);
                     for (size_t j = 0; j < var.array.size(); ++j) {
                         const ListItem &listItem = var.array[j];
                         ImGui::Text("%zu.", j + 1);
@@ -3937,7 +3941,8 @@ void Engine::drawImGui() {
                 var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
                 var_window_flags |= ImGuiWindowFlags_NoResize;
                 var_window_flags |= ImGuiWindowFlags_NoTitleBar;
-                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50), ImGuiCond_Appearing);
+                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50),
+                                         ImGuiCond_Appearing);
 
                 if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
                     ImVec2 currentWindowPos = ImGui::GetWindowPos();
@@ -3977,11 +3982,14 @@ void Engine::drawImGui() {
                     float valueTextWidth = ImGui::CalcTextSize(timerValueBuffer).x;
                     float framePaddingX = ImGui::GetStyle().FramePadding.x;
                     ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f);
-                    ImGui::InputText(("##TimerVal_" + var.id).c_str(), timerValueBuffer, sizeof(timerValueBuffer), ImGuiInputTextFlags_ReadOnly);
+                    ImGui::InputText(("##TimerVal_" + var.id).c_str(), timerValueBuffer, sizeof(timerValueBuffer),
+                                     ImGuiInputTextFlags_ReadOnly);
                     ImGui::PopItemWidth();
                     ImGui::PopStyleColor(2);
 
-                    var.transient_render_width = ImGui::CalcTextSize(nameText.c_str()).x + ImGui::GetStyle().ItemSpacing.x + ImGui::GetItemRectSize().x;
+                    var.transient_render_width =
+                            ImGui::CalcTextSize(nameText.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                            ImGui::GetItemRectSize().x;
                 }
                 ImGui::End();
             } else {
@@ -3989,7 +3997,8 @@ void Engine::drawImGui() {
                 var_window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
                 var_window_flags |= ImGuiWindowFlags_NoResize;
                 var_window_flags |= ImGuiWindowFlags_NoTitleBar;
-                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50), ImGuiCond_Appearing);
+                ImGui::SetNextWindowSize(ImVec2(var.transient_render_width > 0 ? var.transient_render_width : 180, 50),
+                                         ImGuiCond_Appearing);
 
                 if (ImGui::Begin(windowTitle.c_str(), nullptr, var_window_flags)) {
                     ImVec2 currentWindowPos = ImGui::GetWindowPos();
@@ -4013,11 +4022,14 @@ void Engine::drawImGui() {
                     float valueTextWidth = ImGui::CalcTextSize(valueBuffer).x;
                     float framePaddingX = ImGui::GetStyle().FramePadding.x;
                     ImGui::PushItemWidth(valueTextWidth + framePaddingX * 2.0f);
-                    ImGui::InputText(("##Val_" + var.id).c_str(), valueBuffer, sizeof(valueBuffer), ImGuiInputTextFlags_ReadOnly);
+                    ImGui::InputText(("##Val_" + var.id).c_str(), valueBuffer, sizeof(valueBuffer),
+                                     ImGuiInputTextFlags_ReadOnly);
                     ImGui::PopItemWidth();
                     ImGui::PopStyleColor(2);
 
-                    var.transient_render_width = ImGui::CalcTextSize((nameToDisplay + ":").c_str()).x + ImGui::GetStyle().ItemSpacing.x + ImGui::GetItemRectSize().x;
+                    var.transient_render_width =
+                            ImGui::CalcTextSize((nameToDisplay + ":").c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                            ImGui::GetItemRectSize().x;
                 }
                 ImGui::End();
             }
@@ -5919,7 +5931,7 @@ void Engine::goToPreviousScene() {
 }
 
 void Engine::resumeSuspendedScriptsInCurrentScene() {
-      if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
+    if (!renderer || !tempScreenTexture || m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;
     }
     EngineStdOut("Attempting to resume suspended scripts in current scene: " + currentSceneId, 0);
@@ -5929,11 +5941,10 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
         const Script * /*scriptPtr*/,
         std::string /*sceneIdAtDispatch*/, // 이 값은 state.sceneIdAtDispatchForResume에서 가져옴
         int /*resumeAtBlockIndex*/,
-        std::string /*originalInnerBlockIdForWait*/> > tasksToDispatch;
-    {
+        std::string /*originalInnerBlockIdForWait*/> > tasksToDispatch; {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
-        for (auto const &[entityId, entityPtr] : entities) {
+        for (auto const &[entityId, entityPtr]: entities) {
             if (!entityPtr) continue;
 
             const ObjectInfo *objInfo = getObjectInfoById(entityId);
@@ -5957,11 +5968,12 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                         // 그리고 재개에 필요한 정보(scriptPtrForResume, resumeAtBlockIndex)가 유효해야 함.
                         if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1 &&
                             (isGlobal || state.sceneIdAtDispatchForResume == currentSceneId)) {
-
                             EngineStdOut(
                                 "Entity " + entityId + " (Thread: " + execId +
-                                ") resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.sceneIdAtDispatchForResume +
-                                ", Current scene: " + currentSceneId + ". Resuming at block index " + std::to_string(state.resumeAtBlockIndex) + ".",
+                                ") resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.
+                                sceneIdAtDispatchForResume +
+                                ", Current scene: " + currentSceneId + ". Resuming at block index " + std::to_string(
+                                    state.resumeAtBlockIndex) + ".",
                                 0, execId);
 
                             tasksToDispatch.emplace_back(
@@ -5982,7 +5994,8 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                             // 상태는 SCENE_CHANGE_SUSPEND로 유지되어, 나중에 해당 씬으로 돌아오면 재개될 수 있음.
                             EngineStdOut(
                                 "Entity " + entityId + " (Thread: " + execId +
-                                ") NOT resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.sceneIdAtDispatchForResume +
+                                ") NOT resuming from SCENE_CHANGE_SUSPEND. Original dispatch scene: " + state.
+                                sceneIdAtDispatchForResume +
                                 ", Current scene: " + currentSceneId + ". Resume context valid: " +
                                 (state.scriptPtrForResume && state.resumeAtBlockIndex != -1 ? "yes" : "no"),
                                 1, execId);
@@ -5996,7 +6009,7 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
         }
     } // m_engineDataMutex 잠금 해제
 
-    for (const auto &task : tasksToDispatch) {
+    for (const auto &task: tasksToDispatch) {
         const std::string &entityIdToResume = std::get<0>(task);
         const std::string &execId = std::get<1>(task);
         const Script *scriptPtr = std::get<2>(task);
@@ -6012,10 +6025,12 @@ void Engine::resumeSuspendedScriptsInCurrentScene() {
                 scriptPtr,
                 sceneIdAtDispatch, // 스크립트가 원래 시작된 씬 컨텍스트를 전달
                 0.0f, // deltaTime
-                execId  // 기존 스레드 ID를 전달하여 재개임을 알림
+                execId // 기존 스레드 ID를 전달하여 재개임을 알림
             );
         } else {
-            EngineStdOut("Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume + " not found for resumption.", 1);
+            EngineStdOut(
+                "Engine::resumeSuspendedScriptsInCurrentScene - Entity " + entityIdToResume +
+                " not found for resumption.", 1);
         }
     }
 
@@ -6208,6 +6223,10 @@ void Engine::drawDialogs() {
     if (!font)
         return;
 
+    if (!renderer || !tempScreenTexture)
+        return;
+
+
     for (auto &pair: entities) {
         std::lock_guard<std::recursive_mutex> entity_lock(pair.second->getStateMutex());
         Entity *entity = pair.second.get();
@@ -6221,7 +6240,7 @@ void Engine::drawDialogs() {
                     SDL_DestroyTexture(dialog.textTexture);
                 SDL_Color textColor = {0, 0, 0, 255};
                 SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(font, dialog.text.c_str(), dialog.text.size(),
-                                                                      textColor, 150); // 150px 너비에서 줄 바꿈
+                                                                      textColor, 150);
                 if (surface) {
                     dialog.textTexture = SDL_CreateTextureFromSurface(renderer, surface);
                     dialog.textRect.w = static_cast<float>(surface->w);
@@ -6234,177 +6253,200 @@ void Engine::drawDialogs() {
             if (!dialog.textTexture)
                 continue;
 
-
             // 2. 말풍선 위치 및 크기 계산
-            float entitySdlX = static_cast<float>(entity->getX() + PROJECT_STAGE_WIDTH / 2.0);
-            float entitySdlY = static_cast<float>(PROJECT_STAGE_HEIGHT / 2.0 - entity->getY());
-            float entityVisualWidth = static_cast<float>(entity->getWidth() * std::abs(entity->getScaleX()));
-            float entityVisualHeight = static_cast<float>(entity->getHeight() * std::abs(entity->getScaleY()));
+            // 1. 스케일 팩터 계산 (tempScreenTexture 기준)
+            float scaleFactorX_dialog = static_cast<float>(INTER_RENDER_WIDTH) / PROJECT_STAGE_WIDTH;
+            float scaleFactorY_dialog = static_cast<float>(INTER_RENDER_HEIGHT) / PROJECT_STAGE_HEIGHT;
+
+            // 2. 엔티티의 중심 좌표를 tempScreenTexture 기준으로 계산
+            // entity->getX(), getY()는 스테이지 좌표 (중앙 0,0)
+            // entitySdlX, entitySdlY는 tempScreenTexture의 좌상단 (0,0) 기준 좌표
+            float entitySdlX = (entity->getX() + PROJECT_STAGE_WIDTH / 2.0f) * scaleFactorX_dialog;
+            float entitySdlY = (PROJECT_STAGE_HEIGHT / 2.0f - entity->getY()) * scaleFactorY_dialog; // Y축 반전 및 스케일링
+            float entityVisualWidth = entity->getWidth() * std::abs(entity->getScaleX()) * scaleFactorX_dialog;
+            float entityVisualHeight = entity->getHeight() * std::abs(entity->getScaleY()) * scaleFactorY_dialog;
             float padding = 8.0f;
             float bubbleWidth = dialog.textRect.w + 2 * padding;
             float bubbleHeight = dialog.textRect.h + 2 * padding;
-            float gap = 250.0f; // 엔티티와 말풍선 사이의 최소 간격
-
-            enum class BubblePosition { ABOVE, BELOW, LEFT, RIGHT, NONE }; // NONE 추가
+            float gap = 8.0f; // 간격 값도 필요하다면 스케일링 고려
+            enum class BubblePosition { NONE, ABOVE, BELOW, LEFT, RIGHT };
             BubblePosition bestPosition = BubblePosition::NONE;
-            SDL_FRect bestBubbleRect = {0, 0, 0, 0};
-            float maxAvailableSpace = -1.0f; // 가장 넓은 공간을 찾기 위함
+            SDL_FRect finalBubbleRect = {0, 0, 0, 0};
 
-            SDL_FRect testRect;
-            float currentSpace;
-            // --- 위쪽 (ABOVE) 테스트 ---
-            testRect = {
-                entitySdlX - bubbleWidth / 2.0f,
-                entitySdlY - entityVisualHeight / 2.0f - bubbleHeight - gap,
-                bubbleWidth,
-                bubbleHeight
+            const float screenLeft = 0.0f;
+            const float screenTop = 0.0f;
+            const float screenRight = static_cast<float>(INTER_RENDER_WIDTH);
+            const float screenBottom = static_cast<float>(INTER_RENDER_HEIGHT);
+
+            // 후보 위치들을 정의 (엔티티의 시각적 경계를 기준으로)
+            SDL_FRect candidates[4];
+            // ABOVE
+            candidates[0] = {
+                entitySdlX - bubbleWidth / 2.0f, entitySdlY - entityVisualHeight / 2.0f - bubbleHeight - gap,
+                bubbleWidth, bubbleHeight
             };
-            // 화면 경계 및 엔티티와의 겹침 최소화 고려
-            if (testRect.y >= 0 && (testRect.x >= 0 && testRect.x + testRect.w <= INTER_RENDER_WIDTH)) {
-                currentSpace = testRect.y; // 위쪽 공간은 화면 상단까지의 거리 (작을수록 좋지만, 여기서는 단순 예시로 y값 사용)
-                // 또는 (INTER_RENDER_HEIGHT - (testRect.y + testRect.h)) 와 같은 방식으로 계산 가능
-                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) {
-                    // 더 많은 공간 확보 (또는 첫 유효 위치)
-                    maxAvailableSpace = currentSpace;
-                    bestPosition = BubblePosition::ABOVE;
-                    bestBubbleRect = testRect;
+            // RIGHT
+            candidates[1] = {
+                entitySdlX + entityVisualWidth / 2.0f + gap, entitySdlY - bubbleHeight / 2.0f, bubbleWidth, bubbleHeight
+            };
+            // BELOW
+            candidates[2] = {
+                entitySdlX - bubbleWidth / 2.0f, entitySdlY + entityVisualHeight / 2.0f + gap, bubbleWidth, bubbleHeight
+            };
+            // LEFT
+            candidates[3] = {
+                entitySdlX - entityVisualWidth / 2.0f - bubbleWidth - gap, entitySdlY - bubbleHeight / 2.0f,
+                bubbleWidth, bubbleHeight
+            };
+
+            BubblePosition preferredOrder[] = {
+                BubblePosition::ABOVE, BubblePosition::RIGHT, BubblePosition::BELOW, BubblePosition::LEFT
+            };
+            int preferredOrderIndices[] = {0, 1, 2, 3}; // candidates 배열 인덱스에 해당
+
+            for (int i = 0; i < 4; ++i) {
+                BubblePosition currentPosEnum = preferredOrder[i];
+                SDL_FRect testRect = candidates[preferredOrderIndices[i]];
+
+                // 화면 경계 확인
+                bool fitsHorizontally = (testRect.x >= screenLeft && testRect.x + testRect.w <= screenRight);
+                bool fitsVertically = (testRect.y >= screenTop && testRect.y + testRect.h <= screenBottom);
+                EngineStdOut(format("Best Position {}", static_cast<int>(currentPosEnum)),3);
+                if (fitsHorizontally && fitsVertically) {
+                    bestPosition = currentPosEnum;
+                    finalBubbleRect = testRect;
+                    break; // 첫 번째 적합한 위치를 찾으면 중단
                 }
             }
 
-            // --- 아래쪽 (BELOW) 테스트 ---
-            testRect = {
-                entitySdlX - bubbleWidth / 2.0f,
-                entitySdlY + entityVisualHeight / 2.0f + gap,
-                bubbleWidth,
-                bubbleHeight
-            };
-            if (testRect.y + bubbleHeight <= INTER_RENDER_HEIGHT && (
-                    testRect.x >= 0 && testRect.x + testRect.w <= INTER_RENDER_WIDTH)) {
-                currentSpace = INTER_RENDER_HEIGHT - (testRect.y + bubbleHeight); // 아래쪽 공간은 화면 하단까지의 거리
-                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) {
-                    maxAvailableSpace = currentSpace;
-                    bestPosition = BubblePosition::BELOW;
-                    bestBubbleRect = testRect;
-                }
-            }
-
-            // --- 왼쪽 (LEFT) 테스트 ---
-            testRect = {
-                entitySdlX - entityVisualWidth / 2.0f - bubbleWidth - gap,
-                entitySdlY - bubbleHeight / 2.0f, // 엔티티 세로 중앙에 맞춤
-                bubbleWidth,
-                bubbleHeight
-            };
-            if (testRect.x >= 0 && (testRect.y >= 0 && testRect.y + testRect.h <= INTER_RENDER_HEIGHT)) {
-                currentSpace = testRect.x; // 왼쪽 공간은 화면 왼쪽 가장자리까지의 거리
-                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) {
-                    maxAvailableSpace = currentSpace;
-                    bestPosition = BubblePosition::LEFT;
-                    bestBubbleRect = testRect;
-                }
-            }
-
-            // --- 오른쪽 (RIGHT) 테스트 ---
-            testRect = {
-                entitySdlX + entityVisualWidth / 2.0f + gap,
-                entitySdlY - bubbleHeight / 2.0f, // 엔티티 세로 중앙에 맞춤
-                bubbleWidth,
-                bubbleHeight
-            };
-            if (testRect.x + bubbleWidth <= INTER_RENDER_WIDTH && (
-                    testRect.y >= 0 && testRect.y + testRect.h <= INTER_RENDER_HEIGHT)) {
-                currentSpace = INTER_RENDER_WIDTH - (testRect.x + bubbleWidth); // 오른쪽 공간은 화면 오른쪽 가장자리까지의 거리
-                if (bestPosition == BubblePosition::NONE || currentSpace > maxAvailableSpace) {
-                    maxAvailableSpace = currentSpace;
-                    bestPosition = BubblePosition::RIGHT;
-                    bestBubbleRect = testRect;
-                }
-            }
-
-            // 만약 모든 방향이 적합하지 않다면, 기본 위치(예: 위쪽)를 사용하고 클램핑
+            // 만약 우선순위대로 맞는 위치를 찾지 못했다면, 화면 내에 최대한 들어오도록 조정 시도
             if (bestPosition == BubblePosition::NONE) {
-                bestPosition = BubblePosition::ABOVE; // 기본값
-                bestBubbleRect = {
-                    entitySdlX - bubbleWidth / 2.0f,
-                    entitySdlY - entityVisualHeight / 2.0f - bubbleHeight - gap,
-                    bubbleWidth,
-                    bubbleHeight
-                };
+                EngineStdOut("Dialog: No ideal position found for entity " + entity->getId() + ". Attempting to fit.",
+                             1);
+                // 모든 후보 위치에 대해 화면 내에 가장 많이 들어오는 위치를 선택 (더 정교한 로직 필요 가능)
+                float maxOverlapArea = -1.0f;
+
+                for (int i = 0; i < 4; ++i) {
+                    SDL_FRect testRect = candidates[i];
+                    // 화면 경계로 클램핑
+                    float clampedX = std::max(screenLeft, std::min(testRect.x, screenRight - testRect.w));
+                    float clampedY = std::max(screenTop, std::min(testRect.y, screenBottom - testRect.h));
+                    float clampedW = std::min(testRect.w, screenRight - clampedX); // 너비도 클램핑
+                    float clampedH = std::min(testRect.h, screenBottom - clampedY); // 높이도 클램핑
+
+                    if (clampedW < bubbleWidth * 0.5 || clampedH < bubbleHeight * 0.5) {
+                        // 너무 작게 클리핑되면 의미 없음
+                        continue;
+                    }
+
+                    SDL_FRect clampedRect = {clampedX, clampedY, clampedW, clampedH};
+
+                    // 간단히 화면 안에 들어오는 면적으로 점수 계산 (실제로는 더 복잡한 로직이 좋을 수 있음)
+                    float area = clampedRect.w * clampedRect.h;
+                    if (area > maxOverlapArea) {
+                        maxOverlapArea = area;
+                        bestPosition = preferredOrder[i]; // 해당 후보 위치의 방향
+                        finalBubbleRect = clampedRect; // 클램핑된 사각형 사용
+                    }
+                }
+                if (bestPosition == BubblePosition::NONE) {
+                    // 그래도 못찾으면 기본값
+                    EngineStdOut(
+                        "Dialog: Still no suitable position after fitting attempt for entity " + entity->getId() +
+                        ". Defaulting to ABOVE (clamped).", 1);
+                    bestPosition = BubblePosition::ABOVE;
+                    finalBubbleRect = candidates[0]; // 첫번째 후보 (위쪽)
+                    // 마지막으로 한번 더 클램핑
+                    finalBubbleRect.x = std::max(
+                        screenLeft, std::min(finalBubbleRect.x, screenRight - finalBubbleRect.w));
+                    finalBubbleRect.y = std::max(
+                        screenTop, std::min(finalBubbleRect.y, screenBottom - finalBubbleRect.h));
+                    finalBubbleRect.w = std::min(finalBubbleRect.w, screenRight - finalBubbleRect.x);
+                    finalBubbleRect.h = std::min(finalBubbleRect.h, screenBottom - finalBubbleRect.y);
+                }
             }
 
-            dialog.bubbleScreenRect = bestBubbleRect;
+            dialog.bubbleScreenRect = finalBubbleRect;
 
-            // 최종 화면 경계 클램핑 (이 부분은 유지하되, bestPosition 선정 후 적용)
-            if (dialog.bubbleScreenRect.x < 0) dialog.bubbleScreenRect.x = 0;
-            if (dialog.bubbleScreenRect.y < 0) dialog.bubbleScreenRect.y = 0;
-            if (dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w > INTER_RENDER_WIDTH) {
-                dialog.bubbleScreenRect.x = static_cast<float>(INTER_RENDER_WIDTH) - dialog.bubbleScreenRect.w;
+            // 최종 화면 경계 클램핑 (위치 선정 후, 말풍선이 화면 밖으로 나가지 않도록)
+            if (dialog.bubbleScreenRect.x < screenLeft) dialog.bubbleScreenRect.x = screenLeft;
+            if (dialog.bubbleScreenRect.y < screenTop) dialog.bubbleScreenRect.y = screenTop;
+            if (dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w > screenRight) {
+                dialog.bubbleScreenRect.x = screenRight - dialog.bubbleScreenRect.w;
             }
-            if (dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h > INTER_RENDER_HEIGHT) {
-                dialog.bubbleScreenRect.y = static_cast<float>(INTER_RENDER_HEIGHT) - dialog.bubbleScreenRect.h;
+            if (dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h > screenBottom) {
+                dialog.bubbleScreenRect.y = screenBottom - dialog.bubbleScreenRect.h;
+            }
+            // 너비나 높이가 화면보다 클 경우에 대한 처리도 추가할 수 있습니다.
+            if (dialog.bubbleScreenRect.w > screenRight - screenLeft) {
+                dialog.bubbleScreenRect.w = screenRight - screenLeft;
+                // x 위치도 조정 필요
+                dialog.bubbleScreenRect.x = screenLeft;
+            }
+            if (dialog.bubbleScreenRect.h > screenBottom - screenTop) {
+                dialog.bubbleScreenRect.h = screenBottom - screenTop;
+                // y 위치도 조정 필요
+                dialog.bubbleScreenRect.y = screenTop;
             }
 
 
-            // 3. 말풍선 배경 렌더링 (기존과 동일)
+            // 말풍선 꼬리
             SDL_FColor bubbleBgColor = {255, 255, 255, 255};
             SDL_FColor bubbleBorderColor = {79, 128, 255, 255};
             float cornerRadius = 8.0f;
+            const float MIN_TAIL_LENGTH = 10.0f;
+            const float MAX_TAIL_LENGTH = 15.0f;
 
-            const float MIN_TAIL_LENGTH = 15.0f; // 최소 꼬리 길이 (조정 가능)
-            const float MAX_TAIL_LENGTH = 60.0f; // 최대 꼬리 길이 (조정 가능)
+            float entityVisualWidth_scaled;
+            float entityVisualHeight_scaled;
+            float scaleFactorX = static_cast<float>(INTER_RENDER_WIDTH) / PROJECT_STAGE_WIDTH;
+            float scaleFactorY = static_cast<float>(INTER_RENDER_HEIGHT) / PROJECT_STAGE_HEIGHT;
+            entityVisualWidth_scaled *= scaleFactorX;
+            entityVisualHeight_scaled *= scaleFactorY;
 
-            // 4. 꼬리 그리기 (bestPosition에 따라 동적으로)
+
             if (dialog.type == "think") {
                 SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
-                // 본체 원들 그리기 (기존과 유사하나, bubbleScreenRect가 조정되었을 수 있음)
-                Helper_DrawFilledCircle(
-                    renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.3f),
-                    static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.4f),
-                    static_cast<int>(dialog.bubbleScreenRect.h * 0.4f));
-                Helper_DrawFilledCircle(
-                    renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.7f),
-                    static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.35f),
-                    static_cast<int>(dialog.bubbleScreenRect.h * 0.35f));
-                Helper_DrawFilledCircle(
-                    renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.5f),
-                    static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.6f),
-                    static_cast<int>(dialog.bubbleScreenRect.h * 0.5f));
+                // 본체 원 그리기 (finalBubbleRect 사용)
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.3f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.4f), static_cast<int>(dialog.bubbleScreenRect.h * 0.4f));
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.7f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.35f), static_cast<int>(dialog.bubbleScreenRect.h * 0.35f));
+                Helper_DrawFilledCircle(renderer, static_cast<int>(dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w * 0.5f), static_cast<int>(dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h * 0.6f), static_cast<int>(dialog.bubbleScreenRect.h * 0.5f));
 
-                // 생각 풍선 꼬리 (작은 원들)
-                float tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
-                float tailOriginY;
+                float tailOriginX = 0, tailOriginY = 0;
+                // 중요: tailTargetX, tailTargetY는 수정된 entitySdlX, entitySdlY를 사용해야 합니다.
                 float tailTargetX = entitySdlX;
-                float tailTargetY;
-
+                float tailTargetY = entitySdlY;
+                EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3); // switch 문 진입 전 bestPosition 값 확인
                 switch (bestPosition) {
-                    case BubblePosition::ABOVE:
-                        tailOriginY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h;
-                        tailTargetY = entitySdlY - entityVisualHeight / 2.0f;
+                    case BubblePosition::ABOVE: // 말풍선이 엔티티 위에 있을 때, 꼬리는 아래로
+                        tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
+                        tailOriginY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h; // 말풍선 하단 중앙
+                        tailTargetY = entitySdlY - entityVisualHeight_scaled / 2.0f; // 엔티티 상단
                         break;
-                    case BubblePosition::BELOW:
-                        tailOriginY = dialog.bubbleScreenRect.y;
-                        tailTargetY = entitySdlY + entityVisualHeight / 2.0f;
-                        break;
-                    case BubblePosition::LEFT:
-                        tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w;
+                    case BubblePosition::RIGHT: // 말풍선이 엔티티 오른쪽에 있을 때, 꼬리는 왼쪽으로
+                        tailOriginX = dialog.bubbleScreenRect.x; // 말풍선 왼쪽 중앙
                         tailOriginY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f;
-                        tailTargetX = entitySdlX - entityVisualWidth / 2.0f;
-                        tailTargetY = entitySdlY;
+                        tailTargetX = entitySdlX + entityVisualWidth_scaled / 2.0f; // 엔티티 오른쪽
+                        EngineStdOut(format("RIGHT Case - Tail Origin: ({}, {}), Tail Target: ({}, {})",
+                                        tailOriginX, tailOriginY, tailTargetX, tailTargetY), 3);
                         break;
-                    case BubblePosition::RIGHT:
-                        tailOriginX = dialog.bubbleScreenRect.x;
+                    case BubblePosition::BELOW: // 말풍선이 엔티티 아래에 있을 때, 꼬리는 위로
+                        tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
+                        tailOriginY = dialog.bubbleScreenRect.y; // 말풍선 상단 중앙
+                        tailTargetY = entitySdlY + entityVisualHeight_scaled / 2.0f; // 엔티티 하단
+                        break;
+                    case BubblePosition::LEFT: // 말풍선이 엔티티 왼쪽에 있을 때, 꼬리는 오른쪽으로
+                        tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w; // 말풍선 오른쪽 중앙
                         tailOriginY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f;
-                        tailTargetX = entitySdlX + entityVisualWidth / 2.0f;
-                        tailTargetY = entitySdlY;
+                        tailTargetX = entitySdlX - entityVisualWidth_scaled / 2.0f; // 엔티티 왼쪽
                         break;
-                    case BubblePosition::NONE: // bestPosition이 NONE일 경우 기본값 또는 처리 없음
-                    default:
-                        // 기본적으로 위쪽 꼬리 또는 아무것도 그리지 않음
+                    default: // NONE 또는 예외 상황 (기본적으로 위쪽 꼬리)
+                        tailOriginX = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f;
                         tailOriginY = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h;
-                        tailTargetY = entitySdlY - entityVisualHeight / 2.0f;
+                        tailTargetY = entitySdlY - entityVisualHeight_scaled / 2.0f;
                         break;
                 }
-
+                // (이하 생각 풍선 꼬리 그리기 로직은 이전과 동일하게 유지)
                 float dx_think_tail = tailTargetX - tailOriginX;
                 float dy_think_tail = tailTargetY - tailOriginY;
                 float dist_think_tail_ideal = sqrt(dx_think_tail * dx_think_tail + dy_think_tail * dy_think_tail);
@@ -6412,168 +6454,101 @@ void Engine::drawDialogs() {
                 if (dist_think_tail_ideal > 0) {
                     float norm_dx_think = dx_think_tail / dist_think_tail_ideal;
                     float norm_dy_think = dy_think_tail / dist_think_tail_ideal;
-
-                    // 꼬리 길이 제한 적용
                     float clamped_dist_think_tail = std::clamp(dist_think_tail_ideal, MIN_TAIL_LENGTH, MAX_TAIL_LENGTH);
-
-                    // 제한된 길이에 맞춰 작은 원들 위치 조정
-                    float circle1_dist_ratio = 0.4f; // 꼬리 시작점에서 첫 번째 원까지의 비율 (조정 가능)
-                    float circle2_dist_ratio = 0.8f; // 꼬리 시작점에서 두 번째 원까지의 비율 (조정 가능)
-
-                    Helper_DrawFilledCircle(
-                        renderer,
-                        static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle1_dist_ratio)),
-                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle1_dist_ratio)),
-                        5);
-                    Helper_DrawFilledCircle(
-                        renderer,
-                        static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle2_dist_ratio)),
-                        static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle2_dist_ratio)),
-                        4);
+                    float circle1_dist_ratio = 0.4f;
+                    float circle2_dist_ratio = 0.8f;
+                    Helper_DrawFilledCircle(renderer, static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle1_dist_ratio)), static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle1_dist_ratio)), 5);
+                    Helper_DrawFilledCircle(renderer, static_cast<int>(tailOriginX + norm_dx_think * (clamped_dist_think_tail * circle2_dist_ratio)), static_cast<int>(tailOriginY + norm_dy_think * (clamped_dist_think_tail * circle2_dist_ratio)), 4);
                 }
-            } else {
-                // "speak"
+            } else { // "speak"
                 float tailBaseWidthHalf = 8.0f;
-                SDL_FPoint tailTip_ideal; // 이상적인 꼬리 끝점 (엔티티에 연결)
-                SDL_FPoint tailBaseP1, tailBaseP2; // 꼬리 시작점 (말풍선 본체)
-
+                SDL_FPoint tailTip_ideal;
+                SDL_FPoint tailBaseP1, tailBaseP2;
+                EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3); // switch 문 진입 전 bestPosition 값 확인
+                // 중요: tailTip_ideal 계산 시 수정된 entitySdlX, entitySdlY 사용
                 switch (bestPosition) {
-                    case BubblePosition::ABOVE:
-                        tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight / 2.0f};
-                        tailBaseP1 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
-                        };
-                        tailBaseP2 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
-                        };
+                    case BubblePosition::ABOVE: // 말풍선이 엔티티 위에 있을 때, 꼬리는 아래로
+                        tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight_scaled / 2.0f}; // 엔티티 상단 중앙
+                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
                         break;
-                    case BubblePosition::BELOW:
-                        tailTip_ideal = {entitySdlX, entitySdlY + entityVisualHeight / 2.0f};
-                        tailBaseP1 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y
-                        };
-                        tailBaseP2 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y
-                        };
+                    case BubblePosition::RIGHT: // 말풍선이 엔티티 오른쪽에 있을 때, 꼬리는 왼쪽으로
+                        tailTip_ideal = {entitySdlX + entityVisualWidth_scaled / 2.0f, entitySdlY}; // 엔티티 오른쪽 중앙
+                        tailBaseP1 = {dialog.bubbleScreenRect.x, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf};
+                        tailBaseP2 = {dialog.bubbleScreenRect.x, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf};
                         break;
-                    case BubblePosition::LEFT:
-                        tailTip_ideal = {entitySdlX - entityVisualWidth / 2.0f, entitySdlY};
-                        tailBaseP1 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf
-                        };
-                        tailBaseP2 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf
-                        };
+                    case BubblePosition::BELOW: // 말풍선이 엔티티 아래에 있을 때, 꼬리는 위로
+                        tailTip_ideal = {entitySdlX, entitySdlY + entityVisualHeight_scaled / 2.0f}; // 엔티티 하단 중앙
+                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y};
+                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y};
                         break;
-                    case BubblePosition::RIGHT:
-                        tailTip_ideal = {entitySdlX + entityVisualWidth / 2.0f, entitySdlY};
-                        tailBaseP1 = {
-                            dialog.bubbleScreenRect.x,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf
-                        };
-                        tailBaseP2 = {
-                            dialog.bubbleScreenRect.x,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf
-                        };
+                    case BubblePosition::LEFT: // 말풍선이 엔티티 왼쪽에 있을 때, 꼬리는 오른쪽으로
+                        tailTip_ideal = {entitySdlX - entityVisualWidth_scaled / 2.0f, entitySdlY}; // 엔티티 왼쪽 중앙
+                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f - tailBaseWidthHalf};
+                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h / 2.0f + tailBaseWidthHalf};
                         break;
-                    case BubblePosition::NONE:
-                    default:
-                        // 기본값: 위쪽 꼬리
-                        tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight / 2.0f};
-                        tailBaseP1 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
-                        };
-                        tailBaseP2 = {
-                            dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf,
-                            dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h
-                        };
+                    default: // NONE 또는 예외 상황 (기본적으로 위쪽 꼬리)
+                        tailTip_ideal = {entitySdlX, entitySdlY - entityVisualHeight_scaled / 2.0f};
+                        tailBaseP1 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f - tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
+                        tailBaseP2 = {dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w / 2.0f + tailBaseWidthHalf, dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h};
                         break;
                 }
-
+                // (이하 말하기 풍선 꼬리 그리기 로직은 이전과 동일하게 유지)
                 float tailBaseCenterX = (tailBaseP1.x + tailBaseP2.x) / 2.0f;
                 float tailBaseCenterY = (tailBaseP1.y + tailBaseP2.y) / 2.0f;
-
                 float dx_speak_tail = tailTip_ideal.x - tailBaseCenterX;
                 float dy_speak_tail = tailTip_ideal.y - tailBaseCenterY;
                 float dist_speak_tail_ideal = sqrt(dx_speak_tail * dx_speak_tail + dy_speak_tail * dy_speak_tail);
-
                 SDL_FPoint finalTailTip = tailTip_ideal;
 
                 if (dist_speak_tail_ideal > MIN_TAIL_LENGTH) {
-                    // 최소 길이보다 길 때만 길이 조정 고려
                     float norm_dx_speak = dx_speak_tail / dist_speak_tail_ideal;
                     float norm_dy_speak = dy_speak_tail / dist_speak_tail_ideal;
-
                     float clamped_dist_speak_tail = std::clamp(dist_speak_tail_ideal, MIN_TAIL_LENGTH, MAX_TAIL_LENGTH);
-
                     finalTailTip.x = tailBaseCenterX + norm_dx_speak * clamped_dist_speak_tail;
                     finalTailTip.y = tailBaseCenterY + norm_dy_speak * clamped_dist_speak_tail;
                 } else if (dist_speak_tail_ideal > 0 && dist_speak_tail_ideal <= MIN_TAIL_LENGTH) {
-                    // 최소 길이보다 짧지만 0이 아닐 경우, 최소 길이로 강제
-                    float norm_dx_speak = dx_speak_tail / dist_speak_tail_ideal; // 방향은 유지
+                     float norm_dx_speak = dx_speak_tail / dist_speak_tail_ideal;
                     float norm_dy_speak = dy_speak_tail / dist_speak_tail_ideal;
                     finalTailTip.x = tailBaseCenterX + norm_dx_speak * MIN_TAIL_LENGTH;
                     finalTailTip.y = tailBaseCenterY + norm_dy_speak * MIN_TAIL_LENGTH;
                 }
-                // dist_speak_tail_ideal == 0 인 경우 (꼬리 밑변 중심과 목표점이 같음), finalTailTip은 tailTip_ideal (즉, 꼬리 밑변 중심)
-                // 이 경우 꼬리가 점으로 그려지거나 거의 보이지 않게 됨. 이는 의도된 동작일 수 있음.
 
                 dialog.tailVertices[0].position = tailBaseP1;
                 dialog.tailVertices[1].position = tailBaseP2;
-                dialog.tailVertices[2].position = finalTailTip; // 조정된 꼬리 끝점 사용
-
+                dialog.tailVertices[2].position = finalTailTip;
                 for (int k = 0; k < 3; ++k) {
                     dialog.tailVertices[k].color = bubbleBgColor;
                 }
-
                 SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
                 SDL_RenderGeometry(renderer, nullptr, dialog.tailVertices, 3, nullptr, 0);
 
-                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b,
-                                       bubbleBorderColor.a);
+                SDL_SetRenderDrawColor(renderer, bubbleBorderColor.r, bubbleBorderColor.g, bubbleBorderColor.b, bubbleBorderColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &dialog.bubbleScreenRect, cornerRadius);
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x), static_cast<int>(dialog.tailVertices[0].position.y), static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[1].position.x), static_cast<int>(dialog.tailVertices[1].position.y), static_cast<int>(dialog.tailVertices[2].position.x), static_cast<int>(dialog.tailVertices[2].position.y));
+                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x), static_cast<int>(dialog.tailVertices[0].position.y), static_cast<int>(dialog.tailVertices[1].position.x), static_cast<int>(dialog.tailVertices[1].position.y));
 
-                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x),
-                               static_cast<int>(dialog.tailVertices[0].position.y),
-                               static_cast<int>(dialog.tailVertices[2].position.x),
-                               static_cast<int>(dialog.tailVertices[2].position.y));
-                SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[1].position.x),
-                               static_cast<int>(dialog.tailVertices[1].position.y),
-                               static_cast<int>(dialog.tailVertices[2].position.x),
-                               static_cast<int>(dialog.tailVertices[2].position.y));
-
-                if (bestPosition == BubblePosition::ABOVE || bestPosition == BubblePosition::BELOW) {
-                    // No additional line needed
-                } else {
-                    SDL_RenderLine(renderer, static_cast<int>(dialog.tailVertices[0].position.x),
-                                   static_cast<int>(dialog.tailVertices[0].position.y),
-                                   static_cast<int>(dialog.tailVertices[1].position.x),
-                                   static_cast<int>(dialog.tailVertices[1].position.y));
-                }
-
-                SDL_FRect innerBgRect = {
-                    dialog.bubbleScreenRect.x + 1.0f, dialog.bubbleScreenRect.y + 1.0f,
-                    dialog.bubbleScreenRect.w - 2.0f, dialog.bubbleScreenRect.h - 2.0f
-                };
+                SDL_FRect innerBgRect = {dialog.bubbleScreenRect.x + 1.0f, dialog.bubbleScreenRect.y + 1.0f, dialog.bubbleScreenRect.w - 2.0f, dialog.bubbleScreenRect.h - 2.0f};
                 SDL_SetRenderDrawColor(renderer, bubbleBgColor.r, bubbleBgColor.g, bubbleBgColor.b, bubbleBgColor.a);
                 Helper_RenderFilledRoundedRect(renderer, &innerBgRect, cornerRadius - 1.0f);
             }
 
-            // 5. 텍스트 렌더링 (기존과 동일)
             SDL_FRect textDestRect = {
-                dialog.bubbleScreenRect.x + padding,
-                dialog.bubbleScreenRect.y + padding,
-                dialog.textRect.w,
+                dialog.bubbleScreenRect.x + padding, dialog.bubbleScreenRect.y + padding, dialog.textRect.w,
                 dialog.textRect.h
             };
-            SDL_RenderTexture(renderer, dialog.textTexture, nullptr, &textDestRect);
+            // 텍스트가 말풍선 경계를 벗어나지 않도록 클리핑
+            if (textDestRect.x + textDestRect.w > dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w - padding) {
+                textDestRect.w = dialog.bubbleScreenRect.x + dialog.bubbleScreenRect.w - padding - textDestRect.x;
+            }
+            if (textDestRect.y + textDestRect.h > dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h - padding) {
+                textDestRect.h = dialog.bubbleScreenRect.y + dialog.bubbleScreenRect.h - padding - textDestRect.y;
+            }
+            if (textDestRect.w > 0 && textDestRect.h > 0) {
+                // 유효한 크기일 때만 렌더링
+                SDL_RenderTexture(renderer, dialog.textTexture, nullptr, &textDestRect);
+            }
         }
     }
 }
@@ -6774,7 +6749,7 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                                 if (!ofdResult.empty()) {
                                     this->EngineStdOut(format("Opened EntryFile {}", ofdResult));
                                     this->DecompAndLoadProject(ofdResult);
-                                }else {
+                                } else {
                                     this->showMessageBox("사용자 가 파일열기 를 취소했습니다.",SDL_MESSAGEBOX_INFORMATION);
                                 }
                             }
@@ -7673,6 +7648,7 @@ void Engine::updateEntityTextBoxBackgroundColor(const std::string &entityId, con
             "Warning: ObjectInfo not found for entity " + entityId + " when trying to update background color.", 1);
     }
 }
+
 void Engine::updateEntityTextEffect(const std::string &entityId, const std::string &effect, bool setOn) {
     std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // ObjectInfo 접근 보호
     for (auto &objInfo: objects_in_order) {
@@ -7695,6 +7671,7 @@ void Engine::updateEntityTextEffect(const std::string &entityId, const std::stri
     }
     EngineStdOut("TextBox entity " + entityId + " not found for text_change_effect.", 1);
 }
+
 void Engine::drawScriptDebuggerUI() {
     auto truncate_str_len = [](const std::string &str, size_t max_len) {
         if (str.length() > max_len) {
@@ -7956,8 +7933,9 @@ void Engine::drawScriptDebuggerUI() {
         SDL_RenderFillRect(renderer, &scrollbarHandleRect);
     }
 }
-void Engine::updateExtractValueEvt(double currentSize,double totalSize) {
- double percentage = 0.0;
+
+void Engine::updateExtractValueEvt(double currentSize, double totalSize) {
+    double percentage = 0.0;
     if (totalSize > 0) {
         percentage = (currentSize / totalSize) * 100.0;
     }
@@ -7966,11 +7944,11 @@ void Engine::updateExtractValueEvt(double currentSize,double totalSize) {
     EngineStdOut(format("Decompression Progress: {:.2f}% ({:.0f}/{:.0f})", percentage, currentSize, totalSize), 3);
 
     // 예시: "prog_pct" ID를 가진 전역 변수에 진행률 업데이트
-    bool varUpdated = false;
-    {
+    bool varUpdated = false; {
         std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex); // m_HUDVariables 접근 보호
-        for (auto& var : m_HUDVariables) {
-            if (var.name == "<OE:PCT>" && var.variableType == "variable" && var.objectId.empty()) { // 전역 변수 확인
+        for (auto &var: m_HUDVariables) {
+            if (var.name == "<OE:PCT>" && var.variableType == "variable" && var.objectId.empty()) {
+                // 전역 변수 확인
                 var.value = std::to_string(static_cast<int>(std::round(percentage)));
                 varUpdated = true;
                 break;
@@ -7978,6 +7956,7 @@ void Engine::updateExtractValueEvt(double currentSize,double totalSize) {
         }
     }
 }
+
 void Engine::DecompAndLoadProject(string path) {
     // mt19937 rd; // 시드 생성기는 한 번만 생성하는 것이 좋습니다. Engine 생성자 등에서 초기화 고려.
     // mt19937 gen(rd()); // 위와 동일
@@ -7991,10 +7970,9 @@ void Engine::DecompAndLoadProject(string path) {
         std::string showProgressMsgId;
 
         std::string targetShowMessageName = "<OE:EX1>";
-        bool showMsgIdFound = false;
-        {
+        bool showMsgIdFound = false; {
             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
-            for(const auto& pair : m_messageIdToNameMap) {
+            for (const auto &pair: m_messageIdToNameMap) {
                 if (pair.second == targetShowMessageName) {
                     showProgressMsgId = pair.first;
                     showMsgIdFound = true;
@@ -8006,14 +7984,16 @@ void Engine::DecompAndLoadProject(string path) {
         if (showMsgIdFound && !showProgressMsgId.empty()) {
             raiseMessage(showProgressMsgId, "UnEntryStart", format("sys_{}", random_num));
         } else {
-            EngineStdOut("Message ID for showing progress UI ('" + targetShowMessageName + "' or 'sadi') not found.", 1);
+            EngineStdOut("Message ID for showing progress UI ('" + targetShowMessageName + "' or 'sadi') not found.",
+                         1);
         }
 
         UnEnt unEntInstance; // UnEnt 객체 생성
 
         try {
             // std::bind를 사용하여 Engine의 멤버 함수를 콜백으로 전달
-            auto progressCallback = std::bind(&Engine::updateExtractValueEvt, this, std::placeholders::_1, std::placeholders::_2);
+            auto progressCallback = std::bind(&Engine::updateExtractValueEvt, this, std::placeholders::_1,
+                                              std::placeholders::_2);
 
             if (unEntInstance.extractArchiveTo(path, BASE_ASSETS, progressCallback)) {
                 EngineStdOut("Archive extracted successfully: " + path, 0);
@@ -8023,7 +8003,7 @@ void Engine::DecompAndLoadProject(string path) {
                 EngineStdOut("Failed to extract archive: " + path, 2);
                 // 압축 해제 실패 처리
             }
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             EngineStdOut("Exception during archive extraction for '" + path + "': " + std::string(e.what()), 2);
             // 예외 처리
         }
@@ -8032,10 +8012,9 @@ void Engine::DecompAndLoadProject(string path) {
         std::string hideProgressMsgId;
 
         std::string targetHideMessageName = "<OE:EX0>";
-        bool hideMsgIdFound = false;
-        {
+        bool hideMsgIdFound = false; {
             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
-            for(const auto& pair : m_messageIdToNameMap) {
+            for (const auto &pair: m_messageIdToNameMap) {
                 if (pair.second == targetHideMessageName) {
                     hideProgressMsgId = pair.first;
                     hideMsgIdFound = true;
