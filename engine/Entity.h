@@ -17,6 +17,14 @@ class Engine;
 struct Script; // Forward declaration for Script
 class Block;   // Forward declaration for Block
 // 사용자 정의 예외: 스크립트 블록 실행 중 발생하는 오류를 위한 클래스
+/**
+ * @brief 스크립트 예외
+ * @param shortErrorDescription 짧은 오류 설명
+ * @param bId 블록id
+ * @param bType 블록Type
+ * @param eId 엔티티id
+ * @param detailedOrigMsg 자세한 오류메세지.
+ */
 class ScriptBlockExecutionError : public std::runtime_error
 {
 public:
@@ -26,9 +34,9 @@ public:
     std::string originalMessage; // 원본 std::exception의 what() 메시지
     // 생성자: 예외 상태만 초기화
     ScriptBlockExecutionError(const std::string &shortErrorDescription, // 사용자에게 표시될 간략한 오류 메시지
-                              const std::string &bId,
-                              const std::string &bType,
-                              const std::string &eId,
+                              const std::string &bId, // 블록 ID
+                              const std::string &bType, // 블록 타입
+                              const std::string &eId, // 엔티티 ID
                               const std::string &detailedOrigMsg) // 내부/원본 오류 메시지 (runtime_error 기본 생성자용 메시지)
         : std::runtime_error(detailedOrigMsg), // Pass detailedOrigMsg or a combination to base
           blockId(bId), blockType(bType), entityId(eId), originalMessage(detailedOrigMsg)

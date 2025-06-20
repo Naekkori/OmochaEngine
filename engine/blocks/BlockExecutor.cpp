@@ -4692,7 +4692,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
             string msg = "Flow 'repeat_while_true' for " + objectId +
                 ": Missing parameters. Expected CONDITION and OPTION. Block ID: " + block.id;
-            throw ScriptBlockExecutionError("필수 조건 과 옵션 파라미터 가 없습니다",block.id,block.type,executionThreadId,msg);
+            throw ScriptBlockExecutionError("필수 조건 과 옵션 파라미터 가 없습니다",block.id,block.type,entity->getId(),msg);
         }
         // DO 스크립트 유효성 검사
         if (block.statementScripts.empty()) {
