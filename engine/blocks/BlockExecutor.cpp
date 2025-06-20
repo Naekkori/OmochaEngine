@@ -17,11 +17,7 @@
 
 #include "util/TrigValue.h"
 
-// ...existing code...
-
 AudioEngineHelper aeHelper; // 전역 AudioEngineHelper 인스턴스
-
-// ThreadPool 클래스 정의는 BlockExecutor.h로 이동
 
 // Helper function to check if a string can be parsed as a number
 bool is_number(const string &s) {
@@ -80,8 +76,6 @@ ThreadPool::ThreadPool(Engine &eng, size_t threads, size_t maxQueueSize)
     }
     engine.EngineStdOut("ThreadPool initalized.", 0);
 }
-
-// ...rest of the file...
 
 // OperandValue 생성자 및 멤버 함수 구현 (BlockExecutor.h에 선언됨)
 OperandValue::OperandValue() : type(Type::EMPTY), boolean_val(false), number_val(0.0) {

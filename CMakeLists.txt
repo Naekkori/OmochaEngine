@@ -1,9 +1,18 @@
-﻿if (EXISTS "F:/vcpkg/installed/x64-windows")
-    list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
-endif ()
-set(VCPKG_USER_DOCS_INSTALLED_PATH "C:/Users/Administrator/Documents/vcpkg/installed/x64-windows")
-if (EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
-    list(APPEND CMAKE_PREFIX_PATH "${VCPKG_USER_DOCS_INSTALLED_PATH}")
+﻿if(WIN32)
+    if (EXISTS "F:/vcpkg/installed/x64-windows")
+        list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
+    endif ()
+    set(VCPKG_USER_DOCS_INSTALLED_PATH "C:/Users/Administrator/Documents/vcpkg/installed/x64-windows")
+    if (EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
+        list(APPEND CMAKE_PREFIX_PATH "${VCPKG_USER_DOCS_INSTALLED_PATH}")
+    endif ()
+elseif(UNIX AND NOT APPLE)
+    # Linux: Check for vcpkg in the user's home directory
+    # Note: '~' might not expand correctly in CMake. Consider using $ENV{HOME} or a CMake variable.
+    set(VCPKG_LINUX_HOME_PATH "$ENV{HOME}/vcpkg/installed/x64-linux")
+    if(EXISTS "${VCPKG_LINUX_HOME_PATH}")
+        list(APPEND CMAKE_PREFIX_PATH "${VCPKG_LINUX_HOME_PATH}")
+    endif()
 endif ()
 cmake_minimum_required(VERSION 3.12...3.28) # Require 3.12+, adopt policies up to 3.28
 
