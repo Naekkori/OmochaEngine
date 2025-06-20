@@ -571,9 +571,6 @@ bool Entity::isVisible() const {
 
 SDL_FRect Entity::getVisualBounds() const {
     std::lock_guard lock(m_stateMutex);
-    // 엔티티의 현재 위치(x, y는 중심점), 크기, 스케일을 기반으로 경계 상자를 계산합니다.
-    // 회전은 이 예제에서 고려하지 않았습니다. 필요시 추가 구현이 필요합니다.
-    // 엔트리 좌표계 (Y축 위쪽) 및 중심점 기준입니다.
     double actualWidth = width * scaleX;
     double actualHeight = height * scaleY;
 

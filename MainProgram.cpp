@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
             string helpTitle = string(OMOCHA_ENGINE_NAME) + " 도움말";
             string helpMessage =
                     string(OMOCHA_ENGINE_NAME) + " v" + string(OMOCHA_ENGINE_VERSION) + " by " + string(
-                        OMOCHA_DEVELOPER_NAME) + "\n" + string(engine.YOUR_GPU)+"\n" +
+                        OMOCHA_DEVELOPER_NAME) + "\n" + string(engine.YOUR_GPU) + "\n" +
                     "프로젝트 페이지: " + string(OMOCHA_ENGINE_GITHUB) + "\n\n" +
                     "사용법: " + string(argv[0]) + " [옵션]\n\n" +
                     "옵션:\n" +
@@ -258,29 +258,6 @@ int main(int argc, char *argv[]) {
                 deltaTime = MAX_DELTA_TIME;
             }
             loopStartTime = SDL_GetTicks();
-            // 엔진의 현재 마우스 스테이지 좌표 업데이트
-            float windowMouseX_main, windowMouseY_main;
-            SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main);
-            engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main); // 엔티티 업데이트
-            engine.updateMouseCursor(windowMouseX_main, windowMouseY_main); // 마우스 커서 업데이트
-            {
-                // std::lock_guard의 범위를 지정하기 위한 블록
-                std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
-                for (auto &[entity_key, entity_ptr]: engine.getEntities_Modifiable()) {
-                    // entity_ptr is now std::shared_ptr<Entity>
-                    if (entity_ptr) {
-                        entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
-                        entity_ptr->processInternalContinuations(deltaTime); // BLOCK_INTERNAL 상태 스크립트 직접 처리
-                        entity_ptr->resumeExplicitWaitScripts(deltaTime); // EXPLICIT_WAIT_SECOND 상태 스크립트 재개
-                        entity_ptr->resumeSoundWaitScripts(deltaTime); // SOUND_FINISH 상태 스크립트 재개
-                    }
-                }
-            } // 여기서 lock_guard가 소멸되면서 뮤텍스 자동 해제
-
-            // answer 변수 업데이트가 필요한지 확인
-            if (engine.checkAndClearAnswerUpdateFlag()) {
-                engine.updateAnswerVariable();
-            }
             while (SDL_PollEvent(&event)) {
                 ImGui_ImplSDL3_ProcessEvent(&event);
                 if (event.type == SDL_EVENT_QUIT) {
@@ -306,9 +283,9 @@ int main(int argc, char *argv[]) {
                     engine.handleRenderDeviceReset(); // 리셋 플래그 설정 및 기존 리소스 해제 준비
                 }
                 if (engine.m_projectLoadRequestedViaOFD.load(std::memory_order_relaxed)) {
-                    std::string pathToLoad;
-                    {
-                        std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // m_pendingProjectToLoadPath 접근 보호
+                    std::string pathToLoad; {
+                        std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex);
+                        // m_pendingProjectToLoadPath 접근 보호
                         pathToLoad = engine.m_pendingProjectToLoadPath;
                         engine.m_pendingProjectToLoadPath.clear(); // 경로 사용 후 초기화
                     }
@@ -320,6 +297,29 @@ int main(int argc, char *argv[]) {
                     engine.DecompAndLoadProject(pathToLoad); // 이 함수 내부에서 performProjectRestart가 호출될 수 있음
                     // 또는 DecompAndLoadProject가 성공하면 여기서 performProjectRestart를 명시적으로 호출
                 }
+            }
+            // 엔진의 현재 마우스 스테이지 좌표 업데이트
+            float windowMouseX_main, windowMouseY_main;
+            SDL_GetMouseState(&windowMouseX_main, &windowMouseY_main);
+            engine.updateCurrentMouseStageCoordinates(windowMouseX_main, windowMouseY_main); // 엔티티 업데이트
+            engine.updateMouseCursor(windowMouseX_main, windowMouseY_main); // 마우스 커서 업데이트
+            {
+                // std::lock_guard의 범위를 지정하기 위한 블록
+                std::lock_guard<std::recursive_mutex> lock(engine.m_engineDataMutex); // entities 맵 접근 전에 뮤텍스 잠금
+                for (auto &[entity_key, entity_ptr]: engine.getEntities_Modifiable()) {
+                    // entity_ptr is now std::shared_ptr<Entity>
+                    if (entity_ptr) {
+                        entity_ptr->updateDialog(deltaTime); // 다이얼로그 시간 업데이트
+                        entity_ptr->processInternalContinuations(deltaTime); // BLOCK_INTERNAL 상태 스크립트 직접 처리
+                        entity_ptr->resumeExplicitWaitScripts(deltaTime); // EXPLICIT_WAIT_SECOND 상태 스크립트 재개
+                        entity_ptr->resumeSoundWaitScripts(deltaTime); // SOUND_FINISH 상태 스크립트 재개
+                    }
+                }
+            } // 여기서 lock_guard가 소멸되면서 뮤텍스 자동 해제
+
+            // answer 변수 업데이트가 필요한지 확인
+            if (engine.checkAndClearAnswerUpdateFlag()) {
+                engine.updateAnswerVariable();
             }
             if (!engine.recreateAssetsIfNeeded()) {
                 engine.EngineStdOut("Failed to recreate assets. Exiting");

@@ -2393,14 +2393,11 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 return OperandValue(false);
 
             SDL_FPoint mousePos = {
-                static_cast<float>(engine.getCurrentStageMouseX()),
-                static_cast<float>(engine.getCurrentStageMouseY())
+                (engine.getCurrentStageMouseX()),
+                (engine.getCurrentStageMouseY())
             };
-
-            // Entity의 getVisualBounds()가 전역 좌표계의 SDL_FRect를 반환한다고 가정
-            SDL_FRect selfBounds = self->getVisualBounds(); // Engine에 getGlobalBounds(self) 같은 헬퍼가 더 적합할 수 있음
-
-            return OperandValue(SDL_PointInRectFloat(&mousePos, &selfBounds));
+            engine.EngineStdOut(format("object touched {}", self->isPointInside(mousePos.x, mousePos.y)), 3);
+            return OperandValue(self->isPointInside(mousePos.x, mousePos.y)); // isPointInside 사용
         }
 
         // Sprite collision
@@ -2857,14 +2854,6 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
                 .asString(), 2, executionThreadId);
             return;
         }
-        if (effectValueOp.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(
-                "add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " +
-                effectValueOp
-                .asString(), 2, executionThreadId);
-            return;
-        }
-
         string effectName = effectTypeOp.asString();
         double value = effectValueOp.asNumber();
 
@@ -2909,13 +2898,6 @@ void Looks(string BlockType, Engine &engine, const string &objectId, const Block
             engine.EngineStdOut(
                 "add_effect_amount block for " + objectId + ": EFFECT parameter is not a string. Value: " +
                 effectTypeOp
-                .asString(), 2, executionThreadId);
-            return;
-        }
-        if (effectValueOp.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(
-                "add_effect_amount block for " + objectId + ": VALUE parameter is not a number. Value: " +
-                effectValueOp
                 .asString(), 2, executionThreadId);
             return;
         }
@@ -4423,9 +4405,10 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 }
             }
             engine.EngineStdOut(
-                "repeat_basic: " + objectId + " loop processing finished (all iterations or break). Block ID: " + block.id,
+                "repeat_basic: " + objectId + " loop processing finished (all iterations or break). Block ID: " + block.
+                id,
                 3, executionThreadId);
-        }// end if (startIteration < iterCount)
+        } // end if (startIteration < iterCount)
     } else if (BlockType == "repeat_inf") {
         auto entity_ptr = engine.getEntityByIdShared(objectId); // entity_ptr로 변경 (shared_ptr)
         if (!entity_ptr) {
@@ -4715,22 +4698,23 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         if (block.statementScripts.empty()) {
             engine.EngineStdOut("Flow 'repeat_while_true' for " + objectId + ": Missing DO statement script.", 1,
                                 executionThreadId);
-            return; // 반복할 내용이 없으면 바로 종료
+            // 반복할 내용이 없어도 조건은 매 프레임 체크해야 할 수 있으므로,
+            // BLOCK_INTERNAL 대기를 설정하고 반환하는 것이 안전할 수 있습니다.
+            // 여기서는 일단 기존 로직대로 반환합니다. 필요시 수정.
+            return;
         }
 
         const Script &doScript = block.statementScripts[0]; // First statementScript is the DO block
 
-        engine.EngineStdOut("repeat_while_true: " + objectId + " starting loop. Block ID: " + block.id, 0,
+        engine.EngineStdOut("repeat_while_true: " + objectId + " evaluating loop. Block ID: " + block.id, 3,
                             executionThreadId);
 
-        //while (true) { //메인루프에서 담당하므로
-        // Check for shutdown/scene change before evaluating condition or executing blocks
+        // --- 루프 시작 전 상태 확인 (엔진 종료, 씬 변경) ---
         if (engine.m_isShuttingDown.load(memory_order_relaxed)) {
             engine.EngineStdOut("repeat_while_true for " + objectId + " cancelled due to engine shutdown.", 1,
                                 executionThreadId);
-            return;; // Exit loop
+            return;
         }
-        // 장면이 바뀔때
         std::string currentEngineSceneId_flow = engine.getCurrentSceneId();
         const ObjectInfo *objInfo_flow = engine.getObjectInfoById(objectId);
         bool isGlobalEntity_flow = (
@@ -4741,104 +4725,74 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 "Flow '" + BlockType + "' for " + objectId + " halted. Scene changed from '" + sceneIdAtDispatch +
                 "' to '" + currentEngineSceneId_flow + "'. Thread: " + executionThreadId, 1,
                 executionThreadId);
-
-            // 루프 카운터 정리 등 필요한 상태 정리
             if (entity) {
-                // entity 포인터 유효성 검사
                 std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex());
                 auto it_state = entity->scriptThreadStates.find(executionThreadId);
                 if (it_state != entity->scriptThreadStates.end()) {
-                    it_state->second.loopCounters.erase(block.id); // 현재 루프 블록 ID
-                    // SCENE_CHANGE_SUSPEND 상태로 설정할 수도 있습니다.
-                    it_state->second.isWaiting = false;
-                    it_state->second.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND;
-                    it_state->second.resumeAtBlockIndex = -1; // 또는 현재 Flow 블록의 인덱스
-                    it_state->second.scriptPtrForResume = nullptr; // 또는 현재 스크립트
-                    it_state->second.sceneIdAtDispatchForResume = sceneIdAtDispatch;
+                    // 루프 카운터는 repeat_while_true에서 사용하지 않으므로 제거 불필요
+                    it_state->second.isWaiting = false; // 대기 상태 해제
+                    it_state->second.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND; // 씬 변경으로 인한 일시 중단
+                    // resumeAtBlockIndex 등은 executeScript에서 관리
                 }
             }
-            return; // Flow 함수 종료 (또는 break로 루프 탈출 후 Flow 함수 종료)
+            return;
         }
 
-        // Evaluate the condition
+          // --- 조건 평가 ---
         OperandValue conditionResult =
                 getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
-        // The loop continues AS LONG AS the condition is TRUE.
-        // So, if the condition is FALSE, we break the loop.
-        // The condition is evaluated *before* executing the inner blocks.
-        if (conditionResult.type != OperandValue::Type::BOOLEAN || !conditionResult.asBool()) {
+        // 엔트리의 "될 때까지 반복"은 조건이 참(true)이 되면 루프를 종료합니다.
+        // 즉, 조건이 거짓(false)인 동안 내부 블록을 실행합니다.
+        if (conditionResult.asBool()) { // 조건이 참이면 루프 종료
             engine.EngineStdOut(
-                "repeat_while_true for " + objectId +
-                ": Condition is " + (conditionResult.type != OperandValue::Type::BOOLEAN
-                                         ? "not boolean"
-                                         : "false")
-                + // 로그 메시지 명확화
-                ". Exiting loop. Block ID: " + block.id, 0, executionThreadId);
-            return; // Condition is false or not boolean, exit the loop
+                "Flow 'repeat_while_true' for " + objectId +
+                ": Condition is TRUE. Exiting loop. Block ID: " + block.id, 0, executionThreadId);
+            return;
         }
+        // 조건이 거짓이면 내부 블록 실행 후 다음 프레임에 재시도
+        engine.EngineStdOut(
+            "Flow 'repeat_while_true' for " + objectId +
+            ": Condition is FALSE. Executing inner blocks and will re-evaluate. Block ID: " + block.id, 3, executionThreadId);
 
-        // If condition is true, execute inner blocks
         executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch,
-                                   deltaTime); // Pass deltaTime
+                                   deltaTime);
 
-        // repeat_inf와 유사한 대기 처리 로직
-        if (entity) {
-            bool shouldBreakLoop = false; {
-                // Scope for lock
-                lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                auto it_check_break = entity->scriptThreadStates.find(executionThreadId);
-                if (it_check_break != entity->scriptThreadStates.end()) {
-                    if (it_check_break->second.breakLoopRequested) {
-                        shouldBreakLoop = true;
-                        it_check_break->second.breakLoopRequested = false; // Reset flag
-                    }
+        bool innerBlockCausedExplicitWait = false;
+        if (entity) { // entity 포인터 유효성 검사
+            std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex());
+            auto it_state = entity->scriptThreadStates.find(executionThreadId);
+            if (it_state != entity->scriptThreadStates.end()) {
+                if (it_state->second.isWaiting &&
+                    it_state->second.blockIdForWait != block.id && // 대기가 이 루프 블록 자신이 아닌 내부 블록에 의해 발생
+                    (it_state->second.currentWaitType == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
+                     it_state->second.currentWaitType == Entity::WaitType::TEXT_INPUT ||
+                     it_state->second.currentWaitType == Entity::WaitType::SOUND_FINISH)) {
+                    innerBlockCausedExplicitWait = true;
                 }
             }
-            if (shouldBreakLoop) {
-                engine.EngineStdOut(
-                    "repeat_while_true for " + objectId + " breaking loop due to stop_repeat. Block ID: " +
-                    block.
-                    id, 0, executionThreadId);
-                return; // Break from the C++ while(true) loop
-            }
-
-            bool shouldContinue = false; {
-                // Scope for lock
-                lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                auto it_check_continue = entity->scriptThreadStates.find(executionThreadId);
-                if (it_check_continue != entity->scriptThreadStates.end() && it_check_continue->second.
-                    continueLoopRequested) {
-                    shouldContinue = true;
-                    it_check_continue->second.continueLoopRequested = false; // Reset flag
-                }
-            }
-            if (shouldContinue) {
-                engine.EngineStdOut(
-                    "repeat_while_true for " + objectId + " continuing to next iteration. Block ID: " + block.
-                    id, 0,
-                    executionThreadId);
-            }
-            if (entity->isScriptWaiting(executionThreadId)) {
-                engine.EngineStdOut(
-                    "Flow 'repeat_while_true' for " + objectId +
-                    " pausing because an inner block set a wait state.", 3, executionThreadId); // WARN -> DEBUG
-                return;
-            }
-            // 조건이 계속 참이고 내부 블록이 즉시 실행되면 프레임 동기화를 위해 강제 대기
-            double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
-            Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime,
-                                                          static_cast<double>(MIN_LOOP_WAIT_MS),
-                                                          33.0)); // 최소 1ms, 최대 33ms
-            entity->setScriptWait(executionThreadId, frameDelay, block.id,
-                                  Entity::WaitType::BLOCK_INTERNAL);
-            engine.EngineStdOut(
-                "Flow 'repeat_while_true' for " + objectId + " forcing frame sync wait (" + to_string(
-                    engine.specialConfig.TARGET_FPS) +
-                "FPS, " + to_string(frameDelay) + "ms). Block ID: " + block.id,
-                3, executionThreadId);
         }
-        // }
+
+        if (innerBlockCausedExplicitWait) {
+            // 내부 블록이 명시적 대기를 유발했습니다.
+            // Entity::executeScript가 이 repeat_while_true 블록에 대해 BLOCK_INTERNAL 대기를 설정하고,
+            // originalInnerBlockIdForWait에 내부 대기 블록 ID를 저장할 것입니다.
+            // Flow 함수는 여기서 반환하여 executeScript가 그 처리를 하도록 합니다.
+            engine.EngineStdOut(
+                "Flow 'repeat_while_true' for " + objectId +
+                ": Inner block set explicit wait. Flow block will pause and resume via BLOCK_INTERNAL. Block ID: " + block.id,
+                3, executionThreadId);
+            return; // Entity::executeScript가 BLOCK_INTERNAL 대기 설정하도록 함
+        }
+
+        // 내부 블록이 명시적 대기를 설정하지 않았거나, 이미 BLOCK_INTERNAL 대기 상태였다면,
+        // 이 repeat_while_true 블록 자체를 다음 프레임에 재실행하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
+        Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(), static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
+        entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id, Entity::WaitType::BLOCK_INTERNAL);
+        engine.EngineStdOut(
+            "Flow 'repeat_while_true' for " + objectId +
+            " iteration completed. Setting frame sync wait for next condition check. Block ID: " + block.id,
+            3, executionThreadId);
     } else if (BlockType == "stop_repeat") {
         // This block signals that the current innermost loop should terminate.
         Entity::ScriptThreadState *pThreadState = nullptr;
@@ -4888,145 +4842,160 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 " or entity is null. Cannot request continue.", 2, executionThreadId);
         }
         // 이 블록은 대기를 설정하지 않습니다. 플래그는 루프 구문에서 확인합니다.
-    } else if (BlockType == "_if" || BlockType == "if_else") {
+    } else if (BlockType == "_if") {
+        engine.EngineStdOut(
+            format("Flow (_if): Evaluating _if block (ID: {}) for object '{}'. Condition param JSON: {}",
+                   block.id, objectId,
+                   block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"),
+            3, executionThreadId);
+
+        if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
+            engine.EngineStdOut(
+                "Flow '_if' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2,
+                executionThreadId);
+            throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId,
+                                            "Missing condition parameter.");
+        }
+
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         bool conditionIsTrue = conditionResult.asBool();
-        const Script *scriptToExecute = nullptr;
-        std::string stackToExecuteName;
-        size_t resumeInnerBlockIndexForFlow = 0; // Flow 블록 내부에서 재개할 인덱스
 
-        // Entity의 ScriptThreadState에서 originalInnerBlockIdForWait를 확인하여 재개 지점 결정
-        auto entity_ptr_flow = engine.getEntityByIdShared(objectId);
-        if (entity_ptr_flow) {
-            std::lock_guard<std::recursive_mutex> lock(entity_ptr_flow->getStateMutex());
-            auto it_state_flow = entity_ptr_flow->scriptThreadStates.find(executionThreadId);
-            if (it_state_flow != entity_ptr_flow->scriptThreadStates.end()) {
-                Entity::ScriptThreadState &threadStateFlow = it_state_flow->second;
-                // 현재 실행 중인 Flow 블록이 이전에 내부 대기로 인해 중단되었는지 확인
-                if (threadStateFlow.blockIdForWait == block.id && // 현재 Flow 블록 ID와 일치하고
-                    threadStateFlow.currentWaitType == Entity::WaitType::BLOCK_INTERNAL &&
-                    // Flow 블록 자체가 BLOCK_INTERNAL 대기였으며
-                    !threadStateFlow.originalInnerBlockIdForWait.empty()) {
-                    // 실제 대기했던 내부 블록 ID가 있다면
+        engine.EngineStdOut(format(
+                                "Flow (_if) for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
+                                objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
+                                static_cast<int>(conditionResult.type), conditionResult.string_val,
+                                conditionResult.number_val, conditionResult.boolean_val),
+                            3, executionThreadId);
 
-                    const Script *tempScriptPtr = nullptr;
-                    if (BlockType == "_if" && conditionIsTrue && !block.statementScripts.empty()) {
-                        tempScriptPtr = &block.statementScripts[0];
-                    } else if (BlockType == "if_else") {
-                        if (conditionIsTrue && block.statementScripts.size() > 0) {
-                            tempScriptPtr = &block.statementScripts[0];
-                        } else if (!conditionIsTrue && block.statementScripts.size() > 1) {
-                            tempScriptPtr = &block.statementScripts[1];
-                        }
-                    }
+        if (conditionIsTrue) {
+            if (block.statementScripts.empty()) {
+                engine.EngineStdOut(
+                    "Flow '_if' for " + objectId +
+                    ": No STACK (statement) found to execute even though condition was true. Block ID: " + block.id,
+                    1,
+                    executionThreadId);
+                // 조건은 참이지만 실행할 내부 블록이 없으므로, 프레임 동기화 대기 없이 바로 종료.
+                // 또는, 매우 짧은 BLOCK_INTERNAL 대기를 설정하여 다른 스크립트에 기회를 줄 수도 있습니다.
+                // 여기서는 즉시 종료로 가정합니다.
+            } else {
+                const Script &doScript = block.statementScripts[0];
+                if (doScript.blocks.empty()) {
+                    engine.EngineStdOut(
+                        "Flow '_if' for " + objectId + ": STACK (statement) is empty. Block ID: " + block.id, 3,
+                        executionThreadId);
+                } else {
+                    engine.EngineStdOut(
+                        "Flow '_if' for " + objectId + ": Condition true, executing STACK (statement). Block ID: " +
+                        block.id, 3, executionThreadId);
+                    executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId,
+                                               sceneIdAtDispatch,
+                                               deltaTime);
 
-                    if (tempScriptPtr) {
-                        for (size_t k = 0; k < tempScriptPtr->blocks.size(); ++k) {
-                            if (tempScriptPtr->blocks[k].id == threadStateFlow.originalInnerBlockIdForWait) {
-                                // originalInnerBlockIdForWait는 대기가 발생한 블록.
-                                // 재개는 그 *다음* 블록부터여야 합니다.
-                                if (k + 1 < tempScriptPtr->blocks.size()) {
-                                    resumeInnerBlockIndexForFlow = k + 1;
-                                } else {
-                                    // 대기한 블록이 마지막 블록이었으면, 이 스택은 완료된 것.
-                                    resumeInnerBlockIndexForFlow = tempScriptPtr->blocks.size(); // 실행 안 되도록 범위 밖으로
-                                }
-                                engine.EngineStdOut(
-                                    "Flow '" + BlockType + "' (" + block.id +
-                                    "): Resuming inner blocks from relative index " +
-                                    std::to_string(resumeInnerBlockIndexForFlow) +
-                                    " (original wait was on: " + threadStateFlow.originalInnerBlockIdForWait + ")", 3,
-                                    executionThreadId);
-                                threadStateFlow.originalInnerBlockIdForWait.clear(); // 사용 후 초기화
-                                break;
-                            }
-                        }
+                    // 내부 블록 실행 후 대기 상태 확인
+                    if (entity && entity->isScriptWaiting(executionThreadId)) {
+                        Entity::WaitType innerWaitType = entity->getCurrentWaitType(executionThreadId);
+                        string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
+                        engine.EngineStdOut(
+                            "Flow '_if' for " + objectId +
+                            " pausing because an inner block (" + innerWaitingBlockId +
+                            ") in STACK set wait type " + BlockTypeEnumToString(innerWaitType) +
+                            ". Block ID: " + block.id + ". Flow will return.",
+                            // Entity::executeScript가 BLOCK_INTERNAL 처리
+                            3, executionThreadId);
+                        // Flow 함수는 여기서 반환하고, Entity::executeScript가 이 _if 블록에 대해 BLOCK_INTERNAL 대기를 설정합니다.
+                        return;
                     }
                 }
             }
         }
-        if (BlockType == "_if") {
-            if (conditionIsTrue) {
-                if (!block.statementScripts.empty()) {
-                    scriptToExecute = &block.statementScripts[0];
-                    stackToExecuteName = "STACK_IF";
-                }
+        // 조건이 거짓이거나, 참이었지만 내부 스택 실행 후 대기가 없었다면,
+        // _if 블록은 완료된 것으로 간주하고 다음 블록으로 진행합니다.
+        // 별도의 프레임 동기화 대기는 일반적으로 _if 블록 자체에는 필요하지 않습니다.
+        // engine.EngineStdOut("Flow '_if' (" + block.id + ") for " + objectId + " completed.", 3, executionThreadId);
+    } else if (BlockType == "if_else") {
+        engine.EngineStdOut(
+            format("Flow (if_else): Evaluating if_else block (ID: {}) for object '{}'. Condition param JSON: {}",
+                   block.id, objectId,
+                   block.paramsJson.is_array() && !block.paramsJson.empty() ? block.paramsJson[0].dump() : "N/A"),
+            3, executionThreadId);
+
+        if (!block.paramsJson.is_array() || block.paramsJson.size() < 1) {
+            engine.EngineStdOut(
+                "Flow 'if_else' for " + objectId + ": Missing condition parameter (BOOL). Block ID: " + block.id, 2,
+                executionThreadId);
+            throw ScriptBlockExecutionError("조건 파라미터가 누락되었습니다.", block.id, BlockType, objectId,
+                                            "Missing condition parameter.");
+        }
+
+        OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
+        bool conditionIsTrue = conditionResult.asBool();
+
+        engine.EngineStdOut(format(
+                                "Flow 'if_else' for object '{}', block ID '{}': Condition evaluated to {}. (OperandValue type: {}, string: \"{}\", number: {}, bool: {})",
+                                objectId, block.id, (conditionIsTrue ? "TRUE" : "FALSE"),
+                                static_cast<int>(conditionResult.type), conditionResult.string_val,
+                                conditionResult.number_val, conditionResult.boolean_val),
+                            3, executionThreadId);
+
+        const Script *scriptToExecute = nullptr;
+        string stackToExecuteName;
+
+        if (conditionIsTrue) {
+            if (block.statementScripts.size() > 0) {
+                scriptToExecute = &block.statementScripts[0]; // STACK_IF
+                stackToExecuteName = "STACK_IF";
+            } else {
+                engine.EngineStdOut(
+                    "Flow 'if_else' for " + objectId + ": STACK_IF (statement 0) is missing. Block ID: " + block.id,
+                    1,
+                    executionThreadId);
             }
         } else {
-            // if_else
-            if (conditionIsTrue) {
-                if (block.statementScripts.size() > 0) {
-                    scriptToExecute = &block.statementScripts[0];
-                    stackToExecuteName = "STACK_IF";
-                }
+            // Condition is false
+            if (block.statementScripts.size() > 1) {
+                scriptToExecute = &block.statementScripts[1]; // STACK_ELSE
+                stackToExecuteName = "STACK_ELSE";
             } else {
-                if (block.statementScripts.size() > 1) {
-                    scriptToExecute = &block.statementScripts[1];
-                    stackToExecuteName = "STACK_ELSE";
-                }
+                engine.EngineStdOut(
+                    "Flow 'if_else' for " + objectId + ": STACK_ELSE (statement 1) is missing. Block ID: " + block.
+                    id,
+                    1, executionThreadId);
             }
         }
+
         if (scriptToExecute) {
-            if (scriptToExecute->blocks.empty() || resumeInnerBlockIndexForFlow >= scriptToExecute->blocks.size()) {
+            if (scriptToExecute->blocks.empty()) {
                 engine.EngineStdOut(
-                    "Flow '" + BlockType + "' for " + objectId + ": " + stackToExecuteName +
-                    " is empty or resume index is out of bounds. Block ID: " + block.id,
-                    (scriptToExecute->blocks.empty() ? 1 : 3),
-                    executionThreadId);
-                // 실행할 내부 블록이 없으면, if_else 블록은 완료된 것으로 간주하고 다음 블록으로 진행합니다.
-                // 여기서는 BLOCK_INTERNAL 대기를 설정하지 않습니다.
+                    "Flow 'if_else' for " + objectId + ": " + stackToExecuteName + " is empty. Block ID: " + block.
+                    id,
+                    1, executionThreadId);
             } else {
                 engine.EngineStdOut(
-                    "Flow '" + BlockType + "' for " + objectId + ": Condition " + (conditionIsTrue ? "true" : "false") +
-                    ", executing " + stackToExecuteName + (resumeInnerBlockIndexForFlow > 0
-                                                               ? " from index " + std::to_string(
-                                                                     resumeInnerBlockIndexForFlow)
-                                                               : "") +
-                    ". Block ID: " + block.id, 3, executionThreadId);
-
+                    "Flow 'if_else' for " + objectId + ": Executing " + stackToExecuteName + ". Block ID: " + block.
+                    id,
+                    3, executionThreadId);
                 executeBlocksSynchronously(engine, objectId, scriptToExecute->blocks, executionThreadId,
-                                           sceneIdAtDispatch, deltaTime, resumeInnerBlockIndexForFlow);
+                                           sceneIdAtDispatch, deltaTime);
 
                 // 내부 블록 실행 후 대기 상태 확인
-                bool innerBlockIsWaiting = false;
-                Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-                std::string innerWaitingBlockId;
-
-                auto entity_ptr_after_exec = engine.getEntityByIdShared(objectId);
-                if (entity_ptr_after_exec) {
-                    std::lock_guard<std::recursive_mutex> lock(entity_ptr_after_exec->getStateMutex());
-                    auto it_state_check = entity_ptr_after_exec->scriptThreadStates.find(executionThreadId);
-                    if (it_state_check != entity_ptr_after_exec->scriptThreadStates.end()) {
-                        if (it_state_check->second.isWaiting) {
-                            innerBlockIsWaiting = true;
-                            innerWaitType = it_state_check->second.currentWaitType;
-                            innerWaitingBlockId = it_state_check->second.blockIdForWait;
-                        }
-                    }
-                }
-
-                if (innerBlockIsWaiting) {
-                    // 내부 블록이 대기를 설정했다면, Flow 함수는 반환하여 Entity::executeScript가 처리하도록 합니다.
+                if (entity && entity->isScriptWaiting(executionThreadId)) {
+                    Entity::WaitType innerWaitType = entity->getCurrentWaitType(executionThreadId);
+                    string innerWaitingBlockId = entity->getWaitingBlockId(executionThreadId);
                     engine.EngineStdOut(
-                        "Flow '" + BlockType + "' (" + block.id + ") for " + objectId +
+                        "Flow 'if_else' for " + objectId +
                         " pausing because an inner block (" + innerWaitingBlockId +
-                        ") in " + stackToExecuteName +
-                        " set wait type " + BlockTypeEnumToString(innerWaitType) +
-                        ". Flow will return, Entity::executeScript should handle wait.",
+                        ") in " + stackToExecuteName + " set wait type " + BlockTypeEnumToString(innerWaitType) +
+                        ". Block ID: " + block.id + ". Flow will return.",
+                        // Entity::executeScript가 BLOCK_INTERNAL 처리
                         3, executionThreadId);
-                    return; // Flow 함수 반환
+                    // Flow 함수는 여기서 반환하고, Entity::executeScript가 이 if_else 블록에 대해 BLOCK_INTERNAL 대기를 설정합니다.
+                    return;
                 }
-                // 내부 블록이 대기하지 않았다면, if_else 블록은 완료된 것으로 간주하고 다음 블록으로 진행합니다.
-                // 여기서는 BLOCK_INTERNAL 대기를 설정하지 않습니다.
             }
         }
-        // 조건이 거짓이거나 (if의 경우), 또는 선택된 스택이 없거나,
-        // 또는 내부 스택 실행 후 대기가 없었다면, if_else 블록은 완료된 것으로 간주하고 다음 블록으로 진행합니다.
-        engine.EngineStdOut(
-            "Flow '" + BlockType + "' (" + block.id + ") for " + objectId + " completed its execution path.", 3,
-            executionThreadId);
-        // 이 블록 자체에 대한 BLOCK_INTERNAL 대기를 설정하지 않도록 합니다.
-        // 만약 이 블록이 루프의 일부라면, 루프 블록이 프레임 동기화를 처리해야 합니다.
+        // 선택된 스택이 없거나, 있었지만 내부 블록 실행 후 대기가 없었다면,
+        // if_else 블록은 완료된 것으로 간주하고 다음 블록으로 진행합니다.
+        // engine.EngineStdOut("Flow 'if_else' (" + block.id + ") for " + objectId + " completed.", 3, executionThreadId);
     } else if (BlockType == "wait_until_true") {
         if (!block.paramsJson.is_array() || block.paramsJson.empty()) {
             engine.EngineStdOut(
@@ -5038,7 +5007,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
-        if (conditionResult.asBool() == true) {
+        if (conditionResult.asBool()) {
             engine.EngineStdOut(
                 "Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id,
                 3,

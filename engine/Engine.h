@@ -175,8 +175,8 @@ class Engine : public TextInputInterface
     bool m_gameplayInputActive = false; // Flag to indicate if gameplay-related key input is active
     Uint64 m_projectTimerStartTime = 0; // Start time of the project timer (Uint64로 변경)
     // --- Mouse State ---
-    float m_currentStageMouseX = 0.0f;
-    float m_currentStageMouseY = 0.0f;
+    float m_currentStageMouseX = -10000.0f;
+    float m_currentStageMouseY = -10000.0f;
     bool m_isMouseOnStage = false; // True if the mouse is currently over the stage display area
     // --- Project Timer UI ---
     // float m_projectTimerWidgetX = 10.0f; // 이제 HUDVariableDisplay의 x, y로 관리
