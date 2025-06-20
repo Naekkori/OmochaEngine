@@ -1967,8 +1967,11 @@ std::string Engine::OFD() const {
     }
     EngineStdOut("OFD: No file selected or error (Windows).", 1);
     return "";
-#elif defined(__linux__) || defined(__APPLE__)
-    //gtk 로 구현예정
+#elif defined(__linux__)
+    //gtk 로 구현
+    
+#elif defined(__APPLE__)
+    //애플 (아마도 이건 코코아 프레임웤 으로 처리할뜻)
 #else
     EngineStdOut("OFD: OpenFileDialog not implemented for this platform.", 2);
     ShowMessageBox("OpenFileDialog not implemented for this platform.", msgBoxIconType.ICON_WARNING);
