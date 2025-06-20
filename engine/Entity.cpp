@@ -167,15 +167,17 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
         if (threadState.isWaiting && threadState.currentWaitType == WaitType::BLOCK_INTERNAL) {
             wasBlockInternalResume = true;
-            startIndex = threadState.resumeAtBlockIndex;
+            startIndex = threadState.resumeAtBlockIndex; // BLOCK_INTERNAL 대기를 설정한 블록의 인덱스
             blockIdToResumeOnLog = threadState.blockIdForWait;
             waitTypeToResumeOnLog = threadState.currentWaitType;
 
+            threadState.isWaiting = false; // 대기 상태 해제
+            threadState.currentWaitType = WaitType::NONE;
             // blockIdToResumeOnLog를 사용하여 해당 블록의 타입을 가져와야 합니다.
             // scriptPtrForResume (또는 현재 scriptPtr)에서 blockIdToResumeOnLog에 해당하는 블록을 찾아 타입을 확인합니다.
-            const Block* resumedBlock = nullptr;
+            const Block *resumedBlock = nullptr;
             if (threadState.scriptPtrForResume && startIndex < threadState.scriptPtrForResume->blocks.size()) {
-                 // startIndex가 유효한 인덱스인지 확인
+                // startIndex가 유효한 인덱스인지 확인
                 // BLOCK_INTERNAL 대기의 경우, startIndex는 대기를 설정한 블록 자체를 가리켜야 합니다.
                 // resumeAtBlockIndex가 대기를 설정한 블록의 인덱스를 가리키고 있다고 가정합니다.
                 if (threadState.scriptPtrForResume->blocks[startIndex].id == blockIdToResumeOnLog) {
@@ -184,7 +186,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             }
             // 만약 resumedBlock을 찾지 못했다면, scriptPtr에서 찾아봅니다. (안전장치)
             if (!resumedBlock && scriptPtr) {
-                for(const auto& blk : scriptPtr->blocks) {
+                for (const auto &blk: scriptPtr->blocks) {
                     if (blk.id == blockIdToResumeOnLog) {
                         // 이 경우 startIndex를 해당 블록의 인덱스로 재설정해야 할 수 있습니다.
                         // 하지만 threadState.resumeAtBlockIndex가 정확하다면 이 경로는 타지 않아야 합니다.
@@ -198,8 +200,9 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
             bool isLoopTypeBlock = false;
             if (resumedBlock) {
-                const std::string& type = resumedBlock->type;
-                if (type == "repeat_basic" || type == "repeat_inf" || type == "repeat_while_true" || type == "wait_until_true") {
+                const std::string &type = resumedBlock->type;
+                if (type == "repeat_basic" || type == "repeat_inf" || type == "repeat_while_true" || type ==
+                    "wait_until_true") {
                     isLoopTypeBlock = true;
                 }
             }
@@ -218,14 +221,15 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                         ". Re-evaluating at index " + std::to_string(startIndex) + ".",
                         3, executionThreadId); // 로그 레벨 DEBUG로 변경
                 }
-            }
-            else if (threadState.loopCounters.find(blockIdToResumeOnLog) == threadState.loopCounters.end() && !isLoopTypeBlock) {
-                 // 루프 블록이 아니면서, loopCounters에도 없는 경우 (일반 블록의 완료된 대기 또는 비정상 상태)
+            } else if (threadState.loopCounters.find(blockIdToResumeOnLog) == threadState.loopCounters.end() && !
+                       isLoopTypeBlock) {
+                // 루프 블록이 아니면서, loopCounters에도 없는 경우 (일반 블록의 완료된 대기 또는 비정상 상태)
                 if (pEngineInstance) {
                     pEngineInstance->EngineStdOut(
                         "Entity::executeScript: BLOCK_INTERNAL resume for " + id +
                         " (Thread: " + executionThreadId + ") on NON-LOOP block " + blockIdToResumeOnLog +
-                        " (or completed loop, check logic). Advancing from index " + std::to_string(startIndex) + " to " + std::to_string(startIndex + 1)
+                        " (or completed loop, check logic). Advancing from index " + std::to_string(startIndex) + " to "
+                        + std::to_string(startIndex + 1)
                         + ".",
                         1, executionThreadId);
                 }
@@ -238,7 +242,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
                 threadState.isWaiting = false;
                 threadState.currentWaitType = WaitType::NONE;
                 if (pEngineInstance) {
-                     pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
+                    pEngineInstance->EngineStdOut("Entity::executeScript: Resuming BLOCK_INTERNAL for " + id +
                                                   " (Thread: " + executionThreadId + ") for NON-LOOP block " +
                                                   blockIdToResumeOnLog +
                                                   ". Will re-evaluate at index " + std::to_string(startIndex) + ".",
@@ -332,6 +336,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         const Block &block = scriptPtr->blocks[i];
         THREAD_ID_INTERNAL = executionThreadId;
         BLOCK_ID_INTERNAL = block.id;
+        bool blockSetWait = false;
         try {
             blockName = block.type;
             Moving(block.type, *pEngineInstance, this->id, block, executionThreadId, deltaTime);
@@ -343,14 +348,53 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             TextBox(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Event(block.type, *pEngineInstance, this->id, block, executionThreadId);
             Flow(block.type, *pEngineInstance, this->id, block, executionThreadId, sceneIdAtDispatch, deltaTime);
+            // 블록 실행 후 스레드 상태를 확인하여 대기 상태가 설정되었는지 확인합니다.
+            {
+                std::lock_guard lock(m_stateMutex); // 스레드 상태 접근 보호
+                auto it_thread_state = scriptThreadStates.find(executionThreadId);
+                if (it_thread_state != scriptThreadStates.end()) {
+                    blockSetWait = it_thread_state->second.isWaiting;
+                } else {
+                    // 스레드 상태가 사라진 경우 (예: 오류 핸들러 또는 종료 로직에 의해)
+                    if (pEngineInstance) pEngineInstance->EngineStdOut(
+                        "Entity::executeScript: Thread state disappeared during block execution for " + id +
+                        " (Thread: " + executionThreadId + ")", 2, executionThreadId);
+                    return; // 스크립트 실행 중단
+                }
+            }
         } catch (const ScriptBlockExecutionError &sbee) {
-            throw;
+            // 스크립트 블록 실행 중 오류 발생 시 처리
+            {
+                std::lock_guard lock(m_stateMutex);
+                auto it_thread_state = scriptThreadStates.find(executionThreadId);
+                if (it_thread_state != scriptThreadStates.end()) {
+                    it_thread_state->second.terminateRequested = true; // 종료 요청 설정
+                    it_thread_state->second.isWaiting = false; // 대기 상태 해제
+                    it_thread_state->second.currentWaitType = WaitType::NONE;
+                    it_thread_state->second.resumeAtBlockIndex = -1; // 오류 발생 시 재개 불가
+                    // 다른 상태 (loopCounters 등)는 필요에 따라 오류 핸들러 또는 종료 로직에서 정리
+                }
+            }
+            throw; // 워커 스레드 루프에서 잡히도록 예외 다시 던지기
         }
         catch (const std::exception &e) {
+            // 다른 일반 C++ 예외 발생 시 처리
+            {
+                std::lock_guard lock(m_stateMutex);
+                auto it_thread_state = scriptThreadStates.find(executionThreadId);
+                if (it_thread_state != scriptThreadStates.end()) {
+                    it_thread_state->second.terminateRequested = true; // 종료 요청 설정
+                    it_thread_state->second.isWaiting = false; // 대기 상태 해제
+                    it_thread_state->second.currentWaitType = WaitType::NONE;
+                    it_thread_state->second.resumeAtBlockIndex = -1; // 오류 발생 시 재개 불가
+                }
+            }
             throw ScriptBlockExecutionError("Error during script block execution in entity.", block.id, block.type,
                                             this->id, e.what());
-        } {
+        }
+        {
             std::lock_guard lock(m_stateMutex);
+
             auto &currentThreadState = scriptThreadStates[executionThreadId];
 
             if (currentThreadState.isWaiting) {
@@ -1478,7 +1522,7 @@ void Entity::processInternalContinuations(float deltaTime) {
     // Helper struct for task details
     struct ScriptTaskDetails {
         std::string execId;
-        const Script* scriptPtr;
+        const Script *scriptPtr;
         std::string sceneIdForRun;
     };
 
@@ -1490,8 +1534,7 @@ void Entity::processInternalContinuations(float deltaTime) {
         return str;
     };
 
-    std::vector<ScriptTaskDetails> tasksToRunInline;
-    {
+    std::vector<ScriptTaskDetails> tasksToRunInline; {
         std::lock_guard lock(m_stateMutex);
         for (auto it_state = scriptThreadStates.begin(); it_state != scriptThreadStates.end(); /* manual increment */) {
             auto &execId = it_state->first;
@@ -1514,7 +1557,8 @@ void Entity::processInternalContinuations(float deltaTime) {
                     if (pEngineInstance) {
                         pEngineInstance->EngineStdOut(
                             "Entity " + getId() + " script thread " + execId +
-                            " BLOCK_INTERNAL finished inherited wait. Original inner wait on: " + state.originalInnerBlockIdForWait,
+                            " BLOCK_INTERNAL finished inherited wait. Original inner wait on: " + state.
+                            originalInnerBlockIdForWait,
                             3, execId);
                     }
                     state.waitEndTime = 0; // 이 특정 시간 제한 대기는 완료되었으므로 초기화
@@ -1523,28 +1567,33 @@ void Entity::processInternalContinuations(float deltaTime) {
                 if (!state.scriptPtrForResume) {
                     // 스크립트 포인터가 유효하지 않으면 재개 불가
                     canResume = false;
-                    if (pEngineInstance) { // pEngineInstance null check before use
+                    if (pEngineInstance) {
+                        // pEngineInstance null check before use
                         pEngineInstance->EngineStdOut(
                             "WARNING: Entity " + getId() + " script thread " + execId +
                             " is BLOCK_INTERNAL wait but scriptPtrForResume is null. Clearing wait.", 1, execId);
                     }
                 } else if (isGlobal) {
                     canResume = true;
-                } else { // Not global
+                } else {
+                    // Not global
                     canResume = objInfoCheck &&
                                 objInfoCheck->sceneId == scriptSceneContext &&
                                 engineCurrentScene == scriptSceneContext;
                 }
 
                 if (canResume) {
-                    tasksToRunInline.emplace_back(ScriptTaskDetails{execId, state.scriptPtrForResume, scriptSceneContext});
+                    tasksToRunInline.emplace_back(ScriptTaskDetails{
+                        execId, state.scriptPtrForResume, scriptSceneContext
+                    });
                     // tasksToRunInline에 추가했으므로, 여기서는 isWaiting을 false로 바꾸지 않습니다.
                     // executeScript가 호출될 때 isWaiting이 false로 설정됩니다.
                     // 만약 executeScript가 BLOCK_INTERNAL을 다시 설정하면 다음 틱에 다시 처리됩니다.
                     ++it_state;
                 } else {
                     // 재개할 수 없는 경우, 대기 상태를 해제하여 무한 루프 방지
-                    if (state.scriptPtrForResume && pEngineInstance) { // pEngineInstance null check
+                    if (state.scriptPtrForResume && pEngineInstance) {
+                        // pEngineInstance null check
                         // 로그는 스크립트 포인터가 있을 때만 의미 있음
                         pEngineInstance->EngineStdOut(
                             "Internal continuation for " + getId() + " (Thread: " + execId +
@@ -1629,6 +1678,7 @@ void Entity::processInternalContinuations(float deltaTime) {
         }
     }
 }
+
 // 수정된 함수
 void Entity::resumeExplicitWaitScripts(float deltaTime) {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
@@ -2007,8 +2057,8 @@ void Entity::resetSize() {
 
 void Entity::clearAllScriptStates() {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex); // scriptThreadStates 접근 보호
-    for (auto& pair : scriptThreadStates) {
-        auto& state = pair.second;
+    for (auto &pair: scriptThreadStates) {
+        auto &state = pair.second;
         state.isWaiting = false;
         state.waitEndTime = 0;
         state.blockIdForWait.clear();

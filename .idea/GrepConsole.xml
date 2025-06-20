@@ -32,6 +32,10 @@
                                 <GrepModel>
                                   <option name="expression" value="Entity::getSize" />
                                 </GrepModel>
+                                <GrepModel>
+                                  <option name="exclude" value="true" />
+                                  <option name="expression" value="nan" />
+                                </GrepModel>
                               </list>
                             </option>
                           </GrepCompositeModel>
@@ -280,6 +284,21 @@
                               <list>
                                 <GrepModel>
                                   <option name="expression" value="Best Position " />
+                                </GrepModel>
+                              </list>
+                            </option>
+                          </GrepCompositeModel>
+                        </option>
+                      </Pin>
+                      <Pin>
+                        <option name="consoleUUID" value="53af2c52-3795-4a40-b9b3-985b3e141b0f" />
+                        <option name="contentType" value="ConsoleContent" />
+                        <option name="grepCompositeModel">
+                          <GrepCompositeModel>
+                            <option name="models">
+                              <list>
+                                <GrepModel>
+                                  <option name="expression" value="Flow " />
                                 </GrepModel>
                               </list>
                             </option>

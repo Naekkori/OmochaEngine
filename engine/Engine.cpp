@@ -5332,7 +5332,6 @@ std::shared_ptr<Entity> Engine::getEntityByIdShared(const std::string &id) {
 
 // Shared pointer version of getEntityById_nolock
 std::shared_ptr<Entity> Engine::getEntityByIdNolockShared(const std::string &id) {
-    // Assumes m_engineDataMutex is already locked by the caller or not needed.
     auto it = entities.find(id);
     if (it != entities.end()) {
         return it->second;
