@@ -1951,7 +1951,7 @@ double Entity::getSize(bool toFixedSize) const {
                    visualWidth, stageWidth, this->width, this->getScaleX()), 3);
     }
     double current_percentage = 0.0;
-    current_percentage = std::abs(this->getScaleX()) * 50.0;
+    current_percentage = std::abs(this->getScaleX()) * 100.0;
 
     // pEngineInstance가 유효한지 확인 후 로그 출력
     if (pEngineInstance) {
@@ -1977,7 +1977,7 @@ void Entity::setSize(double size) {
     std::lock_guard lock(m_stateMutex);
 
     double stageWidth = Engine::getProjectstageWidth(); // Engine 클래스에서 스테이지 너비 가져오기
-    double targetVisualWidth = stageWidth * (size / 50.0);
+    double targetVisualWidth = stageWidth * (size / 100.0);
     double newCalculatedScaleX = 1.0; // 기본값
     newCalculatedScaleX = targetVisualWidth / this->width;
     if (!this->m_isClone) {

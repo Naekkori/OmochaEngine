@@ -260,6 +260,8 @@ public:
     string m_pendingProjectToLoadPath;
     static int getProjectstageWidth(){return PROJECT_STAGE_WIDTH;}
     static int getProjectstageHeight(){return PROJECT_STAGE_HEIGHT;}
+    static int getRenderstageWidth(){return INTER_RENDER_WIDTH;}
+    static int getRenderstageHeight(){return INTER_RENDER_HEIGHT;}
     // --- Engine Special Configuration ---
     static const float MIN_LIST_WIDTH;  // 리스트 최소 너비
     static const float MIN_LIST_HEIGHT; // 리스트 최소 높이

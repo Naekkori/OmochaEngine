@@ -1870,8 +1870,7 @@ bool Engine::loadProject(const string &projectFilePath) {
                         if (messageParamFound && !messageIdToReceive.empty()) {
                             m_messageReceivedScripts[messageIdToReceive].push_back({objectId, &script});
                             EngineStdOut("  -> object ID " + objectId + " " + messageIdToReceive + " message found.",
-                                         3); // LEVEL 0 -> 3
-                            // m_messageIdToNameMap에 messageId와 실제 이름 매핑 저장
+                                         0);
                             if (document.contains("messages") && document["messages"].is_array()) {
                                 const nlohmann::json &messagesJsonArray = document["messages"];
                                 EngineStdOut(
@@ -6869,7 +6868,6 @@ void Engine::raiseMessage(const std::string &messageId, const std::string &sende
                             if (oeParamValue == "OFD") {
                                 std::string ofdResult = this->OFD(); // OFD() 한 번만 호출
                                 if (!ofdResult.empty()) {
-                                    lock_guard lock(m_engineDataMutex);
                                     EngineStdOut(format("Opened EntryFile {}", ofdResult));
                                     m_pendingProjectToLoadPath = ofdResult;
                                     m_projectLoadRequestedViaOFD.store(true, memory_order_relaxed);
@@ -8204,6 +8202,7 @@ void Engine::DecompAndLoadProject(string path) {
             }
         }
         m_currentProjectFilePath = projectPath;
+        IsSysMenu=false;
         this->performProjectRestart();
     }
 }
