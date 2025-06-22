@@ -2431,7 +2431,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
                 (engine.getCurrentStageMouseX()),
                 (engine.getCurrentStageMouseY())
             };
-            engine.EngineStdOut(format("object touched {}", self->isPointInside(mousePos.x, mousePos.y)), 3);
+            engine.EngineStdOut(format("{} object touched {}",objectId, self->isPointInside(mousePos.x, mousePos.y)), 3);
             return OperandValue(self->isPointInside(mousePos.x, mousePos.y)); // isPointInside 사용
         }
 
@@ -4168,8 +4168,12 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         OperandValue iterOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         int iterCount = static_cast<int>(floor(iterOp.asNumber()));
 
-        if (iterCount <= 0) {
-            return; // 반복 횟수가 0 이하면 아무것도 하지 않음
+        if (iterCount < 0) {
+            throw ScriptBlockExecutionError("반복 횟수는 음수가 될 수 없습니다.", block.id, BlockType, objectId,
+                                            "Iteration count cannot be negative.");
+        }
+        if (iterCount == 0) {
+            return; // 아무것도 하지 않고 종료
         }
 
         // DO 스테이트먼트 스크립트 가져오기
@@ -4268,6 +4272,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             "repeat_basic: " + objectId + " loop finished all iterations and state cleared. Block ID: " + block.id,
             3, executionThreadId);
     }else if (BlockType == "repeat_inf") {
+        // 무한 반복 블록의 내부 스크립트가 비어있거나 실행할 블록이 없으면 대기 상태 설정 후 반환
         if (block.statementScripts.empty() || block.statementScripts[0].blocks.empty()) {
             entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL,
                                   entity->scriptThreadStates[executionThreadId].scriptPtrForResume,
@@ -4275,61 +4280,51 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             return;
         }
 
-        const auto &innerBlocks = block.statementScripts[0].blocks;
+        const auto &innerBlocksOfRepeatInf = block.statementScripts[0].blocks;
         auto &threadState = entity->scriptThreadStates[executionThreadId];
 
-        size_t &innerBlockIndex = threadState.loopBlockIndices[block.id];
-        if (innerBlockIndex >= innerBlocks.size()) {
-            innerBlockIndex = 0;
+        // repeat_inf 블록이 이전에 내부 실행을 일시 중지했다면, 해당 인덱스부터 재개
+        size_t startIndexForRepeatInf = 0;
+        if (threadState.isWaiting && threadState.currentWaitType == Entity::WaitType::BLOCK_INTERNAL && threadState.blockIdForWait == block.id) {
+            startIndexForRepeatInf = threadState.resumeAtBlockIndex;
+            // repeat_inf 블록 자체의 대기 상태를 해제. 이제 내부 실행을 재개할 것임.
+            threadState.isWaiting = false;
+            threadState.currentWaitType = Entity::WaitType::NONE;
+            threadState.blockIdForWait = "";
+            // threadState.resumeAtBlockIndex는 executeBlocksSynchronously가 관리할 것임.
         }
-
-        const Block &innerBlock = innerBlocks[innerBlockIndex];
 
         try {
-            Moving(innerBlock.type, engine, objectId, innerBlock, executionThreadId, sceneIdAtDispatch, deltaTime);
-            Calculator(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Looks(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Sound(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Variable(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Function(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            TextBox(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Event(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
-            Flow(innerBlock.type, engine, objectId, innerBlock, executionThreadId, sceneIdAtDispatch, deltaTime);
-        } catch (...) {
-            threadState.loopBlockIndices.erase(block.id);
+            // repeat_inf 블록의 내부 블록 시퀀스를 실행.
+            // executeBlocksSynchronously는 내부적으로 대기 상태를 설정하고,
+            // 해당 대기 상태에 따라 resumeAtBlockIndex를 업데이트함.
+            executeBlocksSynchronously(engine, objectId, innerBlocksOfRepeatInf, executionThreadId, sceneIdAtDispatch, deltaTime, startIndexForRepeatInf);
+        } catch (const ScriptBlockExecutionError &e) {
+            // 내부 블록 실행 중 발생한 스크립트 블록 실행 오류는 다시 던져서 상위에서 처리
             throw;
+        } catch (const std::exception &e) {
+            // 다른 일반 예외 발생 시 ScriptBlockExecutionError로 래핑하여 전파
+            throw ScriptBlockExecutionError(
+                "Error during repeat_inf inner block execution.",
+                block.id, BlockType, objectId, e.what());
         }
 
-        // 방금 실행한 자식 블록이 대기를 설정했는지 확인합니다.
+        // executeBlocksSynchronously 호출 후, 스크립트가 대기 상태인지 확인
         if (entity->isScriptWaiting(executionThreadId)) {
             Entity::WaitType innerWaitType = entity->getCurrentWaitType(executionThreadId);
-
-            // 내부 블록이 "명시적인" 대기 (wait_second, sound_finish, text_input)를 설정했다면,
-            // 해당 내부 블록은 자신의 역할을 다한 것이므로 다음 내부 블록으로 진행합니다.
-            if (innerWaitType == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
-                innerWaitType == Entity::WaitType::SOUND_FINISH ||
-                innerWaitType == Entity::WaitType::TEXT_INPUT) {
-                innerBlockIndex++; // 다음 내부 블록으로 인덱스 증가
-                engine.EngineStdOut(
-                    "Flow 'repeat_inf': Inner block (" + innerBlock.id + ") set explicit wait (" +
-                    BlockTypeEnumToString(innerWaitType) + "). Advancing innerBlockIndex to " +
-                    to_string(innerBlockIndex) + ".", 3, executionThreadId);
-                } else {
-                    // 내부 블록이 "내부적인" 대기 (BLOCK_INTERNAL)를 설정했다면,
-                    // 이는 해당 내부 블록(예: repeat_basic, if, repeat_while_true)이 아직 자신의 작업을
-                    // 완료하지 못하고 잠시 멈춘 것이므로, 다음 프레임에 동일한 내부 블록을 다시 실행해야 합니다.
-                    // 따라서 innerBlockIndex를 증가시키지 않습니다.
-                    engine.EngineStdOut(
-                        "Flow 'repeat_inf': Inner block (" + innerBlock.id + ") set internal wait (" +
-                        BlockTypeEnumToString(innerWaitType) + "). Keeping innerBlockIndex at " +
-                        to_string(innerBlockIndex) + ".", 3, executionThreadId);
-                }
-            // 어떤 종류의 대기든, repeat_inf 블록 자체는 현재 프레임에서 실행을 멈추고 반환합니다.
-            return;
+            // executeBlocksSynchronously가 이미 resumeAtBlockIndex를 올바르게 설정했으므로,
+            // repeat_inf 블록은 단순히 현재 프레임에서 실행을 중단하고 반환하면 됨.
+            engine.EngineStdOut(
+                "Flow 'repeat_inf': 내부 시퀀스가 대기 상태(" +
+                BlockTypeEnumToString(innerWaitType) + ")를 설정했습니다. repeat_inf를 일시 중지합니다.", 3, executionThreadId);
+            return; // repeat_inf 루프를 일시 중지
         }
 
-        innerBlockIndex++;
+        // 내부 시퀀스가 대기 상태를 설정하지 않고 모두 완료되었다면,
+        // 다음 repeat_inf 반복 시 내부 시퀀스를 처음부터 다시 시작하도록 인덱스 초기화
+        threadState.resumeAtBlockIndex = 0;
 
+        // 다음 프레임에 repeat_inf 블록이 다시 실행되도록 BLOCK_INTERNAL 대기 설정
         entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL,
                               threadState.scriptPtrForResume,
                               sceneIdAtDispatch);
@@ -4654,12 +4649,12 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                                             "Missing condition parameter.");
         }
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-
+        engine.EngineStdOut(
+            format("Flow 'wait_until_true' for {}: Condition is {}. Waiting. Block ID: {}", objectId,
+                   conditionResult.asBool(), block.id),
+            3,
+            executionThreadId);
         if (!conditionResult.asBool()) {
-            engine.EngineStdOut(
-                format("Flow 'wait_until_true' for {}: Condition is {}. Waiting. Block ID: {}", objectId,conditionResult.asBool(), block.id),
-                3,
-                executionThreadId);
             double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
             Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),
                                                           33.0));

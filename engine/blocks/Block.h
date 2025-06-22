@@ -82,4 +82,14 @@ public:
 struct Script
 {
     std::vector<Block> blocks;
+    size_t getBlockIndex(const std::string& blockId) const {
+        for (size_t i = 0; i < blocks.size(); ++i) {
+            if (blocks[i].id == blockId) {
+                return i;
+            }
+        }
+        // 찾지 못한 경우, 유효하지 않은 인덱스를 나타내는 값을 반환합니다.
+        // std::string::npos는 size_t의 최대값으로, 이러한 목적으로 자주 사용됩니다.
+        return std::string::npos;
+    }
 };

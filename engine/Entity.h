@@ -32,6 +32,7 @@ public:
     std::string blockType;
     std::string entityId;
     std::string originalMessage; // 원본 std::exception의 what() 메시지
+    std::string shortErrorDescription;
     // 생성자: 예외 상태만 초기화
     ScriptBlockExecutionError(const std::string &shortErrorDescription, // 사용자에게 표시될 간략한 오류 메시지
                               const std::string &bId, // 블록 ID
@@ -39,9 +40,10 @@ public:
                               const std::string &eId, // 엔티티 ID
                               const std::string &detailedOrigMsg) // 내부/원본 오류 메시지 (runtime_error 기본 생성자용 메시지)
         : std::runtime_error(detailedOrigMsg), // Pass detailedOrigMsg or a combination to base
+        shortErrorDescription(shortErrorDescription),
           blockId(bId), blockType(bType), entityId(eId), originalMessage(detailedOrigMsg)
     {
-        
+
     }
 };
 struct ScriptWaitState

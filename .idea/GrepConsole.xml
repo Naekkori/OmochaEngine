@@ -193,7 +193,7 @@
                             <option name="models">
                               <list>
                                 <GrepModel>
-                                  <option name="expression" value="Flow 'wait_until_true'" />
+                                  <option name="expression" value="Flow 'wait_until_true' " />
                                 </GrepModel>
                               </list>
                             </option>
