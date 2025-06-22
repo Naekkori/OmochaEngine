@@ -414,7 +414,8 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
  *
  */
 void Moving(string BlockType, Engine &engine, const string &objectId, const Block &block,
-            const string &executionThreadId, float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
+            const string &executionThreadId, const string &sceneIdAtDispatch,
+            float deltaTime) // sceneIdAtDispatch는 이 함수 레벨에서는 직접 사용되지 않음
 {
     auto entity = engine.getEntityByIdShared(objectId);
     if (!entity) {
@@ -629,11 +630,7 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
         double newY = entity->getY() + dist;
         // engine.EngineStdOut("move_y objId: " + objectId + " newY: " + to_string(newY), 0, executionThreadId);
         entity->setY(newY);
-    } else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") // 이둘 똑같이 동작하는걸 확인함 왜 이걸 따로뒀는지 이해안감
-    {
-        // entity는 함수 시작 시 이미 검증되었습니다.
-        // 이전의 if (!entity) 체크는 불필요합니다.
-
+    } else if (BlockType == "move_xy_time" || BlockType == "locate_xy_time") {
         Entity::TimedMoveState &state = entity->timedMoveState;
 
         if (!state.isActive) {
@@ -642,66 +639,85 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                 engine.EngineStdOut(
                     format("move_xy_time block for {} is missing parameters. Expected TIME, X, Y.", objectId), 2,
                     executionThreadId);
-                state.isActive = false; // Ensure it's not accidentally active
                 return;
             }
 
             OperandValue timeOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
             OperandValue xOp = getOperandValue(engine, objectId, block.paramsJson[1], executionThreadId);
             OperandValue yOp = getOperandValue(engine, objectId, block.paramsJson[2], executionThreadId);
-            double timeValue = timeOp.asNumber();
+
+            state.totalDurationSeconds = static_cast<float>(timeOp.asNumber());
             state.targetX = xOp.asNumber();
             state.targetY = yOp.asNumber();
 
-            const double fps = static_cast<double>(engine.getTargetFps()); // 실제 FPS 사용
-            state.totalFrames = max(1.0, floor(timeValue * fps));
-            state.remainingFrames = state.totalFrames;
-            state.isActive = true;
-
-            // 1 프레임 이동이면 즉시 처리
-            if (state.remainingFrames <= 1.0 && state.totalFrames <= 1.0) {
-                // totalFrames도 확인
+            // 이동 시간이 0 이하이면 즉시 이동하고 종료
+            if (state.totalDurationSeconds <= 0.0f) {
                 entity->setX(state.targetX);
                 entity->setY(state.targetY);
-                entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
-                entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
-                // engine.EngineStdOut("move_xy_time: " + objectId + " completed in single step. Pos: (" +
-                //                         to_string(entity->getX()) + ", " + to_string(entity->getY()) + ")",
-                //                     3, executionThreadId);
-                state.isActive = false; // 완료
-                return; // 이 블록 실행 완료
+                state.isActive = false;
+                return;
             }
+
+            // 시작 위치 저장
+            state.startX = entity->getX();
+            state.startY = entity->getY();
+            state.elapsedSeconds = 0.0f;
+            state.isActive = true;
+            state.blockIdForWait = block.id; // 대기 블록 ID 설정
         }
 
         // 매 프레임 실행 로직 (state.isActive가 true일 때)
-        if (state.isActive && state.remainingFrames > 0) {
-            double currentX = entity->getX();
-            double currentY = entity->getY();
+        if (state.isActive) {
+            state.elapsedSeconds += deltaTime; // 경과 시간 업데이트
 
-            double dX_total = state.targetX - currentX;
-            double dY_total = state.targetY - currentY;
+            float progress = 1.0f; // 기본값: 이동 완료
+            if (state.elapsedSeconds < state.totalDurationSeconds) {
+                progress = state.elapsedSeconds / state.totalDurationSeconds;
+            }
 
-            double dX_step = dX_total / state.remainingFrames;
-            double dY_step = dY_total / state.remainingFrames;
+            // 선형 보간(Lerp)을 사용한 부드러운 이동 계산
+            double newX = state.startX + (state.targetX - state.startX) * progress;
+            double newY = state.startY + (state.targetY - state.startY) * progress;
 
-            entity->setX(currentX + dX_step);
-            entity->setY(currentY + dY_step);
+            entity->setX(newX);
+            entity->setY(newY);
 
-            entity->paint.updatePositionAndDraw(entity->getX(), entity->getY());
-            entity->brush.updatePositionAndDraw(entity->getX(), entity->getY());
+            // 펜 업데이트
+            if (entity->paint.isPenDown && !entity->paint.isStopped()) {
+                entity->paint.updatePositionAndDraw(newX, newY);
+            }
+            if (entity->brush.isPenDown && !entity->brush.isStopped()) {
+                entity->brush.updatePositionAndDraw(newX, newY);
+            }
 
-            state.remainingFrames--;
-
-            if (state.remainingFrames <= 0) {
-                entity->setX(state.targetX); // 최종 위치로 정확히 이동
+            if (progress >= 1.0f) {
+                // 이동 완료
+                entity->setX(state.targetX); // 최종 위치로 정확히 이동 (부동소수점 오차 보정)
                 entity->setY(state.targetY);
-                // engine.EngineStdOut("move_xy_time: " + objectId + " Pos: (" +
-                //                         to_string(entity->getX()) + ", " + to_string(entity->getY()) + ")",
-                //                     3, executionThreadId);
-                state.isActive = false; // 이동 완료
+                state.isActive = false; // 상태 비활성화
             } else {
-                // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
-                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                // 아직 이동 중이므로 BLOCK_INTERNAL 대기 설정
+
+                // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+                const Script *currentScriptPtr = nullptr; {
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                    auto it = entity->scriptThreadStates.find(executionThreadId);
+                    if (it != entity->scriptThreadStates.end()) {
+                        // executeScript에서 설정한 포인터를 사용합니다.
+                        // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                        currentScriptPtr = it->second.scriptPtrForResume;
+                    }
+                }
+
+                if (currentScriptPtr) {
+                    entity->setScriptWait(executionThreadId, 0, block.id,
+                                          Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
+                } else {
+                    // 이 오류는 executeScript에서 scriptPtrForResume를 제대로 설정하지 않았을 때 발생할 수 있습니다.
+                    engine.EngineStdOut(
+                        format("CRITICAL: Cannot set wait for move_xy_time. scriptPtrForResume is null for thread {}.",
+                               executionThreadId), 2);
+                }
             }
         }
     } else if (BlockType == "locate_x") {
@@ -867,7 +883,18 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
                 state.isActive = false;
             } else {
                 // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
-                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+                const Script *currentScriptPtr = nullptr; {
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                    auto it = entity->scriptThreadStates.find(executionThreadId);
+                    if (it != entity->scriptThreadStates.end()) {
+                        // executeScript에서 설정한 포인터를 사용합니다.
+                        // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                        currentScriptPtr = it->second.scriptPtrForResume;
+                    }
+                }
+                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL,
+                                      currentScriptPtr, sceneIdAtDispatch);
             }
         }
     } else if (BlockType == "rotate_relative" || BlockType == "direction_relative") {
@@ -910,8 +937,22 @@ void Moving(string BlockType, Engine &engine, const string &objectId, const Bloc
             if (state.remainingFrames <= 0) {
                 state.isActive = false;
             } else {
+                // 아직 이동 중이므로 BLOCK_INTERNAL 대기 설정
+
+                // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+                const Script *currentScriptPtr = nullptr; {
+                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                    auto it = entity->scriptThreadStates.find(executionThreadId);
+                    if (it != entity->scriptThreadStates.end()) {
+                        // executeScript에서 설정한 포인터를 사용합니다.
+                        // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                        currentScriptPtr = it->second.scriptPtrForResume;
+                    }
+                }
+
                 // 아직 프레임이 남았으므로 BLOCK_INTERNAL 대기 설정
-                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL);
+                entity->setScriptWait(executionThreadId, 0, block.id, Entity::WaitType::BLOCK_INTERNAL,
+                                      currentScriptPtr, sceneIdAtDispatch);
             }
         }
     } else if (BlockType == "rotate_absolute") {
@@ -4119,9 +4160,20 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         oss << put_time(&endTime_tm_s, "%Y-%m-%d %H:%M:%S");
         string endTimeStr = oss.str(); // 스트림에서 문자열 가져오기
 
-
+        // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+        const Script *currentScriptPtr = nullptr; {
+            lock_guard<recursive_mutex> lock(entity->getStateMutex());
+            auto it = entity->scriptThreadStates.find(executionThreadId);
+            if (it != entity->scriptThreadStates.end()) {
+                // executeScript에서 설정한 포인터를 사용합니다.
+                // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                currentScriptPtr = it->second.scriptPtrForResume;
+            }
+        }
         // Set the wait state *before* performing the active wait
-        entity->setScriptWait(executionThreadId, waitEndTime, block.id, Entity::WaitType::EXPLICIT_WAIT_SECOND);
+        entity->setScriptWait(executionThreadId, waitEndTime, block.id, Entity::WaitType::EXPLICIT_WAIT_SECOND,
+                              currentScriptPtr,
+                              sceneIdAtDispatch);
 
         engine.EngineStdOut(
             "Flow 'wait_second': " + objectId + " (Thread: " + executionThreadId + ") setting wait for " +
@@ -4132,552 +4184,195 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // and pause the script. Entity::resumeExplicitWaitScripts will resume it.
         // No active waiting (performActiveWait) is done here anymore for wait_second.
     } else if (BlockType == "repeat_basic") {
-        // Entity 유효성 검사 추가
+        // Entity 유효성 검사
         if (!entity) {
             engine.EngineStdOut("Flow 'repeat_basic' for " + objectId + ": Entity is null.", 2, executionThreadId);
             return;
         }
 
-        // 기본 반복 블록 구현
         // 반복 횟수 파라미터 가져오기
         if (!block.paramsJson.is_array() || block.paramsJson.empty() || block.paramsJson[0].is_null()) {
-            engine.EngineStdOut(
-                "Flow 'repeat_basic' for " + objectId + ": Missing or invalid iteration count parameter.", 2,
-                executionThreadId);
             throw ScriptBlockExecutionError("반복 횟수 파라미터가 부족하거나 유효하지 않습니다.", block.id, BlockType, objectId,
                                             "Missing or invalid iteration count parameter.");
         }
         OperandValue iterOp = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
-        if (iterOp.type != OperandValue::Type::NUMBER) {
-            engine.EngineStdOut(
-                "Flow 'repeat_basic' for " + objectId + ": Iteration count parameter is not a number. Value: " +
-                iterOp.asString(), 2, executionThreadId);
-            throw ScriptBlockExecutionError("반복 횟수 파라미터가 숫자가 아닙니다.", block.id, BlockType, objectId,
-                                            "Iteration count parameter is not a number.");
+        int iterCount = static_cast<int>(floor(iterOp.asNumber()));
+
+        if (iterCount <= 0) {
+            return; // 반복 횟수가 0 이하면 아무것도 하지 않음
         }
-        double iterNumber = iterOp.asNumber();
-        if (iterNumber < 0) {
-            engine.EngineStdOut(
-                "Flow 'repeat_basic' for " + objectId + ": Iteration count cannot be negative. Value: " +
-                to_string(iterNumber), 2, executionThreadId);
-            throw ScriptBlockExecutionError("반복 횟수는 음수일 수 없습니다.", block.id, BlockType, objectId,
-                                            "Iteration count cannot be negative.");
-        }
-        int iterCount = static_cast<int>(floor(iterNumber));
 
         // DO 스테이트먼트 스크립트 가져오기
         if (block.statementScripts.empty()) {
-            engine.EngineStdOut("repeat_basic block " + block.id + " for " + objectId + " has no DO statement.", 1,
-                                executionThreadId);
             return; // 반복할 내용이 없으면 바로 종료
-        }
-        // 장면이 바뀔때
-        std::string currentEngineSceneId_flow = engine.getCurrentSceneId();
-        const ObjectInfo *objInfo_flow = engine.getObjectInfoById(objectId);
-        bool isGlobalEntity_flow = (
-            objInfo_flow && (objInfo_flow->sceneId == "global" || objInfo_flow->sceneId.empty()));
-
-        if (!isGlobalEntity_flow && currentEngineSceneId_flow != sceneIdAtDispatch) {
-            engine.EngineStdOut(
-                "Flow '" + BlockType + "' for " + objectId + " halted. Scene changed from '" + sceneIdAtDispatch +
-                "' to '" + currentEngineSceneId_flow + "'. Thread: " + executionThreadId, 1,
-                executionThreadId);
-
-            // 루프 카운터 정리 등 필요한 상태 정리
-            if (entity) {
-                // entity가 유효한지 확인
-                std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex());
-                auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                if (it_state != entity->scriptThreadStates.end()) {
-                    it_state->second.loopCounters.erase(block.id);
-                    it_state->second.isWaiting = false;
-                    it_state->second.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND;
-                    it_state->second.resumeAtBlockIndex = -1;
-                    it_state->second.scriptPtrForResume = nullptr;
-                    it_state->second.sceneIdAtDispatchForResume = sceneIdAtDispatch;
-                }
-            }
-            return;
         }
         const Script &doScript = block.statementScripts[0];
 
-        // Debugging: Print the content of doScript (기존과 동일)
-        if (!doScript.blocks.empty()) {
-            engine.EngineStdOut(
-                "doScript for block " + block.id + " (object " + objectId + ") contains " +
-                to_string(doScript.blocks.size()) + " inner blocks:", 3, executionThreadId);
-            for (size_t j = 0; j < doScript.blocks.size(); ++j) {
-                const Block &innerBlock = doScript.blocks[j];
-                string inner_params_dump = "null";
-                if (!innerBlock.paramsJson.is_null()) {
-                    inner_params_dump = innerBlock.paramsJson.dump();
-                }
-                engine.EngineStdOut(
-                    "  Inner Block [" + to_string(j) + "]: ID=" + innerBlock.id + ", Type=" + innerBlock.type +
-                    ", ParamsJSON=" + inner_params_dump, 3, executionThreadId);
-            }
-        } else {
-            engine.EngineStdOut(
-                "doScript for block " + block.id + " (object " + objectId + ") is empty (no inner blocks).", 3,
-                executionThreadId);
-        }
-
-        Entity::ScriptThreadState *pThreadState = nullptr;
-        if (entity) {
-            // entity 유효성 검사 후 pThreadState 접근
+        // 스레드 상태 가져오기
+        Entity::ScriptThreadState *pThreadState = nullptr; {
             lock_guard<recursive_mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end()) {
                 pThreadState = &it->second;
             }
         }
-
         if (!pThreadState) {
-            engine.EngineStdOut(
-                "Critical: ScriptThreadState not found for " + executionThreadId +
-                " in repeat_basic, or entity became null before state access.", 2, executionThreadId);
+            engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_basic.",
+                                2, executionThreadId);
             return;
         }
 
-        int startIteration = 0;
+        // 현재 반복 횟수 가져오기 또는 초기화
+        int currentIteration = 0;
         if (pThreadState->loopCounters.count(block.id)) {
-            startIteration = pThreadState->loopCounters[block.id];
-            engine.EngineStdOut(
-                "repeat_basic: " + objectId + " resuming from iteration " + to_string(startIteration) + "/" +
-                to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
-        } else {
-            // 루프 첫 시작 시, loopCounters에 현재 반복(0)을 저장
-            pThreadState->loopCounters[block.id] = startIteration;
-            engine.EngineStdOut(
-                "repeat_basic: " + objectId + " starting new loop with " + to_string(iterCount) +
-                " iterations. Block ID: " + block.id, 3, executionThreadId);
+            currentIteration = pThreadState->loopCounters[block.id];
         }
 
-        if (startIteration < iterCount) {
-            // 매 반복 시작 시 엔진 종료 또는 씬 변경 확인 (기존과 동일)
-            if (engine.m_isShuttingDown.load(memory_order_relaxed)) {
-                engine.EngineStdOut("repeat_basic for " + objectId + " cancelled due to engine shutdown.", 1,
-                                    executionThreadId);
-                if (entity) {
-                    // entity 유효성 검사
-                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                    auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_state != entity->scriptThreadStates.end()) {
-                        it_state->second.loopCounters.erase(block.id);
-                    }
-                }
-                return;
-            }
-
-            string currentEngineSceneId = engine.getCurrentSceneId();
-            const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
-            bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
-
-            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
-                engine.EngineStdOut(
-                    "repeat_basic for " + objectId + " halted. Entity no longer in current scene " +
-                    currentEngineSceneId + ".", 1, executionThreadId);
-                if (entity) {
-                    // entity 유효성 검사
-                    lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                    auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                    if (it_state != entity->scriptThreadStates.end()) {
-                        it_state->second.loopCounters.erase(block.id);
-                    }
-                }
-                return;
-            }
+        // --- 루프 실행 또는 종료 ---
+        if (currentIteration < iterCount) {
+            // 아직 반복이 남았음
+            pThreadState->loopCounters[block.id] = currentIteration; // 현재 반복 횟수 저장
 
             engine.EngineStdOut(
-                "repeat_basic: " + objectId + " executing iteration " + to_string(startIteration) + "/" + to_string(
-                    iterCount) +
-                ". Block ID: " + block.id, 3, executionThreadId);
+                "repeat_basic: " + objectId + " executing iteration " + to_string(currentIteration) + "/" +
+                to_string(iterCount) + ". Block ID: " + block.id, 3, executionThreadId);
 
-            // 내부 블록 실행 (loopCounters 업데이트 없이)
             executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch,
                                        deltaTime);
 
-            // 내부 블록 실행 후 대기 상태 및 플래그 확인
-            bool innerBlockIsWaiting = false;
-            Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-            string innerWaitingBlockId;
-            bool breakLoopFlag = false;
-            bool continueLoopFlag = false;
-
-            if (entity) {
-                // entity 유효성 검사
-                lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                auto it_check = entity->scriptThreadStates.find(executionThreadId);
-                if (it_check != entity->scriptThreadStates.end()) {
-                    if (it_check->second.isWaiting) {
-                        innerBlockIsWaiting = true;
-                        innerWaitType = it_check->second.currentWaitType;
-                        innerWaitingBlockId = it_check->second.blockIdForWait;
-                    }
-                    if (it_check->second.breakLoopRequested) {
-                        breakLoopFlag = true;
-                        it_check->second.breakLoopRequested = false;
-                    }
-                    if (it_check->second.continueLoopRequested) {
-                        continueLoopFlag = true;
-                        it_check->second.continueLoopRequested = false;
-                    }
-                }
-            } else {
+            // --- 실행 후 상태 확인 ---
+            if (pThreadState->isWaiting) {
+                // 내부 블록이 대기를 설정했으면, 현재 반복 카운터를 유지하고 즉시 반환합니다.
+                // 다음 프레임에 이 repeat_basic 블록이 다시 실행될 때, 저장된 currentIteration부터 시작합니다.
                 engine.EngineStdOut(
-                    "Flow 'repeat_basic' for " + objectId + ": Entity became null after inner blocks. Iteration " +
-                    to_string(startIteration), 2, executionThreadId);
-                // entity가 null이므로 pThreadState를 통해 loopCounters 접근 불가.
-                // 이 경우, 루프 카운터 정리는 이미 불가능하거나 의미가 없을 수 있음.
+                    "Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(currentIteration) +
+                    " because inner block set wait. Block ID: " + block.id, 3, executionThreadId);
                 return;
             }
 
-            if (breakLoopFlag) {
+            if (pThreadState->breakLoopRequested) {
+                pThreadState->breakLoopRequested = false;
+                pThreadState->loopCounters.erase(block.id); // 루프 중단 시 즉시 상태 정리
                 engine.EngineStdOut(
                     "repeat_basic: " + objectId + " breaking loop due to stop_repeat. Block ID: " + block.id, 0,
                     executionThreadId);
-                // 루프 종료 시 loopCounters 정리는 아래 공통 로직에서 처리
-            } else if (innerBlockIsWaiting) {
+                return; // 루프 종료
+            }
+
+            if (pThreadState->continueLoopRequested) {
+                pThreadState->continueLoopRequested = false;
                 engine.EngineStdOut(
-                    "Flow 'repeat_basic' for " + objectId + " pausing at iteration " + to_string(startIteration) +
-                    " because inner block " + innerWaitingBlockId + " set wait type " + BlockTypeEnumToString(
-                        innerWaitType) +
-                    ". Block ID: " + block.id, 3, executionThreadId);
-                // 현재 반복 카운터(startIteration)를 유지 (이미 설정되어 있음)
-                // loopCounters[block.id]는 현재 startIteration을 가리키고 있어야 함.
-                // Entity::executeScript가 이 repeat_basic 블록을 다음 프레임에 재개하도록 BLOCK_INTERNAL 대기를 설정해야 함.
-                return; // Flow 함수 반환
+                    "repeat_basic: " + objectId + " continuing to next iteration. Block ID: " + block.id, 0,
+                    executionThreadId);
+            }
+
+
+            // --- 다음 반복 준비 ---
+            pThreadState->loopCounters[block.id] = currentIteration + 1;
+
+            Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
+                                                          static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
+
+            // <<<--- scriptPtr와 sceneIdAtDispatch 전달 --- >>>
+            // 이 Flow 함수가 호출될 때의 scriptPtr를 알아야 합니다.
+            // 현재 구조에서는 Flow 함수가 scriptPtr를 직접 받지 않으므로,
+            // Entity의 ScriptThreadState에서 가져와야 합니다.
+            const Script *currentScriptPtr = nullptr; {
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                auto it = entity->scriptThreadStates.find(executionThreadId);
+                if (it != entity->scriptThreadStates.end()) {
+                    currentScriptPtr = it->second.scriptPtrForResume; // executeScript에서 설정한 포인터 사용
+                }
+            }
+            if (currentScriptPtr) {
+                entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
+                                      Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
             } else {
-                // 내부 블록 대기 없고, break도 아님 (continue 또는 정상 완료)
-                if (continueLoopFlag) {
-                    engine.EngineStdOut(
-                        "repeat_basic: " + objectId + " continuing to next iteration. Block ID: " + block.id, 0,
-                        executionThreadId);
-                }
-
-                // 현재 반복이 성공적으로 완료되었거나 continue 요청됨.
-                // 다음 반복으로 넘어가거나 루프 종료.
-                if (startIteration < iterCount - 1) {
-                    // 마지막 반복이 아니라면
-                    if (entity) {
-                        // entity 유효성 검사
-                        lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                        // pThreadState는 위에서 이미 유효성 검사됨
-                        pThreadState->loopCounters[block.id] = startIteration + 1; // 다음 반복으로 설정
-                        engine.EngineStdOut(
-                            "repeat_basic: Saved next iteration counter " + to_string(startIteration + 1) +
-                            " for block " + block.id,
-                            3, executionThreadId);
-                    } else {
-                        engine.EngineStdOut(
-                            "repeat_basic: Entity became null before saving next iteration counter for " + objectId, 2,
-                            executionThreadId);
-                        return; // 루프 카운터 저장 불가, 종료
-                    }
-
-                    Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
-                                                                  static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
-                    entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                          Entity::WaitType::BLOCK_INTERNAL);
-                    return; // Flow 함수 반환
-                }
-                // 마지막 반복이었거나, 마지막 반복에서 continue_repeat이면 루프 종료 (아래에서 처리)
+                engine.EngineStdOut(format("Unknow ScriptThreadState for executionThreadId: {}", executionThreadId), 2);
             }
-        } else {
-            // 루프가 모든 반복을 완료했거나 break로 중단된 경우
-            if (entity) {
-                // entity가 유효한지 먼저 확인
-                std::lock_guard lock(entity->getStateMutex());
-                auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                if (it_state != entity->scriptThreadStates.end()) {
-                    it_state->second.loopCounters.erase(block.id);
-                    // 루프가 정상적으로 종료되었으므로, 대기 상태를 해제합니다.
-                    it_state->second.isWaiting = false;
-                    it_state->second.currentWaitType = Entity::WaitType::NONE;
-                    it_state->second.blockIdForWait = ""; // 대기 블록 ID 초기화
-                    it_state->second.resumeAtBlockIndex = -1; // 재개 위치 초기화
-                }
-            }
-            engine.EngineStdOut(
-                "repeat_basic: " + objectId + " loop processing finished (all iterations or break). Block ID: " + block.
-                id,
-                3, executionThreadId);
-        } // end if (startIteration < iterCount)
+            return; // 대기 설정을 위해 즉시 반환
+        }
+        // --- 루프 종료 처리 ---
+        // 모든 반복이 완료되었으므로 상태를 정리하고, 대기 없이 다음 블록으로 넘어갑니다.
+        pThreadState->loopCounters.erase(block.id);
+        engine.EngineStdOut(
+            "repeat_basic: " + objectId + " loop finished all iterations and state cleared. Block ID: " + block.id,
+            3, executionThreadId);
+        // 여기서 return하지 않음으로써 executeBlocksSynchronously가 다음 블록을 실행하도록 합니다.
     } else if (BlockType == "repeat_inf") {
-        auto entity_ptr = engine.getEntityByIdShared(objectId); // entity_ptr로 변경 (shared_ptr)
-        if (!entity_ptr) {
-            engine.EngineStdOut("Flow 'repeat_inf': Entity " + objectId + " not found.", 2, executionThreadId);
-            return;
-        }
+        // 이 블록은 자식 블록들을 무한히 반복 실행합니다.
+        // 핵심은 자식 블록의 실행 위치를 ScriptThreadState에 저장하여
+        // 대기 후에도 올바른 위치에서 재개하는 것입니다.
 
-        if (block.statementScripts.empty()) {
-            engine.EngineStdOut(
-                "Flow 'repeat_inf' for " + objectId + ": Missing DO statement script. Block ID: " + block.id, 1,
-                executionThreadId);
-            // 프레임 동기화 대기 후 반환 (내용 없는 루프도 대기는 필요)
+        if (block.statementScripts.empty() || block.statementScripts[0].blocks.empty()) {
+            // 반복할 내용이 없으면 무한 루프를 방지하기 위해 1프레임 대기만 설정합니다.
             Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                           static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
-            entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                      Entity::WaitType::BLOCK_INTERNAL);
-            return;
-        }
-        const Script &doScript = block.statementScripts[0];
-
-        if (doScript.blocks.empty()) {
-            engine.EngineStdOut(
-                "Flow 'repeat_inf' for " + objectId + ": DO statement script is empty. Block ID: " + block.id, 1,
-                executionThreadId);
-            Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
-                                                          static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
-            entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                      Entity::WaitType::BLOCK_INTERNAL);
+            entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
+                                  Entity::WaitType::BLOCK_INTERNAL,
+                                  entity->scriptThreadStates[executionThreadId].scriptPtrForResume,
+                                  sceneIdAtDispatch);
             return;
         }
 
-        size_t inner_block_start_index = 0;
-        // --- 루프 재개 로직 ---
-        // Entity::executeScript에서 BLOCK_INTERNAL로 재개 시, blockIdForWait는 현재 Flow 블록 ID를 가리킵니다.
-        // 내부 블록에서 대기 후 재개하는 경우, blockIdForWait가 내부 블록 ID를 가리키도록 Entity::executeScript 수정이 필요할 수 있습니다.
-        // 현재 로직은 blockIdForWait가 repeat_inf 블록 ID와 다를 때 내부 재개를 시도합니다.
-        // 이 부분은 Entity::executeScript의 BLOCK_INTERNAL 대기 설정 방식과 긴밀하게 연관됩니다.
-        bool is_resuming_from_inner_block_wait = false; // 내부 대기에서 재개되었는지 여부 플래그
+        const auto &innerBlocks = block.statementScripts[0].blocks;
+        auto &threadState = entity->scriptThreadStates[executionThreadId];
 
-        {
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state_check = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_check != entity_ptr->scriptThreadStates.end()) {
-                Entity::ScriptThreadState &threadState = it_state_check->second;
+        // 자식 블록의 실행 위치(Program Counter)를 저장하기 위한 고유 키
+        std::string inner_pc_key = block.id + "_inner_pc";
 
-                if (threadState.loopCounters.find(block.id) == threadState.loopCounters.end()) {
-                    // 루프 카운터가 없다면 새로 생성 (첫 실행 또는 상태 유실 후 재개)
-                    threadState.loopCounters[block.id] = 0; // 반복 횟수 카운트 시작 (0부터 시작하여 첫 반복에서 1로 증가)
-                    engine.EngineStdOut(
-                        "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
-                        ": Initializing loop counter.",
-                        3, executionThreadId);
-                }
-                // 수정된 조건: currentWaitType 체크 제거
-                if (threadState.blockIdForWait == block.id &&
-                    // 이 Flow 블록에 대한 BLOCK_INTERNAL 대기였는지 확인 (Entity::executeScript에서 설정됨)
-                    !threadState.originalInnerBlockIdForWait.empty()) {
-                    // 내부 블록 대기 정보가 있는지 확인
-                    for (size_t k = 0; k < doScript.blocks.size(); ++k) {
-                        if (doScript.blocks[k].id == threadState.originalInnerBlockIdForWait) {
-                            engine.EngineStdOut(format("K {} isMatch BID {}", k,
-                                                       doScript.blocks[k].id == threadState.
-                                                       originalInnerBlockIdForWait), 3);
-                            if (k + 1 < doScript.blocks.size()) {
-                                inner_block_start_index = k + 1;
-                                is_resuming_from_inner_block_wait = true; // 플래그 설정
-                                engine.EngineStdOut(
-                                    "Flow 'repeat_inf' (" + block.id +
-                                    "): Resuming inner blocks from relative index " +
-                                    to_string(inner_block_start_index) +
-                                    " (original wait on: " + threadState.originalInnerBlockIdForWait + ")", 3,
-                                    executionThreadId);
-                            } else {
-                                // wait_second가 마지막 블록이었으면, 다음 반복은 처음부터
-                                inner_block_start_index = 0;
-                                is_resuming_from_inner_block_wait = false; // <<-- 명시적으로 false로 설정
-                                engine.EngineStdOut(
-                                    "Flow 'repeat_inf' (" + block.id +
-                                    "): Inner wait was on last block. Resuming loop from start.", 3,
-                                    executionThreadId);
-                            }
-                            threadState.originalInnerBlockIdForWait.clear(); // 사용 후 초기화
-                            break;
-                        }
-                    }
-                }
+        // 현재 자식 블록 인덱스 가져오기 또는 초기화
+        size_t innerBlockIndex = 0;
+        if (threadState.loopCounters.count(inner_pc_key)) {
+            innerBlockIndex = threadState.loopCounters[inner_pc_key];
+        }
+
+        // 자식 블록 실행
+        if (innerBlockIndex < innerBlocks.size()) {
+            const Block &innerBlock = innerBlocks[innerBlockIndex];
+
+            // 자식 블록 하나를 실행합니다.
+            // 이 함수들은 내부적으로 setScriptWait를 호출하여 isWaiting 플래그를 설정할 수 있습니다.
+            try {
+                Moving(innerBlock.type, engine, objectId, innerBlock, executionThreadId, sceneIdAtDispatch, deltaTime);
+                Calculator(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Looks(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Sound(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Variable(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Function(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                TextBox(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Event(innerBlock.type, engine, objectId, innerBlock, executionThreadId);
+                Flow(innerBlock.type, engine, objectId, innerBlock, executionThreadId, sceneIdAtDispatch, deltaTime);
+            } catch (...) {
+                // 예외 발생 시 루프 상태를 정리하고 다시 던집니다.
+                threadState.loopCounters.erase(inner_pc_key);
+                throw;
             }
-        }
 
-        //while (true) {
-        // --- 루프 시작 시 상태 확인 ---
-        bool shouldTerminateLoopEarly = false;
-        Entity::ScriptThreadState *pThreadStateForChecks = nullptr; {
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state != entity_ptr->scriptThreadStates.end()) {
-                pThreadStateForChecks = &it_state->second;
+            // 방금 실행한 자식 블록이 대기를 설정했는지 확인
+            if (threadState.isWaiting) {
+                // 대기가 설정되었다면, 현재 자식 블록 인덱스를 저장하고 아무것도 하지 않습니다.
+                // 상위 executeScript 루프가 이 대기를 감지하고 전체 스크립트 실행을 멈출 것입니다.
+                // 다음 재개 시, 이 repeat_inf 블록이 다시 실행되고 저장된 innerBlockIndex부터 시작합니다.
+                threadState.loopCounters[inner_pc_key] = innerBlockIndex;
+                return;
             }
-        }
-        if (engine.m_isShuttingDown.load(memory_order_relaxed) ||
-            (pThreadStateForChecks && pThreadStateForChecks->terminateRequested)) {
-            engine.EngineStdOut(
-                "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
-                " terminating (engine shutdown or request).", 1, executionThreadId);
-            shouldTerminateLoopEarly = true;
-        }
-        // --- 장면 변경 확인 ---
-        std::string currentEngineSceneId_flow = engine.getCurrentSceneId();
-        const ObjectInfo *objInfo_flow = engine.getObjectInfoById(objectId);
-        bool isGlobalEntity_flow = (
-            objInfo_flow && (objInfo_flow->sceneId == "global" || objInfo_flow->sceneId.empty()));
 
-        if (!isGlobalEntity_flow && currentEngineSceneId_flow != sceneIdAtDispatch) {
-            engine.EngineStdOut(
-                "Flow '" + BlockType + "' for " + objectId + " halted. Scene changed from '" + sceneIdAtDispatch +
-                "' to '" + currentEngineSceneId_flow + "'. Thread: " + executionThreadId, 1,
-                executionThreadId);
-
-            // 루프 카운터 정리 등 필요한 상태 정리
-            if (entity) {
-                // entity 포인터 유효성 검사
-                std::lock_guard<std::recursive_mutex> lock(entity->getStateMutex());
-                auto it_state = entity->scriptThreadStates.find(executionThreadId);
-                if (it_state != entity->scriptThreadStates.end()) {
-                    it_state->second.loopCounters.erase(block.id); // 현재 루프 블록 ID
-                    it_state->second.isWaiting = false;
-                    it_state->second.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND;
-                    it_state->second.resumeAtBlockIndex = -1; // 또는 현재 Flow 블록의 인덱스
-                    it_state->second.scriptPtrForResume = nullptr; // 또는 현재 스크립트
-                    it_state->second.sceneIdAtDispatchForResume = sceneIdAtDispatch;
-                }
-            }
-            return; // Flow 함수 종료 (또는 break로 루프 탈출 후 Flow 함수 종료)
-        }
-        if (!shouldTerminateLoopEarly) {
-            string currentEngineSceneId = engine.getCurrentSceneId();
-            const ObjectInfo *objInfo = engine.getObjectInfoById(objectId);
-            // No lock needed if Engine handles it
-            bool isGlobalEntity = (objInfo && (objInfo->sceneId == "global" || objInfo->sceneId.empty()));
-            if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
-                engine.EngineStdOut(
-                    "Flow 'repeat_inf' for " + objectId + " halted. Entity no longer in current scene " +
-                    currentEngineSceneId + ".", 1, executionThreadId);
-                shouldTerminateLoopEarly = true;
-            }
+            // 대기가 없었다면, 다음 자식 블록으로 이동
+            threadState.loopCounters[inner_pc_key] = innerBlockIndex + 1;
+        } else {
+            // 모든 자식 블록을 실행 완료했으므로, 처음(0번)으로 돌아가 다음 프레임에 다시 시작합니다.
+            threadState.loopCounters[inner_pc_key] = 0;
         }
 
-        if (shouldTerminateLoopEarly) {
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state_final = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_final != entity_ptr->scriptThreadStates.end()) {
-                it_state_final->second.loopCounters.erase(block.id);
-            }
-            return; // Flow 함수 종료
-        }
-
-        // --- 내부 블록 실행 ---
-        executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch,
-                                   deltaTime, is_resuming_from_inner_block_wait ? inner_block_start_index : 0);
-        is_resuming_from_inner_block_wait = false;
-        // --- 내부 블록 실행 후 상태 확인 ---
-        bool breakLoopFlag = false;
-        bool continueLoopFlag = false;
-        bool innerBlockIsWaiting = false;
-        Entity::WaitType innerWaitType = Entity::WaitType::NONE;
-        string innerWaitingBlockId; {
-            // Mutex scope for checking script state
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state_after_exec = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_after_exec != entity_ptr->scriptThreadStates.end()) {
-                Entity::ScriptThreadState &currentState = it_state_after_exec->second;
-                if (currentState.isWaiting) {
-                    innerBlockIsWaiting = true;
-                    innerWaitType = currentState.currentWaitType;
-                    innerWaitingBlockId = currentState.blockIdForWait;
-                }
-                if (currentState.breakLoopRequested) {
-                    breakLoopFlag = true;
-                    currentState.breakLoopRequested = false; // 플래그 리셋
-                }
-                if (currentState.continueLoopRequested) {
-                    continueLoopFlag = true;
-                    currentState.continueLoopRequested = false; // 플래그 리셋
-                }
-                // Check terminateRequested again, as inner blocks might have set it
-                if (currentState.terminateRequested) {
-                    engine.EngineStdOut(
-                        "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
-                        " terminating (request after inner exec).", 1, executionThreadId);
-                    currentState.loopCounters.erase(block.id);
-                    return; // Flow 함수 종료
-                }
-            } else {
-                // 스레드 상태가 사라진 경우, 루프 종료
-                engine.EngineStdOut(
-                    "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
-                    " terminating (thread state missing after inner exec).", 1, executionThreadId);
-                // loopCounters 정리는 이미 위에서 처리되었거나, 여기서 추가로 할 수 없음
-                return; // Flow 함수 종료
-            }
-        } // Mutex scope ends
-
-        if (breakLoopFlag) {
-            engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " breaking loop.", 3,
-                                executionThreadId);
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex()); // 루프 카운터 정리 시 잠금
-            auto it_state_final_break = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_final_break != entity_ptr->scriptThreadStates.end()) {
-                it_state_final_break->second.loopCounters.erase(block.id);
-            }
-            //break; // while 루프 탈출
-            return;
-        }
-
-        if (continueLoopFlag) {
-            engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " continuing loop.", 3,
-                                executionThreadId);
-            // 프레임 동기화 대기를 위해 아래로 진행 (continue 전에 대기 설정)
-            // 이 continue는 while 루프의 다음 반복으로 가며, 아래의 isScriptWaiting 또는 프레임 동기화 대기 로직이 실행됩니다.
-        }
-
-        // --- 대기 처리 또는 프레임 동기화 ---
-        if (innerBlockIsWaiting && innerWaitType != Entity::WaitType::BLOCK_INTERNAL) {
-            // 내부 블록이 명시적 대기(예: wait_second, ask_and_wait)를 설정한 경우
-            engine.EngineStdOut(
-                "Flow 'repeat_inf' (" + block.id + ") for " + objectId +
-                " pausing because an inner block (" + innerWaitingBlockId +
-                ") set wait type " + BlockTypeEnumToString(innerWaitType) +
-                ". Flow will return, Entity::executeScript should handle wait.",
-                3, executionThreadId);
-            return; // Flow 함수 반환, Entity::executeScript가 이 repeat_inf에 대해 BLOCK_INTERNAL 대기 설정
-        }
-        // 내부 블록이 대기하지 않았거나, BLOCK_INTERNAL 대기였거나 (이 경우는 거의 없음),
-        // 또는 continueLoopFlag가 설정된 경우:
-        // 프레임 동기화를 위해 이 repeat_inf 블록 자체가 대기합니다.
-        string loopIterCountStr = "?"; {
-            // Mutex scope for loopCounters
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state_count = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_count != entity_ptr->scriptThreadStates.end()) {
-                Entity::ScriptThreadState &threadStateForCount = it_state_count->second;
-                if (threadStateForCount.loopCounters.find(block.id) == threadStateForCount.loopCounters.end()) {
-                    threadStateForCount.loopCounters[block.id] = 0;
-                }
-                threadStateForCount.loopCounters[block.id]++;
-                loopIterCountStr = to_string(threadStateForCount.loopCounters[block.id]);
-            } else {
-                engine.EngineStdOut(
-                    format("Flow 'repeat_inf' ({}): Thread state missing for loop counter update.", block.id),
-                    1, executionThreadId);
-            }
-        } // Mutex scope ends
-
+        // 한 틱에 모든 자식 블록이 실행되는 것을 방지하고,
+        // 다음 자식 블록 실행 또는 다음 루프 반복을 위해 1프레임 대기를 설정합니다.
         Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                       static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
-        entity_ptr->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                  Entity::WaitType::BLOCK_INTERNAL);
-        engine.EngineStdOut(
-            "Flow 'repeat_inf' (" + block.id + ") for " + objectId + " iteration " + loopIterCountStr +
-            " completed, setting frame sync wait (" + to_string(frameDelay) + "ms).",
-            3, executionThreadId);
-        return; // Flow 함수 반환, Entity::executeScript가 대기 처리
-        // } // end while(true)
-
-        // 루프가 정상적으로 (break에 의해) 종료된 경우
-        {
-            // Mutex scope for final loop counter erase
-            lock_guard<recursive_mutex> lock(entity_ptr->getStateMutex());
-            auto it_state_final_loop = entity_ptr->scriptThreadStates.find(executionThreadId);
-            if (it_state_final_loop != entity_ptr->scriptThreadStates.end()) {
-                it_state_final_loop->second.loopCounters.erase(block.id);
-            }
-        } // Mutex scope ends
-        engine.EngineStdOut("Flow 'repeat_inf' (" + block.id + ") for " + objectId + " loop finished.", 0,
-                            executionThreadId);
+        entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
+                              Entity::WaitType::BLOCK_INTERNAL,
+                              threadState.scriptPtrForResume,
+                              sceneIdAtDispatch);
     } else if (BlockType == "repeat_while_true") {
         // params: [CONDITION_BLOCK, OPTION_DROPDOWN, INDICATOR]
         // statements: [DO_SCRIPT]
@@ -4685,19 +4380,29 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 파라미터 유효성 검사 (최소 2개: CONDITION, OPTION)
         if (!block.paramsJson.is_array() || block.paramsJson.size() < 2) {
             string msg = "Flow 'repeat_while_true' for " + objectId +
-                ": Missing parameters. Expected CONDITION and OPTION. Block ID: " + block.id;
-            throw ScriptBlockExecutionError("필수 조건 과 옵션 파라미터 가 없습니다",block.id,block.type,entity->getId(),msg);
+                         ": Missing parameters. Expected CONDITION and OPTION. Block ID: " + block.id;
+            throw ScriptBlockExecutionError("필수 조건 과 옵션 파라미터 가 없습니다", block.id, block.type, entity->getId(), msg);
         }
         // DO 스크립트 유효성 검사
         if (block.statementScripts.empty()) {
             engine.EngineStdOut(
                 "Flow 'repeat_while_true' for " + objectId +
                 ": Missing DO statement script. Block ID: " + block.id, 1, executionThreadId);
+            // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+            const Script *currentScriptPtr = nullptr; {
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                auto it = entity->scriptThreadStates.find(executionThreadId);
+                if (it != entity->scriptThreadStates.end()) {
+                    // executeScript에서 설정한 포인터를 사용합니다.
+                    // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                    currentScriptPtr = it->second.scriptPtrForResume;
+                }
+            }
             // 내용 없는 루프도 프레임 동기화 대기 후 다음 조건 검사로 넘어갈 수 있도록 처리
             Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                           static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
             entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                  Entity::WaitType::BLOCK_INTERNAL);
+                                  Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
             return;
         }
 
@@ -4772,10 +4477,20 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
 
             // 내부 블록이 명시적 대기를 설정하지 않았거나, 이미 BLOCK_INTERNAL 대기 상태였다면,
             // 이 repeat_while_true 블록 자체를 다음 프레임에 재실행하기 위해 BLOCK_INTERNAL 대기를 설정합니다.
+            // <<<--- 중요: 재개를 위한 정보 전달 --- >>>
+            const Script *currentScriptPtr = nullptr; {
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                auto it = entity->scriptThreadStates.find(executionThreadId);
+                if (it != entity->scriptThreadStates.end()) {
+                    // executeScript에서 설정한 포인터를 사용합니다.
+                    // 이 포인터는 executeScript가 호출될 때마다 업데이트되어야 합니다.
+                    currentScriptPtr = it->second.scriptPtrForResume;
+                }
+            }
             Uint32 frameDelay = static_cast<Uint32>(clamp(1000.0 / engine.getTargetFps(),
                                                           static_cast<double>(MIN_LOOP_WAIT_MS), 33.0));
             entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                  Entity::WaitType::BLOCK_INTERNAL);
+                                  Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
             engine.EngineStdOut(
                 "Flow 'repeat_while_true' for " + objectId +
                 " iteration completed. Setting frame sync wait for next condition check. Block ID: " + block.id,
@@ -5002,12 +4717,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
 
-        if (conditionResult.asBool()) {
-            engine.EngineStdOut(
-                "Flow 'wait_until_true' for " + objectId + ": Condition is true. Proceeding. Block ID: " + block.id,
-                3,
-                executionThreadId);
-        } else {
+        if (!conditionResult.asBool()) {
             engine.EngineStdOut(
                 "Flow 'wait_until_true' for " + objectId + ": Condition is false. Waiting. Block ID: " + block.id,
                 3,
@@ -5015,9 +4725,20 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             double idealFrameTime = 1000.0 / max(1, engine.specialConfig.TARGET_FPS);
             Uint32 frameDelay = static_cast<Uint32>(clamp(idealFrameTime, static_cast<double>(MIN_LOOP_WAIT_MS),
                                                           33.0));
-            entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
-                                  Entity::WaitType::BLOCK_INTERNAL);
-            return;
+            // <<<--- scriptPtr와 sceneIdAtDispatch 전달 --- >>>
+            const Script *currentScriptPtr = nullptr; {
+                lock_guard<recursive_mutex> lock(entity->getStateMutex());
+                auto it = entity->scriptThreadStates.find(executionThreadId);
+                if (it != entity->scriptThreadStates.end()) {
+                    currentScriptPtr = it->second.scriptPtrForResume;
+                }
+            }
+            if (currentScriptPtr) {
+                entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
+                                      Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
+            } else {
+                engine.EngineStdOut(format("Unknow ScriptThreadState for execution ThreadId {}", executionThreadId), 2);
+            }
         }
     } else if (BlockType == "stop_object") {
         // params: [TARGET_DROPDOWN (string), Indicator]
@@ -5505,7 +5226,7 @@ void executeBlocksSynchronously(Engine &engine, const string &objectId, const ve
 
         // 다른 블록 타입 실행
         try {
-            Moving(block.type, engine, objectId, block, executionThreadId, deltaTime);
+            Moving(block.type, engine, objectId, block, executionThreadId, sceneIdAtDispatch, deltaTime);
             Calculator(block.type, engine, objectId, block, executionThreadId);
             Looks(block.type, engine, objectId, block, executionThreadId);
             Sound(block.type, engine, objectId, block, executionThreadId);

@@ -120,7 +120,7 @@ void executeBlocksSynchronously(Engine &engine, const std::string &objectId, con
                             size_t start_index=0);
 // 블록 처리 함수 선언
 OperandValue getOperandValue(Engine &engine, const std::string &objectId, const nlohmann::json &paramField, const std::string &executionThreadId);
-void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId, float deltaTime);
+void Moving(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId,const std::string& sceneIdAtDispatch, float deltaTime);
 OperandValue Calculator(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Looks(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);
 void Sound(std::string BlockType, Engine &engine, const std::string &objectId, const Block &block, const std::string& executionThreadId);

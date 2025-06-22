@@ -231,36 +231,6 @@
                         </option>
                       </Pin>
                       <Pin>
-                        <option name="consoleUUID" value="d4a3ee8b-cfa3-4cf0-83df-ddb462c401f6" />
-                        <option name="contentType" value="ConsoleContent" />
-                        <option name="grepCompositeModel">
-                          <GrepCompositeModel>
-                            <option name="models">
-                              <list>
-                                <GrepModel>
-                                  <option name="expression" value="bounce_" />
-                                </GrepModel>
-                              </list>
-                            </option>
-                          </GrepCompositeModel>
-                        </option>
-                      </Pin>
-                      <Pin>
-                        <option name="consoleUUID" value="6b7fe151-b1e6-4771-ad2d-2c6292d35428" />
-                        <option name="contentType" value="ConsoleContent" />
-                        <option name="grepCompositeModel">
-                          <GrepCompositeModel>
-                            <option name="models">
-                              <list>
-                                <GrepModel>
-                                  <option name="expression" value="bounced." />
-                                </GrepModel>
-                              </list>
-                            </option>
-                          </GrepCompositeModel>
-                        </option>
-                      </Pin>
-                      <Pin>
                         <option name="consoleUUID" value="fdebda65-cccc-4d7b-a2c8-e17b6babad92" />
                         <option name="contentType" value="ConsoleContent" />
                         <option name="grepCompositeModel">
@@ -269,21 +239,6 @@
                               <list>
                                 <GrepModel>
                                   <option name="expression" value=" raised by object " />
-                                </GrepModel>
-                              </list>
-                            </option>
-                          </GrepCompositeModel>
-                        </option>
-                      </Pin>
-                      <Pin>
-                        <option name="consoleUUID" value="f6a279da-9e15-4f7d-9894-f2143f75d3b0" />
-                        <option name="contentType" value="ConsoleContent" />
-                        <option name="grepCompositeModel">
-                          <GrepCompositeModel>
-                            <option name="models">
-                              <list>
-                                <GrepModel>
-                                  <option name="expression" value="Best Position " />
                                 </GrepModel>
                               </list>
                             </option>
@@ -314,6 +269,9 @@
                               <list>
                                 <GrepModel>
                                   <option name="expression" value="object touched " />
+                                </GrepModel>
+                                <GrepModel>
+                                  <option name="expression" value="reach_something('mouse')" />
                                 </GrepModel>
                               </list>
                             </option>

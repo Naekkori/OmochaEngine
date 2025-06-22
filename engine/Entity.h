@@ -81,6 +81,7 @@ public:
     // 각 스크립트 스레드의 상태를 관리하는 구조체
     struct ScriptThreadState
     {
+        size_t currentBlockIndex = 0;
         bool isWaiting = false; 
         Uint64 waitEndTime = 0; // Changed from Uint32 to Uint64
         std::string blockIdForWait = "";           // 어떤 블록에 의해 대기가 시작되었는지 식별
@@ -156,7 +157,8 @@ public:
     };
 
     // 스크립트 대기 설정 함수 (시그니처 변경)
-    void setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type);
+    void setScriptWait(const std::string &executionThreadId, Uint64 endTime, const std::string &blockId, WaitType type, const Script *
+                       scriptPtr, const std::string &sceneId);
 
     // 스크립트 대기 상태 확인 함수 (신규)
     bool isScriptWaiting(const std::string &executionThreadId) const;
