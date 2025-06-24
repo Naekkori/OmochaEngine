@@ -5745,49 +5745,43 @@ void Engine::goToScene(const string &sceneId) {
         const std::string oldSceneId = currentSceneId; {
             std::lock_guard<std::recursive_mutex> lock(m_engineDataMutex);
 
-           // 1. 모든 엔티티의 스크립트 상태를 확인하고 필요한 작업 수행
-        for (const auto &[entityId, entityPtr]: entities) {
-            const ObjectInfo *objInfo = getObjectInfoById(entityId);
-            if (objInfo) {
-                bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
-                // 글로벌이 아니고 현재 씬을 떠나는 엔티티의 스크립트 처리
-                if (!isGlobal && objInfo->sceneId == oldSceneId) {
-                    std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex());
-                    for (auto &threadPair: entityPtr->scriptThreadStates) {
-                        auto &state = threadPair.second;
-
-                        if (state.terminateRequested) {
-                            // 이미 종료 요청된 스크립트는 건너뜁니다.
-                            continue;
-                        }
-
-                        if (state.currentWaitType == Entity::WaitType::EXPLICIT_WAIT_SECOND ||
-                            state.currentWaitType == Entity::WaitType::SOUND_FINISH ||
-                            state.currentWaitType == Entity::WaitType::TEXT_INPUT)
-                        {
-                            // '진짜' 대기 상태인 스크립트만 일시 중지합니다.
-                            // 이 스크립트들은 사용자가 의도한 대기이며, 씬에 복귀했을 때 이어져야 합니다.
-                            state.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND;
-                            EngineStdOut(
-                                "Entity " + entityId + " SUSPENDING explicit wait script thread " + threadPair.first +
-                                " due to scene change. Original wait type: " + BlockTypeEnumToString(state.currentWaitType),
-                                0, threadPair.first);
-                        }
-                        else
-                        {
-                            // 활발히 실행 중(WaitType::NONE)이거나,
-                            // 내부 루프 대기(WaitType::BLOCK_INTERNAL) 상태인 스크립트는 모두 종료합니다.
-                            // 이 스크립트들은 씬에 돌아왔을 때 시작 이벤트에 의해 새로 시작되는 것이 자연스럽습니다.
-                            state.terminateRequested = true;
-                            EngineStdOut(
-                                "Entity " + entityId + " TERMINATING running/internal-loop script thread " + threadPair.first +
-                                " due to scene change. Original wait type: " + BlockTypeEnumToString(state.currentWaitType),
-                                0, threadPair.first);
+            // 1. 모든 엔티티의 스크립트 상태를 확인하고 필요한 작업 수행
+            for (const auto &[entityId, entityPtr]: entities) {
+                const ObjectInfo *objInfo = getObjectInfoById(entityId);
+                if (objInfo) {
+                    bool isGlobal = (objInfo->sceneId == "global" || objInfo->sceneId.empty());
+                    // 글로벌이 아니고 현재 씬에 속한 엔티티의 스크립트 종료
+                    if (!isGlobal && objInfo->sceneId == oldSceneId) {
+                        // 스크립트 스레드를 완전히 종료하고 상태를 지우는 대신, 일시 중지 상태로 변경
+                        std::lock_guard<std::recursive_mutex> entity_lock(entityPtr->getStateMutex());
+                        for (auto &threadPair: entityPtr->scriptThreadStates) {
+                            auto &state = threadPair.second;
+                            if (!state.terminateRequested) {
+                                // 이미 종료 요청된 스크립트는 제외
+                                state.isWaiting = true;
+                                state.currentWaitType = Entity::WaitType::SCENE_CHANGE_SUSPEND; // 새로운 대기 타입 설정
+                                // resumeAtBlockIndex, scriptPtrForResume, loopCounters 등 기존 상태는 유지됨
+                                EngineStdOut(
+                                    "Entity " + entityId + " suspended script thread " + threadPair.first +
+                                    " due to scene change.", 0, threadPair.first);
+                            } else {
+                                // 이미 종료 요청된 스크립트는 상태를 정리 (workerLoop에서 최종 종료될 것임)
+                                state.isWaiting = false;
+                                state.resumeAtBlockIndex = -1;
+                                state.blockIdForWait = "";
+                                state.loopCounters.clear();
+                                state.currentWaitType = Entity::WaitType::NONE;
+                                state.scriptPtrForResume = nullptr;
+                                state.sceneIdAtDispatchForResume = "";
+                                state.originalInnerBlockIdForWait = ""; // 관련 정보 초기화
+                                EngineStdOut(
+                                    "Entity " + entityId + " script thread " + threadPair.first +
+                                    " was already marked for termination. Clearing state.", 0, threadPair.first);
+                            }
                         }
                     }
                 }
             }
-        }
 
             // 2. 클론 엔티티 수집 및 제거
             std::vector<std::string> entitiesToDelete;
@@ -6377,7 +6371,7 @@ void Engine::drawDialogs() {
                 // 화면 경계 확인
                 bool fitsHorizontally = (testRect.x >= screenLeft && testRect.x + testRect.w <= screenRight);
                 bool fitsVertically = (testRect.y >= screenTop && testRect.y + testRect.h <= screenBottom);
-                //EngineStdOut(format("Best Position {}", static_cast<int>(currentPosEnum)), 3);
+                EngineStdOut(format("Best Position {}", static_cast<int>(currentPosEnum)), 3);
                 if (fitsHorizontally && fitsVertically) {
                     bestPosition = currentPosEnum;
                     finalBubbleRect = testRect;
@@ -6491,7 +6485,7 @@ void Engine::drawDialogs() {
                 // 중요: tailTargetX, tailTargetY는 수정된 entitySdlX, entitySdlY를 사용해야 합니다.
                 float tailTargetX = entitySdlX;
                 float tailTargetY = entitySdlY;
-                //EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3);
+                EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3);
                 // switch 문 진입 전 bestPosition 값 확인
                 switch (bestPosition) {
                     case BubblePosition::ABOVE: // 말풍선이 엔티티 위에 있을 때, 꼬리는 아래로
@@ -6549,7 +6543,7 @@ void Engine::drawDialogs() {
                 float tailBaseWidthHalf = 8.0f;
                 SDL_FPoint tailTip_ideal;
                 SDL_FPoint tailBaseP1, tailBaseP2;
-                //EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3);
+                EngineStdOut(format("Final Best Position before switch: {}", static_cast<int>(bestPosition)), 3);
                 // switch 문 진입 전 bestPosition 값 확인
                 // 중요: tailTip_ideal 계산 시 수정된 entitySdlX, entitySdlY 사용
                 switch (bestPosition) {

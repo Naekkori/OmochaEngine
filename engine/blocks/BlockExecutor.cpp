@@ -186,140 +186,9 @@ bool OperandValue::asBool() const {
     return false;
 }
 
-using BlockHandler = std::function<OperandValue(Engine&, const std::string&, const Block&, const std::string&)>;
+// processVariableBlock 선언이 누락된 것 같아 추가 (필요하다면)
+// OperandValue processVariableBlock(Engine &engine, const string &objectId, const Block &block);
 
-// 디스패치 테이블
-static const std::map<std::string, BlockHandler> blockHandlers = {
-    {"calc_basic", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("calc_basic", engine, objectId, block, executionThreadId);
-    }},
-    {"calc_rand", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("calc_rand", engine, objectId, block, executionThreadId);
-    }},
-    {"quotient_and_mod", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("quotient_and_mod", engine, objectId, block, executionThreadId);
-    }},
-    {"distance_something", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("distance_something", engine, objectId, block, executionThreadId);
-    }},
-    {"length_of_string", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("length_of_string", engine, objectId, block, executionThreadId);
-    }},
-    {"reverse_of_string", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("reverse_of_string", engine, objectId, block, executionThreadId);
-    }},
-    {"combine_something", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("combine_something", engine, objectId, block, executionThreadId);
-    }},
-    {"char_at", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("char_at", engine, objectId, block, executionThreadId);
-    }},
-    {"substring", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("substring", engine, objectId, block, executionThreadId);
-    }},
-    {"count_match_string", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("count_match_string", engine, objectId, block, executionThreadId);
-    }},
-    {"index_of_string", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("index_of_string", engine, objectId, block, executionThreadId);
-    }},
-    {"replace_string", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("replace_string", engine, objectId, block, executionThreadId);
-    }},
-    {"change_string_case", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("change_string_case", engine, objectId, block, executionThreadId);
-    }},
-    {"get_block_count", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_block_count", engine, objectId, block, executionThreadId);
-    }},
-    {"change_rgb_to_hex", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("change_rgb_to_hex", engine, objectId, block, executionThreadId);
-    }},
-    {"change_hex_to_rgb", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("change_hex_to_rgb", engine, objectId, block, executionThreadId);
-    }},
-    {"get_boolean_value", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_boolean_value", engine, objectId, block, executionThreadId);
-    }},
-    {"get_project_timer_value", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_project_timer_value", engine, objectId, block, executionThreadId);
-    }},
-    {"get_date", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_date", engine, objectId, block, executionThreadId);
-    }},
-    {"get_user_name", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_user_name", engine, objectId, block, executionThreadId);
-    }},
-    {"get_nickname", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_nickname", engine, objectId, block, executionThreadId);
-    }},
-    {"get_sound_volume", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_sound_volume", engine, objectId, block, executionThreadId);
-    }},
-    {"get_sound_speed", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_sound_speed", engine, objectId, block, executionThreadId);
-    }},
-    {"get_sound_duration", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_sound_duration", engine, objectId, block, executionThreadId);
-    }},
-    {"get_canvas_input_value", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_canvas_input_value", engine, objectId, block, executionThreadId);
-    }},
-    {"length_of_list", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("length_of_list", engine, objectId, block, executionThreadId);
-    }},
-    {"is_included_in_list", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_included_in_list", engine, objectId, block, executionThreadId);
-    }},
-    {"coordinate_mouse", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("coordinate_mouse", engine, objectId, block, executionThreadId);
-    }},
-    {"coordinate_object", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("coordinate_object", engine, objectId, block, executionThreadId);
-    }},
-    {"get_variable", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("get_variable", engine, objectId, block, executionThreadId);
-    }},
-    {"reach_something", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("reach_something", engine, objectId, block, executionThreadId);
-    }},
-    {"is_type", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_type", engine, objectId, block, executionThreadId);
-    }},
-    {"boolean_basic_operator", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("boolean_basic_operator", engine, objectId, block, executionThreadId);
-    }},
-    {"boolean_and_or", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("boolean_and_or", engine, objectId, block, executionThreadId);
-    }},
-    {"boolean_not", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("boolean_not", engine, objectId, block, executionThreadId);
-    }},
-    {"is_boost_mode", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_boost_mode", engine, objectId, block, executionThreadId);
-    }},
-    {"is_current_device_type", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_current_device_type", engine, objectId, block, executionThreadId);
-    }},
-    {"is_touch_supported", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_touch_supported", engine, objectId, block, executionThreadId);
-    }},
-    {"text_read", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("text_read", engine, objectId, block, executionThreadId);
-    }},
-    {"is_clicked", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_clicked", engine, objectId, block, executionThreadId);
-    }},
-    {"is_object_clicked", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_object_clicked", engine, objectId, block, executionThreadId);
-    }},
-    {"is_press_some_key", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("is_press_some_key", engine, objectId, block, executionThreadId);
-    }},
-    {"value_of_index_from_list", [](Engine& engine, const std::string& objectId, const Block& block, const std::string& executionThreadId) {
-        return Calculator("value_of_index_from_list", engine, objectId, block, executionThreadId);
-    }}
-};
 OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohmann::json &paramField,
                              const string &executionThreadId) {
     if (paramField.is_null()) {
@@ -348,21 +217,6 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
             return OperandValue(nan("")); // 숫자 반환이 기대될 수 있으므로 NaN 또는 오류 처리
         }
         string fieldType = paramField["type"].get<string>();
-        // 디스패치 테이블에서 핸들러 검색
-        auto it = blockHandlers.find(fieldType);
-        if (it != blockHandlers.end()) {
-            // 핸들러를 찾았으면 실행
-            Block subBlock;
-            subBlock.type = fieldType;
-            if (paramField.contains("id") && paramField["id"].is_string())
-                subBlock.id = paramField["id"].get<string>();
-            if (paramField.contains("params") && paramField["params"].is_array()) {
-                subBlock.paramsJson = paramField["params"];
-                subBlock.FilterNullsInParamsJsonArray();
-            }
-            // 핸들러 함수 호출
-            return it->second(engine, objectId, subBlock, executionThreadId);
-        }
 
         if (fieldType == "number" || fieldType == "text_reporter_number") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
@@ -391,7 +245,58 @@ OperandValue getOperandValue(Engine &engine, const string &objectId, const nlohm
                 "Invalid 'text' or 'text_reporter_string' block structure in parameter field for " + objectId +
                 ". Expected params[0] to be a string.", 1, executionThreadId);
             return OperandValue("");
-        }else if (fieldType == "text_color") {
+        } else if (fieldType == "calc_basic" || fieldType == "calc_rand" || fieldType == "quotient_and_mod" || fieldType
+                   == "calc_operation" ||
+                   fieldType == "distance_something" || fieldType == "length_of_string" || fieldType ==
+                   "reverse_of_string" ||
+                   fieldType == "combine_something" || fieldType == "char_at" || fieldType == "substring" ||
+                   fieldType == "count_match_string" || fieldType == "index_of_string" || fieldType == "replace_string"
+                   ||
+                   fieldType == "change_string_case" || fieldType == "get_block_count" || fieldType ==
+                   "change_rgb_to_hex" ||
+                   fieldType == "change_hex_to_rgb" || fieldType == "get_boolean_value" || fieldType ==
+                   "get_project_timer_value" ||
+                   fieldType == "get_date" || fieldType == "get_user_name" || fieldType == "get_nickname" ||
+                   fieldType == "get_sound_volume" || fieldType == "get_sound_speed" || fieldType ==
+                   "get_sound_duration" ||
+                   fieldType == "get_canvas_input_value" || fieldType == "length_of_list" || fieldType ==
+                   "is_included_in_list" ||
+                   fieldType == "coordinate_mouse" || fieldType == "coordinate_object" || fieldType == "get_variable" ||
+                   fieldType == "reach_something" ||
+                   fieldType == "is_type" ||
+                   fieldType == "boolean_basic_operator" ||
+                   fieldType == "boolean_and_or" ||
+                   fieldType == "boolean_not" ||
+                   fieldType == "is_boost_mode" ||
+                   fieldType == "is_current_device_type" ||
+                   fieldType == "is_touch_supported" ||
+                   fieldType == "text_read" ||
+                   fieldType == "is_clicked" || fieldType == "is_object_clicked" || fieldType == "is_press_some_key" ||
+                   fieldType == "value_of_index_from_list") {
+            Block subBlock;
+            subBlock.type = fieldType;
+            if (paramField.contains("id") && paramField["id"].is_string())
+                subBlock.id = paramField["id"].get<string>();
+            // --- params 필드 유효성 검사 강화 ---
+            if (paramField.contains("params")) {
+                const auto &paramsMember = paramField["params"];
+                if (paramsMember.is_array()) {
+                    subBlock.paramsJson = paramsMember;
+                    subBlock.FilterNullsInParamsJsonArray();
+                } else {
+                    // params가 있지만 배열이 아닌 경우 오류 처리
+                    string error_message = "Error: 'params' member in paramField for block type " + fieldType +
+                                           " (object " + objectId +
+                                           ") is not an array. Actual type: " + paramsMember.type_name() +
+                                           ". Value: " + paramsMember.dump();
+                    engine.EngineStdOut(error_message, 2, executionThreadId);
+                    // 여기서 예외를 던지거나, 오류를 나타내는 OperandValue를 반환해야 합니다.
+                    // 현재 코드에서는 runtime_error를 던지도록 되어 있습니다.
+                    throw runtime_error(error_message);
+                }
+            }
+            return Calculator(fieldType, engine, objectId, subBlock, executionThreadId);
+        } else if (fieldType == "text_color") {
             if (paramField.contains("params") && paramField["params"].is_array() &&
                 !paramField["params"].empty() && paramField["params"][0].is_string()) {
                 return OperandValue(paramField["params"][0].get<string>());
@@ -4438,8 +4343,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             return;
         }
 
-        Entity::ScriptThreadState *pThreadState = nullptr;
-        {
+        Entity::ScriptThreadState *pThreadState = nullptr; {
             lock_guard<recursive_mutex> lock(entity->getStateMutex());
             auto it = entity->scriptThreadStates.find(executionThreadId);
             if (it != entity->scriptThreadStates.end()) {
@@ -4447,7 +4351,9 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             }
         }
         if (!pThreadState) {
-            engine.EngineStdOut("Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_inf.", 2, executionThreadId);
+            engine.EngineStdOut(
+                "Critical: ScriptThreadState not found for " + executionThreadId + " in repeat_while_true.", 2,
+                executionThreadId);
             return;
         }
 
@@ -4471,38 +4377,26 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
             size_t currentInnerBlockIndex = 0;
             if (pThreadState->loopCounters.count(inner_pc_key)) {
                 currentInnerBlockIndex = pThreadState->loopCounters[inner_pc_key];
+            } else {
+                pThreadState->loopCounters[inner_pc_key] = 0;
             }
 
             const Script &doScript = block.statementScripts[0];
 
             // executeBlocksSynchronously를 저장된 위치부터 실행
-
-            try {
-                // repeat_inf 블록의 내부 블록 시퀀스를 저장된 위치부터 실행.
-                executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch, deltaTime, currentInnerBlockIndex);
-            } catch (const ScriptBlockExecutionError &e) {
-                // 내부 블록 실행 중 발생한 스크립트 블록 실행 오류는 다시 던져서 상위에서 처리
-                throw;
-            } catch (const std::exception &e) {
-                // 다른 일반 예외 발생 시 ScriptBlockExecutionError로 래핑하여 전파
-                throw ScriptBlockExecutionError(
-                    "Error during repeat_inf inner block execution.",
-                    block.id, BlockType, objectId, e.what());
-            }
+            executeBlocksSynchronously(engine, objectId, doScript.blocks, executionThreadId, sceneIdAtDispatch,
+                                       deltaTime, currentInnerBlockIndex);
 
             // 실행 후 상태 확인
             bool innerBlockIsWaiting = false;
-            size_t resumeIndexFromInnerExec = 0;
-            {
+            size_t resumeIndexFromInnerExec = 0; {
                 lock_guard<recursive_mutex> lock(entity->getStateMutex());
-                // pThreadState 포인터가 유효한지 다시 확인
+                // pThreadState 포인터가 유효한지 다시 확인 (재할당될 수 있으므로)
                 auto it_state_after_exec = entity->scriptThreadStates.find(executionThreadId);
                 if (it_state_after_exec != entity->scriptThreadStates.end()) {
                     Entity::ScriptThreadState &currentState = it_state_after_exec->second;
                     if (currentState.isWaiting) {
                         innerBlockIsWaiting = true;
-                        // executeScript가 설정한 resumeAtBlockIndex를 가져옵니다.
-                        // 이 인덱스는 innerBlocksOfRepeatInf 기준의 인덱스입니다.
                         resumeIndexFromInnerExec = currentState.resumeAtBlockIndex;
                     }
                 }
@@ -4513,16 +4407,15 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 // 다음 재개 시, 중단된 내부 블록부터 시작하도록 PC 업데이트
                 pThreadState->loopCounters[inner_pc_key] = resumeIndexFromInnerExec;
                 engine.EngineStdOut(
-                    "Flow 'repeat_inf' for " + objectId + ": Inner block set wait. Storing resume index " +
-                    to_string(resumeIndexFromInnerExec) + " for block " + block.id, 3, executionThreadId);
-
-                // repeat_inf 블록 자체는 여기서 반환하여 Entity::executeScript가 대기 상태를 처리하도록 합니다.
-                // executeBlocksSynchronously 내부에서 이미 setScriptWait가 호출되었으므로 추가 호출은 필요 없습니다.
-                return;
+                    "Flow 'repeat_while_true' for " + objectId + ": Inner block set wait. Storing resume index " +
+                    to_string(resumeIndexFromInnerExec) + ".", 3, executionThreadId);
             } else {
                 // 내부 스크립트가 대기 없이 모두 완료됨
                 // 다음 반복을 위해 내부 PC를 0으로 리셋
                 pThreadState->loopCounters[inner_pc_key] = 0;
+                engine.EngineStdOut(
+                    "Flow 'repeat_while_true' for " + objectId + ": Inner blocks completed. Resetting inner PC to 0.",
+                    3, executionThreadId);
             }
 
             // 루프의 다음 반복을 위해 이 repeat_while_true 블록 자체를 다시 실행하도록 대기 설정
@@ -4757,8 +4650,8 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         }
         OperandValue conditionResult = getOperandValue(engine, objectId, block.paramsJson[0], executionThreadId);
         engine.EngineStdOut(
-            format("Flow 'wait_until_true' for {}: Condition is {}, {}. Block ID: {}", objectId,
-                   conditionResult.asBool(),conditionResult.asBool()?"Not Waiting":"Waiting",block.id),
+            format("Flow 'wait_until_true' for {}: Condition is {}. Waiting. Block ID: {}", objectId,
+                   conditionResult.asBool(), block.id),
             3,
             executionThreadId);
         if (!conditionResult.asBool()) {
@@ -4777,12 +4670,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
                 entity->setScriptWait(executionThreadId, SDL_GetTicks() + frameDelay, block.id,
                                       Entity::WaitType::BLOCK_INTERNAL, currentScriptPtr, sceneIdAtDispatch);
             } else {
-                engine.EngineStdOut(
-               "Flow 'wait_until_true' for " + objectId +
-               ": Cannot set wait because script context (scriptPtrForResume) is missing for thread " +
-               executionThreadId,
-               2, executionThreadId);
-                return; // 대기 상태를 설정하지 않고 다음 블록으로 진행하여 멈춤을 방지합니다.
+                engine.EngineStdOut(format("Unknow ScriptThreadState for execution ThreadId {}", executionThreadId), 2);
             }
         }
     } else if (BlockType == "stop_object") {
@@ -4946,6 +4834,7 @@ void Flow(string BlockType, Engine &engine, const string &objectId, const Block 
         // 이 블록은 실행 흐름을 중단시키지 않고, 다음 블록으로 계속 진행됩니다.
     }
 }
+
 void TextBox(string BlockType, Engine &engine, const string &objectId, const Block &block,
              const string &executionThreadId) {
     auto entity = engine.getEntityByIdShared(objectId);
