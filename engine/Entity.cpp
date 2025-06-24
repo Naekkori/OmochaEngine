@@ -170,6 +170,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
             ") at block index " + std::to_string(threadState.currentBlockIndex),
             3, executionThreadId);
     }
+    int t_index=0;
     // for 루프를 while 루프로 변경하여 중단된 지점부터 실행 재개
     while (threadState.currentBlockIndex < scriptPtr->blocks.size()) {
         // --- 기존의 씬 변경, 종료 플래그 확인 로직은 그대로 유지 ---
@@ -197,14 +198,14 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         }
         if (currentEngineSceneId != sceneIdAtDispatch && !isGlobalEntity) {
             pEngineInstance->EngineStdOut(
-                "Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[threadState.currentBlockIndex].type +
+                "Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[t_index].type +
                 ") halted. Scene changed from " + sceneIdAtDispatch + " to " + currentEngineSceneId + ".", 1,
                 executionThreadId);
             return;
         }
         if (!isGlobalEntity && objInfo && objInfo->sceneId != currentEngineSceneId) {
             pEngineInstance->EngineStdOut(
-                "Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[threadState.currentBlockIndex].type +
+                "Script execution for entity " + this->id + " (Block: " + scriptPtr->blocks[t_index].type +
                 ") halted. Entity no longer in current scene " + currentEngineSceneId + ".", 1, executionThreadId);
             return;
         }
@@ -257,31 +258,27 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
 
         // --- 대기 상태 확인 및 처리 ---
         bool blockSetWait = false;
-        auto waitType = WaitType::NONE;
         {
-            lock_guard<recursive_mutex> lock(m_stateMutex);
-            auto it_state = scriptThreadStates.find(executionThreadId);
-            if (it_state != scriptThreadStates.end()) {
-                blockSetWait = it_state->second.isWaiting;
-                if (blockSetWait) {
-                    waitType = it_state->second.currentWaitType;
-                }
+            std::lock_guard lock(m_stateMutex);
+            auto it_thread_state = scriptThreadStates.find(executionThreadId);
+            if (it_thread_state != scriptThreadStates.end()) {
+                blockSetWait = it_thread_state->second.isWaiting;
             } else {
                 return; // 스레드 상태가 사라졌으면 중단
             }
         }
 
-
         if (blockSetWait) {
-            // 어떤 종류의 대기든, 블록이 대기 상태를 설정했다면 현재 블록은 '완료'된 것이 아닙니다.
-            // 따라서 인덱스를 증가시키지 않고 즉시 루프를 빠져나갑니다.
-            // 대기가 끝나고 스크립트가 재개되면, 바로 이 블록(예: repeat_inf)부터 다시 실행을 시도하게 됩니다.
-            pEngineInstance->EngineStdOut(
-                "Entity::executeScript: Pausing for " + BlockTypeEnumToString(waitType) +
-                " at index " + std::to_string(threadState.currentBlockIndex) +
-                " (block: " + block.id + ")", 3, executionThreadId);
-
-            return; // 스크립트 실행을 일시 중지하고 함수 종료 (인덱스 증가 없음!)
+            // 대기가 설정되었으면, 현재 블록 인덱스를 저장하고 루프를 종료합니다.
+            // currentBlockIndex는 이미 현재 블록의 인덱스이므로, 다음 재개 시 이 블록부터 다시 평가됩니다.
+            // (Flow 블록의 경우) 또는 다음 블록으로 넘어가야 합니다 (일반 블록의 경우).
+            // 이 로직은 setScriptWait에서 resumeAtBlockIndex를 어떻게 설정하는지에 따라 달라집니다.
+            // 여기서는 Flow 블록이 자신의 대기를 관리한다고 가정하고, executeScript는 단순히 반환합니다.
+            pEngineInstance->EngineStdOut("Entity::executeScript: " + id + " (Thread: " + executionThreadId +
+                                          ") - Pausing execution due to wait set by block " + block.id +
+                                          ". Current index: " + std::to_string(threadState.currentBlockIndex),
+                                          3, executionThreadId);
+            return; // 스크립트 실행을 일시 중지하고 워커 스레드를 반환합니다.
         }
 
         // 대기가 없으면 다음 블록으로 인덱스 증가
@@ -295,6 +292,7 @@ void Entity::executeScript(const Script *scriptPtr, const std::string &execution
         scriptThreadStates.erase(executionThreadId);
     }
 
+    t_index++;
 }
 
 // ... (Entity.h에 추가할 BlockTypeEnumToString 헬퍼 함수 선언 예시)
@@ -1512,39 +1510,35 @@ void Entity::processInternalContinuations(float deltaTime) {
 }
 
 // 수정된 함수
-
 void Entity::resumeExplicitWaitScripts(float deltaTime) {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;
     }
 
-    std::vector<ScriptTask> tasksToDispatch;
-    {
+    std::vector<ScriptTask> tasksToDispatch; {
         std::lock_guard lock(m_stateMutex);
+        // 반복자 증가를 루프 선언부로 옮겨 가독성 및 안정성 향상
         for (auto it = scriptThreadStates.begin(); it != scriptThreadStates.end(); ++it) {
             auto &execId = it->first;
             auto &state = it->second;
 
+            // EXPLICIT_WAIT_SECOND 상태가 아니거나 아직 대기 중이면 다음 스레드로 넘어감
             if (!state.isWaiting || state.currentWaitType != WaitType::EXPLICIT_WAIT_SECOND) {
                 continue;
             }
             if (SDL_GetTicks() < state.waitEndTime) {
-                continue;
+                continue; // 아직 대기 시간 남음
             }
 
             // 대기 시간 종료됨
-            // [수정] state.resumeAtBlockIndex != -1 조건 제거
-            // EXPLICIT_WAIT_SECOND 타입의 대기는 이 인덱스를 사용하지 않습니다.
-            // 스크립트를 재개할 수 있는지 여부는 scriptPtrForResume의 유효성으로만 판단합니다.
-            if (state.scriptPtrForResume) {
+            if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1) {
+                // 로그 메시지 구성 시 std::ostringstream 사용으로 효율성 증대
                 std::ostringstream oss;
                 oss << "Entity " << id << " (Thread: " << execId
-                    << ") finished EXPLICIT_WAIT_SECOND for block " << state.blockIdForWait
-                    << ". Resuming.";
+                        << ") finished EXPLICIT_WAIT_SECOND for block " << state.blockIdForWait
+                        << ". Resuming.";
                 pEngineInstance->EngineStdOut(oss.str(), 0, execId);
 
-                // ScriptTask를 생성할 때 resumeAtBlockIndex는 더 이상 중요하지 않지만,
-                // 구조체에 필드가 있으므로 값을 채워줍니다.
                 tasksToDispatch.emplace_back(ScriptTask{
                     execId, state.scriptPtrForResume, state.sceneIdAtDispatchForResume, state.resumeAtBlockIndex
                 });
@@ -1553,27 +1547,33 @@ void Entity::resumeExplicitWaitScripts(float deltaTime) {
                 state.isWaiting = false;
                 state.waitEndTime = 0;
                 state.currentWaitType = WaitType::NONE;
+                // blockIdForWait, scriptPtrForResume 등은 디스패치된 태스크에서 사용되거나
+                // executeScript에 의해 재설정될 것이므로 여기서는 초기화하지 않음 (원본 로직 유지)
             } else {
                 std::ostringstream oss;
                 oss << "WARNING: Entity " << id << " script thread " << execId
-                    << " EXPLICIT_WAIT_SECOND finished but missing resume context (scriptPtrForResume is null). Clearing wait.";
+                        << " EXPLICIT_WAIT_SECOND finished but missing resume context. Clearing wait.";
                 pEngineInstance->EngineStdOut(oss.str(), 1, execId);
 
                 // 재개 컨텍스트가 없어 대기를 취소하는 경우, 관련 상태 명시적 초기화
                 state.isWaiting = false;
-                state.waitEndTime = 0;
+                state.waitEndTime = 0; // 원본 코드에서 누락되었던 부분 추가
                 state.currentWaitType = WaitType::NONE;
                 state.scriptPtrForResume = nullptr;
-                state.sceneIdAtDispatchForResume.clear();
+                state.sceneIdAtDispatchForResume.clear(); // std::string은 clear() 사용
                 state.resumeAtBlockIndex = -1;
+                // blockIdForWait는 원본 로직에 따라 여기서 초기화하지 않음
             }
         }
     }
 
     for (const auto &task: tasksToDispatch) {
+        // scheduleScriptExecutionOnPool 호출 시 execId를 전달하여
+        // 해당 스레드의 상태(예: resumeAtBlockIndex)가 executeScript 내에서 설정될 것을 기대
         this->scheduleScriptExecutionOnPool(task.script, task.sceneId, deltaTime, task.execId);
     }
 }
+
 void Entity::resumeSoundWaitScripts(float deltaTime) {
     if (!pEngineInstance || pEngineInstance->m_isShuttingDown.load(std::memory_order_relaxed)) {
         return;
@@ -1593,7 +1593,7 @@ void Entity::resumeSoundWaitScripts(float deltaTime) {
                 // AudioEngineHelper::isSoundPlaying(this->getId()) checks if *any* sound for this entity is playing.
                 // For more precise control, you might need to store a specific sound handle/ID in ScriptThreadState.
                 if (!pEngineInstance->aeHelper.isSoundPlaying(this->getId())) {
-                    if (state.scriptPtrForResume) {
+                    if (state.scriptPtrForResume && state.resumeAtBlockIndex != -1) {
                         pEngineInstance->EngineStdOut(
                             "Entity " + id + " (Thread: " + execId + ") finished SOUND_FINISH for block " + state.
                             blockIdForWait + ". Resuming.", 0, execId);

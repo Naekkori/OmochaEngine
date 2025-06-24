@@ -89,8 +89,7 @@ public:
         int resumeAtBlockIndex = -1;               // executeBlocksSynchronously 내부에서 대기 발생 시 재개할 블록 인덱스 (필요시)
         const Script* scriptPtrForResume = nullptr;      // BLOCK_INTERNAL 재개를 위한 스크립트 포인터
         bool terminateRequested  = false;
-        std::map<std::string, int> loopCounters;
-        std::map<std::string, size_t> loopBlockIndices; // Key: loop block_id, Value: current_block_index (micro loop)
+        std::map<std::string, int> loopCounters; // Key: loop block_id, Value: current_iteration_index
         std::string sceneIdAtDispatchForResume = ""; // BLOCK_INTERNAL 재개를 위한 씬 ID
         std::string originalInnerBlockIdForWait = "";
         bool breakLoopRequested = false; // Flag to signal a 'stop_repeat' or break
