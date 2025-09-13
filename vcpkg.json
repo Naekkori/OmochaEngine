@@ -1,5 +1,5 @@
 {
-  "name": "fastentry",
+  "name": "omocha-engine",
   "version-string": "0.0.1",
   "dependencies": [
    "sdl3",
@@ -8,6 +8,7 @@
       "features": ["jpeg", "png", "webp", "tiff"]
     },
     "sdl3-ttf",
-    "nlohmann-json"
+    "nlohmann-json",
+    "libarchive"
   ]
 }
