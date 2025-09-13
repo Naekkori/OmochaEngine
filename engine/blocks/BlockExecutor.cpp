@@ -2240,7 +2240,7 @@ OperandValue Calculator(string BlockType, Engine &engine, const string &objectId
             {
                 return OperandValue(static_cast<double>(green));
             }
-            else if (channel == -"b")
+            else if (channel == "b")
             {
                 return OperandValue(static_cast<double>(blue));
             }
