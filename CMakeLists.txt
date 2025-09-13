@@ -1,35 +1,28 @@
-﻿if(WIN32)
-    if (EXISTS "F:/vcpkg/installed/x64-windows")
-        list(APPEND CMAKE_PREFIX_PATH "F:/vcpkg/installed/x64-windows")
-    endif ()
-    set(VCPKG_USER_DOCS_INSTALLED_PATH "C:/Users/Administrator/Documents/vcpkg/installed/x64-windows")
-    if (EXISTS "${VCPKG_USER_DOCS_INSTALLED_PATH}")
-        list(APPEND CMAKE_PREFIX_PATH "${VCPKG_USER_DOCS_INSTALLED_PATH}")
-    endif ()
-elseif(UNIX AND NOT APPLE)
-    # Linux: Check for vcpkg in the user's home directory
-    # Note: '~' might not expand correctly in CMake. Consider using $ENV{HOME} or a CMake variable.
-    set(VCPKG_LINUX_HOME_PATH "$ENV{HOME}/vcpkg/installed/x64-linux")
-    if(EXISTS "${VCPKG_LINUX_HOME_PATH}")
-        list(APPEND CMAKE_PREFIX_PATH "${VCPKG_LINUX_HOME_PATH}")
-    endif()
-endif ()
-cmake_minimum_required(VERSION 3.12...3.28) # Require 3.12+, adopt policies up to 3.28
+﻿cmake_minimum_required(VERSION 3.12...3.28) # Require 3.12+, adopt policies up to 3.28
+
+set(DEVELOPER_NAME "Naekkori")
+set(GITHUB "https://github.com/Naekkori/OmochaEngine")
+project("OmochaEngine" VERSION 0.0.56 LANGUAGES C CXX)
 
 # Set policies to suppress warnings and use modern behavior
 # CMP0074 (introduced 3.12), CMP0167 (introduced 3.28), and CMP0141 (introduced 3.24)
 # are automatically set to NEW by 'cmake_minimum_required' with policy version 3.28.
 
-# The CMAKE_MSVC_DEBUG_INFORMATION_FORMAT variable is used when CMP0141 is NEW.
-# This setting controls the debug information format for MSVC.
-set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-
-set(DEVELOPER_NAME "Naekkori")
-set(GITHUB "https://github.com/Naekkori/OmochaEngine")
-project("OmochaEngine" VERSION 0.0.56)
+# Set C and C++ language standards for the entire project
+# C17 is required for dependencies like quickjs (which needs C11+)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+# C++23 is required for modern C++ features and compatibility with dependencies
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (MSVC)
+    # The CMAKE_MSVC_DEBUG_INFORMATION_FORMAT variable is used when CMP0141 is NEW.
+    # This setting controls the debug information format for MSVC.
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+
     add_compile_options(/utf-8) # MSVC uses /utf-8 for UTF-8 source/execution charsets
+    add_compile_options(/experimental:c11atomics)
     # C++ 예외 처리 모델을 /EHa (비동기 예외 처리)로 설정
     string(REPLACE "/EHsc" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     if (NOT CMAKE_CXX_FLAGS MATCHES "/EHa")
@@ -40,6 +33,7 @@ if (MSVC)
     set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
 else ()
     add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8) # For GCC/Clang
+    add_compile_options(-D_GNU_SOURCE)
 endif ()
 
 if (WIN32)
@@ -50,36 +44,39 @@ set(RESOURCE_H_FILE ${CMAKE_SOURCE_DIR}/resource.h)
 file(GLOB OMOCHA_ENGINE_SOURCES
         "*.cpp" "*.h"
         "engine/*.cpp" "engine/*.h"
-        "imgui/*.h" "imgui/*.cpp"
+        "imgui/imgui.h"
+        "imgui/imgui.cpp"
+        "imgui/imgui_draw.cpp"
+        "imgui/imgui_widgets.cpp"
+        "imgui/imgui_tables.cpp"
+        "imgui/imconfig.h"
         "imgui/backends/imgui_impl_sdl3.cpp"
         "imgui/backends/imgui_impl_sdlrenderer3.cpp"
         "imgui/backends/imgui_impl_sdl3.h"
         "imgui/backends/imgui_impl_sdlrenderer3.h"
-        "engine/blocks/*.cpp" "engine/blocks/*.h"
         "engine/audio/miniaudio.h"
         "util/*.cpp" "util/*.h"
 )
 
-# OMOCHA_ENGINE_SOURCES 변수는 MainProgram.cpp (루트 디렉토리에 있다면) 및
-# engine/*.cpp, util/*.cpp 등의 모든 필요한 .cpp 파일을 포함해야 합니다.
 if (WIN32)
     set(RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
     if (EXISTS "${RESOURCE_FILE}")
         message(STATUS "Using resource file: ${RESOURCE_FILE}")
         # OMOCHA_ENGINE_SOURCES에 .cpp 파일들이 이미 포함되어 있다고 가정하고, 리소스 파일을 추가합니다.
-        add_executable(OmochaEngine WIN32 ${OMOCHA_ENGINE_SOURCES} "${RESOURCE_FILE}")
+        add_executable(FastEntry WIN32 ${OMOCHA_ENGINE_SOURCES} "${RESOURCE_FILE}")
     else ()
         message(WARNING "Resource file not found: ${RESOURCE_FILE}. Application icon will be missing.")
-        add_executable(OmochaEngine WIN32 ${OMOCHA_ENGINE_SOURCES})
+        add_executable(FastEntry WIN32 ${OMOCHA_ENGINE_SOURCES})
     endif ()
 else ()
-    add_executable(OmochaEngine ${OMOCHA_ENGINE_SOURCES})
+    add_executable(FastEntry ${OMOCHA_ENGINE_SOURCES})
 endif ()
 
 if(WIN32)
-    set(OUTPUT_DIR $<TARGET_FILE_DIR:OmochaEngine>)
+    set(OUTPUT_DIR $<TARGET_FILE_DIR:FastEntry>)
+    target_link_libraries(FastEntry PRIVATE Secur32.lib)
 else()
-    set(OUTPUT_DIR $<TARGET_FILE_DIR:OmochaEngine>)
+    set(OUTPUT_DIR $<TARGET_FILE_DIR:FastEntry>)
 endif()
 
 # font 폴더 복사
@@ -88,7 +85,7 @@ set(FONT_DEST_DIR ${OUTPUT_DIR}/font)
 
 if(EXISTS "${FONT_SOURCE_DIR}")
     add_custom_command(
-            TARGET OmochaEngine POST_BUILD
+            TARGET FastEntry POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${FONT_SOURCE_DIR}" "${FONT_DEST_DIR}"
             COMMENT "Copying font directory to build output"
     )
@@ -97,35 +94,56 @@ else()
     message(WARNING "Source 'font' directory not found at ${FONT_SOURCE_DIR}. Will not be copied.")
 endif()
 
-# sysmenu 폴더 복사
-set(SYSMENU_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/sysmenu)
-set(SYSMENU_DEST_DIR ${OUTPUT_DIR}/sysmenu)
+# assets 폴더 복사
+set(ASSETS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets)
+set(ASSETS_DEST_DIR ${OUTPUT_DIR}/assets)
 
-if(EXISTS "${SYSMENU_SOURCE_DIR}")
+if(EXISTS "${ASSETS_SOURCE_DIR}")
     add_custom_command(
-            TARGET OmochaEngine POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${SYSMENU_SOURCE_DIR}" "${SYSMENU_DEST_DIR}"
-            COMMENT "Copying sysmenu directory to build output"
+            TARGET FastEntry POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${ASSETS_SOURCE_DIR}" "${ASSETS_DEST_DIR}"
+            COMMENT "Copying assets directory to build output"
     )
-    message(STATUS "Will copy 'sysmenu' directory to ${SYSMENU_DEST_DIR} after build.")
+    message(STATUS "Will copy 'assets' directory to ${ASSETS_DEST_DIR} after build.")
 else()
-    message(WARNING "Source 'sysmenu' directory not found at ${SYSMENU_SOURCE_DIR}. Will not be copied.")
+    message(WARNING "Source 'assets' directory not found at ${ASSETS_SOURCE_DIR}. Will not be copied.")
 endif()
 
-# ... (기존 install 및 CPack 설정) ...
-set_property(TARGET OmochaEngine PROPERTY CXX_STANDARD 23)
+# intergrate 폴더 복사
+set(INTERGRATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/intergrate)
+set(INTERGRATE_DEST_DIR ${OUTPUT_DIR}/intergrate)
+
+if(EXISTS "${INTERGRATE_SOURCE_DIR}")
+    add_custom_command(
+            TARGET FastEntry POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${INTERGRATE_SOURCE_DIR}" "${INTERGRATE_DEST_DIR}"
+            COMMENT "Copying intergrate directory to build output"
+    )
+    message(STATUS "Will copy 'intergrate' directory to ${INTERGRATE_DEST_DIR} after build.")
+else()
+    message(WARNING "Source 'intergrate' directory not found at ${INTERGRATE_SOURCE_DIR}. Will not be copied.")
+endif()
+
 find_package(nlohmann_json CONFIG REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE nlohmann_json::nlohmann_json)
-#SDL
 find_package(SDL3 CONFIG REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE SDL3::SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>)
+#FreeType 정리 후 “필요 기능만” 재설치
+#cd ~/vcpkg
+#./vcpkg remove --recurse freetype:x64-linux
+#./vcpkg install freetype[core,png,zlib]:x64-linux --no-default-features
 find_package(SDL3_ttf CONFIG REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE $<IF:$<TARGET_EXISTS:SDL3_ttf::SDL3_ttf>,SDL3_ttf::SDL3_ttf,SDL3_ttf::SDL3_ttf-static>)
-#UnArchive
-find_package(LibArchive REQUIRED)
-target_link_libraries(OmochaEngine PRIVATE LibArchive::LibArchive)
+find_package(Freetype REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(PNG REQUIRED)
+target_link_libraries(FastEntry PRIVATE 
+    nlohmann_json::nlohmann_json
+    SDL3::SDL3
+    $<IF:$<TARGET_EXISTS:SDL3_image::SDL3_image-shared>,SDL3_image::SDL3_image-shared,SDL3_image::SDL3_image-static>
+    SDL3_ttf::SDL3_ttf
+    Freetype::Freetype
+    ${PNG_LIBRARIES}
+    ${ZLIB_LIBRARIES}
+)
 # config file
 configure_file(
         "${PROJECT_SOURCE_DIR}/version_config.h.in"
@@ -133,67 +151,111 @@ configure_file(
         @ONLY
 )
 
-target_include_directories(OmochaEngine PRIVATE
+target_include_directories(FastEntry PRIVATE
         "${PROJECT_BINARY_DIR}"
         "${CMAKE_SOURCE_DIR}"
         "${CMAKE_SOURCE_DIR}/imgui"
 )
-if (WIN32)
-    # CMAKE_PREFIX_PATH 리스트의 첫 번째 경로를 vcpkg 설치 경로로 가정합니다.
-    # 예: F:/vcpkg/installed/x64-windows
+# This block handles copying required shared libraries (.dll for Windows, .so for Linux)
+# from the vcpkg installation directory to the target's output directory post-build.
+
+function(copy_shared_libs TARGET_NAME)
+    # Ensure CMAKE_PREFIX_PATH is set, typically by the CMake toolchain file for vcpkg.
+    if(NOT CMAKE_PREFIX_PATH)
+        message(FATAL_ERROR "CMAKE_PREFIX_PATH is not set. Please configure your project with the vcpkg toolchain file.")
+    endif()
+
+    # Get the vcpkg installation directory from the prefix path.
     list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR)
-    set(VCPKG_BIN_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/bin")
 
-    # 대상 타겟의 출력 디렉터리로 DLL을 복사하는 함수
-    function(copy_dll_to_target_dir TARGET_NAME DLL_BASENAME)
-        set(DLL_SOURCE_PATH "${VCPKG_BIN_DIR}/${DLL_BASENAME}")
-        if (EXISTS "${DLL_SOURCE_PATH}")
+    set(LIBS_TO_COPY "")
+    set(RELEASE_LIB_DIR "")
+    set(DEBUG_LIB_DIR "")
+
+    if (WIN32)
+        set(LIBS_TO_COPY
+            # Release and debug libraries. The script will copy the correct one based on build type.
+            "SDL3.dll" "SDL3d.dll"
+            "SDL3_image.dll" "SDL3_imaged.dll"
+            "SDL3_ttf.dll" "SDL3_ttfd.dll"
+            "jpeg62.dll" "jpeg62d.dll"
+            "bz2.dll" "bz2d.dll"
+            "tiff.dll" "tiffd.dll"
+            "brotlidec.dll" "brotlidecd.dll"
+            "brotlicommon.dll" "brotlicommond.dll"
+            "freetype.dll" "freetyped.dll"
+            "libpng16.dll" "libpng16d.dll"
+            "libwebpdemux.dll" "libwebpdemuxd.dll"
+            "libwebp.dll" "libwebpd.dll"
+            "liblzma.dll" # Usually no 'd' suffix for liblzma
+            "libsharpyuv.dll" "libsharpyuvd.dll"
+            "zlib1.dll" "zlibd1.dll"
+            "lz4.dll" "lz4d.dll"
+            "zstd.dll" "zstdd.dll"
+            "libcrypto-3-x64.dll" # openssl may not have a 'd' suffix
+        )
+        set(RELEASE_LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/bin")
+        set(DEBUG_LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/debug/bin")
+
+    elseif(UNIX AND NOT APPLE)
+        # Note: Linux library names can differ from Windows. This list contains guessed names based on common conventions.
+        # You may need to adjust the names based on your vcpkg installation.
+        set(LIBS_TO_COPY
+            "libSDL3.so" "libSDL3_image.so" "libSDL3_ttf.so" "libjpeg.so" "libbz2.so" "libtiff.so"
+            "libbrotlidec.so" "libbrotlicommon.so" "libfreetype.so" "libpng16.so" "libwebpdemux.so"
+            "libwebp.so" "liblzma.so" "libsharpyuv.so" "libz.so" "liblz4.so" "libzstd.so" "libcrypto.so"
+        )
+        set(RELEASE_LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/lib")
+        # For Linux, debug and release libraries are often in the same directory, but we check both for robustness.
+        set(DEBUG_LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/debug/lib")
+    endif()
+
+    if(NOT LIBS_TO_COPY)
+        message(STATUS "No shared libraries to copy for this platform.")
+        return()
+    endif()
+
+    foreach(LIB_FILENAME ${LIBS_TO_COPY})
+        set(LIB_SOURCE_PATH_RELEASE "${RELEASE_LIB_DIR}/${LIB_FILENAME}")
+        set(LIB_SOURCE_PATH_DEBUG "${DEBUG_LIB_DIR}/${LIB_FILENAME}")
+
+        set(LIB_FOUND FALSE)
+        # Add custom command for Release configurations if the library exists
+        if(EXISTS "${LIB_SOURCE_PATH_RELEASE}")
             add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${DLL_SOURCE_PATH}"
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                    COMMENT "Copying ${DLL_BASENAME} to output directory for ${TARGET_NAME}"
-            )
-        else ()
-            message(WARNING "DLL to copy not found: ${DLL_SOURCE_PATH}")
-        endif ()
-    endfunction()
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${LIB_SOURCE_PATH_RELEASE}"
+                $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMENT "Copying ${LIB_FILENAME} (Release) to output directory"
+                CONFIGURATIONS Release RelWithDebInfo MinSizeRel)
+            set(LIB_FOUND TRUE)
+        endif()
 
-    # OmochaEngine 타겟을 위해 필요한 DLL들을 복사합니다.
-    copy_dll_to_target_dir(OmochaEngine "SDL3.dll")
-    copy_dll_to_target_dir(OmochaEngine "SDL3_image.dll")
-    copy_dll_to_target_dir(OmochaEngine "SDL3_ttf.dll")
-    copy_dll_to_target_dir(OmochaEngine "jpeg62.dll")
-    copy_dll_to_target_dir(OmochaEngine "bz2.dll")
-    copy_dll_to_target_dir(OmochaEngine "tiff.dll")
-    copy_dll_to_target_dir(OmochaEngine "brotlidec.dll")
-    copy_dll_to_target_dir(OmochaEngine "brotlicommon.dll")
-    copy_dll_to_target_dir(OmochaEngine "freetype.dll")
-    copy_dll_to_target_dir(OmochaEngine "libpng16.dll")
-    copy_dll_to_target_dir(OmochaEngine "libwebpdemux.dll")
-    copy_dll_to_target_dir(OmochaEngine "libwebp.dll")
-    copy_dll_to_target_dir(OmochaEngine "liblzma.dll")
-    copy_dll_to_target_dir(OmochaEngine "libsharpyuv.dll")
-    copy_dll_to_target_dir(OmochaEngine "zlib1.dll")
-    copy_dll_to_target_dir(OmochaEngine "archive.dll")
-    copy_dll_to_target_dir(OmochaEngine "lz4.dll")
-    copy_dll_to_target_dir(OmochaEngine "zstd.dll")
-    copy_dll_to_target_dir(OmochaEngine "libwinpthread-1.dll")
-    copy_dll_to_target_dir(OmochaEngine "libgcc_s_seh-1.dll")
-    copy_dll_to_target_dir(OmochaEngine "libstdc++-6.dll")
-    copy_dll_to_target_dir(OmochaEngine "libcrypto-3-x64.dll")
+        # Add custom command for Debug configuration if the library exists
+        if(EXISTS "${LIB_SOURCE_PATH_DEBUG}")
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${LIB_SOURCE_PATH_DEBUG}"
+                $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMENT "Copying ${LIB_FILENAME} (Debug) to output directory"
+                CONFIGURATIONS Debug)
+            set(LIB_FOUND TRUE)
+        endif()
 
-    #copy_dll_to_target_dir(OmochaEngine "imgui.dll")
-    # jsoncpp.dll의 경우, vcpkg가 공유 라이브러리로 빌드했다면 ${VCPKG_BIN_DIR}에 존재합니다.
-    # 정적으로 링크된 경우에는 이 DLL이 필요 없으며, 파일이 없다면 복사되지 않습니다.
-    #copy_dll_to_target_dir(OmochaEngine "rapidjson.dll")
-endif ()
+        if(NOT LIB_FOUND)
+            message(WARNING "Could not find ${LIB_FILENAME} in Release ('${LIB_SOURCE_PATH_RELEASE}') or Debug ('${LIB_SOURCE_PATH_DEBUG}') paths to copy.")
+        endif()
+    endforeach()
+endfunction()
+
+# Copy the necessary shared libraries for the FastEntry target
+copy_shared_libs(FastEntry)
 
 # Installation rules for CPack
 # -----------------------------------------------------------------------------
 
 # Install the main executable
-install(TARGETS OmochaEngine
+install(TARGETS FastEntry
         RUNTIME DESTINATION . COMPONENT Application
 )
 
@@ -272,53 +334,56 @@ else ()
     message(WARNING "README.md not found. It will not be packaged.")
 endif ()
 
-# Install DLLs for Windows
-if (WIN32)
-    # VCPKG_BIN_DIR should be set from the DLL copying section above.
-    # If not, ensure CMAKE_PREFIX_PATH is correctly set and vcpkg integration is working.
-    if (NOT DEFINED VCPKG_BIN_DIR)
-        if (CMAKE_PREFIX_PATH)
-            list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR_TEMP)
-            # Ensure the fallback path also points to a 'bin' directory
-            set(VCPKG_BIN_DIR_TEMP "${VCPKG_INSTALL_TRIPLET_DIR_TEMP}/bin")
-            if (IS_DIRECTORY "${VCPKG_BIN_DIR_TEMP}")
-                set(VCPKG_BIN_DIR ${VCPKG_BIN_DIR_TEMP})
-            endif ()
-        endif ()
-    endif ()
+# Install shared libraries (.dll/.so) for packaging
+function(install_shared_libs_for_cpack)
+    if(NOT CMAKE_PREFIX_PATH)
+        message(WARNING "CMAKE_PREFIX_PATH is not set. Cannot locate vcpkg libraries for packaging.")
+        return()
+    endif()
+    list(GET CMAKE_PREFIX_PATH 0 VCPKG_INSTALL_TRIPLET_DIR)
 
-    if (DEFINED VCPKG_BIN_DIR AND IS_DIRECTORY "${VCPKG_BIN_DIR}")
-        set(PROJECT_DLLS
-                "SDL3.dll"
-                "SDL3_image.dll"
-                "SDL3_ttf.dll"
-                "jpeg62.dll"
-                "bz2.dll"
-                "tiff.dll"
-                "brotlidec.dll"
-                "brotlicommon.dll"
-                "freetype.dll"
-                "archive.dll"
-                "libpng16.dll"
-                "libwebpdemux.dll"
-                "libwebp.dll"
-                "liblzma.dll"
-                "libsharpyuv.dll"
-                "zlib1.dll"
+    set(LIBS_TO_INSTALL "")
+    set(LIB_DIR "")
+    set(COMPONENT_NAME "RuntimeLibraries")
+
+    if(WIN32)
+        set(LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/bin")
+        # Release DLLs for packaging. Note: Debug DLLs are not packaged.
+        set(LIBS_TO_INSTALL
+            "SDL3.dll" "SDL3_image.dll" "SDL3_ttf.dll" "jpeg62.dll" "bz2.dll" "tiff.dll"
+            "brotlidec.dll" "brotlicommon.dll" "freetype.dll" "libpng16.dll" "libwebpdemux.dll"
+            "libwebp.dll" "liblzma.dll" "libsharpyuv.dll" "zlib1.dll" "lz4.dll" "zstd.dll"
+            "libcrypto-3-x64.dll" "archive.dll"
         )
+    elseif(UNIX AND NOT APPLE)
+        set(LIB_DIR "${VCPKG_INSTALL_TRIPLET_DIR}/lib")
+        # Release .so files for packaging.
+        set(LIBS_TO_INSTALL
+            "libSDL3.so" "libSDL3_image.so" "libSDL3_ttf.so" "libjpeg.so" "libbz2.so" "libtiff.so"
+            "libbrotlidec.so" "libbrotlicommon.so" "libfreetype.so" "libpng16.so" "libwebpdemux.so"
+            "libwebp.so" "liblzma.so" "libsharpyuv.so" "libz.so" "liblz4.so" "libzstd.so" "libcrypto.so"
+        )
+    endif()
 
-        foreach (DLL_BASENAME ${PROJECT_DLLS})
-            set(DLL_SOURCE_PATH "${VCPKG_BIN_DIR}/${DLL_BASENAME}")
-            if (EXISTS "${DLL_SOURCE_PATH}")
-                install(FILES "${DLL_SOURCE_PATH}" DESTINATION . COMPONENT RuntimeLibraries)
-            else ()
-                message(WARNING "DLL to install for packaging not found: ${DLL_SOURCE_PATH}")
-            endif ()
-        endforeach ()
-    else ()
-        message(WARNING "VCPKG_BIN_DIR is not defined or not a directory. DLLs will not be packaged.")
-    endif ()
-endif ()
+    if(NOT IS_DIRECTORY "${LIB_DIR}")
+        message(WARNING "Library directory for packaging not found: ${LIB_DIR}. Shared libraries will not be packaged.")
+        return()
+    endif()
+
+    message(STATUS "Queuing shared libraries from ${LIB_DIR} for packaging.")
+    foreach(LIB_FILENAME ${LIBS_TO_INSTALL})
+        set(LIB_SOURCE_PATH "${LIB_DIR}/${LIB_FILENAME}")
+        if(EXISTS "${LIB_SOURCE_PATH}")
+            install(FILES "${LIB_SOURCE_PATH}" DESTINATION . COMPONENT ${COMPONENT_NAME})
+            message(STATUS "  - Queued for packaging: ${LIB_FILENAME}")
+        else()
+            message(WARNING "Library to install for packaging not found: ${LIB_SOURCE_PATH}")
+        endif()
+    endforeach()
+endfunction()
+
+# Install shared libraries needed for the application to run
+install_shared_libs_for_cpack()
 
 # Install third-party library licenses (vcpkg, manual, or downloaded)
 set(VCPKG_INSTALL_ROOT_FOR_LICENSES "")
@@ -343,11 +408,11 @@ if (VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_L
 
     set(VCPKG_LIC_PORTS
             "imgui"            # From find_package
+            "quickjs"
             "nlohmann_json"     # From find_package
             "sdl3"          # From find_package
             "sdl3-image"    # From find_package
             "sdl3-ttf"      # From find_package
-            "libarchive"    # From find_package
             #"boost"         # Used for asio, license often general
             "bzip2"         # From bz2.dll (Windows) or linked dependency
             "libjpeg-turbo" # From jpeg62.dll (Windows) or linked dependency
@@ -368,7 +433,7 @@ if (VCPKG_INSTALL_ROOT_FOR_LICENSES AND IS_DIRECTORY "${VCPKG_INSTALL_ROOT_FOR_L
 
     # --- 사용자 정의: 다운로드할 라이선스 URL ---
     set(LICENSE_URL_imgui "https://github.com/ocornut/imgui/blob/master/LICENSE.txt")
-    set(LICENSE_URL_libarchive "https://github.com/libarchive/libarchive/blob/master/COPYING")
+    set(LICENSE_URL_quickjs "https://raw.githubusercontent.com/quickjs-ng/quickjs/refs/heads/master/LICENSE")
     set(LICENSE_URL_nlohmann_json "https://github.com/nlohmann/json/blob/master/LICENSE.MIT")
     set(LICENSE_URL_libtiff "https://gitlab.com/libtiff/libtiff/-/raw/master/LICENSE.md") # 실제 URL 확인 필요
     set(LICENSE_URL_miniaudio "https://raw.githubusercontent.com/mackron/miniaudio/refs/heads/master/LICENSE")
@@ -448,7 +513,7 @@ endif ()
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "${DEVELOPER_NAME}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OmochaEngine Game Engine")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "FastEntry Game Engine")
 set(CPACK_PACKAGE_HOMEPAGE_URL "${GITHUB}")
 set(CPACK_PACKAGE_CONTACT "${DEVELOPER_NAME}") # You can use an email here
 
